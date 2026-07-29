@@ -155,7 +155,10 @@ export interface paths {
     }
     get?: never
     put?: never
-    /** Re-run a task and everything downstream */
+    /**
+     * Retry a failed task and everything downstream
+     * @description For a task that failed. Everything below it is blocked rather than done, so it cascades and runs immediately. To redo a task that succeeded, use the re-run endpoint instead.
+     */
     post: operations['retryTask']
     delete?: never
     options?: never
@@ -276,7 +279,7 @@ export interface paths {
     }
     get?: never
     put?: never
-    /** Re-run a chapter and everything downstream */
+    /** Retry a failed chapter and everything downstream */
     post: operations['retryChapter']
     delete?: never
     options?: never
@@ -295,6 +298,63 @@ export interface paths {
     put?: never
     /** Reject the open gate */
     post: operations['rejectGate']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/videos/{key}/rerun': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Re-run succeeded tasks, flagging their downstream stale
+     * @description Re-runs the named tasks and marks everything downstream of them stale instead of re-running it, so artifacts that may already have been reviewed are not discarded without a decision. Send dryRun to see what would be affected without changing anything.
+     */
+    post: operations['rerunTasks']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/videos/{key}/stale/accept': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Keep stale artifacts as they are
+     * @description Clears the stale flag without re-running anything. Staleness records that an input changed, not that the output is wrong; an operator who has checked the artifact can keep it.
+     */
+    post: operations['acceptStaleTasks']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/videos/{key}/stale/run': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Re-run stale tasks */
+    post: operations['runStaleTasks']
     delete?: never
     options?: never
     head?: never
@@ -569,6 +629,31 @@ export interface components {
       /** Format: int64 */
       queued: number
     }
+    RerunInputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/RerunInputBody.json
+       */
+      readonly $schema?: string
+      /** @description Report the blast radius without changing anything */
+      dryRun?: boolean
+      /** @description Tasks to run again */
+      taskIds: string[]
+    }
+    RerunOutputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/RerunOutputBody.json
+       */
+      readonly $schema?: string
+      dryRun: boolean
+      /** @description Tasks that will run again */
+      rerun: components['schemas']['TaskDTO'][]
+      /** @description Tasks that will be flagged stale rather than run */
+      stale: components['schemas']['TaskDTO'][]
+    }
     SchedulerStatusDTO: {
       /**
        * Format: uri
@@ -627,6 +712,26 @@ export interface components {
       readonly $schema?: string
       settings: components['schemas']['SettingDTO'][]
     }
+    StaleActionInputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/StaleActionInputBody.json
+       */
+      readonly $schema?: string
+      /** @description Stale tasks to act on; empty means every stale task */
+      taskIds?: string[]
+    }
+    StaleActionOutputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/StaleActionOutputBody.json
+       */
+      readonly $schema?: string
+      /** Format: int64 */
+      count: number
+    }
     StyleDTO: {
       /** @description Visual direction handed to the image backend */
       imageStyle: string
@@ -670,6 +775,8 @@ export interface components {
       ready: number
       /** Format: int64 */
       running: number
+      /** Format: int64 */
+      stale: number
       /** Format: int64 */
       succeeded: number
       /** Format: int64 */
@@ -715,6 +822,8 @@ export interface components {
       ordinal: number
       /** @enum {string} */
       pool: 'llm' | 'tts' | 'image' | 'compose' | 'cache' | 'upload'
+      /** @description An input changed after this task ran; its artifact is intact but unverified */
+      stale: boolean
       /** Format: date-time */
       startedAt?: string
       /** @enum {string} */
@@ -1536,6 +1645,114 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['TaskDTO']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  rerunTasks: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Video ref or id */
+        key: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RerunInputBody']
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['RerunOutputBody']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  acceptStaleTasks: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Video ref or id */
+        key: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['StaleActionInputBody']
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['StaleActionOutputBody']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  runStaleTasks: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Video ref or id */
+        key: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['StaleActionInputBody']
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['StaleActionOutputBody']
         }
       }
       /** @description Error */

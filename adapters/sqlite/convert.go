@@ -204,6 +204,7 @@ func taskFromRow(r sqlcgen.Task) entity.Task {
 		Attempt:       int(r.Attempt),
 		MaxAttempts:   int(r.MaxAttempts),
 		DepsRemaining: int(r.DepsRemaining),
+		Stale:         r.Stale != 0,
 		Error:         r.Error,
 		CreatedAt:     fromUnix(r.CreatedAt),
 		UpdatedAt:     fromUnix(r.UpdatedAt),
@@ -211,4 +212,12 @@ func taskFromRow(r sqlcgen.Task) entity.Task {
 		FinishedAt:    fromUnixPtr(r.FinishedAt),
 		NotBefore:     fromUnixPtr(r.NotBefore),
 	}
+}
+
+// boolToInt maps a Go bool to SQLite's integer boolean.
+func boolToInt(b bool) int64 {
+	if b {
+		return 1
+	}
+	return 0
 }

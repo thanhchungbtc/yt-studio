@@ -96,6 +96,9 @@ type TaskCountsDTO struct {
 	Blocked          int `json:"blocked"`
 	AwaitingApproval int `json:"awaitingApproval"`
 	Cancelled        int `json:"cancelled"`
+	// Stale cuts across the counts above rather than partitioning with them:
+	// a stale task is usually also a succeeded one.
+	Stale int `json:"stale"`
 }
 
 func countsFrom(c repository.TaskCounts) TaskCountsDTO {
@@ -108,6 +111,7 @@ func countsFrom(c repository.TaskCounts) TaskCountsDTO {
 		Blocked:          c.Blocked,
 		AwaitingApproval: c.AwaitingApproval,
 		Cancelled:        c.Cancelled,
+		Stale:            c.Stale,
 	}
 }
 
@@ -257,6 +261,7 @@ type TaskDTO struct {
 	Attempt       int        `json:"attempt"`
 	MaxAttempts   int        `json:"maxAttempts"`
 	DepsRemaining int        `json:"depsRemaining"`
+	Stale         bool       `json:"stale" doc:"An input changed after this task ran; its artifact is intact but unverified"`
 	Error         string     `json:"error,omitempty"`
 	UpdatedAt     time.Time  `json:"updatedAt"`
 	StartedAt     *time.Time `json:"startedAt,omitempty"`
@@ -277,6 +282,7 @@ func taskFrom(t entity.Task) TaskDTO {
 		Attempt:       t.Attempt,
 		MaxAttempts:   t.MaxAttempts,
 		DepsRemaining: t.DepsRemaining,
+		Stale:         t.Stale,
 		Error:         t.Error,
 		UpdatedAt:     t.UpdatedAt,
 		StartedAt:     t.StartedAt,

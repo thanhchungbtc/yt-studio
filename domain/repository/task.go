@@ -24,6 +24,7 @@ type TaskTransition struct {
 	State         entity.TaskState
 	Attempt       int
 	DepsRemaining int
+	Stale         bool
 	Error         string
 	StartedAt     *time.Time
 	FinishedAt    *time.Time
@@ -34,14 +35,18 @@ type TaskTransition struct {
 // TaskCounts is the per-video aggregate the video list and SSE deltas need
 // without loading every row.
 type TaskCounts struct {
-	Total             int
-	Succeeded         int
-	Failed            int
-	Running           int
-	Ready             int
-	Blocked           int
-	AwaitingApproval  int
-	Cancelled         int
+	Total            int
+	Succeeded        int
+	Failed           int
+	Running          int
+	Ready            int
+	Blocked          int
+	AwaitingApproval int
+	Cancelled        int
+	// Stale counts tasks whose input changed after they ran. It cuts across the
+	// states above rather than partitioning with them: a stale task is usually
+	// also a succeeded one.
+	Stale             int
 	FirstOpenGateKind entity.GateKind
 }
 

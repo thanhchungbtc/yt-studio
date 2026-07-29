@@ -110,6 +110,7 @@ type counters struct {
 	awaitingApproval int
 	cancelled        int
 	retryPending     int
+	stale            int
 	lastError        string
 	state            entity.VideoState
 	gate             entity.GateKind
@@ -120,6 +121,9 @@ type completion struct {
 	videoID entity.VideoID
 	outcome entity.TaskOutcome
 	at      time.Time
+	// generation the task was dispatched under. A reset in the meantime bumps
+	// the graph's counter and this answer is thrown away.
+	generation uint64
 }
 
 // videoRun carries the cancellation scope of one video. Cancelling it stops
@@ -351,12 +355,28 @@ func (s *Scheduler) startTask(ctx context.Context, t *entity.Task) {
 	snapshot := *t // by value: the loop keeps mutating its own copy
 	id, videoID := t.ID, t.VideoID
 
+	// Captured at dispatch: whatever happens to the task while the provider
+	// call is in flight, the completion can be matched against the state it
+	// was started from.
+	var generation uint64
+	if g, ok := s.graphs[videoID]; ok {
+		if idx, found := g.IndexOf(id); found {
+			generation = g.Generation(idx)
+		}
+	}
+
 	s.workers.Add(1)
 	go func() {
 		defer s.workers.Done()
 		outcome := runSafely(vctx, s.runner, snapshot)
 		s.pools.Release(snapshot.Pool)
-		s.completions <- completion{taskID: id, videoID: videoID, outcome: outcome, at: time.Now()}
+		s.completions <- completion{
+			taskID:     id,
+			videoID:    videoID,
+			outcome:    outcome,
+			at:         time.Now(),
+			generation: generation,
+		}
 	}()
 }
 
@@ -384,8 +404,13 @@ func (s *Scheduler) handleCompletion(c completion) {
 	if !ok {
 		return
 	}
+	if idx, found := g.IndexOf(c.taskID); found && g.Generation(idx) != c.generation {
+		// Reset while in flight. The answer is to a question that has since
+		// changed, so it is discarded; resetFrom has already re-queued the task.
+		return
+	}
 	if t.State != entity.TaskStateRunning {
-		// Cancelled or reset while in flight; the result is discarded.
+		// Cancelled while in flight; the result is discarded.
 		return
 	}
 	t.FinishedAt = &c.at
@@ -573,6 +598,7 @@ func (s *Scheduler) record(t *entity.Task) {
 		State:         t.State,
 		Attempt:       t.Attempt,
 		DepsRemaining: t.DepsRemaining,
+		Stale:         t.Stale,
 		Error:         t.Error,
 		StartedAt:     t.StartedAt,
 		FinishedAt:    t.FinishedAt,
@@ -612,6 +638,11 @@ func (s *Scheduler) recount(videoID entity.VideoID) {
 	*c = counters{total: len(g.tasks)}
 	for i := range g.tasks {
 		t := &g.tasks[i]
+		// Staleness cuts across the states below rather than partitioning
+		// with them: a stale task is usually also a succeeded one.
+		if t.Stale {
+			c.stale++
+		}
 		switch t.State {
 		case entity.TaskStateSucceeded:
 			c.succeeded++

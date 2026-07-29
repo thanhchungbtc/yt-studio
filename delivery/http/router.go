@@ -44,6 +44,10 @@ type Deps struct {
 	Forgetter  app.VideoForgetter
 	TaskRetry  app.TaskRetrier
 	ChapRetry  app.ChapterRetrier
+	Rerunner   app.TaskRerunner
+	StaleMark  app.StaleMarker
+	StaleRun   app.StaleRunner
+	StaleOK    app.StaleAccepter
 	Pools      app.PoolLimiter
 	Reporter   app.StatusReporter
 	Prompts    app.PromptCacheInvalidator
@@ -94,8 +98,9 @@ func NewRouter(d Deps) (http.Handler, huma.API) {
 	registerVideoRoutes(api, d.Videos, d.VideoWriter, d.VideoStates, d.Channels, d.ChannelWriter,
 		d.Tasks, d.TaskWriter, d.Submitter, d.Canceller, d.Approver, d.Rejecter, d.Forgetter,
 		d.Settings, d.NewID, d.Now)
-	registerChapterRoutes(api, d.Videos, d.Chapters, d.ChapterFields, d.Notifier, d.ChapRetry, d.Prompts)
-	registerTaskRoutes(api, d.Videos, d.Tasks, d.TaskRetry, d.Prompts)
+	registerChapterRoutes(api, d.Videos, d.Chapters, d.ChapterFields, d.Notifier, d.ChapRetry, d.Prompts, d.StaleMark)
+	registerTaskRoutes(api, d.Videos, d.Tasks, d.TaskRetry, d.Prompts,
+		d.Rerunner, d.StaleRun, d.StaleOK)
 	registerSettingRoutes(api, d.Settings, d.Pools, d.Coalescer, d.LogLevel)
 	registerAssetRoutes(api, d.Videos, d.Assets)
 	registerSchedulerRoutes(api, d.Reporter, d.Version, d.Started, d.SSEClients)

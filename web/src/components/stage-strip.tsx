@@ -34,6 +34,7 @@ interface Stage {
   running: number
   failed: number
   gated: number
+  stale: number
 }
 
 export const StageStrip = memo(function StageStrip({ tasks }: { tasks: Task[] }) {
@@ -56,6 +57,7 @@ export const StageStrip = memo(function StageStrip({ tasks }: { tasks: Task[] })
                   {stage.running > 0 ? `, ${stage.running} running` : ''}
                   {stage.gated > 0 ? `, ${stage.gated} gated` : ''}
                   {stage.failed > 0 ? `, ${stage.failed} failed` : ''}
+                  {stage.stale > 0 ? `, ${stage.stale} stale` : ''}
                 </span>
               </span>
             }
@@ -65,7 +67,7 @@ export const StageStrip = memo(function StageStrip({ tasks }: { tasks: Task[] })
                 'relative min-w-[92px] flex-1 overflow-hidden rounded-[var(--radius-sm)] border px-2 py-1.5 transition-colors',
                 stage.failed > 0
                   ? 'border-[hsl(var(--danger)/0.4)] bg-[hsl(var(--danger-soft))]'
-                  : stage.gated > 0
+                  : stage.stale > 0 || stage.gated > 0
                     ? 'border-[hsl(var(--warning)/0.4)] bg-[hsl(var(--warning-soft))]'
                     : complete
                       ? 'border-[hsl(var(--success)/0.3)] bg-[hsl(var(--success-soft))]'
@@ -101,7 +103,12 @@ export const StageStrip = memo(function StageStrip({ tasks }: { tasks: Task[] })
                   {stage.failed} failed
                 </span>
               )}
-              {stage.failed === 0 && stage.gated > 0 && (
+              {stage.failed === 0 && stage.stale > 0 && (
+                <span className="relative mt-0.5 block text-[10px] text-[hsl(var(--warning))]">
+                  {stage.stale} stale
+                </span>
+              )}
+              {stage.failed === 0 && stage.stale === 0 && stage.gated > 0 && (
                 <span className="relative mt-0.5 block text-[10px] text-[hsl(var(--warning))]">
                   awaiting approval
                 </span>
@@ -124,8 +131,10 @@ function summarise(tasks: Task[]): Stage[] {
       running: 0,
       failed: 0,
       gated: 0,
+      stale: 0,
     }
     stage.total += 1
+    if (task.stale) stage.stale += 1
     if (task.state === 'succeeded') stage.succeeded += 1
     else if (task.state === 'running') stage.running += 1
     else if (task.state === 'failed') stage.failed += 1

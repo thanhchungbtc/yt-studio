@@ -177,6 +177,47 @@ pipeline — the longest pole — early. A property test asserts it stays that w
 For 50 chapters and 2 stills each that is 305 tasks. Every task starts the
 moment its own dependencies are met; there are no stage barriers anywhere.
 
+### Re-running, and staleness
+
+Retrying and re-running are different operations, and the pipeline treats them
+that way.
+
+A **failed** task has nothing below it that ever ran — the whole closure is
+still `blocked` — so retrying cascades and runs immediately. No confirmation,
+nothing to lose.
+
+A **succeeded** task is the opposite: its dependents produced artifacts that may
+already have been reviewed. Re-running it runs only that task, and marks its
+downstream **stale** rather than redoing it. Nothing below runs until an
+operator says so. The same happens when a chapter script is edited by hand: the
+narration and clip beneath it were derived from text that no longer exists, and
+now say so instead of sitting there silently disagreeing.
+
+`stale` is a flag, not a state, because the combination that matters is
+`succeeded` **and** stale: the artifact is intact, still downloadable, and quite
+possibly still correct. Staleness is pessimistic — it records that an input
+moved, not that the output is wrong. So there are two ways out, and the UI gives
+them equal weight:
+
+- **Re-run it**, and it stops being stale by being rebuilt.
+- **Keep it** — the operator looked, decided it is fine, and clears the flag
+  without spending the compute to prove what they already know.
+
+Accepting clears exactly the tasks named. It deliberately does *not* cascade to
+their dependents: working out whether a dependent is still stale needs to know
+*why* it was flagged, which one bool cannot carry, and a task downstream of two
+independent re-runs would be silently un-flagged by resolving only one of them.
+"Keep all" covers the common case in one click without the wrong answers.
+
+Before committing, `POST /api/videos/{key}/rerun` with `dryRun` reports the
+blast radius, which is what the confirmation dialog shows. The preview lists
+exactly what will be flagged — a task below the seed that has never run is not
+included, because it will not be marked.
+
+A dispatch carries the generation it started under, and a reset bumps that
+counter, so a task that was in flight when its input was re-run has its answer
+discarded rather than accepted as current.
+
 ### The scheduler
 
 Owning it is the point. It is a single goroutine over an in-memory ready set,

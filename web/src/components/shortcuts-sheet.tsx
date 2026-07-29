@@ -45,6 +45,16 @@ const SECTIONS: { group: string; items: { keys: string; label: string }[] }[] = 
       { keys: 'mod+arrowright', label: 'Next tab' },
     ],
   },
+  {
+    group: 'Artifact preview',
+    items: [
+      { keys: 'arrowleft', label: 'Previous artifact' },
+      { keys: 'arrowright', label: 'Next artifact' },
+      { keys: 'f', label: 'Fit to window or actual size' },
+      { keys: 'i', label: 'Show or hide the details rail' },
+      { keys: 'd', label: 'Download the artifact' },
+    ],
+  },
 ]
 
 export function ShortcutsSheet({

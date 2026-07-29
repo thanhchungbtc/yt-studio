@@ -53,6 +53,15 @@ type Graph struct {
 	dependencies [][]int32
 	byID         map[entity.TaskID]int32
 
+	// generations[i] counts how many times node i has been reset. A dispatch
+	// carries the generation it started under and its completion is discarded
+	// if they no longer match, which is what stops a task that was in flight
+	// when its input was retried from landing an answer to the old question.
+	//
+	// It is deliberately not persisted: a restart reclaims every in-flight task
+	// as ready, so there is no completion left to disambiguate.
+	generations []uint64
+
 	// installed flips once the dispatch loop owns this graph. After that the
 	// loop mutates tasks freely, so no other goroutine may read the slice —
 	// which is what makes a repeated Submit a cheap no-op rather than a race.
@@ -88,6 +97,12 @@ func (g *Graph) TaskByID(id entity.TaskID) (*entity.Task, bool) {
 	}
 	return &g.tasks[i], true
 }
+
+// Generation returns the current dispatch generation of node i.
+func (g *Graph) Generation(i int32) uint64 { return g.generations[i] }
+
+// bumpGeneration invalidates any dispatch of node i that is still in flight.
+func (g *Graph) bumpGeneration(i int32) { g.generations[i]++ }
 
 // Dependents returns the node indices released when i succeeds.
 func (g *Graph) Dependents(i int32) []int32 { return g.dependents[i] }
@@ -152,6 +167,7 @@ func BuildGraph(spec BuildSpec) (*Graph, error) {
 		dependents:   make([][]int32, 0, total),
 		dependencies: make([][]int32, 0, total),
 		byID:         make(map[entity.TaskID]int32, total),
+		generations:  make([]uint64, total),
 	}
 
 	add := func(kind entity.TaskKind, ordinal, index int, gate entity.GateKind) int32 {
@@ -341,6 +357,7 @@ func GraphFromPersisted(vg repository.VideoGraph) (*Graph, error) {
 		dependents:   make([][]int32, len(vg.Tasks)),
 		dependencies: make([][]int32, len(vg.Tasks)),
 		byID:         make(map[entity.TaskID]int32, len(vg.Tasks)),
+		generations:  make([]uint64, len(vg.Tasks)),
 	}
 	copy(g.tasks, vg.Tasks)
 	for i := range g.tasks {

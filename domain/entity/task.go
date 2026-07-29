@@ -215,6 +215,17 @@ type Task struct {
 	// that recovery after a crash is exact rather than recomputed (§8.3).
 	DepsRemaining int
 
+	// Stale marks a task whose own output is intact but whose input has since
+	// changed — an upstream task was re-run, or a chapter script was edited.
+	//
+	// It is deliberately a flag rather than a state, because the useful
+	// combination is `succeeded` *and* stale: the artifact is still there, still
+	// downloadable, and may well still be correct. Staleness is pessimistic. We
+	// know the input moved; we do not know the output is wrong. So an operator
+	// who checks and disagrees can accept it, and a stale task never runs on its
+	// own — it waits for that decision (§9).
+	Stale bool
+
 	Error      string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time

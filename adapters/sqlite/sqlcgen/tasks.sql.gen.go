@@ -11,7 +11,7 @@ import (
 
 const applyTaskTransition = `-- name: ApplyTaskTransition :exec
 UPDATE tasks
-SET state = ?, attempt = ?, deps_remaining = ?, error = ?,
+SET state = ?, attempt = ?, deps_remaining = ?, error = ?, stale = ?,
     started_at = ?, finished_at = ?, not_before = ?, updated_at = ?
 WHERE id = ?
 `
@@ -21,6 +21,7 @@ type ApplyTaskTransitionParams struct {
 	Attempt       int64
 	DepsRemaining int64
 	Error         string
+	Stale         int64
 	StartedAt     *int64
 	FinishedAt    *int64
 	NotBefore     *int64
@@ -34,6 +35,7 @@ func (q *Queries) ApplyTaskTransition(ctx context.Context, arg ApplyTaskTransiti
 		arg.Attempt,
 		arg.DepsRemaining,
 		arg.Error,
+		arg.Stale,
 		arg.StartedAt,
 		arg.FinishedAt,
 		arg.NotBefore,
@@ -52,7 +54,8 @@ SELECT
     CAST(COALESCE(SUM(CASE WHEN state = 'ready' THEN 1 ELSE 0 END), 0) AS INTEGER) AS ready,
     CAST(COALESCE(SUM(CASE WHEN state = 'blocked' THEN 1 ELSE 0 END), 0) AS INTEGER) AS blocked,
     CAST(COALESCE(SUM(CASE WHEN state = 'awaiting_approval' THEN 1 ELSE 0 END), 0) AS INTEGER) AS awaiting,
-    CAST(COALESCE(SUM(CASE WHEN state = 'cancelled' THEN 1 ELSE 0 END), 0) AS INTEGER) AS cancelled
+    CAST(COALESCE(SUM(CASE WHEN state = 'cancelled' THEN 1 ELSE 0 END), 0) AS INTEGER) AS cancelled,
+    CAST(COALESCE(SUM(CASE WHEN stale = 1 THEN 1 ELSE 0 END), 0) AS INTEGER) AS stale
 FROM tasks WHERE video_id = ?
 `
 
@@ -65,6 +68,7 @@ type CountTasksByVideoRow struct {
 	Blocked   int64
 	Awaiting  int64
 	Cancelled int64
+	Stale     int64
 }
 
 func (q *Queries) CountTasksByVideo(ctx context.Context, videoID string) (CountTasksByVideoRow, error) {
@@ -79,6 +83,7 @@ func (q *Queries) CountTasksByVideo(ctx context.Context, videoID string) (CountT
 		&i.Blocked,
 		&i.Awaiting,
 		&i.Cancelled,
+		&i.Stale,
 	)
 	return i, err
 }
@@ -102,7 +107,7 @@ func (q *Queries) DeleteTasksByVideo(ctx context.Context, videoID string) error 
 }
 
 const getTaskByID = `-- name: GetTaskByID :one
-SELECT id, video_id, chapter_id, kind, ordinal, idx, state, pool, gate, attempt, max_attempts, deps_remaining, error, created_at, updated_at, started_at, finished_at, not_before FROM tasks WHERE id = ?
+SELECT id, video_id, chapter_id, kind, ordinal, idx, state, pool, gate, attempt, max_attempts, deps_remaining, error, created_at, updated_at, started_at, finished_at, not_before, stale FROM tasks WHERE id = ?
 `
 
 func (q *Queries) GetTaskByID(ctx context.Context, id string) (Task, error) {
@@ -127,6 +132,7 @@ func (q *Queries) GetTaskByID(ctx context.Context, id string) (Task, error) {
 		&i.StartedAt,
 		&i.FinishedAt,
 		&i.NotBefore,
+		&i.Stale,
 	)
 	return i, err
 }
@@ -134,9 +140,9 @@ func (q *Queries) GetTaskByID(ctx context.Context, id string) (Task, error) {
 const insertTask = `-- name: InsertTask :exec
 INSERT INTO tasks (
     id, video_id, chapter_id, kind, ordinal, idx, state, pool, gate,
-    attempt, max_attempts, deps_remaining, error,
+    attempt, max_attempts, deps_remaining, error, stale,
     created_at, updated_at, started_at, finished_at, not_before
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (id) DO NOTHING
 `
 
@@ -154,6 +160,7 @@ type InsertTaskParams struct {
 	MaxAttempts   int64
 	DepsRemaining int64
 	Error         string
+	Stale         int64
 	CreatedAt     int64
 	UpdatedAt     int64
 	StartedAt     *int64
@@ -176,6 +183,7 @@ func (q *Queries) InsertTask(ctx context.Context, arg InsertTaskParams) error {
 		arg.MaxAttempts,
 		arg.DepsRemaining,
 		arg.Error,
+		arg.Stale,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.StartedAt,
@@ -202,7 +210,7 @@ func (q *Queries) InsertTaskDep(ctx context.Context, arg InsertTaskDepParams) er
 }
 
 const listRecentTasks = `-- name: ListRecentTasks :many
-SELECT id, video_id, chapter_id, kind, ordinal, idx, state, pool, gate, attempt, max_attempts, deps_remaining, error, created_at, updated_at, started_at, finished_at, not_before FROM tasks ORDER BY updated_at DESC LIMIT ?
+SELECT id, video_id, chapter_id, kind, ordinal, idx, state, pool, gate, attempt, max_attempts, deps_remaining, error, created_at, updated_at, started_at, finished_at, not_before, stale FROM tasks ORDER BY updated_at DESC LIMIT ?
 `
 
 func (q *Queries) ListRecentTasks(ctx context.Context, limit int64) ([]Task, error) {
@@ -233,6 +241,54 @@ func (q *Queries) ListRecentTasks(ctx context.Context, limit int64) ([]Task, err
 			&i.StartedAt,
 			&i.FinishedAt,
 			&i.NotBefore,
+			&i.Stale,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStaleTasksByVideo = `-- name: ListStaleTasksByVideo :many
+SELECT id, video_id, chapter_id, kind, ordinal, idx, state, pool, gate, attempt, max_attempts, deps_remaining, error, created_at, updated_at, started_at, finished_at, not_before, stale FROM tasks WHERE video_id = ? AND stale = 1 ORDER BY ordinal, idx, kind
+`
+
+func (q *Queries) ListStaleTasksByVideo(ctx context.Context, videoID string) ([]Task, error) {
+	rows, err := q.query(ctx, q.listStaleTasksByVideoStmt, listStaleTasksByVideo, videoID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Task{}
+	for rows.Next() {
+		var i Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.VideoID,
+			&i.ChapterID,
+			&i.Kind,
+			&i.Ordinal,
+			&i.Idx,
+			&i.State,
+			&i.Pool,
+			&i.Gate,
+			&i.Attempt,
+			&i.MaxAttempts,
+			&i.DepsRemaining,
+			&i.Error,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.NotBefore,
+			&i.Stale,
 		); err != nil {
 			return nil, err
 		}
@@ -275,7 +331,7 @@ func (q *Queries) ListTaskDepsByVideo(ctx context.Context, videoID string) ([]Ta
 }
 
 const listTasksByVideo = `-- name: ListTasksByVideo :many
-SELECT id, video_id, chapter_id, kind, ordinal, idx, state, pool, gate, attempt, max_attempts, deps_remaining, error, created_at, updated_at, started_at, finished_at, not_before FROM tasks WHERE video_id = ? ORDER BY ordinal, idx, kind
+SELECT id, video_id, chapter_id, kind, ordinal, idx, state, pool, gate, attempt, max_attempts, deps_remaining, error, created_at, updated_at, started_at, finished_at, not_before, stale FROM tasks WHERE video_id = ? ORDER BY ordinal, idx, kind
 `
 
 func (q *Queries) ListTasksByVideo(ctx context.Context, videoID string) ([]Task, error) {
@@ -306,6 +362,7 @@ func (q *Queries) ListTasksByVideo(ctx context.Context, videoID string) ([]Task,
 			&i.StartedAt,
 			&i.FinishedAt,
 			&i.NotBefore,
+			&i.Stale,
 		); err != nil {
 			return nil, err
 		}

@@ -68,6 +68,7 @@ func (s *Store) CountTasksByVideo(ctx context.Context, videoID entity.VideoID) (
 		Blocked:          int(row.Blocked),
 		AwaitingApproval: int(row.Awaiting),
 		Cancelled:        int(row.Cancelled),
+		Stale:            int(row.Stale),
 	}, nil
 }
 
@@ -122,6 +123,7 @@ func (s *Store) InsertGraph(ctx context.Context, videoID entity.VideoID, tasks [
 				MaxAttempts:   int64(t.MaxAttempts),
 				DepsRemaining: int64(t.DepsRemaining),
 				Error:         t.Error,
+				Stale:         boolToInt(t.Stale),
 				CreatedAt:     toUnix(t.CreatedAt),
 				UpdatedAt:     toUnix(t.UpdatedAt),
 				StartedAt:     toUnixPtr(t.StartedAt),
@@ -158,6 +160,7 @@ func (s *Store) ApplyTransitions(ctx context.Context, transitions []repository.T
 				Attempt:       int64(t.Attempt),
 				DepsRemaining: int64(t.DepsRemaining),
 				Error:         t.Error,
+				Stale:         boolToInt(t.Stale),
 				StartedAt:     toUnixPtr(t.StartedAt),
 				FinishedAt:    toUnixPtr(t.FinishedAt),
 				NotBefore:     toUnixPtr(t.NotBefore),

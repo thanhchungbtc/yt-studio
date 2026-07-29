@@ -1,7 +1,8 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as TooltipPrimitive from '@radix-ui/react-tooltip'
-import { X } from 'lucide-react'
+import { Check, Copy, X } from 'lucide-react'
 import type { HTMLAttributes, ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { keycaps } from '@/lib/hotkeys'
 import { cn } from '@/lib/utils'
@@ -424,6 +425,49 @@ export function KeyValue({ label, children }: { label: string; children: ReactNo
 
 export function Mono({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
   return <span className={cn('font-mono text-[11.5px]', className)} {...props} />
+}
+
+/**
+ * Copies a value and says so in place, rather than through a toast: the
+ * confirmation belongs next to the thing that was copied.
+ */
+export function CopyButton({
+  value,
+  label = 'Copy',
+  className,
+}: {
+  value: string
+  label?: string
+  className?: string
+}) {
+  const [copied, setCopied] = useState(false)
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  useEffect(() => () => clearTimeout(timer.current), [])
+
+  return (
+    <Tooltip label={copied ? 'Copied' : label}>
+      <button
+        type="button"
+        aria-label={label}
+        onClick={() => {
+          void navigator.clipboard.writeText(value).then(() => {
+            setCopied(true)
+            clearTimeout(timer.current)
+            timer.current = setTimeout(() => setCopied(false), 1400)
+          })
+        }}
+        className={cn(
+          'inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-xs)]',
+          'text-subtle transition-colors hover:bg-[hsl(var(--bg-hover))] hover:text-fg',
+          copied && 'text-[hsl(var(--success))]',
+          className,
+        )}
+      >
+        {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+      </button>
+    </Tooltip>
+  )
 }
 
 /** A hairline between toolbar groups. */

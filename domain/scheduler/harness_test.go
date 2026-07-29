@@ -64,6 +64,14 @@ func (s *recordingStore) state(id entity.TaskID) entity.TaskState {
 	return s.last[id].State
 }
 
+// stale reads the flag as it was last persisted, so the tests assert what a
+// restart would see rather than what the loop happens to hold in memory.
+func (s *recordingStore) stale(id entity.TaskID) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.last[id].Stale
+}
+
 // persisted rebuilds the durable view of a video, exactly as ListOpenGraphs
 // would return it after a restart.
 func (s *recordingStore) persisted(videoID entity.VideoID) repository.VideoGraph {

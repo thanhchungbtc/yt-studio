@@ -23,6 +23,10 @@ const (
 	cmdCancel
 	cmdRetryTask
 	cmdRetryChapter
+	cmdRerun
+	cmdMarkStale
+	cmdRunStale
+	cmdAcceptStale
 	cmdForget
 	cmdSetPoolLimit
 )
@@ -32,12 +36,18 @@ type command struct {
 	graph   *Graph
 	graphs  []*Graph
 	taskID  entity.TaskID
+	taskIDs []entity.TaskID
 	videoID entity.VideoID
 	ordinal int
 	pool    entity.Pool
 	limit   int
 	reason  string
-	reply   chan error
+	dryRun  bool
+	// out and count are filled by the loop before it replies. The caller blocks
+	// on reply, so the write happens-before the read and no lock is needed.
+	out   *[]entity.TaskID
+	count *int
+	reply chan error
 }
 
 func (s *Scheduler) send(ctx context.Context, c command) error {
@@ -75,6 +85,14 @@ func (s *Scheduler) handleCommand(ctx context.Context, c command) {
 		err = s.doRetryTask(c.taskID)
 	case cmdRetryChapter:
 		err = s.doRetryChapter(c.videoID, c.ordinal)
+	case cmdRerun:
+		err = s.doRerun(c)
+	case cmdMarkStale:
+		err = s.doMarkStale(c)
+	case cmdRunStale:
+		err = s.doRunStale(c)
+	case cmdAcceptStale:
+		err = s.doAcceptStale(c)
 	case cmdForget:
 		err = s.doForget(c.videoID)
 	case cmdSetPoolLimit:
@@ -133,6 +151,69 @@ func (s *Scheduler) RetryTask(ctx context.Context, taskID entity.TaskID) error {
 // RetryChapter resets every task of one chapter and everything downstream (§9).
 func (s *Scheduler) RetryChapter(ctx context.Context, videoID entity.VideoID, ordinal int) error {
 	return s.send(ctx, command{kind: cmdRetryChapter, videoID: videoID, ordinal: ordinal})
+}
+
+// Rerun re-runs tasks that have already succeeded, and marks everything
+// downstream of them stale rather than re-running it (§9).
+//
+// This is the deliberate counterpart to RetryTask. A *failed* task has nothing
+// downstream of it that ever ran, so cascading and running is free and needs no
+// permission. A *succeeded* task does: its dependents produced artifacts an
+// operator may already have reviewed, and throwing those away is a decision
+// they should make rather than a side effect of clicking retry.
+//
+// With dryRun set nothing is changed and the returned ids are what *would* go
+// stale, which is what lets the UI show the blast radius before committing.
+func (s *Scheduler) Rerun(
+	ctx context.Context,
+	videoID entity.VideoID,
+	seeds []entity.TaskID,
+	dryRun bool,
+) ([]entity.TaskID, error) {
+	var out []entity.TaskID
+	err := s.send(ctx, command{
+		kind: cmdRerun, videoID: videoID, taskIDs: seeds, dryRun: dryRun, out: &out,
+	})
+	return out, err
+}
+
+// MarkStale flags everything downstream of the seeds without touching the seeds
+// themselves. It is what an edit made outside the pipeline calls — editing a
+// chapter script changes an input no task produced, so nothing needs re-running
+// for the downstream to have become questionable.
+func (s *Scheduler) MarkStale(
+	ctx context.Context,
+	videoID entity.VideoID,
+	seeds []entity.TaskID,
+) ([]entity.TaskID, error) {
+	var out []entity.TaskID
+	err := s.send(ctx, command{kind: cmdMarkStale, videoID: videoID, taskIDs: seeds, out: &out})
+	return out, err
+}
+
+// RunStale re-runs stale tasks. A nil id list means every stale task of the
+// video, which is the ordinary case.
+func (s *Scheduler) RunStale(
+	ctx context.Context,
+	videoID entity.VideoID,
+	ids []entity.TaskID,
+) (int, error) {
+	var n int
+	err := s.send(ctx, command{kind: cmdRunStale, videoID: videoID, taskIDs: ids, count: &n})
+	return n, err
+}
+
+// AcceptStale clears the stale flag without re-running anything: the operator
+// has looked at the artifact and decided it is still good. A nil id list means
+// every stale task of the video.
+func (s *Scheduler) AcceptStale(
+	ctx context.Context,
+	videoID entity.VideoID,
+	ids []entity.TaskID,
+) (int, error) {
+	var n int
+	err := s.send(ctx, command{kind: cmdAcceptStale, videoID: videoID, taskIDs: ids, count: &n})
+	return n, err
 }
 
 // Forget drops a video from the loop, for a delete or a full re-enqueue.
@@ -319,10 +400,210 @@ func (s *Scheduler) doRetryChapter(videoID entity.VideoID, ordinal int) error {
 	return nil
 }
 
+// strictDownstream returns everything reachable from the seeds, excluding the
+// seeds themselves. That exclusion is the whole difference between a re-run and
+// a retry: the seed is what the operator asked to redo, its descendants are
+// what they are being asked about.
+func strictDownstream(g *Graph, seeds []int32) []int32 {
+	affected := make([]bool, len(g.tasks))
+	for _, seed := range seeds {
+		for _, idx := range g.Downstream(seed) {
+			affected[idx] = true
+		}
+	}
+	for _, seed := range seeds {
+		affected[seed] = false
+	}
+	out := make([]int32, 0, 16)
+	for i, hit := range affected {
+		if hit {
+			out = append(out, int32(i)) //nolint:gosec // bounded by graph size
+		}
+	}
+	return out
+}
+
+// resolveSeeds maps task ids to node indices, rejecting anything unknown.
+func resolveSeeds(g *Graph, ids []entity.TaskID) ([]int32, error) {
+	seeds := make([]int32, 0, len(ids))
+	for _, id := range ids {
+		idx, ok := g.IndexOf(id)
+		if !ok {
+			return nil, fmt.Errorf("%w: %s", ErrUnknownTask, id)
+		}
+		seeds = append(seeds, idx)
+	}
+	if len(seeds) == 0 {
+		return nil, fmt.Errorf("%w: no tasks given", ErrUnknownTask)
+	}
+	return seeds, nil
+}
+
+func (s *Scheduler) doRerun(c command) error {
+	g, ok := s.graphs[c.videoID]
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrUnknownVideo, c.videoID)
+	}
+	seeds, err := resolveSeeds(g, c.taskIDs)
+	if err != nil {
+		return err
+	}
+	downstream := strictDownstream(g, seeds)
+
+	// Report exactly what will be flagged, not everything reachable. A task
+	// below the seed that has never run is not going to be marked, and listing
+	// it in the preview would promise a blast radius wider than the one the
+	// operator is about to get.
+	if c.out != nil {
+		ids := make([]entity.TaskID, 0, len(downstream))
+		for _, idx := range downstream {
+			if producedOutput(g.tasks[idx].State) {
+				ids = append(ids, g.tasks[idx].ID)
+			}
+		}
+		*c.out = ids
+	}
+	if c.dryRun {
+		return nil
+	}
+
+	s.markStale(g, downstream)
+	// resetNodes, not resetFrom: only the seeds re-run.
+	// Their dependents are `succeeded` rather than `blocked`, so
+	// releaseDependents passes over them when the seeds finish and the stale set
+	// stays waiting for a decision.
+	s.resetNodes(g, seeds)
+	return nil
+}
+
+func (s *Scheduler) doMarkStale(c command) error {
+	g, ok := s.graphs[c.videoID]
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrUnknownVideo, c.videoID)
+	}
+	seeds, err := resolveSeeds(g, c.taskIDs)
+	if err != nil {
+		return err
+	}
+	downstream := strictDownstream(g, seeds)
+	if c.out != nil {
+		ids := make([]entity.TaskID, 0, len(downstream))
+		for _, idx := range downstream {
+			if producedOutput(g.tasks[idx].State) {
+				ids = append(ids, g.tasks[idx].ID)
+			}
+		}
+		*c.out = ids
+	}
+	s.markStale(g, downstream)
+	return nil
+}
+
+// markStale flags tasks that actually produced something. A task that never ran
+// is not stale, it is merely pending, and flagging it would be noise the
+// operator has to dismiss.
+//
+// A gated task counts. It has produced its artifact and is only parked waiting
+// for a human, so it is exactly as questionable as a succeeded one — and it is
+// the last thing an operator sees before approving, which makes it the worst
+// place to hide the fact that its input moved.
+func (s *Scheduler) markStale(g *Graph, indices []int32) {
+	now := time.Now()
+	for _, idx := range indices {
+		t := &g.tasks[idx]
+		if t.Stale || !producedOutput(t.State) {
+			continue
+		}
+		t.Stale = true
+		t.UpdatedAt = now
+		s.record(t)
+	}
+	s.log.Info("tasks marked stale",
+		slog.String("video_id", g.VideoID.String()),
+		slog.Int("count", len(indices)))
+}
+
+// producedOutput reports whether a task has an artifact that staleness could
+// be about.
+func producedOutput(s entity.TaskState) bool {
+	return s == entity.TaskStateSucceeded || s == entity.TaskStateAwaitingApproval
+}
+
+// staleIndices resolves the requested ids, or every stale task when none are
+// given. Ids that are not actually stale are ignored rather than rejected, so a
+// UI acting on a list that moved under it is idempotent rather than an error.
+func staleIndices(g *Graph, ids []entity.TaskID) []int32 {
+	out := make([]int32, 0, 16)
+	if len(ids) == 0 {
+		for i := range g.tasks {
+			if g.tasks[i].Stale {
+				out = append(out, int32(i)) //nolint:gosec // bounded by graph size
+			}
+		}
+		return out
+	}
+	for _, id := range ids {
+		if idx, ok := g.IndexOf(id); ok && g.tasks[idx].Stale {
+			out = append(out, idx)
+		}
+	}
+	return out
+}
+
+func (s *Scheduler) doRunStale(c command) error {
+	g, ok := s.graphs[c.videoID]
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrUnknownVideo, c.videoID)
+	}
+	indices := staleIndices(g, c.taskIDs)
+	if c.count != nil {
+		*c.count = len(indices)
+	}
+	if len(indices) == 0 {
+		return nil
+	}
+	// Clearing the flag first means resetFrom re-admits them as ordinary work.
+	// Running a stale task is how it stops being stale.
+	for _, idx := range indices {
+		g.tasks[idx].Stale = false
+	}
+	s.resetNodes(g, indices)
+	return nil
+}
+
+func (s *Scheduler) doAcceptStale(c command) error {
+	g, ok := s.graphs[c.videoID]
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrUnknownVideo, c.videoID)
+	}
+	indices := staleIndices(g, c.taskIDs)
+	if c.count != nil {
+		*c.count = len(indices)
+	}
+	now := time.Now()
+	for _, idx := range indices {
+		t := &g.tasks[idx]
+		t.Stale = false
+		t.UpdatedAt = now
+		s.record(t)
+	}
+	if len(indices) > 0 {
+		s.log.Info("stale tasks accepted",
+			slog.String("video_id", g.VideoID.String()),
+			slog.Int("count", len(indices)))
+	}
+	return nil
+}
+
 // resetFrom clears the seeds and everything reachable from them, recomputes
 // their dependency counts against the surviving successes and re-admits
-// whatever is now runnable. A task still in flight is left alone; its
-// completion is discarded because its state has moved on.
+// whatever is now runnable.
+//
+// A task that is in flight is reset like any other. Its generation is bumped
+// first, so the answer it is about to produce — computed from an input this
+// reset has just replaced — is discarded when it arrives rather than being
+// accepted as current. The provider call itself is not interrupted: it holds
+// one pool slot until it returns, and the work is simply wasted.
 func (s *Scheduler) resetFrom(g *Graph, seeds []int32) {
 	affected := make([]bool, len(g.tasks))
 	for _, seed := range seeds {
@@ -330,15 +611,33 @@ func (s *Scheduler) resetFrom(g *Graph, seeds []int32) {
 			affected[idx] = true
 		}
 	}
-	now := time.Now()
+	closure := make([]int32, 0, len(g.tasks))
 	for i, hit := range affected {
-		if !hit {
-			continue
+		if hit {
+			closure = append(closure, int32(i)) //nolint:gosec // bounded by graph size
 		}
+	}
+	s.resetNodes(g, closure)
+	s.log.Info("tasks reset for retry",
+		slog.String("video_id", g.VideoID.String()),
+		slog.Int("seeds", len(seeds)),
+		slog.Int("reset", len(closure)))
+}
+
+// resetNodes clears exactly the nodes it is given and re-admits whichever of
+// them are runnable. It does not walk the graph.
+//
+// The distinction from resetFrom is the whole of the re-run design: retrying a
+// failure resets the closure, because nothing in it ever ran; re-running a
+// success resets only what was asked for, because its descendants hold
+// artifacts that are flagged stale and awaiting a decision instead.
+func (s *Scheduler) resetNodes(g *Graph, indices []int32) {
+	now := time.Now()
+	for _, i := range indices {
 		t := &g.tasks[i]
-		if t.State == entity.TaskStateRunning {
-			continue
-		}
+		g.bumpGeneration(i)
+		// Re-running is the other way a task stops being stale.
+		t.Stale = false
 		t.State = entity.TaskStateBlocked
 		t.Attempt = 0
 		t.Error = ""
@@ -346,10 +645,10 @@ func (s *Scheduler) resetFrom(g *Graph, seeds []int32) {
 		t.StartedAt = nil
 		t.FinishedAt = nil
 	}
-	for i, hit := range affected {
-		if !hit {
-			continue
-		}
+	// Dependency counts are recomputed only after every node has been cleared,
+	// so a node inside the set sees its siblings' new states rather than a
+	// half-applied mixture.
+	for _, i := range indices {
 		t := &g.tasks[i]
 		if t.State != entity.TaskStateBlocked {
 			continue
@@ -368,9 +667,6 @@ func (s *Scheduler) resetFrom(g *Graph, seeds []int32) {
 		}
 		s.record(t)
 	}
-	s.log.Info("tasks reset for retry",
-		slog.String("video_id", g.VideoID.String()),
-		slog.Int("seeds", len(seeds)))
 }
 
 func (s *Scheduler) doForget(videoID entity.VideoID) error {

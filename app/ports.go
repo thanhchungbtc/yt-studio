@@ -52,6 +52,30 @@ type ChapterRetrier interface {
 	RetryChapter(ctx context.Context, videoID entity.VideoID, ordinal int) error
 }
 
+// TaskRerunner re-runs tasks that already succeeded, flagging their downstream
+// stale instead of redoing it. With dryRun it reports the blast radius and
+// changes nothing (§9).
+type TaskRerunner interface {
+	Rerun(ctx context.Context, videoID entity.VideoID, seeds []entity.TaskID, dryRun bool) ([]entity.TaskID, error)
+}
+
+// StaleMarker flags everything downstream of the seeds without touching them,
+// for an input edited outside the pipeline.
+type StaleMarker interface {
+	MarkStale(ctx context.Context, videoID entity.VideoID, seeds []entity.TaskID) ([]entity.TaskID, error)
+}
+
+// StaleRunner re-runs stale tasks; a nil id list means all of them.
+type StaleRunner interface {
+	RunStale(ctx context.Context, videoID entity.VideoID, ids []entity.TaskID) (int, error)
+}
+
+// StaleAccepter clears the stale flag without re-running: the operator checked
+// the artifact and kept it.
+type StaleAccepter interface {
+	AcceptStale(ctx context.Context, videoID entity.VideoID, ids []entity.TaskID) (int, error)
+}
+
 // PoolLimiter applies a pool limit change without a restart (§5).
 type PoolLimiter interface {
 	SetPoolLimit(ctx context.Context, pool entity.Pool, limit int) error

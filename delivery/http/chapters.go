@@ -59,9 +59,10 @@ func putChapterScript(
 	chapters repository.ChapterReader,
 	fields repository.ChapterFieldWriter,
 	notifier app.ChapterNotifier,
+	marker app.StaleMarker,
 ) func(context.Context, *UpdateScriptInput) (*ChapterOutput, error) {
 	return func(ctx context.Context, in *UpdateScriptInput) (*ChapterOutput, error) {
-		c, err := app.UpdateChapterScript(ctx, chapters, fields, notifier,
+		c, err := app.UpdateChapterScript(ctx, chapters, fields, notifier, marker,
 			entity.ChapterID(in.ID), in.Body.Script, app.EstimateNarrationSeconds)
 		if err != nil {
 			return nil, mapError(err)
@@ -95,6 +96,7 @@ func registerChapterRoutes(
 	notifier app.ChapterNotifier,
 	retrier app.ChapterRetrier,
 	prompts app.PromptCacheInvalidator,
+	marker app.StaleMarker,
 ) {
 	huma.Register(api, huma.Operation{
 		OperationID: "listChapters", Method: "GET", Path: "/api/videos/{key}/chapters",
@@ -104,10 +106,10 @@ func registerChapterRoutes(
 	huma.Register(api, huma.Operation{
 		OperationID: "updateChapterScript", Method: "PUT", Path: "/api/chapters/{id}/script",
 		Summary: "Edit a chapter's script", Tags: []string{"chapters"},
-	}, putChapterScript(chapters, fields, notifier))
+	}, putChapterScript(chapters, fields, notifier, marker))
 
 	huma.Register(api, huma.Operation{
 		OperationID: "retryChapter", Method: "POST", Path: "/api/videos/{key}/chapters/{ordinal}/retry",
-		Summary: "Re-run a chapter and everything downstream", Tags: []string{"chapters"}, DefaultStatus: 204,
+		Summary: "Retry a failed chapter and everything downstream", Tags: []string{"chapters"}, DefaultStatus: 204,
 	}, postChapterRetry(videos, retrier, prompts))
 }

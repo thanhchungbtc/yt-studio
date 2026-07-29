@@ -291,6 +291,33 @@
   }
 }
 
+/* For surfaces that own the viewport rather than float in the middle of it. */
+@utility animate-in-zoom {
+  animation: in-zoom 170ms cubic-bezier(0.16, 1, 0.3, 1);
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+/*
+  The stage behind a still. A generated image may carry transparency, and a flat
+  panel colour behind it silently lies about what was rendered.
+*/
+@utility checker {
+  background-color: hsl(var(--bg-subtle));
+  background-image:
+    linear-gradient(45deg, hsl(var(--fg) / 0.04) 25%, transparent 25%),
+    linear-gradient(-45deg, hsl(var(--fg) / 0.04) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, hsl(var(--fg) / 0.04) 75%),
+    linear-gradient(-45deg, transparent 75%, hsl(var(--fg) / 0.04) 75%);
+  background-size: 16px 16px;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+}
+
 @keyframes pulse-live {
   0%,
   100% {
@@ -336,5 +363,12 @@
   from {
     opacity: 0;
     transform: translateY(-4px);
+  }
+}
+
+@keyframes in-zoom {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
   }
 }

@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -269,6 +270,217 @@ func TestRetryTaskResetsTheTail(t *testing.T) {
 		return r.sched.Snapshot().Succeeded == g.NodeCount()
 	})
 	r.assertInvariants(t, map[entity.Pool]int{entity.PoolImage: 2})
+}
+
+// Retrying a task whose dependent is already in flight must discard that
+// dependent's result: it was produced from the input the retry has just
+// replaced.
+//
+// The hazard is that resetFrom leaves a running task alone, and
+// releaseDependents only releases dependents in `blocked`. A dependent that
+// completes as `succeeded` after the reset is therefore never re-run, and the
+// video keeps an artifact derived from an input that no longer exists.
+func TestRetryDiscardsDependentAlreadyInFlight(t *testing.T) {
+	t.Parallel()
+	g := testGraph(t, "v1", 1, 1, false)
+
+	var mu sync.Mutex
+	runs := make(map[entity.TaskKind]int)
+	held := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+
+	r := newRig(t, nil, g, func(task entity.Task) entity.TaskOutcome {
+		mu.Lock()
+		runs[task.Kind]++
+		first := runs[task.Kind] == 1
+		mu.Unlock()
+		// Hold the narration in flight so the retry below lands while it runs.
+		if task.Kind == entity.TaskKindTTS && first {
+			once.Do(func() { close(held) })
+			<-release
+		}
+		return entity.Success{}
+	})
+	ctx := startScheduler(t, r.sched)
+	defer close(release)
+
+	if err := r.sched.Submit(ctx, g); err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
+	<-held
+
+	// The script is the narration's dependency, so retrying it invalidates the
+	// narration currently being produced.
+	script := taskOfKind(t, g, entity.TaskKindScript, 1)
+	if err := r.sched.RetryTask(ctx, script.ID); err != nil {
+		t.Fatalf("RetryTask: %v", err)
+	}
+	release <- struct{}{}
+
+	waitFor(t, 10*time.Second, "the narration to be re-run against the new script", func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return runs[entity.TaskKindTTS] >= 2
+	})
+
+	mu.Lock()
+	scriptRuns := runs[entity.TaskKindScript]
+	mu.Unlock()
+	if scriptRuns < 2 {
+		t.Fatalf("script ran %d times, want it re-run by the retry", scriptRuns)
+	}
+}
+
+// taskOfKind finds the single task of a kind and chapter ordinal.
+func taskOfKind(t *testing.T, g *Graph, kind entity.TaskKind, ordinal int) *entity.Task {
+	t.Helper()
+	for i := range g.NodeCount() {
+		if task := g.Task(i); task.Kind == kind && task.Ordinal == ordinal {
+			return task
+		}
+	}
+	t.Fatalf("no %s task for chapter %d", kind, ordinal)
+	return nil
+}
+
+// Re-running a task that already succeeded must not silently redo everything
+// below it. The downstream is flagged and left alone until an operator says
+// what to do with it (§9).
+func TestRerunMarksDownstreamStaleWithoutRunningIt(t *testing.T) {
+	t.Parallel()
+	g := testGraph(t, "v1", 2, 1, false)
+
+	var mu sync.Mutex
+	runs := make(map[entity.TaskID]int)
+	r := newRig(t, nil, g, func(task entity.Task) entity.TaskOutcome {
+		mu.Lock()
+		runs[task.ID]++
+		mu.Unlock()
+		return entity.Success{}
+	})
+	ctx := startScheduler(t, r.sched)
+	if err := r.sched.Submit(ctx, g); err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
+	waitFor(t, 10*time.Second, "the pipeline to finish", func() bool {
+		return r.sched.Snapshot().Succeeded == g.NodeCount()
+	})
+
+	countOf := func(id entity.TaskID) int {
+		mu.Lock()
+		defer mu.Unlock()
+		return runs[id]
+	}
+
+	script := taskOfKind(t, g, entity.TaskKindScript, 1)
+	tts := taskOfKind(t, g, entity.TaskKindTTS, 1)
+	ttsBefore := countOf(tts.ID)
+
+	// The preview must not change anything.
+	preview, err := r.sched.Rerun(ctx, "v1", []entity.TaskID{script.ID}, true)
+	if err != nil {
+		t.Fatalf("Rerun dry run: %v", err)
+	}
+	if len(preview) == 0 {
+		t.Fatal("dry run reported nothing downstream of the script")
+	}
+	if n := r.sched.Snapshot().Succeeded; n != g.NodeCount() {
+		t.Fatalf("dry run disturbed the graph: succeeded = %d", n)
+	}
+
+	affected, err := r.sched.Rerun(ctx, "v1", []entity.TaskID{script.ID}, false)
+	if err != nil {
+		t.Fatalf("Rerun: %v", err)
+	}
+	if len(affected) != len(preview) {
+		t.Fatalf("rerun affected %d tasks, preview said %d", len(affected), len(preview))
+	}
+	waitFor(t, 10*time.Second, "the script to be re-run", func() bool {
+		return countOf(script.ID) == 2
+	})
+
+	// The narration is downstream of the script, so it is stale — but it must
+	// not have run again on its own.
+	waitFor(t, 5*time.Second, "the narration to be marked stale", func() bool {
+		return r.store.stale(tts.ID)
+	})
+	if got := countOf(tts.ID); got != ttsBefore {
+		t.Fatalf("narration ran %d times, want it left alone at %d", got, ttsBefore)
+	}
+	if r.store.stale(script.ID) {
+		t.Fatal("the re-run task marked itself stale")
+	}
+
+	// Accepting clears the flag and still does not run anything.
+	n, err := r.sched.AcceptStale(ctx, "v1", []entity.TaskID{tts.ID})
+	if err != nil {
+		t.Fatalf("AcceptStale: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("AcceptStale reported %d tasks, want 1", n)
+	}
+	waitFor(t, 5*time.Second, "the accepted task to lose its flag", func() bool {
+		return !r.store.stale(tts.ID)
+	})
+	if got := countOf(tts.ID); got != ttsBefore {
+		t.Fatalf("accepting re-ran the narration (%d runs)", got)
+	}
+}
+
+// The other exit from stale: run it.
+func TestRunStaleReRunsTheFlaggedTasks(t *testing.T) {
+	t.Parallel()
+	g := testGraph(t, "v1", 2, 1, false)
+
+	var mu sync.Mutex
+	runs := make(map[entity.TaskID]int)
+	r := newRig(t, nil, g, func(task entity.Task) entity.TaskOutcome {
+		mu.Lock()
+		runs[task.ID]++
+		mu.Unlock()
+		return entity.Success{}
+	})
+	ctx := startScheduler(t, r.sched)
+	if err := r.sched.Submit(ctx, g); err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
+	waitFor(t, 10*time.Second, "the pipeline to finish", func() bool {
+		return r.sched.Snapshot().Succeeded == g.NodeCount()
+	})
+
+	script := taskOfKind(t, g, entity.TaskKindScript, 1)
+	tts := taskOfKind(t, g, entity.TaskKindTTS, 1)
+	mu.Lock()
+	ttsBefore := runs[tts.ID]
+	mu.Unlock()
+
+	if _, err := r.sched.Rerun(ctx, "v1", []entity.TaskID{script.ID}, false); err != nil {
+		t.Fatalf("Rerun: %v", err)
+	}
+	waitFor(t, 5*time.Second, "the narration to be marked stale", func() bool {
+		return r.store.stale(tts.ID)
+	})
+
+	n, err := r.sched.RunStale(ctx, "v1", nil)
+	if err != nil {
+		t.Fatalf("RunStale: %v", err)
+	}
+	if n == 0 {
+		t.Fatal("RunStale reported no tasks")
+	}
+	waitFor(t, 10*time.Second, "the stale set to be re-run and settle", func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return runs[tts.ID] > ttsBefore
+	})
+	waitFor(t, 10*time.Second, "the video to be whole again", func() bool {
+		s := r.sched.Snapshot()
+		return s.Succeeded == g.NodeCount() && s.Running == 0
+	})
+	if r.store.stale(tts.ID) {
+		t.Fatal("a re-run task is still marked stale")
+	}
 }
 
 // A cancelled video frees its slots within 100 ms (§8.3).

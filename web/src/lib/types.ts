@@ -57,6 +57,11 @@ export interface TaskCounts {
   ready: number
   blocked: number
   awaitingApproval: number
+  /**
+   * Cuts across the counts above rather than partitioning with them: a stale
+   * task is usually also a succeeded one.
+   */
+  stale: number
   cancelled: number
 }
 
@@ -124,6 +129,8 @@ export interface Task {
   attempt: number
   maxAttempts: number
   depsRemaining: number
+  /** An input changed after this ran; the artifact is intact but unverified. */
+  stale: boolean
   error?: string
   updatedAt: string
   startedAt?: string
@@ -187,6 +194,7 @@ export interface TaskDelta {
   pool: PoolName
   gate?: GateKind | ''
   attempt: number
+  stale: boolean
   error?: string
   updatedAt: string
 }
@@ -234,4 +242,15 @@ export interface StreamEvent {
   video?: VideoDelta
   chapters?: ChapterDelta[]
   scheduler?: SchedulerDelta
+}
+
+/**
+ * What a re-run is about to do. Returned by a dry run so the operator can see
+ * the blast radius before committing, and by the real thing so the UI can say
+ * what just happened.
+ */
+export interface RerunPlan {
+  dryRun: boolean
+  rerun: Task[]
+  stale: Task[]
 }

@@ -105,6 +105,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.listSettingsStmt, err = db.PrepareContext(ctx, listSettings); err != nil {
 		return nil, fmt.Errorf("error preparing query ListSettings: %w", err)
 	}
+	if q.listStaleTasksByVideoStmt, err = db.PrepareContext(ctx, listStaleTasksByVideo); err != nil {
+		return nil, fmt.Errorf("error preparing query ListStaleTasksByVideo: %w", err)
+	}
 	if q.listTaskDepsByVideoStmt, err = db.PrepareContext(ctx, listTaskDepsByVideo); err != nil {
 		return nil, fmt.Errorf("error preparing query ListTaskDepsByVideo: %w", err)
 	}
@@ -308,6 +311,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing listSettingsStmt: %w", cerr)
 		}
 	}
+	if q.listStaleTasksByVideoStmt != nil {
+		if cerr := q.listStaleTasksByVideoStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listStaleTasksByVideoStmt: %w", cerr)
+		}
+	}
 	if q.listTaskDepsByVideoStmt != nil {
 		if cerr := q.listTaskDepsByVideoStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listTaskDepsByVideoStmt: %w", cerr)
@@ -479,6 +487,7 @@ type Queries struct {
 	listChaptersByVideoStmt     *sql.Stmt
 	listRecentTasksStmt         *sql.Stmt
 	listSettingsStmt            *sql.Stmt
+	listStaleTasksByVideoStmt   *sql.Stmt
 	listTaskDepsByVideoStmt     *sql.Stmt
 	listTasksByVideoStmt        *sql.Stmt
 	listVideosStmt              *sql.Stmt
@@ -533,6 +542,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		listChaptersByVideoStmt:     q.listChaptersByVideoStmt,
 		listRecentTasksStmt:         q.listRecentTasksStmt,
 		listSettingsStmt:            q.listSettingsStmt,
+		listStaleTasksByVideoStmt:   q.listStaleTasksByVideoStmt,
 		listTaskDepsByVideoStmt:     q.listTaskDepsByVideoStmt,
 		listTasksByVideoStmt:        q.listTasksByVideoStmt,
 		listVideosStmt:              q.listVideosStmt,

@@ -121,6 +121,7 @@ function mergeTasks(previous: Task[], deltas: TaskDelta[]): Task[] {
     if (
       task.state === delta.state &&
       task.attempt === delta.attempt &&
+      task.stale === delta.stale &&
       (task.error ?? '') === (delta.error ?? '')
     ) {
       return task

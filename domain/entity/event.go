@@ -39,8 +39,11 @@ type TaskDelta struct {
 	Pool      Pool       `json:"pool"`
 	Gate      GateKind   `json:"gate,omitempty"`
 	Attempt   int        `json:"attempt"`
-	Error     string     `json:"error,omitempty"`
-	UpdatedAt time.Time  `json:"updatedAt"`
+	// Stale rides on the delta so the UI can flag a task the moment an
+	// upstream re-run marks it, without refetching the whole video.
+	Stale     bool      `json:"stale"`
+	Error     string    `json:"error,omitempty"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 // VideoDelta is the subset of a Video that changes often enough to stream.
@@ -119,6 +122,7 @@ func (t *Task) Delta() TaskDelta {
 		Pool:      t.Pool,
 		Gate:      t.Gate,
 		Attempt:   t.Attempt,
+		Stale:     t.Stale,
 		Error:     t.Error,
 		UpdatedAt: t.UpdatedAt,
 	}

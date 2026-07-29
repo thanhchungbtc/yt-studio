@@ -1,4 +1,13 @@
-import type { Asset, Channel, Chapter, SchedulerStatus, Setting, Task, Video } from './types'
+import type {
+  Asset,
+  Channel,
+  Chapter,
+  RerunPlan,
+  SchedulerStatus,
+  Setting,
+  Task,
+  Video,
+} from './types'
 
 /** ApiError carries the daemon's RFC 7807 problem detail through to the UI. */
 export class ApiError extends Error {
@@ -126,6 +135,21 @@ export const api = {
     }),
   retryChapter: (key: string, ordinal: number) =>
     post<void>(`/api/videos/${encodeURIComponent(key)}/chapters/${ordinal}/retry`),
+
+  /**
+   * Re-runs tasks that already succeeded. Everything downstream is flagged
+   * stale rather than re-run, so artifacts the operator may have reviewed are
+   * not discarded without a decision. `dryRun` reports the blast radius and
+   * changes nothing.
+   */
+  rerunTasks: (key: string, taskIds: string[], dryRun = false) =>
+    post<RerunPlan>(`/api/videos/${encodeURIComponent(key)}/rerun`, { taskIds, dryRun }),
+  /** Re-runs stale tasks. An empty list means all of them. */
+  runStale: (key: string, taskIds: string[] = []) =>
+    post<{ count: number }>(`/api/videos/${encodeURIComponent(key)}/stale/run`, { taskIds }),
+  /** Keeps stale artifacts as they are, clearing the flag without re-running. */
+  acceptStale: (key: string, taskIds: string[] = []) =>
+    post<{ count: number }>(`/api/videos/${encodeURIComponent(key)}/stale/accept`, { taskIds }),
 
   listVideoTasks: (key: string) =>
     request<{ tasks: Task[] }>(`/api/videos/${encodeURIComponent(key)}/tasks`).then((r) => r.tasks),

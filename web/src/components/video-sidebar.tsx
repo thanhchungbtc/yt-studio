@@ -357,6 +357,7 @@ const ChannelGroup = memo(function ChannelGroup({
 }) {
   const live = videos.filter((v) => v.state === 'running').length
   const gated = videos.filter((v) => v.state === 'awaiting_approval').length
+  const stale = videos.filter((v) => v.counts.stale > 0).length
 
   return (
     <section>
@@ -388,10 +389,15 @@ const ChannelGroup = memo(function ChannelGroup({
               title={`${live} running`}
             />
           )}
-          {gated > 0 && (
+          {(gated > 0 || stale > 0) && (
             <span
               className="h-1.5 w-1.5 shrink-0 rounded-full bg-[hsl(var(--warning))]"
-              title={`${gated} awaiting approval`}
+              title={[
+                gated > 0 ? `${gated} awaiting approval` : '',
+                stale > 0 ? `${stale} with stale work` : '',
+              ]
+                .filter(Boolean)
+                .join(', ')}
             />
           )}
         </button>
@@ -489,6 +495,13 @@ const VideoRow = memo(function VideoRow({ video, active }: { video: Video; activ
           </span>
         </span>
 
+        {video.counts.stale > 0 && (
+          <Tooltip label={`${video.counts.stale} stale — an input changed after they ran`}>
+            <span className="tabular shrink-0 rounded-full bg-[hsl(var(--warning)/0.18)] px-1.5 text-[10px] font-medium leading-[16px] text-[hsl(var(--warning))]">
+              {video.counts.stale}
+            </span>
+          </Tooltip>
+        )}
         {failed > 0 && (
           <AlertTriangle
             className="h-3.5 w-3.5 shrink-0 text-[hsl(var(--danger))]"

@@ -8,16 +8,27 @@ import {
   ChevronRight,
   Download,
   FileJson,
+  LayoutGrid,
+  Maximize2,
   Pencil,
   Play,
   RefreshCw,
+  Rows3,
   X,
 } from 'lucide-react'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 
+import {
+  assetKindTone,
+  AssetThumb,
+  AssetViewerProvider,
+  useAssetViewer,
+} from '@/components/asset-viewer'
 import { StageStrip } from '@/components/stage-strip'
+import { RerunDialog, StaleBadge, StaleBanner, StaleDot } from '@/components/stale'
 import { TaskStateBadge, VideoStateBadge } from '@/components/state-badges'
 import { Badge } from '@/components/ui/badge'
+import type { Tone } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/field'
 import {
@@ -38,7 +49,17 @@ import {
   Toolbar,
   Tooltip,
 } from '@/components/ui/primitives'
-import { api, assetUrl, qk, thumbUrl } from '@/lib/api'
+import { api, assetUrl, qk } from '@/lib/api'
+import {
+  chapterStillItems,
+  downloadName,
+  kindMime,
+  kindTitle,
+  mediaTypeOf,
+  shortId,
+  videoAssetItems,
+} from '@/lib/assets'
+import type { ViewerItem } from '@/lib/assets'
 import {
   chapterKey,
   formatAbsolute,
@@ -49,7 +70,7 @@ import {
   taskLabel,
 } from '@/lib/format'
 import { useHotkeys } from '@/lib/hotkeys'
-import type { Asset, Chapter, GateKind, Task, Video } from '@/lib/types'
+import type { Chapter, GateKind, Task, Video } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 type Tab = 'overview' | 'chapters' | 'tasks' | 'artifacts'
@@ -122,7 +143,7 @@ export function VideoDetailRoute() {
   const openGate = tasks.data?.find((t) => t.state === 'awaiting_approval')
 
   return (
-    <>
+    <AssetViewerProvider>
       <Toolbar className="gap-3">
         <Ring
           value={v.counts.succeeded}
@@ -160,6 +181,7 @@ export function VideoDetailRoute() {
       />
 
       {openGate && <GateBanner video={v} task={openGate} />}
+      <StaleBanner video={v} tasks={tasks.data ?? []} />
       {v.error && <ErrorNotice error={new Error(v.error)} className="mx-4 mt-3" />}
 
       <div className="flex shrink-0 items-center gap-3 border-b border-[hsl(var(--border))] px-3 py-2">
@@ -199,9 +221,9 @@ export function VideoDetailRoute() {
           />
         )}
         {tab === 'tasks' && <TaskList tasks={tasks.data ?? []} loading={tasks.isPending} />}
-        {tab === 'artifacts' && <ArtifactList videoRef={v.ref} videoId={v.id} video={v} />}
+        {tab === 'artifacts' && <ArtifactGallery video={v} chapters={chapters.data ?? []} />}
       </div>
-    </>
+    </AssetViewerProvider>
   )
 }
 
@@ -326,8 +348,43 @@ function VideoActions({ video, openGate }: { video: Video; openGate: Task | unde
   )
 }
 
+/**
+ * The artifacts a video owns outside any chapter. Built here rather than read
+ * from the assets endpoint so the gate banner and the overview can offer a
+ * preview before that list has been fetched.
+ */
+function videoLevelItems(video: Video): ViewerItem[] {
+  const items: ViewerItem[] = []
+  if (video.blueprintAssetId) {
+    items.push({
+      id: video.blueprintAssetId,
+      kind: 'blueprint',
+      mime: kindMime('blueprint'),
+      title: kindTitle('blueprint'),
+      subtitle: video.ref,
+    })
+  }
+  if (video.finalAssetId) {
+    items.push({
+      id: video.finalAssetId,
+      kind: 'final',
+      mime: kindMime('final'),
+      title: kindTitle('final'),
+      subtitle: `${video.ref} · ${video.title}`,
+    })
+  }
+  return items
+}
+
 function GateBanner({ video, task }: { video: Video; task: Task }) {
+  const openViewer = useAssetViewer()
+  const items = videoLevelItems(video)
   const blueprint = video.blueprintAssetId
+  const openAt = (id: string) =>
+    openViewer(
+      items,
+      items.findIndex((item) => item.id === id),
+    )
   return (
     <div className="flex shrink-0 items-start gap-3 border-b border-[hsl(var(--warning)/0.35)] bg-[hsl(var(--warning-soft))] px-4 py-2.5">
       <Badge tone="warning" dot pulse className="mt-[1px] shrink-0">
@@ -341,24 +398,22 @@ function GateBanner({ video, task }: { video: Video; task: Task }) {
         </p>
         <div className="mt-1.5 flex flex-wrap gap-3 text-[11.5px]">
           {task.gate === 'blueprint' && blueprint && (
-            <a
+            <button
+              type="button"
               className="text-[hsl(var(--accent))] underline-offset-2 hover:underline"
-              href={assetUrl(blueprint)}
-              target="_blank"
-              rel="noreferrer"
+              onClick={() => openAt(blueprint)}
             >
-              Open the blueprint JSON
-            </a>
+              Review the blueprint
+            </button>
           )}
           {task.gate === 'upload' && video.finalAssetId && (
-            <a
+            <button
+              type="button"
               className="text-[hsl(var(--accent))] underline-offset-2 hover:underline"
-              href={assetUrl(video.finalAssetId)}
-              target="_blank"
-              rel="noreferrer"
+              onClick={() => openAt(video.finalAssetId ?? '')}
             >
               Preview the final render
-            </a>
+            </button>
           )}
         </div>
       </div>
@@ -369,6 +424,14 @@ function GateBanner({ video, task }: { video: Video; task: Task }) {
 /* ------------------------------------------------------------------ overview */
 
 function Overview({ video, tasks, loading }: { video: Video; tasks: Task[]; loading: boolean }) {
+  const openViewer = useAssetViewer()
+  const items = videoLevelItems(video)
+  const openAt = (id: string) =>
+    openViewer(
+      items,
+      items.findIndex((item) => item.id === id),
+    )
+
   return (
     <div className="h-full overflow-y-auto p-4">
       <div className="mx-auto max-w-5xl space-y-4">
@@ -390,14 +453,24 @@ function Overview({ video, tasks, loading }: { video: Video; tasks: Task[]; load
               <Panel className="overflow-hidden">
                 <PanelHeader>
                   <PanelTitle>Final render</PanelTitle>
-                  <a
-                    href={assetUrl(video.finalAssetId)}
-                    download
-                    className="flex items-center gap-1 text-[11px] text-[hsl(var(--accent))] hover:underline"
-                  >
-                    <Download className="h-3 w-3" />
-                    Download
-                  </a>
+                  <div className="flex items-center gap-1">
+                    <Tooltip label="Open the full-size player">
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={() => openAt(video.finalAssetId ?? '')}
+                      >
+                        <Maximize2 className="h-3 w-3" />
+                        Expand
+                      </Button>
+                    </Tooltip>
+                    <Button size="xs" variant="ghost" asChild>
+                      <a href={assetUrl(video.finalAssetId)} download>
+                        <Download className="h-3 w-3" />
+                        Download
+                      </a>
+                    </Button>
+                  </div>
                 </PanelHeader>
                 {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
                 <video
@@ -462,15 +535,16 @@ function Overview({ video, tasks, loading }: { video: Video; tasks: Task[]; load
               <PanelHeader>
                 <PanelTitle>Video</PanelTitle>
                 {video.blueprintAssetId && (
-                  <a
-                    href={assetUrl(video.blueprintAssetId)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1 text-[11px] text-[hsl(var(--accent))] hover:underline"
-                  >
-                    <FileJson className="h-3 w-3" />
-                    Blueprint
-                  </a>
+                  <Tooltip label="Read the blueprint without leaving the app">
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      onClick={() => openAt(video.blueprintAssetId ?? '')}
+                    >
+                      <FileJson className="h-3 w-3" />
+                      Blueprint
+                    </Button>
+                  </Tooltip>
                 )}
               </PanelHeader>
               <dl className="px-3 py-2">
@@ -632,9 +706,23 @@ const ChapterCard = memo(function ChapterCard({
   tasks: Task[]
 }) {
   const queryClient = useQueryClient()
+  const openViewer = useAssetViewer()
   const [expanded, setExpanded] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [rerunning, setRerunning] = useState(false)
   const [draft, setDraft] = useState(chapter.script)
+
+  // The whole chapter, viewable as one set: opening a still and pressing → walks
+  // its siblings, then the narration, then the clip.
+  const items = useMemo(() => chapterStillItems(chapter, videoRef), [chapter, videoRef])
+  const openAt = useCallback(
+    (id: string) =>
+      openViewer(
+        items,
+        items.findIndex((item) => item.id === id),
+      ),
+    [items, openViewer],
+  )
 
   const save = useMutation({
     mutationFn: () => api.updateChapterScript(chapter.id, draft),
@@ -653,6 +741,17 @@ const ChapterCard = memo(function ChapterCard({
     },
   })
 
+  // The two meanings of "run this again", told apart by what is actually in
+  // the chapter. If something failed, nothing below it ever ran and cascading
+  // is free. If everything succeeded, re-running throws away work that may
+  // have been reviewed — so that goes through the confirmation instead.
+  const failed = tasks.some((t) => t.state === 'failed')
+  const chapterStale = tasks.some((t) => t.stale)
+  const rerunSeeds = useMemo(
+    () => tasks.filter((t) => t.state === 'succeeded').map((t) => t.id),
+    [tasks],
+  )
+
   const startEdit = useCallback(() => {
     setDraft(chapter.script)
     setEditing(true)
@@ -667,7 +766,14 @@ const ChapterCard = memo(function ChapterCard({
         {/* Stills, side by side — this is what the operator actually reviews. */}
         <div className="flex shrink-0 gap-2">
           {stills.map((id, i) => (
-            <Still key={i} id={id} alt={`Chapter ${chapter.ordinal}, still ${i + 1}`} />
+            <Still
+              key={i}
+              id={id}
+              slot={i}
+              prompt={chapter.imagePrompts[i]}
+              alt={`Chapter ${chapter.ordinal}, still ${i + 1}`}
+              onOpen={() => openAt(id)}
+            />
           ))}
         </div>
 
@@ -677,17 +783,24 @@ const ChapterCard = memo(function ChapterCard({
               <div className="flex items-center gap-2">
                 <Mono className="text-subtle">{chapterKey(videoRef, chapter.ordinal)}</Mono>
                 <span className="truncate text-[13px] font-medium text-fg">{chapter.title}</span>
+                {chapterStale && <StaleDot />}
               </div>
               <p className="mt-0.5 line-clamp-1 text-[11.5px] text-subtle">{chapter.summary}</p>
             </div>
             <div className="flex shrink-0 items-center gap-1">
-              <Tooltip label="Re-run this chapter and everything downstream">
+              <Tooltip
+                label={
+                  failed
+                    ? 'Retry the failed work in this chapter'
+                    : 'Run this chapter again — you will be shown what else it affects'
+                }
+              >
                 <Button
                   size="icon"
                   variant="ghost"
-                  onClick={() => retry.mutate()}
-                  disabled={retry.isPending}
-                  aria-label={`Retry chapter ${chapter.ordinal}`}
+                  onClick={() => (failed ? retry.mutate() : setRerunning(true))}
+                  disabled={retry.isPending || (!failed && rerunSeeds.length === 0)}
+                  aria-label={`Re-run chapter ${chapter.ordinal}`}
                 >
                   <RefreshCw className={cn('h-3.5 w-3.5', retry.isPending && 'animate-spin')} />
                 </Button>
@@ -727,14 +840,13 @@ const ChapterCard = memo(function ChapterCard({
               <span className="tabular">≈ {formatClock(chapter.durationSeconds)}</span>
             )}
             {chapter.clipAssetId && (
-              <a
+              <button
+                type="button"
                 className="text-[hsl(var(--accent))] underline-offset-2 hover:underline"
-                href={assetUrl(chapter.clipAssetId)}
-                target="_blank"
-                rel="noreferrer"
+                onClick={() => openAt(chapter.clipAssetId ?? '')}
               >
                 clip
-              </a>
+              </button>
             )}
             <button
               type="button"
@@ -752,6 +864,15 @@ const ChapterCard = memo(function ChapterCard({
           </div>
         </div>
       </div>
+
+      <RerunDialog
+        open={rerunning}
+        onOpenChange={setRerunning}
+        videoRef={videoRef}
+        videoId={videoId}
+        taskIds={rerunSeeds}
+        what={`chapter ${chapter.ordinal}`}
+      />
 
       {expanded && (
         <div className="border-t border-[hsl(var(--border))] bg-subtle px-3 py-3">
@@ -803,26 +924,62 @@ const ChapterCard = memo(function ChapterCard({
   )
 })
 
-function Still({ id, alt }: { id: string; alt: string }) {
+/**
+ * One still in the chapter grid. It opens the viewer rather than a browser tab:
+ * the prompt that produced the image is the first thing an operator wants
+ * beside it, and a raw `/assets/…` tab has nothing but pixels.
+ */
+function Still({
+  id,
+  slot,
+  prompt,
+  alt,
+  onOpen,
+}: {
+  id: string
+  slot: number
+  prompt: string | undefined
+  alt: string
+  onOpen: () => void
+}) {
   if (!id) {
     return (
-      <div className="flex h-[86px] w-[152px] items-center justify-center rounded-[var(--radius-sm)] border border-dashed border-[hsl(var(--border-strong))] text-[11px] text-subtle">
-        pending
+      <div className="flex h-[86px] w-[152px] flex-col items-center justify-center gap-1 rounded-[var(--radius-sm)] border border-dashed border-[hsl(var(--border-strong))] bg-[hsl(var(--bg-subtle))] text-[11px] text-subtle">
+        <span className="tabular text-[10px] uppercase tracking-wider">still {slot + 1}</span>
+        <span>pending</span>
       </div>
     )
   }
-  return (
-    <a href={assetUrl(id)} target="_blank" rel="noreferrer" className="group relative block">
-      <img
-        src={thumbUrl(id)}
-        alt={alt}
-        width={152}
-        height={86}
-        loading="lazy"
-        decoding="async"
-        className="h-[86px] w-[152px] rounded-[var(--radius-sm)] border border-[hsl(var(--border))] object-cover transition-opacity group-hover:opacity-85"
-      />
-    </a>
+
+  const thumb = (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`${alt} — open the preview`}
+      className="group relative block h-[86px] w-[152px] overflow-hidden rounded-[var(--radius-sm)] border border-[hsl(var(--border))] transition-[border-color,box-shadow] hover:border-[hsl(var(--accent))] hover:elev-2"
+    >
+      <AssetThumb item={{ id, kind: 'image', mime: kindMime('image'), title: alt }} />
+      <span
+        className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100"
+        aria-hidden
+      >
+        <Maximize2 className="h-4 w-4 text-white" />
+      </span>
+      <span
+        className="tabular absolute left-1 top-1 rounded-[var(--radius-xs)] bg-black/55 px-1 text-[10px] font-medium leading-[15px] text-white opacity-0 transition-opacity group-hover:opacity-100"
+        aria-hidden
+      >
+        {slot + 1}
+      </span>
+    </button>
+  )
+
+  return prompt ? (
+    <Tooltip label={<span className="line-clamp-4 text-[11px]">{prompt}</span>} side="bottom">
+      {thumb}
+    </Tooltip>
+  ) : (
+    thumb
   )
 }
 
@@ -838,11 +995,20 @@ const ChapterTaskChip = memo(function ChapterTaskChip({ task }: { task: Task }) 
             ? 'info'
             : 'neutral'
   const label = task.index >= 0 ? `${taskLabel(task.kind)} ${task.index + 1}` : taskLabel(task.kind)
+  // Staleness outranks the state colour here: a succeeded-but-stale chip that
+  // still reads green is the one thing this whole feature exists to prevent.
   return (
-    <Tooltip label={task.error || `${label} — ${task.state} (attempt ${task.attempt})`}>
+    <Tooltip
+      label={
+        task.stale
+          ? `${label} — done, but an input changed after it ran`
+          : task.error || `${label} — ${task.state} (attempt ${task.attempt})`
+      }
+    >
       <span>
-        <Badge tone={tone} dot pulse={task.state === 'running'}>
+        <Badge tone={task.stale ? 'warning' : tone} dot pulse={task.state === 'running'}>
           {label}
+          {task.stale && <span className="opacity-70">· stale</span>}
         </Badge>
       </span>
     </Tooltip>
@@ -897,6 +1063,7 @@ const TaskRow = memo(function TaskRow({ task, onRetry }: { task: Task; onRetry: 
             gate
           </Badge>
         )}
+        {task.stale && <StaleBadge className="ml-2" />}
       </td>
       <td className="px-2 py-1.5 tabular text-muted">{task.ordinal > 0 ? task.ordinal : '—'}</td>
       <td className="px-2 py-1.5 text-muted">{task.pool}</td>
@@ -920,88 +1087,273 @@ const TaskRow = memo(function TaskRow({ task, onRetry }: { task: Task; onRetry: 
 
 /* ------------------------------------------------------------------ artifacts */
 
-function ArtifactList({
-  videoRef,
-  videoId,
-  video,
-}: {
-  videoRef: string
-  videoId: string
-  video: Video
-}) {
+type GalleryView = 'grid' | 'list'
+
+/**
+ * Every artifact a video has produced, as a gallery rather than a list of
+ * hashes. A hash is the right *identity* for a content-addressed store and the
+ * wrong thing to show an operator who is asking whether the images came out
+ * well — so the thumbnail leads, and the address moves into the viewer.
+ */
+function ArtifactGallery({ video, chapters }: { video: Video; chapters: Chapter[] }) {
+  const openViewer = useAssetViewer()
+  const [kind, setKind] = useState<string>('all')
+  const [view, setView] = useState<GalleryView>('grid')
+
   const assets = useQuery({
-    queryKey: qk.assets(videoId),
-    queryFn: () => api.listAssets(videoRef),
+    queryKey: qk.assets(video.id),
+    queryFn: () => api.listAssets(video.ref),
   })
 
-  const grouped = useMemo(() => {
-    const map = new Map<string, Asset[]>()
-    for (const asset of assets.data ?? []) {
-      const list = map.get(asset.kind)
-      if (list) list.push(asset)
-      else map.set(asset.kind, [asset])
-    }
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-  }, [assets.data])
+  const items = useMemo(
+    () => videoAssetItems(assets.data ?? [], chapters, video.ref),
+    [assets.data, chapters, video.ref],
+  )
 
-  const totalBytes = (assets.data ?? []).reduce((sum, asset) => sum + asset.size, 0)
+  const kinds = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const item of items) counts.set(item.kind, (counts.get(item.kind) ?? 0) + 1)
+    return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+  }, [items])
+
+  // A filter that outlives the artifact it matched leaves an empty pane with no
+  // explanation, so it collapses back to "all" the moment its kind disappears.
+  const active = kind !== 'all' && kinds.some(([name]) => name === kind) ? kind : 'all'
+  const shown = useMemo(
+    () => (active === 'all' ? items : items.filter((item) => item.kind === active)),
+    [items, active],
+  )
+  const shownBytes = shown.reduce((sum, item) => sum + (item.size ?? 0), 0)
+
+  // Stable across renders of the same filtered set, so the memoised cards below
+  // are not thrown away every time the gallery re-renders behind an SSE delta.
+  const openAt = useCallback((index: number) => openViewer(shown, index), [openViewer, shown])
+
+  if (assets.isPending) {
+    return (
+      <div className="grid gap-3 p-4 [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]">
+        {Array.from({ length: 8 }, (_, i) => (
+          <Skeleton key={i} className="h-[168px]" />
+        ))}
+      </div>
+    )
+  }
+
+  if (items.length === 0) {
+    return (
+      <EmptyState
+        title="No artifacts yet"
+        description={`Artifacts appear as tasks complete. ${video.ref} has produced none so far.`}
+      />
+    )
+  }
 
   return (
-    <div className="h-full overflow-y-auto p-4">
-      <div className="mx-auto max-w-5xl space-y-3">
-        {assets.isPending && <Skeleton className="h-40" />}
+    <div className="flex h-full flex-col">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[hsl(var(--border))] bg-subtle px-3 py-2 no-select">
+        <FilterChip
+          label="All"
+          count={items.length}
+          selected={active === 'all'}
+          onClick={() => setKind('all')}
+        />
+        {kinds.map(([name, count]) => (
+          <FilterChip
+            key={name}
+            label={kindTitle(name)}
+            count={count}
+            tone={assetKindTone(name)}
+            selected={active === name}
+            onClick={() => setKind(name)}
+          />
+        ))}
 
-        {!assets.isPending && grouped.length > 0 && (
-          <p className="text-[11.5px] text-subtle">
-            <span className="tabular">{assets.data?.length}</span> artifacts ·{' '}
-            <span className="tabular">{formatBytes(totalBytes)}</span> · content-addressed, so an
-            identical re-run writes nothing new
-          </p>
-        )}
+        <span className="tabular ml-auto text-[11px] text-subtle">
+          {shown.length} shown · {formatBytes(shownBytes)}
+        </span>
+        <Segmented
+          aria-label="Artifact layout"
+          value={view}
+          onChange={setView}
+          options={[
+            {
+              value: 'grid',
+              label: (
+                <>
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                  <span className="sr-only">Grid</span>
+                </>
+              ),
+            },
+            {
+              value: 'list',
+              label: (
+                <>
+                  <Rows3 className="h-3.5 w-3.5" />
+                  <span className="sr-only">List</span>
+                </>
+              ),
+            },
+          ]}
+          className="w-[72px]"
+        />
+      </div>
 
-        {grouped.map(([kind, list]) => (
-          <Panel key={kind}>
-            <PanelHeader>
-              <PanelTitle>
-                {kind} <span className="text-subtle">({list.length})</span>
-              </PanelTitle>
-              <span className="tabular text-[11px] text-subtle">
-                {formatBytes(list.reduce((sum, asset) => sum + asset.size, 0))}
-              </span>
-            </PanelHeader>
+      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        {view === 'grid' ? (
+          <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]">
+            {shown.map((item, index) => (
+              <ArtifactCard key={item.id + index} item={item} index={index} onOpen={openAt} />
+            ))}
+          </div>
+        ) : (
+          <Panel className="overflow-hidden">
             <ul className="divide-y divide-[hsl(var(--border))]">
-              {list.map((asset) => (
-                <li
-                  key={asset.id}
-                  className="flex items-center gap-3 px-3 py-1.5 text-[12px] hover:bg-[hsl(var(--bg-hover))]"
-                >
-                  <Mono className="truncate text-subtle">{asset.id.slice(0, 16)}</Mono>
-                  <span className="ml-auto text-[11px] text-subtle">{asset.mime}</span>
-                  <span className="tabular w-16 text-right text-muted">
-                    {formatBytes(asset.size)}
-                  </span>
-                  <a
-                    href={asset.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[hsl(var(--accent))] hover:underline"
-                    aria-label={`Open ${kind} ${asset.id.slice(0, 8)}`}
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                  </a>
-                </li>
+              {shown.map((item, index) => (
+                <ArtifactRow key={item.id + index} item={item} index={index} onOpen={openAt} />
               ))}
             </ul>
           </Panel>
-        ))}
-
-        {!assets.isPending && grouped.length === 0 && (
-          <EmptyState
-            title="No artifacts yet"
-            description={`Artifacts appear as tasks complete. ${video.ref} has produced none so far.`}
-          />
         )}
       </div>
     </div>
   )
 }
+
+function FilterChip({
+  label,
+  count,
+  tone = 'neutral',
+  selected,
+  onClick,
+}: {
+  label: string
+  count: number
+  tone?: Tone
+  selected: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full border px-2 py-[1px] text-[11px] font-medium leading-[18px] transition-colors',
+        selected
+          ? 'border-[hsl(var(--accent))] bg-[hsl(var(--accent))] text-[hsl(var(--accent-fg))]'
+          : 'border-[hsl(var(--border))] bg-[hsl(var(--bg-elevated))] text-muted hover:border-[hsl(var(--border-strong))] hover:text-fg',
+      )}
+    >
+      {!selected && tone !== 'neutral' && (
+        <span className={cn('h-1.5 w-1.5 rounded-full', TONE_DOT[tone])} aria-hidden />
+      )}
+      {label}
+      <span className={cn('tabular', selected ? 'opacity-80' : 'text-subtle')}>{count}</span>
+    </button>
+  )
+}
+
+const TONE_DOT: Record<Tone, string> = {
+  neutral: 'bg-[hsl(var(--fg-subtle))]',
+  accent: 'bg-[hsl(var(--accent))]',
+  success: 'bg-[hsl(var(--success))]',
+  warning: 'bg-[hsl(var(--warning))]',
+  danger: 'bg-[hsl(var(--danger))]',
+  info: 'bg-[hsl(var(--info))]',
+  violet: 'bg-[hsl(var(--violet))]',
+}
+
+const ArtifactCard = memo(function ArtifactCard({
+  item,
+  index,
+  onOpen,
+}: {
+  item: ViewerItem
+  index: number
+  onOpen: (index: number) => void
+}) {
+  const media = mediaTypeOf(item.mime)
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(index)}
+      aria-label={`Preview ${item.title}`}
+      className="group surface overflow-hidden text-left transition-[border-color,box-shadow] hover:border-[hsl(var(--accent))] hover:elev-2"
+    >
+      <div className="relative aspect-[16/10] overflow-hidden border-b border-[hsl(var(--border))]">
+        <AssetThumb item={item} />
+        <span
+          className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100"
+          aria-hidden
+        >
+          <Maximize2 className="h-4 w-4 text-white" />
+        </span>
+        {media !== 'image' && (
+          <span className="absolute bottom-1 right-1 rounded-[var(--radius-xs)] bg-black/55 px-1 text-[10px] font-medium leading-[15px] text-white">
+            {media}
+          </span>
+        )}
+      </div>
+      <div className="px-2.5 py-2">
+        <p className="truncate text-[12px] font-medium text-fg">{item.title}</p>
+        <p className="truncate text-[11px] text-subtle">{item.subtitle}</p>
+        <div className="mt-1 flex items-center justify-between gap-2 text-[10.5px] text-subtle">
+          <Mono className="truncate text-[10.5px]">{shortId(item.id)}</Mono>
+          <span className="tabular shrink-0">{formatBytes(item.size ?? 0)}</span>
+        </div>
+      </div>
+    </button>
+  )
+})
+
+const ArtifactRow = memo(function ArtifactRow({
+  item,
+  index,
+  onOpen,
+}: {
+  item: ViewerItem
+  index: number
+  onOpen: (index: number) => void
+}) {
+  return (
+    <li className="flex items-center gap-3 px-2.5 py-1.5 text-[12px] hover:bg-[hsl(var(--bg-hover))]">
+      <button
+        type="button"
+        onClick={() => onOpen(index)}
+        aria-label={`Preview ${item.title}`}
+        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+      >
+        <span className="h-8 w-14 shrink-0 overflow-hidden rounded-[var(--radius-xs)] border border-[hsl(var(--border))]">
+          <AssetThumb item={item} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium text-fg">{item.title}</span>
+          <span className="block truncate text-[11px] text-subtle">{item.subtitle}</span>
+        </span>
+        <Badge tone={assetKindTone(item.kind)} className="shrink-0">
+          {item.kind}
+        </Badge>
+        <span className="hidden w-28 shrink-0 truncate text-[11px] text-subtle md:block">
+          {item.mime}
+        </span>
+        <span className="tabular w-16 shrink-0 text-right text-muted">
+          {formatBytes(item.size ?? 0)}
+        </span>
+        <span className="tabular hidden w-20 shrink-0 text-right text-[11px] text-subtle lg:block">
+          {formatRelative(item.createdAt)}
+        </span>
+      </button>
+      <Tooltip label="Download">
+        <a
+          href={assetUrl(item.id)}
+          download={downloadName(item)}
+          className="shrink-0 rounded-[var(--radius-xs)] p-1 text-subtle hover:bg-[hsl(var(--bg-hover))] hover:text-fg"
+          aria-label={`Download ${item.title}`}
+        >
+          <Download className="h-3.5 w-3.5" />
+        </a>
+      </Tooltip>
+    </li>
+  )
+})

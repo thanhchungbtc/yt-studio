@@ -78,6 +78,7 @@ type Task struct {
 	StartedAt     *int64
 	FinishedAt    *int64
 	NotBefore     *int64
+	Stale         int64
 }
 
 type TaskDep struct {
