@@ -89,9 +89,27 @@ type Setting struct {
 	Description string
 	// Min and Max bound integer settings; they are advisory to the UI and
 	// enforced by Validate.
-	Min       int
-	Max       int
+	Min int
+	Max int
+	// Options constrains the value to a fixed set. It is deliberately not
+	// persisted: which backends exist is a property of the running binary, not
+	// of the database, so it is supplied at load time by whoever registered
+	// them. An empty Options means the value is unconstrained.
+	Options   []string
 	UpdatedAt time.Time
+}
+
+// AllowsValue reports whether v satisfies the Options constraint.
+func (s Setting) AllowsValue(v string) bool {
+	if len(s.Options) == 0 {
+		return true
+	}
+	for _, o := range s.Options {
+		if o == v {
+			return true
+		}
+	}
+	return false
 }
 
 // Validate parses the value against the declared type and bounds. It is called
@@ -119,6 +137,10 @@ func (s Setting) Validate() error {
 		}
 	default:
 		return fmt.Errorf("%w %q: unknown type %q", ErrInvalidSetting, s.Key, s.Type)
+	}
+	if !s.AllowsValue(s.Value) {
+		return fmt.Errorf("%w %q: %q is not one of %s",
+			ErrInvalidSetting, s.Key, s.Value, strings.Join(s.Options, ", "))
 	}
 	return nil
 }

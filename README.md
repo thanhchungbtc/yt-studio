@@ -51,13 +51,18 @@ large to commit; override the location with `--resources` or `YTS_RESOURCES`.
 
 ### Real composition
 
-Set the `provider.composer` settings row to `ffmpeg` and clips and the final
-render are produced by the real pipeline instead of the mock: each chapter's
-stills dissolved across its narration, keyed onto the chalkboard under the
-chapter and video titles, then every chapter crossfaded over the looping
-background with the music mixed under. It needs `ffmpeg` and `ffprobe` on PATH;
-the daemon logs at startup if either is missing. Every other backend stays
-mocked, and switching back is the same row.
+Set the `provider.composer` settings row to `ffmpeg` — it is a dropdown on the
+settings screen — and clips and the final render are produced by the real
+pipeline instead of the mock: each chapter's stills dissolved across its
+narration, keyed onto the chalkboard under the chapter and video titles, then
+every chapter crossfaded over the looping background with the music mixed
+under. It needs `ffmpeg` and `ffprobe` on PATH; the daemon logs at startup if
+either is missing. Every other backend stays mocked, and switching back is the
+same row.
+
+Each `provider.*` row offers exactly the backends this build registered, so a
+value that names no backend is rejected on write and refuses to start the
+daemon on load. Nothing silently falls back to the mock.
 
 ### Watching it work
 

@@ -697,6 +697,8 @@ export interface components {
       max: number
       /** Format: int64 */
       min: number
+      /** @description The only accepted values, when the setting is constrained to a fixed set; empty means free-form */
+      options: string[]
       /** @enum {string} */
       type: 'int' | 'bool' | 'string'
       /** Format: date-time */

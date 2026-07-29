@@ -23,6 +23,11 @@ type Settings struct {
 	reader repository.SettingReader
 	writer repository.SettingWriter
 
+	// options constrains the keys whose legal values are only known once the
+	// backends have been registered. It is written once, before Load, and read
+	// only afterwards.
+	options map[entity.SettingKey][]string
+
 	mu    sync.RWMutex
 	cache map[entity.SettingKey]entity.Setting
 }
@@ -36,6 +41,20 @@ func NewSettings(reader repository.SettingReader, writer repository.SettingWrite
 	}
 }
 
+// Constrain declares the legal values for keys that have a fixed set, which is
+// what turns a free-text field into a dropdown and a typo into a startup error
+// rather than a silent fallback. It must be called before Load.
+func (s *Settings) Constrain(options map[entity.SettingKey][]string) {
+	s.options = options
+}
+
+// constrain stamps a row with its legal values, so validation and the settings
+// screen both see them without the database having to store them.
+func (s *Settings) constrain(row entity.Setting) entity.Setting {
+	row.Options = s.options[row.Key]
+	return row
+}
+
 // Load reads and validates the whole table. Any invalid row is a startup error.
 func (s *Settings) Load(ctx context.Context) error {
 	rows, err := s.reader.ListSettings(ctx)
@@ -44,6 +63,7 @@ func (s *Settings) Load(ctx context.Context) error {
 	}
 	next := make(map[entity.SettingKey]entity.Setting, len(rows))
 	for _, r := range rows {
+		r = s.constrain(r)
 		if err := r.Validate(); err != nil {
 			return fmt.Errorf("settings table is invalid: %w", err)
 		}
@@ -145,11 +165,25 @@ func (s *Settings) GateEnabled(g entity.GateKind) bool {
 }
 
 // Set validates, persists and caches a new value.
+//
+// The constraint is checked here rather than in the store, because the store
+// reads its row from the database and the legal values are not in there.
 func (s *Settings) Set(ctx context.Context, key entity.SettingKey, value string) (entity.Setting, error) {
+	current, err := s.Get(key)
+	if err != nil {
+		return entity.Setting{}, err
+	}
+	candidate := s.constrain(current)
+	candidate.Value = value
+	if err := candidate.Validate(); err != nil {
+		return entity.Setting{}, err
+	}
+
 	updated, err := s.writer.UpdateSetting(ctx, key, value)
 	if err != nil {
 		return entity.Setting{}, err
 	}
+	updated = s.constrain(updated)
 	s.mu.Lock()
 	s.cache[key] = updated
 	s.mu.Unlock()

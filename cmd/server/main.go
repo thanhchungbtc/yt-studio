@@ -25,6 +25,7 @@ import (
 	"github.com/tbui/yt-studio/adapters/eventbus"
 	"github.com/tbui/yt-studio/adapters/ffmpeg"
 	mockprovider "github.com/tbui/yt-studio/adapters/mock_provider"
+	"github.com/tbui/yt-studio/adapters/registry"
 	"github.com/tbui/yt-studio/adapters/sqlite"
 	"github.com/tbui/yt-studio/app"
 	deliveryhttp "github.com/tbui/yt-studio/delivery/http"
@@ -144,6 +145,29 @@ func (c *serveCmd) Run() error {
 	}
 
 	settings := service.NewSettings(store, store)
+
+	assets, err := assetstore.New(c.Assets)
+	if err != nil {
+		return err
+	}
+
+	// Backends are registered before the settings are loaded, so a row naming
+	// one that does not exist fails at startup rather than at first task.
+	tuning := mockprovider.Tuning(func() (time.Duration, int) {
+		return settings.Duration(entity.SettingMockLatencyMillis),
+			settings.Int(entity.SettingMockFailureRatePercent)
+	})
+	ffmpegComposer := ffmpeg.New(assets, c.Resources, log)
+
+	providers := registry.New(settings.String)
+	providers.RegisterLLM("mock", mockprovider.NewLLM(assets, videoContextLookup(store), tuning))
+	providers.RegisterTTS("mock", mockprovider.NewTTS(assets, tuning))
+	providers.RegisterImage("mock", mockprovider.NewImage(assets, tuning))
+	providers.RegisterComposer("mock", mockprovider.NewComposer(assets, tuning))
+	providers.RegisterComposer("ffmpeg", ffmpegComposer)
+	providers.RegisterUploader("mock", mockprovider.NewUploader(assets, tuning, time.Now))
+
+	settings.Constrain(providers.Options())
 	if err := settings.Load(ctx); err != nil {
 		return err
 	}
@@ -151,30 +175,8 @@ func (c *serveCmd) Run() error {
 		level.Set(parsed)
 	}
 
-	assets, err := assetstore.New(c.Assets)
-	if err != nil {
-		return err
-	}
-
 	broker := eventbus.New(settings.Duration(entity.SettingSSECoalesceMillis), log)
 
-	tuning := mockprovider.Tuning(func() (time.Duration, int) {
-		return settings.Duration(entity.SettingMockLatencyMillis),
-			settings.Int(entity.SettingMockFailureRatePercent)
-	})
-	llm := mockprovider.NewLLM(assets, videoContextLookup(store), tuning)
-	tts := mockprovider.NewTTS(assets, tuning)
-	images := mockprovider.NewImage(assets, tuning)
-	uploader := mockprovider.NewUploader(assets, tuning, time.Now)
-
-	ffmpegComposer := ffmpeg.New(assets, c.Resources, log)
-	composer := &selectedComposer{
-		mock: mockprovider.NewComposer(assets, tuning),
-		real: ffmpegComposer,
-		selected: func() string {
-			return settings.String(entity.SettingProviderComposer)
-		},
-	}
 	if err := ffmpegComposer.Check(); err != nil {
 		log.Info("ffmpeg composer is not available",
 			slog.String("reason", err.Error()),
@@ -188,7 +190,8 @@ func (c *serveCmd) Run() error {
 	}
 	runner := app.NewTaskRunner(
 		store, store, store, store, store, store, store,
-		assets, llm, tts, images, composer, uploader, broker,
+		assets, providers.LLM(), providers.TTS(), providers.Image(),
+		providers.Composer(), providers.Uploader(), broker,
 		func() bool { return settings.Bool(entity.SettingUploadDryRun) },
 		time.Now, log,
 	)
@@ -231,7 +234,7 @@ func (c *serveCmd) Run() error {
 		StaleOK:    sched,
 		Pools:      sched,
 		Reporter:   sched,
-		Prompts:    llm,
+		Prompts:    providers.PromptCache(),
 		Notifier:   broker,
 		Coalescer:  broker,
 		Events:     broker,
@@ -295,32 +298,6 @@ func (c *serveCmd) Run() error {
 	}
 	log.Info("yt-studio stopped")
 	return nil
-}
-
-// selectedComposer routes each composition to the backend named by the
-// provider.composer setting, so switching between the mock and ffmpeg takes
-// effect on the next task rather than on the next restart (§3).
-type selectedComposer struct {
-	mock     provider.VideoComposer
-	real     provider.VideoComposer
-	selected func() string
-}
-
-var _ provider.VideoComposer = (*selectedComposer)(nil)
-
-func (s *selectedComposer) pick() provider.VideoComposer {
-	if s.selected() == "ffmpeg" {
-		return s.real
-	}
-	return s.mock
-}
-
-func (s *selectedComposer) Clip(ctx context.Context, req provider.ClipRequest) (entity.AssetID, error) {
-	return s.pick().Clip(ctx, req)
-}
-
-func (s *selectedComposer) Concat(ctx context.Context, req provider.ConcatRequest) (entity.AssetID, error) {
-	return s.pick().Concat(ctx, req)
 }
 
 // videoContextLookup gives the mock LLM the blueprint context its coalesced

@@ -33,7 +33,8 @@ const GROUP_BLURBS: Record<string, string> = {
   pools:
     'Enforced across every video and channel. Lowering a limit takes effect as running tasks finish; a running provider call is not preemptible.',
   gates: 'Where the pipeline pauses for a human. A gate costs nothing while it is open.',
-  providers: 'Which backend serves each step. Only the mocks are wired up in this version.',
+  providers:
+    'Which backend serves each step. Each list holds the backends this build registered; a change applies to the next task.',
   video: 'Applied to a new video when the request leaves the field blank.',
   scheduler: 'Retry policy for transient provider failures.',
   server: 'Applied live — none of these need a restart.',
@@ -214,6 +215,22 @@ const SettingRow = memo(function SettingRow({ setting }: { setting: Setting }) {
     if (dirty) save.mutate(value)
   }
 
+  // A setting with a fixed set of values is a dropdown, whether that set comes
+  // from the type (a boolean) or from the daemon (the backends it registered).
+  // Anything else is free-form text.
+  const choices = useMemo(() => {
+    if (setting.options.length > 0) {
+      return setting.options.map((option) => ({ value: option, label: option }))
+    }
+    if (setting.type === 'bool') {
+      return [
+        { value: 'true', label: 'enabled' },
+        { value: 'false', label: 'disabled' },
+      ]
+    }
+    return null
+  }, [setting.options, setting.type])
+
   return (
     <li
       className={cn(
@@ -238,7 +255,7 @@ const SettingRow = memo(function SettingRow({ setting }: { setting: Setting }) {
       </div>
 
       <div className="flex w-[260px] shrink-0 items-center gap-2">
-        {setting.type === 'bool' ? (
+        {choices ? (
           <Select
             id={`setting-${setting.key}`}
             value={value}
@@ -247,8 +264,11 @@ const SettingRow = memo(function SettingRow({ setting }: { setting: Setting }) {
               save.mutate(e.target.value)
             }}
           >
-            <option value="true">enabled</option>
-            <option value="false">disabled</option>
+            {choices.map((choice) => (
+              <option key={choice.value} value={choice.value}>
+                {choice.label}
+              </option>
+            ))}
           </Select>
         ) : (
           <Input

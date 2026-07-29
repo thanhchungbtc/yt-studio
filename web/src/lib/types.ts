@@ -167,6 +167,8 @@ export interface Setting {
   description: string
   min: number
   max: number
+  /** The only accepted values; empty when the setting is free-form. */
+  options: string[]
   updatedAt: string
 }
 

@@ -358,6 +358,35 @@ func TestSettingTypedAccessors(t *testing.T) {
 	}
 }
 
+func TestSettingOptionsConstrainTheValue(t *testing.T) {
+	t.Parallel()
+	s := entity.Setting{
+		Key:     entity.SettingProviderComposer,
+		Value:   "ffmpeg",
+		Type:    entity.SettingTypeString,
+		Options: []string{"mock", "ffmpeg"},
+	}
+	if err := s.Validate(); err != nil {
+		t.Fatalf("a registered backend was rejected: %v", err)
+	}
+
+	// A near miss is the case that matters: without the constraint it would
+	// validate, persist, and silently run a different backend.
+	s.Value = "ffmpg"
+	err := s.Validate()
+	if !errors.Is(err, entity.ErrInvalidSetting) {
+		t.Fatalf("misspelled backend passed validation: %v", err)
+	}
+	if !strings.Contains(err.Error(), "mock, ffmpeg") {
+		t.Fatalf("error does not name the legal values: %v", err)
+	}
+
+	free := entity.Setting{Key: "k", Value: "anything", Type: entity.SettingTypeString}
+	if err := free.Validate(); err != nil {
+		t.Fatalf("an unconstrained setting was rejected: %v", err)
+	}
+}
+
 func TestChapterNaturalKey(t *testing.T) {
 	t.Parallel()
 	c, err := entity.NewChapter("v1", 7, "Title", "summary", time.Unix(0, 0))
