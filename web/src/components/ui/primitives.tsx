@@ -3,6 +3,7 @@ import * as TooltipPrimitive from '@radix-ui/react-tooltip'
 import { X } from 'lucide-react'
 import type { HTMLAttributes, ReactNode } from 'react'
 
+import { keycaps } from '@/lib/hotkeys'
 import { cn } from '@/lib/utils'
 
 /* --------------------------------------------------------------- surfaces */
@@ -27,6 +28,22 @@ export function PanelTitle({ className, ...props }: HTMLAttributes<HTMLHeadingEl
   return (
     <h2
       className={cn('text-[11px] font-semibold uppercase tracking-wider text-subtle', className)}
+      {...props}
+    />
+  )
+}
+
+/**
+ * The strip of controls above a pane. Every view has exactly one, at a fixed
+ * height, so switching views never shifts the content beneath it.
+ */
+export function Toolbar({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={cn(
+        'flex h-11 shrink-0 items-center gap-2 border-b border-[hsl(var(--border))] bg-subtle px-3',
+        className,
+      )}
       {...props}
     />
   )
@@ -75,15 +92,172 @@ export function Progress({ value, total, failed = 0, running, className, ...rest
   )
 }
 
+/**
+ * A progress ring, for places where a bar would be too wide — a list row, a
+ * toolbar. Draws failure as a second arc so a stalled render is visible at
+ * 16 pixels.
+ */
+export function Ring({
+  value,
+  total,
+  failed = 0,
+  size = 16,
+  className,
+  ...rest
+}: ProgressProps & { size?: number }) {
+  const radius = (size - 2.5) / 2
+  const circumference = 2 * Math.PI * radius
+  const done = total > 0 ? Math.min(1, value / total) : 0
+  const bad = total > 0 ? Math.min(1, failed / total) : 0
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      className={cn('shrink-0 -rotate-90', className)}
+      role="progressbar"
+      aria-valuenow={Math.round(done * 100)}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      {...rest}
+    >
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        strokeWidth={2.5}
+        className="stroke-[hsl(var(--bg-hover))]"
+      />
+      {bad > 0 && (
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          strokeWidth={2.5}
+          strokeLinecap="round"
+          className="stroke-[hsl(var(--danger))]"
+          strokeDasharray={`${bad * circumference} ${circumference}`}
+          strokeDashoffset={-done * circumference}
+        />
+      )}
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        strokeWidth={2.5}
+        strokeLinecap="round"
+        className="stroke-[hsl(var(--accent))] transition-[stroke-dasharray] duration-300"
+        strokeDasharray={`${done * circumference} ${circumference}`}
+      />
+    </svg>
+  )
+}
+
+/* -------------------------------------------------------------- controls */
+
+export interface SegmentedOption<T extends string> {
+  value: T
+  label: ReactNode
+  count?: number
+}
+
+/**
+ * A segmented control: the tab metaphor for a pane that swaps its whole body.
+ * The moving indicator is a single absolutely positioned element rather than a
+ * per-item border, so it slides rather than jumps.
+ */
+export function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  className,
+  'aria-label': ariaLabel,
+}: {
+  options: SegmentedOption<T>[]
+  value: T
+  onChange: (value: T) => void
+  className?: string
+  'aria-label'?: string
+}) {
+  const index = Math.max(
+    0,
+    options.findIndex((option) => option.value === value),
+  )
+
+  return (
+    <div
+      role="tablist"
+      aria-label={ariaLabel}
+      className={cn(
+        'relative inline-flex h-7 items-center rounded-[var(--radius-sm)] bg-[hsl(var(--bg-hover))] p-[2px] no-select',
+        className,
+      )}
+    >
+      <span
+        aria-hidden
+        className="absolute inset-y-[2px] rounded-[var(--radius-xs)] bg-[hsl(var(--bg-elevated))] elev-1 transition-[left,width] duration-150 ease-out"
+        style={{
+          width: `calc((100% - 4px) / ${options.length})`,
+          left: `calc(2px + (100% - 4px) * ${index} / ${options.length})`,
+        }}
+      />
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="tab"
+          aria-selected={option.value === value}
+          onClick={() => onChange(option.value)}
+          className={cn(
+            'relative z-10 flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap px-2.5 text-[12px] transition-colors',
+            option.value === value ? 'font-medium text-fg' : 'text-muted hover:text-fg',
+          )}
+        >
+          {option.label}
+          {option.count !== undefined && (
+            <span
+              className={cn(
+                'tabular rounded-full px-1 text-[10px] leading-[15px]',
+                option.value === value
+                  ? 'bg-[hsl(var(--accent)/0.15)] text-[hsl(var(--accent))]'
+                  : 'bg-[hsl(var(--fg)/0.08)] text-subtle',
+              )}
+            >
+              {option.count}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** One keycap. `Kbd` takes the same binding string the hotkey layer does. */
+export function Kbd({ keys, className }: { keys: string; className?: string }) {
+  return (
+    <span className={cn('inline-flex items-center gap-[3px] no-select', className)}>
+      {keycaps(keys).map((cap, i) => (
+        <kbd
+          key={i}
+          className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[var(--radius-xs)] border border-[hsl(var(--border-strong))] bg-[hsl(var(--bg-elevated))] px-1 font-sans text-[10.5px] font-medium leading-none text-muted"
+        >
+          {cap}
+        </kbd>
+      ))}
+    </span>
+  )
+}
+
 /* -------------------------------------------------------------- feedback */
 
 export function Skeleton({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn(
-        'animate-pulse rounded-[var(--radius-sm)] bg-[hsl(var(--bg-hover))]',
-        className,
-      )}
+      className={cn('sweep rounded-[var(--radius-sm)] bg-[hsl(var(--bg-hover))]', className)}
       {...props}
     />
   )
@@ -94,15 +268,26 @@ export function EmptyState({
   title,
   description,
   action,
+  className,
 }: {
   icon?: ReactNode
   title: string
   description?: string
   action?: ReactNode
+  className?: string
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 px-6 py-14 text-center">
-      {icon && <div className="text-subtle [&>svg]:h-7 [&>svg]:w-7">{icon}</div>}
+    <div
+      className={cn(
+        'flex flex-col items-center justify-center gap-2 px-6 py-14 text-center',
+        className,
+      )}
+    >
+      {icon && (
+        <div className="mb-1 flex h-11 w-11 items-center justify-center rounded-full bg-[hsl(var(--bg-hover))] text-subtle [&>svg]:h-5 [&>svg]:w-5">
+          {icon}
+        </div>
+      )}
       <p className="text-[13px] font-medium text-fg">{title}</p>
       {description && <p className="max-w-sm text-[12px] text-muted">{description}</p>}
       {action && <div className="mt-2">{action}</div>}
@@ -129,22 +314,35 @@ export function ErrorNotice({ error, className }: { error: unknown; className?: 
 
 export function TooltipProvider({ children }: { children: ReactNode }) {
   return (
-    <TooltipPrimitive.Provider delayDuration={250} skipDelayDuration={120}>
+    <TooltipPrimitive.Provider delayDuration={350} skipDelayDuration={200}>
       {children}
     </TooltipPrimitive.Provider>
   )
 }
 
-export function Tooltip({ label, children }: { label: ReactNode; children: ReactNode }) {
+export function Tooltip({
+  label,
+  keys,
+  side,
+  children,
+}: {
+  label: ReactNode
+  /** An optional shortcut, drawn as keycaps after the label. */
+  keys?: string
+  side?: 'top' | 'right' | 'bottom' | 'left'
+  children: ReactNode
+}) {
   return (
     <TooltipPrimitive.Root>
       <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
       <TooltipPrimitive.Portal>
         <TooltipPrimitive.Content
+          side={side}
           sideOffset={6}
-          className="z-50 max-w-xs rounded-[var(--radius-sm)] border border-[hsl(var(--border-strong))] bg-[hsl(var(--bg-elevated))] px-2 py-1 text-[11.5px] text-fg shadow-lg"
+          className="animate-in-fade z-50 flex max-w-xs items-center gap-2 rounded-[var(--radius-sm)] border border-[hsl(var(--border-strong))] bg-[hsl(var(--bg-elevated))] px-2 py-1 text-[11.5px] text-fg elev-2"
         >
-          {label}
+          <span className="min-w-0">{label}</span>
+          {keys && <Kbd keys={keys} />}
         </TooltipPrimitive.Content>
       </TooltipPrimitive.Portal>
     </TooltipPrimitive.Root>
@@ -175,11 +373,11 @@ export function Modal({
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-black/55 backdrop-blur-[1px]" />
+        <DialogPrimitive.Overlay className="animate-in-fade fixed inset-0 z-40 bg-black/55 backdrop-blur-[2px]" />
         <DialogPrimitive.Content
           className={cn(
-            'fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col',
-            'rounded-[var(--radius-lg)] border border-[hsl(var(--border-strong))] bg-[hsl(var(--bg-elevated))] shadow-2xl',
+            'animate-in-pop fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col',
+            'rounded-[var(--radius-lg)] border border-[hsl(var(--border-strong))] bg-[hsl(var(--bg-elevated))] elev-3',
             wide ? 'max-w-3xl' : 'max-w-lg',
           )}
         >
@@ -203,7 +401,7 @@ export function Modal({
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">{children}</div>
           {footer && (
-            <div className="flex items-center justify-end gap-2 border-t border-[hsl(var(--border))] px-4 py-3">
+            <div className="flex items-center justify-end gap-2 border-t border-[hsl(var(--border))] bg-subtle px-4 py-3">
               {footer}
             </div>
           )}
@@ -226,4 +424,9 @@ export function KeyValue({ label, children }: { label: string; children: ReactNo
 
 export function Mono({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
   return <span className={cn('font-mono text-[11.5px]', className)} {...props} />
+}
+
+/** A hairline between toolbar groups. */
+export function Divider({ className }: { className?: string }) {
+  return <span aria-hidden className={cn('h-4 w-px bg-[hsl(var(--border))]', className)} />
 }

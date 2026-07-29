@@ -83,6 +83,46 @@ delivery/http     typed huma handlers on chi; SSE; asset streaming; the SPA
 web/              React 19 + TypeScript, embedded via embed.FS
 ```
 
+### The operator UI
+
+It is laid out as a desktop application rather than as a set of pages: a title
+bar, an activity bar down the left, a status bar along the bottom, and panes in
+between. Nothing but a pane ever scrolls.
+
+```
+┌────────────────────────────────────────────────────────────┐
+│ yt-studio › Videos     [ ⌕ search / ⌘K ]              ☾ ⌨  │  title bar
+├──┬───────────────────┬─────────────────────────────────────┤
+│▣ │ VIDEOS         3  │ DSS-12  The Long Winter   [Approve] │
+│▤ │ ⌕ filter          │ ───────────────────────────────     │
+│◈ │ All Live Gated    │ Overview │ Chapters │ Tasks │ …     │
+│⚙ │ ▾ Deep Sleep   2  │                                     │
+│  │   ◐ DSS-12 …      │  the selected video                 │
+│  │   ● DSS-11 …      │                                     │
+│  │ ▾ History      1  │                                     │
+├──┴───────────────────┴─────────────────────────────────────┤
+│ ● Live  LLM ▮▮ 2/2  IMG ▮▯ 1/2 …        uptime 4m  dev     │  status bar
+└────────────────────────────────────────────────────────────┘
+   activity  sidebar          detail
+```
+
+`/videos` is a **layout route**: the channel sidebar is mounted once and both
+the start pane and every video render inside it. Switching video therefore
+swaps only the pane to the right of the splitter — the list keeps its scroll
+position, its filter and its query cache, and never remounts.
+
+Everything is reachable from the keyboard. `⌘K` opens a command palette over
+every video, channel and action; `⌥↑`/`⌥↓` step through the sidebar; `⌘B`
+collapses it; `⌘1`–`⌘4` switch section; `⌘↵` approves an open gate; `⇧?` lists
+the rest. Sidebar width, collapsed state and folded channel groups persist in
+`localStorage` through one small external store, read synchronously on first
+render so the window never flashes at the wrong width.
+
+Custom Tailwind utilities are declared with `@utility`, not inside
+`@layer utilities` — a plain rule in the utilities layer is emitted verbatim and
+Tailwind generates no variant of it, so `hover:text-fg` silently compiles to
+nothing.
+
 Layering is enforced by `depguard` in CI, not by convention: the domain cannot
 import an adapter, a use case cannot import a concrete adapter, and delivery
 cannot reach past the ports into SQLite.
@@ -144,7 +184,7 @@ Measured on an M1 Max:
 | Migrations on an existing database     | < 50 ms      | **2.4 ms**           |
 | Server RSS, 305 tasks in flight        | < 150 MB     | **49 MB**            |
 | Server idle CPU                        | < 0.5 %      | **0.3 %**            |
-| Production bundle, gzipped             | < 250 KB     | **167 KB**           |
+| Production bundle, gzipped             | < 250 KB     | **182 KB**           |
 
 A 50-chapter, 305-task render finishes against the mocks in about 8 seconds,
 and `SIGKILL` partway through resumes on restart and completes with every

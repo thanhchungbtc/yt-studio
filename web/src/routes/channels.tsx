@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { KeyRound, Plus, Tv } from 'lucide-react'
 import { useState } from 'react'
 
@@ -19,6 +20,7 @@ import {
   Tooltip,
 } from '@/components/ui/primitives'
 import { api, qk } from '@/lib/api'
+import { useAppCommands } from '@/lib/app-commands'
 import { formatAbsolute } from '@/lib/format'
 import type { Channel } from '@/lib/types'
 
@@ -28,10 +30,23 @@ const CREDENTIAL_TONES: Record<Channel['credentials'], Tone> = {
   missing: 'neutral',
 }
 
+/** Two letters from the channel name, so a card is identifiable before it is read. */
+function initials(name: string): string {
+  const words = name.trim().split(/\s+/)
+  const first = words[0]?.[0] ?? '?'
+  const second = words.length > 1 ? (words[words.length - 1]?.[0] ?? '') : (words[0]?.[1] ?? '')
+  return (first + second).toUpperCase()
+}
+
 export function ChannelsRoute() {
   const channels = useQuery({ queryKey: qk.channels, queryFn: api.listChannels })
+  const videos = useQuery({ queryKey: qk.videos({}), queryFn: () => api.listVideos({}) })
+  const { openCreateVideo } = useAppCommands()
   const [editing, setEditing] = useState<Channel | null>(null)
   const [creating, setCreating] = useState(false)
+
+  const countFor = (channelId: string) =>
+    (videos.data?.videos ?? []).filter((v) => v.channelId === channelId).length
 
   return (
     <>
@@ -39,7 +54,7 @@ export function ChannelsRoute() {
         title="Channels"
         subtitle="Identity, creative direction and upload credentials. The slug is chosen once and never changes."
         actions={
-          <Button variant="primary" onClick={() => setCreating(true)}>
+          <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
             <Plus className="h-3.5 w-3.5" />
             New channel
           </Button>
@@ -50,7 +65,7 @@ export function ChannelsRoute() {
         {channels.isPending && (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-3">
             {Array.from({ length: 3 }, (_, i) => (
-              <Skeleton key={i} className="h-56" />
+              <Skeleton key={i} className="h-60" />
             ))}
           </div>
         )}
@@ -62,20 +77,33 @@ export function ChannelsRoute() {
             description="A channel carries the voice, the visual style and the credentials every video inherits."
             action={
               <Button variant="primary" onClick={() => setCreating(true)}>
+                <Plus className="h-3.5 w-3.5" />
                 New channel
               </Button>
             }
           />
         )}
+
         <div className="grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-3">
           {channels.data?.map((channel) => (
-            <Panel key={channel.id} className="flex flex-col">
-              <PanelHeader>
-                <div className="min-w-0">
-                  <PanelTitle className="normal-case tracking-normal text-[13px] text-fg">
-                    {channel.name}
-                  </PanelTitle>
-                  <Mono className="text-subtle">{channel.slug}</Mono>
+            <Panel
+              key={channel.id}
+              className="flex flex-col transition-shadow hover:border-[hsl(var(--border-strong))] hover:elev-2"
+            >
+              <PanelHeader className="items-start">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span
+                    aria-hidden
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[hsl(var(--accent)/0.14)] text-[11px] font-semibold tracking-wide text-[hsl(var(--accent))]"
+                  >
+                    {initials(channel.name)}
+                  </span>
+                  <div className="min-w-0">
+                    <PanelTitle className="truncate text-[13px] normal-case tracking-normal text-fg">
+                      {channel.name}
+                    </PanelTitle>
+                    <Mono className="text-subtle">{channel.slug}</Mono>
+                  </div>
                 </div>
                 <Tooltip label={`YouTube credentials: ${channel.credentials}`}>
                   <span>
@@ -102,10 +130,22 @@ export function ChannelsRoute() {
                 </dl>
               </div>
 
-              <div className="flex justify-end gap-2 border-t border-[hsl(var(--border))] px-3 py-2">
-                <Button size="sm" variant="ghost" onClick={() => setEditing(channel)}>
-                  Edit
-                </Button>
+              <div className="flex items-center gap-2 border-t border-[hsl(var(--border))] bg-subtle px-3 py-2">
+                <Link
+                  to="/videos"
+                  className="text-[11.5px] text-[hsl(var(--accent))] hover:underline"
+                >
+                  {countFor(channel.id)} video{countFor(channel.id) === 1 ? '' : 's'}
+                </Link>
+                <div className="ml-auto flex gap-1">
+                  <Button size="sm" variant="ghost" onClick={() => openCreateVideo(channel.slug)}>
+                    <Plus className="h-3 w-3" />
+                    Video
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setEditing(channel)}>
+                    Edit
+                  </Button>
+                </div>
               </div>
             </Panel>
           ))}

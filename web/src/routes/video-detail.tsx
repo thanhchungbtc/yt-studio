@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronRight,
   Download,
+  FileJson,
   Pencil,
   Play,
   RefreshCw,
@@ -14,14 +15,16 @@ import {
 } from 'lucide-react'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 
-import { PageHeader } from '@/components/app-shell'
+import { StageStrip } from '@/components/stage-strip'
 import { TaskStateBadge, VideoStateBadge } from '@/components/state-badges'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/field'
 import {
+  Divider,
   EmptyState,
   ErrorNotice,
+  Kbd,
   KeyValue,
   Modal,
   Mono,
@@ -29,7 +32,10 @@ import {
   PanelHeader,
   PanelTitle,
   Progress,
+  Ring,
+  Segmented,
   Skeleton,
+  Toolbar,
   Tooltip,
 } from '@/components/ui/primitives'
 import { api, assetUrl, qk, thumbUrl } from '@/lib/api'
@@ -38,17 +44,25 @@ import {
   formatAbsolute,
   formatBytes,
   formatClock,
+  formatRelative,
   percent,
   taskLabel,
 } from '@/lib/format'
+import { useHotkeys } from '@/lib/hotkeys'
 import type { Asset, Chapter, GateKind, Task, Video } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
-type Tab = 'chapters' | 'tasks' | 'artifacts'
+type Tab = 'overview' | 'chapters' | 'tasks' | 'artifacts'
 
+const TABS: Tab[] = ['overview', 'chapters', 'tasks', 'artifacts']
+
+/**
+ * The detail pane. It lives to the right of the splitter inside the `/videos`
+ * layout, so it owns everything below the toolbar and nothing above it.
+ */
 export function VideoDetailRoute() {
   const { ref } = useParams({ from: '/videos/$ref' })
-  const [tab, setTab] = useState<Tab>('chapters')
+  const [tab, setTab] = useState<Tab>('overview')
 
   const video = useQuery({ queryKey: qk.video(ref), queryFn: () => api.getVideo(ref) })
   const videoId = video.data?.id
@@ -64,16 +78,44 @@ export function VideoDetailRoute() {
     enabled: Boolean(videoId),
   })
 
+  // Tabs move under the same modifier the rest of the shell uses, so a whole
+  // review pass — open video, scan stages, read chapters — never needs a mouse.
+  useHotkeys([
+    {
+      keys: 'mod+arrowright',
+      label: 'Next tab',
+      group: 'Video',
+      run: () => setTab((prev) => TABS[(TABS.indexOf(prev) + 1) % TABS.length] ?? prev),
+    },
+    {
+      keys: 'mod+arrowleft',
+      label: 'Previous tab',
+      group: 'Video',
+      run: () =>
+        setTab((prev) => TABS[(TABS.indexOf(prev) - 1 + TABS.length) % TABS.length] ?? prev),
+    },
+  ])
+
   if (video.isPending) {
     return (
-      <div className="space-y-3 p-4">
-        <Skeleton className="h-10 w-72" />
-        <Skeleton className="h-40 w-full" />
-      </div>
+      <>
+        <Toolbar>
+          <Skeleton className="h-4 w-56" />
+        </Toolbar>
+        <div className="space-y-3 p-4">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-40 w-full" />
+        </div>
+      </>
     )
   }
   if (video.isError || !video.data) {
-    return <ErrorNotice error={video.error ?? new Error('video not found')} className="m-4" />
+    return (
+      <>
+        <Toolbar />
+        <ErrorNotice error={video.error ?? new Error('video not found')} className="m-4" />
+      </>
+    )
   }
 
   const v = video.data
@@ -81,56 +123,73 @@ export function VideoDetailRoute() {
 
   return (
     <>
-      <PageHeader
-        title={`${v.ref} — ${v.title}`}
-        subtitle={
-          <span className="flex items-center gap-2">
-            <VideoStateBadge state={v.state} />
-            <span className="tabular">
-              {v.counts.succeeded}/{v.counts.total} tasks
-            </span>
-            {v.counts.failed > 0 && (
-              <span className="tabular text-[hsl(var(--danger))]">{v.counts.failed} failed</span>
-            )}
-            {v.topic && <span className="truncate text-subtle">· {v.topic}</span>}
-          </span>
-        }
-        actions={<VideoActions video={v} openGate={openGate} />}
-      />
-
-      <div className="shrink-0 px-4 pt-3">
-        <Progress
+      <Toolbar className="gap-3">
+        <Ring
           value={v.counts.succeeded}
           total={v.counts.total}
           failed={v.counts.failed}
-          running={v.state === 'running'}
-          aria-label={`${percent(v.counts.succeeded, v.counts.total)}% complete`}
+          size={18}
         />
-      </div>
+        <div className="flex min-w-0 items-baseline gap-2">
+          <span className="shrink-0 font-mono text-[12px] font-semibold text-[hsl(var(--accent))]">
+            {v.ref}
+          </span>
+          <h1 className="truncate text-[13.5px] font-medium text-fg" title={v.title}>
+            {v.title}
+          </h1>
+        </div>
+        <VideoStateBadge state={v.state} className="shrink-0" />
+        <span className="tabular shrink-0 text-[11.5px] text-subtle">
+          {v.counts.succeeded}/{v.counts.total}
+        </span>
+
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <VideoActions video={v} openGate={openGate} />
+        </div>
+      </Toolbar>
+
+      {/* A hairline the width of the pane: progress as window chrome, not as a
+          widget competing with the content below it. */}
+      <Progress
+        value={v.counts.succeeded}
+        total={v.counts.total}
+        failed={v.counts.failed}
+        running={v.state === 'running'}
+        className="h-[3px] shrink-0 rounded-none"
+        aria-label={`${percent(v.counts.succeeded, v.counts.total)}% complete`}
+      />
 
       {openGate && <GateBanner video={v} task={openGate} />}
       {v.error && <ErrorNotice error={new Error(v.error)} className="mx-4 mt-3" />}
 
-      <div className="mt-3 flex shrink-0 gap-1 border-b border-[hsl(var(--border))] px-4">
-        {(['chapters', 'tasks', 'artifacts'] as Tab[]).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={cn(
-              'relative px-3 py-1.5 text-[12.5px] capitalize transition-colors',
-              tab === t ? 'text-fg' : 'text-subtle hover:text-fg',
-            )}
-          >
-            {t}
-            {tab === t && (
-              <span className="absolute inset-x-2 bottom-[-1px] h-[2px] rounded-full bg-[hsl(var(--accent))]" />
-            )}
-          </button>
-        ))}
+      <div className="flex shrink-0 items-center gap-3 border-b border-[hsl(var(--border))] px-3 py-2">
+        <Segmented
+          aria-label="Video sections"
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: 'overview', label: 'Overview' },
+            { value: 'chapters', label: 'Chapters', count: chapters.data?.length },
+            { value: 'tasks', label: 'Tasks', count: tasks.data?.length },
+            { value: 'artifacts', label: 'Artifacts' },
+          ]}
+          className="w-[380px]"
+        />
+        <Divider className="hidden sm:block" />
+        <span className="hidden items-center gap-1.5 text-[11px] text-subtle sm:flex">
+          <Kbd keys="mod+arrowleft" />
+          <Kbd keys="mod+arrowright" />
+          switch
+        </span>
+        <span className="ml-auto text-[11px] tabular text-subtle">
+          updated {formatRelative(v.updatedAt)}
+        </span>
       </div>
 
       <div className="min-h-0 flex-1 overflow-hidden">
+        {tab === 'overview' && (
+          <Overview video={v} tasks={tasks.data ?? []} loading={tasks.isPending} />
+        )}
         {tab === 'chapters' && (
           <ChapterGrid
             video={v}
@@ -182,28 +241,56 @@ function VideoActions({ video, openGate }: { video: Video; openGate: Task | unde
     video.state === 'draft' || video.state === 'cancelled' || video.state === 'failed'
   const canCancel = video.state === 'running' || video.state === 'awaiting_approval'
 
+  useHotkeys([
+    {
+      keys: 'mod+enter',
+      label: 'Approve the open gate',
+      group: 'Video',
+      run: () => {
+        if (openGate && !approve.isPending) approve.mutate()
+      },
+    },
+  ])
+
   return (
     <>
       {openGate && (
         <>
-          <Button variant="success" onClick={() => approve.mutate()} disabled={approve.isPending}>
-            <Check className="h-3.5 w-3.5" />
-            Approve {openGate.gate}
-          </Button>
-          <Button variant="outline" onClick={() => setRejecting(true)}>
+          <Tooltip label="Approve and let the pipeline continue" keys="mod+enter">
+            <Button
+              variant="success"
+              size="sm"
+              onClick={() => approve.mutate()}
+              disabled={approve.isPending}
+            >
+              <Check className="h-3.5 w-3.5" />
+              Approve {openGate.gate}
+            </Button>
+          </Tooltip>
+          <Button variant="outline" size="sm" onClick={() => setRejecting(true)}>
             <X className="h-3.5 w-3.5" />
             Reject
           </Button>
         </>
       )}
       {canStart && (
-        <Button variant="primary" onClick={() => start.mutate()} disabled={start.isPending}>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => start.mutate()}
+          disabled={start.isPending}
+        >
           <Play className="h-3.5 w-3.5" />
           {video.state === 'draft' ? 'Start' : 'Resume'}
         </Button>
       )}
       {canCancel && (
-        <Button variant="ghost" onClick={() => cancel.mutate()} disabled={cancel.isPending}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => cancel.mutate()}
+          disabled={cancel.isPending}
+        >
           <Ban className="h-3.5 w-3.5" />
           Cancel
         </Button>
@@ -231,6 +318,7 @@ function VideoActions({ video, openGate }: { video: Video; openGate: Task | unde
           onChange={(e) => setReason(e.target.value)}
           placeholder="The outline repeats itself from chapter 12 onwards."
           aria-label="Rejection reason"
+          autoFocus
         />
         {reject.isError && <ErrorNotice error={reject.error} className="mt-3" />}
       </Modal>
@@ -241,8 +329,8 @@ function VideoActions({ video, openGate }: { video: Video; openGate: Task | unde
 function GateBanner({ video, task }: { video: Video; task: Task }) {
   const blueprint = video.blueprintAssetId
   return (
-    <div className="mx-4 mt-3 flex items-start gap-3 rounded-[var(--radius-md)] border border-[hsl(var(--warning)/0.4)] bg-[hsl(var(--warning-soft))] px-3 py-2.5">
-      <Badge tone="warning" dot pulse>
+    <div className="flex shrink-0 items-start gap-3 border-b border-[hsl(var(--warning)/0.35)] bg-[hsl(var(--warning-soft))] px-4 py-2.5">
+      <Badge tone="warning" dot pulse className="mt-[1px] shrink-0">
         Gate open
       </Badge>
       <div className="min-w-0 flex-1 text-[12px] text-fg">
@@ -274,6 +362,171 @@ function GateBanner({ video, task }: { video: Video; task: Task }) {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ overview */
+
+function Overview({ video, tasks, loading }: { video: Video; tasks: Task[]; loading: boolean }) {
+  return (
+    <div className="h-full overflow-y-auto p-4">
+      <div className="mx-auto max-w-5xl space-y-4">
+        <section>
+          <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-subtle">
+            Pipeline
+          </h2>
+          {loading ? <Skeleton className="h-16" /> : <StageStrip tasks={tasks} />}
+          {!loading && tasks.length === 0 && (
+            <p className="text-[12px] text-muted">
+              Nothing is enqueued yet. Start the video to build its DAG.
+            </p>
+          )}
+        </section>
+
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="space-y-4">
+            {video.finalAssetId && (
+              <Panel className="overflow-hidden">
+                <PanelHeader>
+                  <PanelTitle>Final render</PanelTitle>
+                  <a
+                    href={assetUrl(video.finalAssetId)}
+                    download
+                    className="flex items-center gap-1 text-[11px] text-[hsl(var(--accent))] hover:underline"
+                  >
+                    <Download className="h-3 w-3" />
+                    Download
+                  </a>
+                </PanelHeader>
+                {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                <video
+                  controls
+                  preload="metadata"
+                  src={assetUrl(video.finalAssetId)}
+                  className="max-h-[46vh] w-full bg-black"
+                />
+              </Panel>
+            )}
+
+            {video.topic && (
+              <Panel>
+                <PanelHeader>
+                  <PanelTitle>Topic</PanelTitle>
+                </PanelHeader>
+                <p className="px-3 py-2.5 text-[12.5px] leading-relaxed text-muted">
+                  {video.topic}
+                </p>
+              </Panel>
+            )}
+
+            {video.metadata && (
+              <Panel>
+                <PanelHeader>
+                  <PanelTitle>Publish metadata</PanelTitle>
+                  <Badge tone="neutral">{video.metadata.privacy}</Badge>
+                </PanelHeader>
+                <div className="space-y-2 px-3 py-2.5 text-[12px]">
+                  <p className="font-medium text-fg">{video.metadata.title}</p>
+                  <p className="whitespace-pre-wrap text-[11.5px] leading-relaxed text-muted">
+                    {video.metadata.description}
+                  </p>
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {video.metadata.tags.map((tag) => (
+                      <Badge key={tag} tone="violet">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </Panel>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <Panel>
+              <PanelHeader>
+                <PanelTitle>Tasks</PanelTitle>
+              </PanelHeader>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 px-3 py-2.5">
+                <Stat label="Succeeded" value={video.counts.succeeded} tone="success" />
+                <Stat label="Running" value={video.counts.running} tone="accent" />
+                <Stat label="Ready" value={video.counts.ready} tone="info" />
+                <Stat label="Blocked" value={video.counts.blocked} tone="muted" />
+                <Stat label="Gated" value={video.counts.awaitingApproval} tone="warning" />
+                <Stat label="Failed" value={video.counts.failed} tone="danger" />
+              </div>
+            </Panel>
+
+            <Panel>
+              <PanelHeader>
+                <PanelTitle>Video</PanelTitle>
+                {video.blueprintAssetId && (
+                  <a
+                    href={assetUrl(video.blueprintAssetId)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1 text-[11px] text-[hsl(var(--accent))] hover:underline"
+                  >
+                    <FileJson className="h-3 w-3" />
+                    Blueprint
+                  </a>
+                )}
+              </PanelHeader>
+              <dl className="px-3 py-2">
+                <KeyValue label="Ref">{video.ref}</KeyValue>
+                <KeyValue label="Chapters">{video.chapterCount}</KeyValue>
+                <KeyValue label="Stills / chapter">{video.imagesPerChapter}</KeyValue>
+                <KeyValue label="Created">{formatAbsolute(video.createdAt)}</KeyValue>
+                <KeyValue label="Started">{formatAbsolute(video.startedAt)}</KeyValue>
+                <KeyValue label="Completed">{formatAbsolute(video.completedAt)}</KeyValue>
+              </dl>
+            </Panel>
+
+            {video.upload && (
+              <Panel>
+                <PanelHeader>
+                  <PanelTitle>Upload</PanelTitle>
+                  {video.upload.dryRun && <Badge tone="warning">dry run</Badge>}
+                </PanelHeader>
+                <dl className="px-3 py-2">
+                  <KeyValue label="Remote id">{video.upload.remoteVideoId}</KeyValue>
+                  <KeyValue label="Uploaded">{formatAbsolute(video.upload.uploadedAt)}</KeyValue>
+                </dl>
+              </Panel>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Stat({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: number
+  tone: 'accent' | 'info' | 'success' | 'warning' | 'danger' | 'muted'
+}) {
+  const colour = {
+    accent: 'text-[hsl(var(--accent))]',
+    info: 'text-[hsl(var(--info))]',
+    success: 'text-[hsl(var(--success))]',
+    warning: 'text-[hsl(var(--warning))]',
+    danger: 'text-[hsl(var(--danger))]',
+    muted: 'text-muted',
+  }[tone]
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <span className="text-[11.5px] text-subtle">{label}</span>
+      <span
+        className={cn('tabular text-[15px] font-semibold', value === 0 ? 'text-subtle' : colour)}
+      >
+        {value}
+      </span>
     </div>
   )
 }
@@ -409,7 +662,7 @@ const ChapterCard = memo(function ChapterCard({
   const stills = Array.from({ length: imagesPerChapter }, (_, i) => chapter.imageAssetIds[i] ?? '')
 
   return (
-    <Panel className="overflow-hidden">
+    <Panel className="overflow-hidden transition-colors hover:border-[hsl(var(--border-strong))]">
       <div className="flex gap-3 p-3">
         {/* Stills, side by side — this is what the operator actually reviews. */}
         <div className="flex shrink-0 gap-2">
@@ -691,22 +944,42 @@ function ArtifactList({
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]))
   }, [assets.data])
 
+  const totalBytes = (assets.data ?? []).reduce((sum, asset) => sum + asset.size, 0)
+
   return (
-    <div className="grid h-full grid-cols-[1fr_320px] gap-4 overflow-y-auto p-4">
-      <div className="space-y-3">
+    <div className="h-full overflow-y-auto p-4">
+      <div className="mx-auto max-w-5xl space-y-3">
         {assets.isPending && <Skeleton className="h-40" />}
+
+        {!assets.isPending && grouped.length > 0 && (
+          <p className="text-[11.5px] text-subtle">
+            <span className="tabular">{assets.data?.length}</span> artifacts ·{' '}
+            <span className="tabular">{formatBytes(totalBytes)}</span> · content-addressed, so an
+            identical re-run writes nothing new
+          </p>
+        )}
+
         {grouped.map(([kind, list]) => (
           <Panel key={kind}>
             <PanelHeader>
               <PanelTitle>
                 {kind} <span className="text-subtle">({list.length})</span>
               </PanelTitle>
+              <span className="tabular text-[11px] text-subtle">
+                {formatBytes(list.reduce((sum, asset) => sum + asset.size, 0))}
+              </span>
             </PanelHeader>
             <ul className="divide-y divide-[hsl(var(--border))]">
               {list.map((asset) => (
-                <li key={asset.id} className="flex items-center gap-3 px-3 py-1.5 text-[12px]">
+                <li
+                  key={asset.id}
+                  className="flex items-center gap-3 px-3 py-1.5 text-[12px] hover:bg-[hsl(var(--bg-hover))]"
+                >
                   <Mono className="truncate text-subtle">{asset.id.slice(0, 16)}</Mono>
-                  <span className="tabular ml-auto text-muted">{formatBytes(asset.size)}</span>
+                  <span className="ml-auto text-[11px] text-subtle">{asset.mime}</span>
+                  <span className="tabular w-16 text-right text-muted">
+                    {formatBytes(asset.size)}
+                  </span>
                   <a
                     href={asset.url}
                     target="_blank"
@@ -721,58 +994,12 @@ function ArtifactList({
             </ul>
           </Panel>
         ))}
+
         {!assets.isPending && grouped.length === 0 && (
-          <EmptyState title="No artifacts yet" description="Artifacts appear as tasks complete." />
-        )}
-      </div>
-
-      <div className="space-y-3">
-        <Panel>
-          <PanelHeader>
-            <PanelTitle>Video</PanelTitle>
-          </PanelHeader>
-          <dl className="px-3 py-2">
-            <KeyValue label="Ref">{video.ref}</KeyValue>
-            <KeyValue label="Chapters">{video.chapterCount}</KeyValue>
-            <KeyValue label="Stills / chapter">{video.imagesPerChapter}</KeyValue>
-            <KeyValue label="Created">{formatAbsolute(video.createdAt)}</KeyValue>
-            <KeyValue label="Started">{formatAbsolute(video.startedAt)}</KeyValue>
-            <KeyValue label="Completed">{formatAbsolute(video.completedAt)}</KeyValue>
-          </dl>
-        </Panel>
-
-        {video.metadata && (
-          <Panel>
-            <PanelHeader>
-              <PanelTitle>Metadata</PanelTitle>
-            </PanelHeader>
-            <div className="space-y-2 px-3 py-2 text-[12px]">
-              <p className="font-medium text-fg">{video.metadata.title}</p>
-              <p className="whitespace-pre-wrap text-[11.5px] text-muted">
-                {video.metadata.description}
-              </p>
-              <div className="flex flex-wrap gap-1">
-                {video.metadata.tags.map((tag) => (
-                  <Badge key={tag} tone="violet">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          </Panel>
-        )}
-
-        {video.upload && (
-          <Panel>
-            <PanelHeader>
-              <PanelTitle>Upload</PanelTitle>
-              {video.upload.dryRun && <Badge tone="warning">dry run</Badge>}
-            </PanelHeader>
-            <dl className="px-3 py-2">
-              <KeyValue label="Remote id">{video.upload.remoteVideoId}</KeyValue>
-              <KeyValue label="Uploaded">{formatAbsolute(video.upload.uploadedAt)}</KeyValue>
-            </dl>
-          </Panel>
+          <EmptyState
+            title="No artifacts yet"
+            description={`Artifacts appear as tasks complete. ${video.ref} has produced none so far.`}
+          />
         )}
       </div>
     </div>

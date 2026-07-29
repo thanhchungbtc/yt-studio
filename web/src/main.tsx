@@ -4,6 +4,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import { TooltipProvider } from '@/components/ui/primitives'
+import { applyTheme } from '@/lib/workspace'
 import { router } from '@/router'
 
 import './styles.css'
@@ -24,7 +25,9 @@ const queryClient = new QueryClient({
   },
 })
 
-// Applied before React mounts so there is no flash of the wrong theme.
+// Applied before React mounts so there is no flash of the wrong theme. The
+// workspace store writes JSON, and a build older than it wrote the bare word,
+// so both are accepted here.
 ;(function restoreTheme() {
   let stored: string | null = null
   try {
@@ -32,11 +35,12 @@ const queryClient = new QueryClient({
   } catch {
     stored = null
   }
-  const dark = stored
-    ? stored === 'dark'
-    : window.matchMedia('(prefers-color-scheme: dark)').matches
-  document.documentElement.classList.toggle('dark', dark)
-  document.documentElement.classList.toggle('light', !dark)
+  const theme = stored?.replace(/^"|"$/g, '')
+  const dark =
+    theme === 'dark' || theme === 'light'
+      ? theme === 'dark'
+      : window.matchMedia('(prefers-color-scheme: dark)').matches
+  applyTheme(dark ? 'dark' : 'light')
 })()
 
 const container = document.getElementById('root')

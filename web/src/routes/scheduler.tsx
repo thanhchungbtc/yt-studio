@@ -22,6 +22,7 @@ import type { Task, TaskState } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 const ROW_HEIGHT = 30
+const COLUMNS = '110px 100px 52px 76px 104px 56px minmax(0,1fr) 84px 64px'
 
 /**
  * The operator console: pool utilisation, queue depth, and the live task table.
@@ -44,6 +45,13 @@ export function SchedulerRoute() {
     queryFn: () => api.listRecentTasks(500),
     refetchInterval: 30_000,
   })
+  // The task stream carries video ids; the operator thinks in refs.
+  const videos = useQuery({ queryKey: qk.videos({}), queryFn: () => api.listVideos({}) })
+
+  const refById = useMemo(
+    () => new Map((videos.data?.videos ?? []).map((v) => [v.id, v.ref])),
+    [videos.data],
+  )
 
   const filtered = useMemo(() => {
     const rows = tasks.data ?? []
@@ -61,18 +69,18 @@ export function SchedulerRoute() {
         title="Scheduler"
         subtitle={
           totals
-            ? `${totals.videos} video${totals.videos === 1 ? '' : 's'} in flight · up ${formatDuration(totals.uptimeSeconds)}`
+            ? `${totals.videos} video${totals.videos === 1 ? '' : 's'} in flight · up ${formatDuration(totals.uptimeSeconds)} · limits apply without a restart`
             : 'Loading…'
         }
       />
 
-      <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_320px] gap-3 p-4 pb-0">
+      <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_340px] gap-3 p-4 pb-0">
         <Panel>
           <PanelHeader>
             <PanelTitle>Pools</PanelTitle>
-            <span className="text-[11px] text-subtle">
-              limits are settings rows; edits apply without a restart
-            </span>
+            <Link to="/settings" className="text-[11px] text-subtle hover:text-fg">
+              limits are settings rows
+            </Link>
           </PanelHeader>
           <div className="space-y-2 px-3 py-3">
             {status.isPending && <Skeleton className="h-24" />}
@@ -82,11 +90,11 @@ export function SchedulerRoute() {
           </div>
         </Panel>
 
-        <Panel>
+        <Panel className="self-start">
           <PanelHeader>
             <PanelTitle>Queue</PanelTitle>
           </PanelHeader>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 px-3 py-3">
+          <div className="grid grid-cols-3 gap-px overflow-hidden rounded-b-[var(--radius-md)] bg-[hsl(var(--border))]">
             <Counter label="Running" value={totals?.running ?? 0} tone="accent" />
             <Counter label="Ready" value={totals?.ready ?? 0} tone="info" />
             <Counter label="Blocked" value={totals?.blocked ?? 0} tone="muted" />
@@ -134,6 +142,18 @@ export function SchedulerRoute() {
             </option>
           ))}
         </Select>
+        {(stateFilter || poolFilter) && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setStateFilter('')
+              setPoolFilter('')
+            }}
+          >
+            Clear
+          </Button>
+        )}
         <span className="ml-auto text-[11.5px] tabular text-subtle">
           {filtered.length} task{filtered.length === 1 ? '' : 's'}
         </span>
@@ -147,7 +167,7 @@ export function SchedulerRoute() {
           {!tasks.isPending && filtered.length === 0 && (
             <EmptyState title="Nothing scheduled" description="Start a video to see tasks here." />
           )}
-          {filtered.length > 0 && <TaskTable tasks={filtered} />}
+          {filtered.length > 0 && <TaskTable tasks={filtered} refById={refById} />}
         </Panel>
       </div>
     </>
@@ -171,9 +191,16 @@ function Counter({
     muted: 'text-muted',
   }[tone]
   return (
-    <div className="flex items-baseline justify-between">
-      <span className="text-[11.5px] text-subtle">{label}</span>
-      <span className={cn('tabular text-[15px] font-semibold', colour)}>{value}</span>
+    <div className="flex flex-col gap-0.5 bg-[hsl(var(--bg-elevated))] px-3 py-2">
+      <span className="text-[10.5px] uppercase tracking-wide text-subtle">{label}</span>
+      <span
+        className={cn(
+          'tabular text-[18px] font-semibold leading-none',
+          value === 0 ? 'text-subtle' : colour,
+        )}
+      >
+        {value}
+      </span>
     </div>
   )
 }
@@ -182,7 +209,7 @@ function TaskTableHeader() {
   return (
     <div
       className="grid shrink-0 items-center gap-2 border-b border-[hsl(var(--border))] bg-subtle px-3 py-1.5 text-[11px] uppercase tracking-wide text-subtle"
-      style={{ gridTemplateColumns: '120px 90px 60px 70px 110px 60px 1fr 90px 64px' }}
+      style={{ gridTemplateColumns: COLUMNS }}
     >
       <span>Video</span>
       <span>Task</span>
@@ -197,7 +224,7 @@ function TaskTableHeader() {
   )
 }
 
-function TaskTable({ tasks }: { tasks: Task[] }) {
+function TaskTable({ tasks, refById }: { tasks: Task[]; refById: Map<string, string> }) {
   const parentRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
   const retry = useMutation({
@@ -227,7 +254,11 @@ function TaskTable({ tasks }: { tasks: Task[] }) {
               className="absolute left-0 top-0 w-full"
               style={{ height: ROW_HEIGHT, transform: `translateY(${item.start}px)` }}
             >
-              <SchedulerTaskRow task={task} onRetry={retry.mutate} />
+              <SchedulerTaskRow
+                task={task}
+                videoRef={refById.get(task.videoId)}
+                onRetry={retry.mutate}
+              />
             </div>
           )
         })}
@@ -239,22 +270,24 @@ function TaskTable({ tasks }: { tasks: Task[] }) {
 /** Memoised on the task object: a delta replaces only that element (§9). */
 const SchedulerTaskRow = memo(function SchedulerTaskRow({
   task,
+  videoRef,
   onRetry,
 }: {
   task: Task
+  videoRef: string | undefined
   onRetry: (id: string) => void
 }) {
   return (
     <div
       className="grid h-full items-center gap-2 border-b border-[hsl(var(--border))] px-3 text-[12px] hover:bg-[hsl(var(--bg-hover))]"
-      style={{ gridTemplateColumns: '120px 90px 60px 70px 110px 60px 1fr 90px 64px' }}
+      style={{ gridTemplateColumns: COLUMNS }}
     >
       <Link
         to="/videos/$ref"
-        params={{ ref: task.videoId }}
-        className="truncate font-mono text-[11px] text-[hsl(var(--accent))] hover:underline"
+        params={{ ref: videoRef ?? task.videoId }}
+        className="truncate font-mono text-[11px] font-semibold text-[hsl(var(--accent))] hover:underline"
       >
-        {task.videoId.slice(0, 12)}
+        {videoRef ?? task.videoId.slice(0, 10)}
       </Link>
       <span className="truncate text-fg">
         {taskLabel(task.kind)}

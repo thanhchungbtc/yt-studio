@@ -10,7 +10,8 @@ import { AppShell } from '@/components/app-shell'
 import { ChannelsRoute } from '@/routes/channels'
 import { SettingsRoute } from '@/routes/settings'
 import { VideoDetailRoute } from '@/routes/video-detail'
-import { VideosRoute } from '@/routes/videos'
+import { VideosLayout } from '@/routes/videos-layout'
+import { VideosStartRoute } from '@/routes/videos-start'
 
 const rootRoute = createRootRoute({ component: AppShell })
 
@@ -22,15 +23,27 @@ const indexRoute = createRoute({
   },
 })
 
-const videosRoute = createRoute({
+/**
+ * `/videos` is a layout, not a page: it owns the channel sidebar and mounts it
+ * once for both the start pane and every video. Navigating between two videos
+ * therefore swaps only the pane to the right of the splitter — the list keeps
+ * its scroll, its filter and its query cache.
+ */
+const videosLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/videos',
-  component: VideosRoute,
+  component: VideosLayout,
+})
+
+const videosIndexRoute = createRoute({
+  getParentRoute: () => videosLayoutRoute,
+  path: '/',
+  component: VideosStartRoute,
 })
 
 const videoDetailRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/videos/$ref',
+  getParentRoute: () => videosLayoutRoute,
+  path: '$ref',
   component: VideoDetailRoute,
 })
 
@@ -56,8 +69,7 @@ const settingsRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
-  videosRoute,
-  videoDetailRoute,
+  videosLayoutRoute.addChildren([videosIndexRoute, videoDetailRoute]),
   channelsRoute,
   schedulerRoute,
   settingsRoute,
