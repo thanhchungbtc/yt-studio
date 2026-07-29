@@ -51,6 +51,7 @@ const KIND_TITLES: Record<string, string> = {
   blueprint: 'Blueprint',
   final: 'Final render',
   metadata: 'Publish metadata',
+  thumbnail: 'Thumbnail',
   script: 'Script',
   prompt: 'Prompts',
   audio: 'Narration',
@@ -80,6 +81,7 @@ const KIND_EXT: Record<string, string> = {
   prompt: '.txt',
   audio: '.wav',
   image: '.png',
+  thumbnail: '.png',
   clip: '.mp4',
   final: '.mp4',
 }
@@ -91,6 +93,7 @@ const KIND_MIME: Record<string, string> = {
   prompt: 'text/plain; charset=utf-8',
   audio: 'audio/wav',
   image: 'image/png',
+  thumbnail: 'image/png',
   clip: 'video/mp4',
   final: 'video/mp4',
 }

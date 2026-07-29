@@ -36,13 +36,14 @@ var AllAssetKinds = []AssetKind{
 	AssetKindClip,
 	AssetKindFinal,
 	AssetKindMetadata,
+	AssetKindThumbnail,
 }
 
 // Valid reports whether the kind is one of the known constants.
 func (k AssetKind) Valid() bool {
 	switch k {
 	case AssetKindBlueprint, AssetKindScript, AssetKindPrompt, AssetKindAudio,
-		AssetKindImage, AssetKindClip, AssetKindFinal, AssetKindMetadata:
+		AssetKindImage, AssetKindClip, AssetKindFinal, AssetKindMetadata, AssetKindThumbnail:
 		return true
 	default:
 		return false
@@ -58,7 +59,7 @@ func (k AssetKind) Ext() string {
 		return ".txt"
 	case AssetKindAudio:
 		return ".wav"
-	case AssetKindImage:
+	case AssetKindImage, AssetKindThumbnail:
 		return ".png"
 	case AssetKindClip, AssetKindFinal:
 		return ".mp4"
@@ -76,7 +77,7 @@ func (k AssetKind) MIME() string {
 		return "text/plain; charset=utf-8"
 	case AssetKindAudio:
 		return "audio/wav"
-	case AssetKindImage:
+	case AssetKindImage, AssetKindThumbnail:
 		return "image/png"
 	case AssetKindClip, AssetKindFinal:
 		return "video/mp4"
