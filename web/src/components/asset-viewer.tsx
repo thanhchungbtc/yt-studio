@@ -26,7 +26,7 @@ import { Badge } from '@/components/ui/badge'
 import type { Tone } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { CopyButton, Kbd, Skeleton, Tooltip } from '@/components/ui/primitives'
-import { assetUrl, thumbUrl } from '@/lib/api'
+import { assetUrl } from '@/lib/api'
 import { downloadName, mediaTypeOf, shortId } from '@/lib/assets'
 import type { MediaType, ViewerItem } from '@/lib/assets'
 import { formatAbsolute, formatBytes } from '@/lib/format'
@@ -41,7 +41,6 @@ const KIND_ICON: Record<string, LucideIcon> = {
   prompt: Sparkles,
   audio: Music,
   image: ImageIcon,
-  thumbnail: ImageIcon,
   clip: Film,
   final: Film,
   metadata: Tag,
@@ -53,7 +52,6 @@ const KIND_TONE: Record<string, Tone> = {
   prompt: 'violet',
   audio: 'info',
   image: 'violet',
-  thumbnail: 'violet',
   clip: 'accent',
   final: 'success',
   metadata: 'warning',
@@ -81,22 +79,22 @@ export function assetKindTone(kind: string): Tone {
   return KIND_TONE[kind] ?? 'neutral'
 }
 
-/* ------------------------------------------------------------------- thumbnail */
+/* --------------------------------------------------------------------- preview */
 
 /**
- * The visual stand-in for one artifact, at any size: a real thumbnail where the
- * daemon can render one, and a tinted, typed tile where it cannot. Used by the
+ * The visual stand-in for one artifact, at any size: the image itself where
+ * there is one, and a tinted, typed tile where there is not. Used by the
  * gallery, the filmstrip and the chapter grid, so a still looks the same
  * wherever it is shown.
  */
-export function AssetThumb({ item, className }: { item: ViewerItem; className?: string }) {
+export function AssetPreview({ item, className }: { item: ViewerItem; className?: string }) {
   const media = mediaTypeOf(item.mime)
   const Icon = assetKindIcon(item.kind)
 
   if (media === 'image') {
     return (
       <img
-        src={thumbUrl(item.id)}
+        src={assetUrl(item.id)}
         alt={item.title}
         loading="lazy"
         decoding="async"
@@ -399,7 +397,7 @@ function AssetLightbox({
                       : 'border-[hsl(var(--border))] opacity-55 hover:opacity-100',
                   )}
                 >
-                  <AssetThumb item={entry} />
+                  <AssetPreview item={entry} />
                 </button>
               ))}
             </div>

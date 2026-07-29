@@ -152,7 +152,6 @@ The main binary is HTTP handling, a state machine, and a scheduler. It has no ML
 
 - `delivery/http` — HTTP handlers. use chi library, with dependency-explicit function signatures.
 
-
 - **Delivery is thin.** `delivery/http` do nothing but call the corresponding function in `app/`. No business logic lives in delivery.
 
 - **Dependencies are explicit — never injected via an aggregate type.** A function must declare exactly the narrow interfaces it uses as separate parameters, not a container struct bundling many dependencies from which it only reads a few.
@@ -189,6 +188,7 @@ The main binary is HTTP handling, a state machine, and a scheduler. It has no ML
         }
     }
   ```
+
   as you can see from the example above
   - every dependencies is explicit as function signature
   - logic in side app/, the handler is just thin wrapper for calling app, so later on if we need cli interface, it just super easy to do so
@@ -265,6 +265,7 @@ yt-studio/
 ```
 
 - repository is divided by reader and writer, for e.g, interface VideoReader, or interface VideoWriter, etc...
+
 ### Provider interfaces
 
 Five small, consumer-defined interfaces. Real adapters slot in later without the daemon noticing:

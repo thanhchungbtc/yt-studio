@@ -190,8 +190,3 @@ export const qk = {
 export function assetUrl(id: string | undefined): string | undefined {
   return id ? `/assets/${id}` : undefined
 }
-
-/** Grid views ask for a thumbnail rather than the full-resolution still (§9). */
-export function thumbUrl(id: string | undefined): string | undefined {
-  return id ? `/assets/${id}/thumb` : undefined
-}

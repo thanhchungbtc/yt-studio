@@ -105,9 +105,7 @@ func NewRouter(d Deps) (http.Handler, huma.API) {
 	registerAssetRoutes(api, d.Videos, d.Assets)
 	registerSchedulerRoutes(api, d.Reporter, d.Version, d.Started, d.SSEClients)
 
-	thumbs := newThumbnailCache(1024)
 	r.Get("/assets/{id}", assetHandler(d.Assets, d.Store))
-	r.Get("/assets/{id}/thumb", thumbnailHandler(d.Assets, d.Store, thumbs))
 	r.Get("/events", eventsHandler(d.Events, d.Log))
 
 	r.NotFound(spaHandler(d.Dist))

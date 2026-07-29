@@ -418,7 +418,6 @@ export interface components {
         | 'clip'
         | 'final'
         | 'metadata'
-        | 'thumbnail'
       mime: string
       /** Format: int64 */
       size: number

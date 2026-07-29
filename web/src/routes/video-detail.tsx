@@ -20,7 +20,7 @@ import { memo, useCallback, useMemo, useRef, useState } from 'react'
 
 import {
   assetKindTone,
-  AssetThumb,
+  AssetPreview,
   AssetViewerProvider,
   useAssetViewer,
 } from '@/components/asset-viewer'
@@ -951,14 +951,14 @@ function Still({
     )
   }
 
-  const thumb = (
+  const preview = (
     <button
       type="button"
       onClick={onOpen}
       aria-label={`${alt} — open the preview`}
       className="group relative block h-[86px] w-[152px] overflow-hidden rounded-[var(--radius-sm)] border border-[hsl(var(--border))] transition-[border-color,box-shadow] hover:border-[hsl(var(--accent))] hover:elev-2"
     >
-      <AssetThumb item={{ id, kind: 'image', mime: kindMime('image'), title: alt }} />
+      <AssetPreview item={{ id, kind: 'image', mime: kindMime('image'), title: alt }} />
       <span
         className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100"
         aria-hidden
@@ -976,10 +976,10 @@ function Still({
 
   return prompt ? (
     <Tooltip label={<span className="line-clamp-4 text-[11px]">{prompt}</span>} side="bottom">
-      {thumb}
+      {preview}
     </Tooltip>
   ) : (
-    thumb
+    preview
   )
 }
 
@@ -1093,7 +1093,7 @@ type GalleryView = 'grid' | 'list'
  * Every artifact a video has produced, as a gallery rather than a list of
  * hashes. A hash is the right *identity* for a content-addressed store and the
  * wrong thing to show an operator who is asking whether the images came out
- * well — so the thumbnail leads, and the address moves into the viewer.
+ * well — so the image leads, and the address moves into the viewer.
  */
 function ArtifactGallery({ video, chapters }: { video: Video; chapters: Chapter[] }) {
   const openViewer = useAssetViewer()
@@ -1282,7 +1282,7 @@ const ArtifactCard = memo(function ArtifactCard({
       className="group surface overflow-hidden text-left transition-[border-color,box-shadow] hover:border-[hsl(var(--accent))] hover:elev-2"
     >
       <div className="relative aspect-[16/10] overflow-hidden border-b border-[hsl(var(--border))]">
-        <AssetThumb item={item} />
+        <AssetPreview item={item} />
         <span
           className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100"
           aria-hidden
@@ -1325,7 +1325,7 @@ const ArtifactRow = memo(function ArtifactRow({
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
       >
         <span className="h-8 w-14 shrink-0 overflow-hidden rounded-[var(--radius-xs)] border border-[hsl(var(--border))]">
-          <AssetThumb item={item} />
+          <AssetPreview item={item} />
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium text-fg">{item.title}</span>

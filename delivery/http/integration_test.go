@@ -865,34 +865,6 @@ func TestOpenAPIDocumentIsGenerated(t *testing.T) {
 	}
 }
 
-func TestThumbnailsAreServedForGridViews(t *testing.T) {
-	t.Parallel()
-	h := newHarness(t)
-	createVideo(h, 2, 2, true)
-	h.approve("DSS-1", "blueprint", 15*time.Second)
-	h.waitForGate("DSS-1", "upload", 30*time.Second)
-
-	var chapters struct {
-		Chapters []struct {
-			ImageAssetIDs []string `json:"imageAssetIds"`
-		} `json:"chapters"`
-	}
-	h.json(http.MethodGet, "/api/videos/DSS-1/chapters", nil, http.StatusOK, &chapters)
-	id := chapters.Chapters[0].ImageAssetIDs[0]
-
-	full, fullBody := h.do(http.MethodGet, "/assets/"+id, nil)
-	thumb, thumbBody := h.do(http.MethodGet, "/assets/"+id+"/thumb", nil)
-	if full.StatusCode != http.StatusOK || thumb.StatusCode != http.StatusOK {
-		t.Fatalf("statuses = %d, %d", full.StatusCode, thumb.StatusCode)
-	}
-	if len(thumbBody) >= len(fullBody) {
-		t.Fatalf("thumbnail is %d bytes against a %d byte still", len(thumbBody), len(fullBody))
-	}
-	if thumb.Header.Get("Content-Type") != "image/png" {
-		t.Fatalf("thumbnail Content-Type = %q", thumb.Header.Get("Content-Type"))
-	}
-}
-
 func TestHealthAndSchedulerConsole(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
