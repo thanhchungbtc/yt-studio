@@ -19,13 +19,24 @@ help:
 
 ## dev: hot-reload the daemon and the web UI together
 dev: web/node_modules
-	@command -v $(GOBIN)/air >/dev/null || go install github.com/air-verse/air@latest
-	@echo "daemon  http://$(LISTEN)"
-	@echo "web ui  http://127.0.0.1:5173"
+	@test -x $(GOBIN)/air || go install github.com/air-verse/air@latest
 	@trap 'kill 0' EXIT INT TERM; \
 	$(GOBIN)/air -c .air.toml & \
+	printf 'waiting for the daemon on $(LISTEN)'; \
+	up=0; \
+	for i in $$(seq 1 60); do \
+		if curl -sf -o /dev/null http://$(LISTEN)/api/health; then up=1; break; fi; \
+		printf '.'; sleep 0.5; \
+	done; \
+	echo; \
+	if [ $$up -eq 1 ]; then \
+		echo "daemon  http://$(LISTEN)"; \
+	else \
+		echo "daemon did not start - see the build output above (is $(LISTEN) already in use?)"; \
+	fi; \
+	echo "web ui  http://127.0.0.1:5173"; \
 	npm --prefix web run dev & \
-	wait
+	wait || true
 
 ## build: build the single binary with the web UI embedded
 build: web/node_modules

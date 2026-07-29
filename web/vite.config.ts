@@ -15,6 +15,10 @@ export default defineConfig({
     },
   },
   server: {
+    // Bind IPv4 explicitly. Vite's default resolves to [::1] only on macOS, so
+    // http://127.0.0.1:5173 — which is what the daemon and the Makefile print —
+    // would be refused.
+    host: '127.0.0.1',
     port: 5173,
     strictPort: true,
     proxy: {
