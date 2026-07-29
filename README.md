@@ -27,6 +27,7 @@ install: no runtime, no sidecar, no database server.
 
 ```
 make dev       hot reload for the daemon and the web UI together
+make demo      serve with slow mocks and seeded videos, to watch the UI live
 make build     the single binary, web UI embedded  → var/bin/yt-studio
 make run       build, then serve
 make test      every test, with the race detector
@@ -42,6 +43,26 @@ the database (`var/yt-studio.db`), the content-addressed asset store
 (`var/assets/`) and the hot-reload scratch directory. One line in `.gitignore`,
 one directory to delete. Override with `--db`, `--assets` or `YTS_DB`,
 `YTS_ASSETS`.
+
+### Watching it work
+
+Against the defaults a task finishes in tens of milliseconds, so a whole render
+is over before the eye catches any of it. `make demo` slows the mocks down and
+seeds two videos:
+
+```bash
+make demo                        # ~1-4 s per task; open http://127.0.0.1:8080/videos
+make demo DEMO_LATENCY=3000      # slower still
+make demo DEMO_FAILURES=15       # inject failures and watch tasks retry
+make demo DEMO_CHAPTERS=40       # a longer render to watch
+```
+
+It seeds one video past its blueprint gate, so there is work in flight the
+moment the browser opens, and leaves a second one sitting at its gate so the
+Approve button has something to do. The pacing is nothing but the
+`mock.latency_ms` settings row, scaled per task kind inside the providers (×1
+for a clip, ×4 for a blueprint) — the same row is editable live on the Settings
+screen, and the change applies to the next task dispatched without a restart.
 
 ### Driving it from the shell
 

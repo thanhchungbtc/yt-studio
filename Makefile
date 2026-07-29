@@ -9,7 +9,16 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LISTEN  ?= 127.0.0.1:8080
 GOBIN   := $(shell go env GOPATH)/bin
 
-.PHONY: help dev build run test bench lint fmt generate clean
+# The demo runs the mocks slowly on purpose. `mock.latency_ms` is scaled per
+# task kind inside the providers (x1 for a clip, x4 for a blueprint), so 1000
+# puts a single task between one and four seconds -- slow enough to watch a
+# task go ready -> running -> done in the UI, fast enough that a whole video
+# still finishes while you are looking at it.
+DEMO_LATENCY ?= 1000
+DEMO_FAILURES ?= 0
+DEMO_CHAPTERS ?= 12
+
+.PHONY: help dev build run demo test bench lint fmt generate clean
 
 ## help: list the targets
 help:
@@ -48,6 +57,55 @@ build: web/node_modules
 ## run: build, then serve on 127.0.0.1:8080
 run: build
 	$(BINARY) serve --db $(VAR)/yt-studio.db --assets $(VAR)/assets --listen $(LISTEN)
+
+## demo: serve with slow mocks and seeded videos, to watch the UI live
+#
+# Seeds two videos and lets the first through its blueprint gate, so there is
+# work in flight the moment the browser opens. The second is left sitting at
+# its gate, so the Approve button has something to do.
+demo: build
+	@# Checked before the trap below is installed: a daemon that cannot bind
+	@# would otherwise leave the seeding to hit whatever else is on the port.
+	@if curl -sf -o /dev/null http://$(LISTEN)/api/health; then \
+		echo "something is already serving on $(LISTEN) - stop it first"; exit 1; \
+	fi
+	@rm -rf $(VAR)/demo.db $(VAR)/demo.db-wal $(VAR)/demo.db-shm $(VAR)/demo-assets
+	@trap 'kill 0' EXIT INT TERM; \
+	set -e; \
+	base=http://$(LISTEN); \
+	$(BINARY) serve --db $(VAR)/demo.db --assets $(VAR)/demo-assets --listen $(LISTEN) & \
+	printf 'waiting for the daemon on $(LISTEN)'; \
+	for i in $$(seq 1 60); do \
+		if curl -sf -o /dev/null $$base/api/health; then break; fi; \
+		printf '.'; sleep 0.5; \
+	done; \
+	echo; \
+	curl -sf -o /dev/null -X PUT $$base/api/settings/mock.latency_ms \
+		-H 'content-type: application/json' -d '{"value":"$(DEMO_LATENCY)"}'; \
+	curl -sf -o /dev/null -X PUT $$base/api/settings/mock.failure_rate_percent \
+		-H 'content-type: application/json' -d '{"value":"$(DEMO_FAILURES)"}'; \
+	first=$$(curl -sf -X POST $$base/api/videos -H 'content-type: application/json' \
+		-H 'Idempotency-Key: demo-1' \
+		-d '{"channel":"deep-sleep-stories","title":"The Long Winter of the Harbour","topic":"a northern port town over one winter, told through its shipping ledgers","chapterCount":$(DEMO_CHAPTERS),"imagesPerChapter":2,"start":true}' \
+		| sed -n 's/.*"ref":"\([^"]*\)".*/\1/p'); \
+	second=$$(curl -sf -X POST $$base/api/videos -H 'content-type: application/json' \
+		-H 'Idempotency-Key: demo-2' \
+		-d '{"channel":"history-explained","title":"The Salt Roads of the Adriatic","topic":"the medieval salt trade and the towns it made","chapterCount":$(DEMO_CHAPTERS),"imagesPerChapter":2,"start":true}' \
+		| sed -n 's/.*"ref":"\([^"]*\)".*/\1/p'); \
+	sleep $$(( ($(DEMO_LATENCY) * 4) / 1000 + 2 )); \
+	curl -sf -o /dev/null -X POST $$base/api/videos/$$first/approve \
+		-H 'content-type: application/json' -d '{"gate":"blueprint"}'; \
+	echo; \
+	echo "  mocks     $(DEMO_LATENCY) ms per unit of work (x1 clip .. x4 blueprint), $(DEMO_FAILURES)% injected failures"; \
+	echo "  seeded    $$first is running, $$second is waiting at its blueprint gate"; \
+	echo; \
+	echo "  open      $$base/videos"; \
+	echo "  watch     tasks go ready -> running -> done; the pools fill in the status bar"; \
+	echo "  try       approve $$second's gate, then cancel it mid-render"; \
+	echo "  tune      make demo DEMO_LATENCY=3000   (slower)   DEMO_LATENCY=200 (faster)"; \
+	echo "            make demo DEMO_FAILURES=15    (watch tasks fail and retry)"; \
+	echo; \
+	wait
 
 ## test: every test, with the race detector
 test:
