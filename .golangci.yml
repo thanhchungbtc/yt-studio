@@ -1,0 +1,161 @@
+version: "2"
+
+# Standards are enforced, not intended (goal.md section 8). Every linter below
+# is a merge gate; none of them are advisory.
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: none
+  enable:
+    - errcheck # no ignored returns
+    - govet # includes nilness
+    - staticcheck
+    - ineffassign
+    - unused
+    - exhaustive # every switch over a typed constant is complete
+    - nilerr
+    - bodyclose
+    - rowserrcheck
+    - sqlclosecheck
+    - contextcheck
+    - noctx
+    - errorlint
+    - copyloopvar
+    - durationcheck
+    - makezero
+    - prealloc
+    - unconvert
+    - wastedassign
+    - gocritic
+    - revive
+    - misspell
+    - depguard # compiler-enforced layering, see below
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      # An explicit `_ =` is the acknowledgement errcheck exists to demand; it
+      # is used only for Close on a cleanup path, and always deliberately.
+      check-blank: false
+
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment # readability wins over a few bytes of padding here
+        - shadow
+
+    exhaustive:
+      # Task kinds, states and pools are typed constants; a switch that misses
+      # one is a bug we want at compile time, not at 2am.
+      default-signifies-exhaustive: true
+      check:
+        - switch
+        - map
+
+    revive:
+      rules:
+        - name: exported
+          disabled: false
+        - name: package-comments
+        - name: var-naming
+        - name: indent-error-flow
+        - name: errorf
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: unexported-return
+        - name: blank-imports
+        - name: range
+        - name: time-naming
+        - name: unreachable-code
+        - name: superfluous-else
+        - name: argument-limit
+          arguments: [20] # a use case's dependency list is deliberately explicit
+
+    gocritic:
+      enabled-tags: [diagnostic, style, performance]
+      disabled-checks:
+        - hugeParam # provider requests are passed by value on purpose
+        - rangeValCopy
+        - unnamedResult
+        - whyNoLint
+
+    depguard:
+      rules:
+        # The core owns all logic and stays dependency-free (principle 1).
+        domain:
+          list-mode: lax
+          files:
+            - '**/domain/**'
+          deny:
+            - pkg: github.com/tbui/yt-studio/adapters
+              desc: the domain must not depend on an adapter
+            - pkg: github.com/tbui/yt-studio/delivery
+              desc: the domain must not depend on delivery
+            - pkg: github.com/tbui/yt-studio/app
+              desc: the domain must not depend on the application layer
+            - pkg: database/sql
+              desc: persistence belongs behind a repository port
+            - pkg: net/http
+              desc: transport belongs in delivery
+
+        # Use cases talk to ports, never to a concrete adapter.
+        app:
+          list-mode: lax
+          files:
+            - '**/app/**'
+          deny:
+            - pkg: github.com/tbui/yt-studio/adapters
+              desc: a use case must depend on a port, not on an adapter
+            - pkg: github.com/tbui/yt-studio/delivery
+              desc: a use case must not depend on delivery
+            - pkg: database/sql
+              desc: persistence belongs behind a repository port
+
+        # Delivery is thin: it calls app/ and maps the result.
+        delivery:
+          list-mode: lax
+          files:
+            - '**/delivery/**'
+          deny:
+            - pkg: github.com/tbui/yt-studio/adapters/sqlite
+              desc: delivery must not reach past the ports into the database adapter
+
+        # Rejected dependencies (goal.md section 10).
+        everywhere:
+          list-mode: lax
+          files:
+            - $all
+          deny:
+            - pkg: gorm.io/gorm
+              desc: no ORM; sqlc gives typed results from SQL we can read
+            - pkg: entgo.io/ent
+              desc: no ORM; sqlc gives typed results from SQL we can read
+            - pkg: github.com/mattn/go-sqlite3
+              desc: cgo-free is the precondition for a static cross-compiled binary
+
+  exclusions:
+    generated: lax
+    rules:
+      # Generated code is not ours to style.
+      - path: adapters/sqlite/sqlcgen/
+        linters: [revive, gocritic, unused, staticcheck, errcheck, prealloc, makezero]
+      # Tests may take shortcuts that production code may not. bodyclose and
+      # depguard in particular: the integration harness closes bodies inside a
+      # helper the linter cannot follow, and it wires the real adapters on
+      # purpose — that is the point of an end-to-end test.
+      - path: _test\.go
+        linters:
+          [errcheck, gocritic, prealloc, contextcheck, noctx, revive, bodyclose, depguard, exhaustive]
+
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    generated: lax
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

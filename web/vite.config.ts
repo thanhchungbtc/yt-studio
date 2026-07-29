@@ -1,0 +1,49 @@
+import { fileURLToPath, URL } from 'node:url'
+
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+
+// The dev server proxies the daemon's API and event stream, so `make dev` runs
+// the Vite server and the Go binary side by side with no CORS in between (§9).
+// The production build is what `go:embed` picks up.
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
+  server: {
+    port: 5173,
+    strictPort: true,
+    proxy: {
+      '/api': { target: 'http://127.0.0.1:8080', changeOrigin: true },
+      '/assets/': { target: 'http://127.0.0.1:8080', changeOrigin: true },
+      '/events': {
+        target: 'http://127.0.0.1:8080',
+        changeOrigin: true,
+        // Server-sent events must not be buffered by the proxy.
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes) => {
+            proxyRes.headers['cache-control'] = 'no-cache, no-transform'
+          })
+        },
+      },
+    },
+  },
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+    // Not the default 'assets': that path belongs to the daemon's
+    // content-addressed artifact route, and a bundle filename would be read as
+    // a content address and 404.
+    assetsDir: 'app',
+    // The operator console is not on the critical path to first paint, so it is
+    // lazily imported by the router and lands in its own chunk (§9). Rollup's
+    // default vendor splitting is left alone: hand-written groups produced a
+    // circular chunk here for no measurable gain.
+    reportCompressedSize: true,
+    chunkSizeWarningLimit: 300,
+  },
+})

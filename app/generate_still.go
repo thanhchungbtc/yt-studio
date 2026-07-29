@@ -1,0 +1,86 @@
+package app
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/tbui/yt-studio/domain/entity"
+	"github.com/tbui/yt-studio/domain/provider"
+	"github.com/tbui/yt-studio/domain/repository"
+)
+
+// GenerateStill produces exactly one image for one chapter.
+//
+// Two of these run per chapter and they write to the same row, so the still is
+// recorded through a single indexed statement rather than a read-modify-write.
+//
+//nolint:revive // the parameter list is the dependency list
+func GenerateStill(
+	ctx context.Context,
+	t entity.Task,
+	videos repository.VideoReader,
+	channels repository.ChannelReader,
+	chapters repository.ChapterReader,
+	images provider.ImageProvider,
+	fields repository.ChapterFieldWriter,
+	assets repository.AssetWriter,
+	store provider.AssetStore,
+	notifier ChapterNotifier,
+	now time.Time,
+) entity.TaskOutcome {
+	if t.ChapterID == nil {
+		return entity.Failed{Err: fmt.Errorf("%w: image task has no chapter", ErrValidation), Retryable: false}
+	}
+	if t.Index < 0 {
+		return entity.Failed{Err: fmt.Errorf("%w: image task has no index", ErrValidation), Retryable: false}
+	}
+	chapter, err := chapters.ChapterByID(ctx, *t.ChapterID)
+	if err != nil {
+		return classify(err)
+	}
+	if t.Index >= len(chapter.ImagePrompts) {
+		return entity.Failed{
+			Err: fmt.Errorf("%w: chapter %d has %d prompts, task wants index %d",
+				ErrValidation, chapter.Ordinal, len(chapter.ImagePrompts), t.Index),
+			Retryable: true,
+		}
+	}
+	video, err := videos.VideoByID(ctx, t.VideoID)
+	if err != nil {
+		return classify(err)
+	}
+	channel, err := channels.ChannelByID(ctx, video.ChannelID)
+	if err != nil {
+		return classify(err)
+	}
+
+	assetID, err := images.Generate(ctx, provider.ImageRequest{
+		VideoID:   video.ID,
+		ChapterID: chapter.ID,
+		Ordinal:   chapter.Ordinal,
+		Index:     t.Index,
+		Prompt:    chapter.ImagePrompts[t.Index],
+		Style:     channel.Style.ImageStyle,
+	})
+	if err != nil {
+		return classify(fmt.Errorf("generate still %d of chapter %d: %w", t.Index, chapter.Ordinal, err))
+	}
+
+	if _, err := RecordAsset(ctx, assets, store, assetID, entity.AssetKindImage,
+		video.ID, &chapter.ID, "image.generate", now); err != nil {
+		return classify(err)
+	}
+	if err := fields.SetChapterImage(ctx, chapter.ID, t.Index, assetID); err != nil {
+		return classify(err)
+	}
+
+	if notifier != nil {
+		// Re-read so the delta carries every still recorded so far, including the
+		// sibling task's, rather than a stale local copy.
+		if fresh, err := chapters.ChapterByID(ctx, chapter.ID); err == nil {
+			notifier.NotifyChapter(chapterDelta(fresh))
+		}
+	}
+	return entity.Success{Assets: []entity.AssetID{assetID}}
+}

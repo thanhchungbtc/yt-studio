@@ -1,0 +1,286 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { memo, useMemo, useRef, useState } from 'react'
+
+import { PageHeader } from '@/components/app-shell'
+import { PoolMeter } from '@/components/pool-meter'
+import { TaskStateBadge } from '@/components/state-badges'
+import { Button } from '@/components/ui/button'
+import { Select } from '@/components/ui/field'
+import {
+  EmptyState,
+  ErrorNotice,
+  Panel,
+  PanelHeader,
+  PanelTitle,
+  Skeleton,
+} from '@/components/ui/primitives'
+import { api, qk } from '@/lib/api'
+import { formatDuration, formatRelative, poolLabel, taskLabel } from '@/lib/format'
+import type { Task, TaskState } from '@/lib/types'
+import { cn } from '@/lib/utils'
+
+const ROW_HEIGHT = 30
+
+/**
+ * The operator console: pool utilisation, queue depth, and the live task table.
+ *
+ * The table is virtualised and every row is memoised, so a fifty-chapter render
+ * updating hundreds of tasks scrolls at 60 fps and a single task event
+ * re-renders exactly one row (§9).
+ */
+export function SchedulerRoute() {
+  const [stateFilter, setStateFilter] = useState<TaskState | ''>('')
+  const [poolFilter, setPoolFilter] = useState('')
+
+  const status = useQuery({
+    queryKey: qk.scheduler,
+    queryFn: api.schedulerStatus,
+    refetchInterval: 30_000,
+  })
+  const tasks = useQuery({
+    queryKey: qk.recentTasks,
+    queryFn: () => api.listRecentTasks(500),
+    refetchInterval: 30_000,
+  })
+
+  const filtered = useMemo(() => {
+    const rows = tasks.data ?? []
+    if (!stateFilter && !poolFilter) return rows
+    return rows.filter(
+      (t) => (!stateFilter || t.state === stateFilter) && (!poolFilter || t.pool === poolFilter),
+    )
+  }, [tasks.data, stateFilter, poolFilter])
+
+  const totals = status.data
+
+  return (
+    <>
+      <PageHeader
+        title="Scheduler"
+        subtitle={
+          totals
+            ? `${totals.videos} video${totals.videos === 1 ? '' : 's'} in flight · up ${formatDuration(totals.uptimeSeconds)}`
+            : 'Loading…'
+        }
+      />
+
+      <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_320px] gap-3 p-4 pb-0">
+        <Panel>
+          <PanelHeader>
+            <PanelTitle>Pools</PanelTitle>
+            <span className="text-[11px] text-subtle">
+              limits are settings rows; edits apply without a restart
+            </span>
+          </PanelHeader>
+          <div className="space-y-2 px-3 py-3">
+            {status.isPending && <Skeleton className="h-24" />}
+            {status.data?.pools.map((pool) => (
+              <PoolMeter key={pool.pool} stat={pool} />
+            ))}
+          </div>
+        </Panel>
+
+        <Panel>
+          <PanelHeader>
+            <PanelTitle>Queue</PanelTitle>
+          </PanelHeader>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 px-3 py-3">
+            <Counter label="Running" value={totals?.running ?? 0} tone="accent" />
+            <Counter label="Ready" value={totals?.ready ?? 0} tone="info" />
+            <Counter label="Blocked" value={totals?.blocked ?? 0} tone="muted" />
+            <Counter label="Retrying" value={totals?.retryPending ?? 0} tone="warning" />
+            <Counter label="Gated" value={totals?.awaitingApproval ?? 0} tone="warning" />
+            <Counter label="Failed" value={totals?.failed ?? 0} tone="danger" />
+          </div>
+        </Panel>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2 px-4 pt-3">
+        <Select
+          value={stateFilter}
+          onChange={(e) => setStateFilter(e.target.value as TaskState | '')}
+          aria-label="Filter by task state"
+          className="w-40"
+        >
+          <option value="">All states</option>
+          {(
+            [
+              'blocked',
+              'ready',
+              'running',
+              'awaiting_approval',
+              'succeeded',
+              'failed',
+              'cancelled',
+            ] as TaskState[]
+          ).map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </Select>
+        <Select
+          value={poolFilter}
+          onChange={(e) => setPoolFilter(e.target.value)}
+          aria-label="Filter by pool"
+          className="w-36"
+        >
+          <option value="">All pools</option>
+          {status.data?.pools.map((p) => (
+            <option key={p.pool} value={p.pool}>
+              {poolLabel(p.pool)}
+            </option>
+          ))}
+        </Select>
+        <span className="ml-auto text-[11.5px] tabular text-subtle">
+          {filtered.length} task{filtered.length === 1 ? '' : 's'}
+        </span>
+      </div>
+
+      <div className="min-h-0 flex-1 p-4 pt-2">
+        <Panel className="flex h-full flex-col overflow-hidden">
+          <TaskTableHeader />
+          {tasks.isPending && <Skeleton className="m-3 h-40" />}
+          {tasks.isError && <ErrorNotice error={tasks.error} className="m-3" />}
+          {!tasks.isPending && filtered.length === 0 && (
+            <EmptyState title="Nothing scheduled" description="Start a video to see tasks here." />
+          )}
+          {filtered.length > 0 && <TaskTable tasks={filtered} />}
+        </Panel>
+      </div>
+    </>
+  )
+}
+
+function Counter({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: number
+  tone: 'accent' | 'info' | 'warning' | 'danger' | 'muted'
+}) {
+  const colour = {
+    accent: 'text-[hsl(var(--accent))]',
+    info: 'text-[hsl(var(--info))]',
+    warning: 'text-[hsl(var(--warning))]',
+    danger: 'text-[hsl(var(--danger))]',
+    muted: 'text-muted',
+  }[tone]
+  return (
+    <div className="flex items-baseline justify-between">
+      <span className="text-[11.5px] text-subtle">{label}</span>
+      <span className={cn('tabular text-[15px] font-semibold', colour)}>{value}</span>
+    </div>
+  )
+}
+
+function TaskTableHeader() {
+  return (
+    <div
+      className="grid shrink-0 items-center gap-2 border-b border-[hsl(var(--border))] bg-subtle px-3 py-1.5 text-[11px] uppercase tracking-wide text-subtle"
+      style={{ gridTemplateColumns: '120px 90px 60px 70px 110px 60px 1fr 90px 64px' }}
+    >
+      <span>Video</span>
+      <span>Task</span>
+      <span className="text-right">Ch</span>
+      <span>Pool</span>
+      <span>State</span>
+      <span className="text-right">Try</span>
+      <span>Error</span>
+      <span className="text-right">Updated</span>
+      <span />
+    </div>
+  )
+}
+
+function TaskTable({ tasks }: { tasks: Task[] }) {
+  const parentRef = useRef<HTMLDivElement>(null)
+  const queryClient = useQueryClient()
+  const retry = useMutation({
+    mutationFn: (id: string) => api.retryTask(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.recentTasks })
+      void queryClient.invalidateQueries({ queryKey: qk.scheduler })
+    },
+  })
+
+  const virtualizer = useVirtualizer({
+    count: tasks.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 20,
+  })
+
+  return (
+    <div ref={parentRef} className="min-h-0 flex-1 overflow-y-auto">
+      <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+        {virtualizer.getVirtualItems().map((item) => {
+          const task = tasks[item.index]
+          if (!task) return null
+          return (
+            <div
+              key={task.id}
+              className="absolute left-0 top-0 w-full"
+              style={{ height: ROW_HEIGHT, transform: `translateY(${item.start}px)` }}
+            >
+              <SchedulerTaskRow task={task} onRetry={retry.mutate} />
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/** Memoised on the task object: a delta replaces only that element (§9). */
+const SchedulerTaskRow = memo(function SchedulerTaskRow({
+  task,
+  onRetry,
+}: {
+  task: Task
+  onRetry: (id: string) => void
+}) {
+  return (
+    <div
+      className="grid h-full items-center gap-2 border-b border-[hsl(var(--border))] px-3 text-[12px] hover:bg-[hsl(var(--bg-hover))]"
+      style={{ gridTemplateColumns: '120px 90px 60px 70px 110px 60px 1fr 90px 64px' }}
+    >
+      <Link
+        to="/videos/$ref"
+        params={{ ref: task.videoId }}
+        className="truncate font-mono text-[11px] text-[hsl(var(--accent))] hover:underline"
+      >
+        {task.videoId.slice(0, 12)}
+      </Link>
+      <span className="truncate text-fg">
+        {taskLabel(task.kind)}
+        {task.index >= 0 && <span className="text-subtle"> {task.index + 1}</span>}
+      </span>
+      <span className="tabular text-right text-muted">{task.ordinal > 0 ? task.ordinal : '—'}</span>
+      <span className="truncate text-muted">{poolLabel(task.pool)}</span>
+      <span>
+        <TaskStateBadge state={task.state} />
+      </span>
+      <span className="tabular text-right text-muted">
+        {task.attempt}/{task.maxAttempts}
+      </span>
+      <span className="truncate text-[hsl(var(--danger))]" title={task.error}>
+        {task.error ?? ''}
+      </span>
+      <span className="text-right text-subtle">{formatRelative(task.updatedAt)}</span>
+      <span className="text-right">
+        {(task.state === 'failed' || task.state === 'cancelled') && (
+          <Button size="xs" variant="ghost" onClick={() => onRetry(task.id)}>
+            Retry
+          </Button>
+        )}
+      </span>
+    </div>
+  )
+})
+
+export default SchedulerRoute

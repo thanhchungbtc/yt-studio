@@ -1,0 +1,47 @@
+-- name: GetChapterByID :one
+SELECT * FROM chapters WHERE id = ?;
+
+-- name: ListChaptersByVideo :many
+SELECT * FROM chapters WHERE video_id = ? ORDER BY ordinal;
+
+-- name: DeleteChaptersByVideo :exec
+DELETE FROM chapters WHERE video_id = ?;
+
+-- name: UpsertChapter :exec
+INSERT INTO chapters (
+    id, video_id, ordinal, title, summary, script, image_prompts_json,
+    audio_asset_id, image_asset_ids_json, clip_asset_id, duration_seconds,
+    created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (id) DO UPDATE SET
+    ordinal = excluded.ordinal,
+    title = excluded.title,
+    summary = excluded.summary,
+    script = excluded.script,
+    image_prompts_json = excluded.image_prompts_json,
+    audio_asset_id = excluded.audio_asset_id,
+    image_asset_ids_json = excluded.image_asset_ids_json,
+    clip_asset_id = excluded.clip_asset_id,
+    duration_seconds = excluded.duration_seconds,
+    updated_at = excluded.updated_at;
+
+-- Field-scoped updates. Two image tasks for the same chapter run concurrently,
+-- so a read-modify-write of the whole row would lose one of them; each of these
+-- is a single atomic statement instead.
+-- name: SetChapterScript :exec
+UPDATE chapters SET script = ?, duration_seconds = ?, updated_at = ? WHERE id = ?;
+
+-- name: SetChapterPrompts :exec
+UPDATE chapters SET image_prompts_json = ?, updated_at = ? WHERE id = ?;
+
+-- name: SetChapterAudio :exec
+UPDATE chapters SET audio_asset_id = ?, updated_at = ? WHERE id = ?;
+
+-- name: SetChapterImage :exec
+UPDATE chapters
+SET image_asset_ids_json = json_set(image_asset_ids_json, CAST(sqlc.arg(path) AS TEXT), CAST(sqlc.arg(asset_id) AS TEXT)),
+    updated_at = sqlc.arg(updated_at)
+WHERE id = sqlc.arg(id);
+
+-- name: SetChapterClip :exec
+UPDATE chapters SET clip_asset_id = ?, updated_at = ? WHERE id = ?;

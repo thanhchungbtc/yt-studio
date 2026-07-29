@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>yt-studio</title>
+  </head>
+  <body>
+    <!--
+      The source of web/dist/index.html on a clone that has never run the
+      frontend build. Its only job is to give `go:embed all:dist` something to
+      embed so `go build ./...` works; `make build` replaces the whole directory
+      with Vite's output and `make clean` copies this back.
+    -->
+    <p>The web UI has not been built. Run <code>make build</code>.</p>
+  </body>
+</html>

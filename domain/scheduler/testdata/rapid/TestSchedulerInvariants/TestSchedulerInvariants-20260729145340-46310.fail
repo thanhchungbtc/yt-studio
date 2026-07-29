@@ -1,0 +1,36 @@
+# 2026/07/29 14:53:40.363660 [TestSchedulerInvariants] [rapid] draw chapters: 1
+# 2026/07/29 14:53:40.363812 [TestSchedulerInvariants] [rapid] draw images: 2
+# 2026/07/29 14:53:40.363857 [TestSchedulerInvariants] [rapid] draw gates: true
+# 2026/07/29 14:53:40.363891 [TestSchedulerInvariants] [rapid] draw llm: 1
+# 2026/07/29 14:53:40.363914 [TestSchedulerInvariants] [rapid] draw tts: 2
+# 2026/07/29 14:53:40.363950 [TestSchedulerInvariants] [rapid] draw image: 1
+# 2026/07/29 14:53:40.363979 [TestSchedulerInvariants] [rapid] draw compose: 1
+# 2026/07/29 14:53:40.363999 [TestSchedulerInvariants] [rapid] draw cache: 4
+# 2026/07/29 14:53:40.364022 [TestSchedulerInvariants] [rapid] draw failEvery: 2
+# 
+v0.4.8#3210534396434305512
+0x0
+0x1
+0x0
+0x184da801d3bf83
+0x3789c6107cd27
+0x1
+0x1
+0xb903d4ce09316
+0xd3879ba8b93c7
+0x0
+0xdcdb78eb4c1d6
+0x11a5d66a34186d
+0x1
+0x1be2d2847eb21d
+0xbdd4b5b7730db
+0x0
+0x1e4b14a8653aef
+0x18a8ff2d0f59a1
+0x0
+0x1e7759dcd0defe
+0xbc16cab3fbb30
+0x3
+0x10394813780671
+0x1edbfb4cdcdc80
+0x2

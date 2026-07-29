@@ -1,0 +1,224 @@
+@import 'tailwindcss';
+
+/*
+  A VS Code inspired surface: dense, quiet, high-contrast where it matters.
+  Colours are HSL triples so Tailwind's opacity modifiers keep working, and
+  every semantic token has a light and a dark value rather than being flipped
+  by ad-hoc `dark:` classes at each call site.
+*/
+
+@theme {
+  --font-sans:
+    ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  --font-mono:
+    ui-monospace, 'SF Mono', 'JetBrains Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+
+  --radius-xs: 3px;
+  --radius-sm: 5px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+}
+
+@layer base {
+  :root {
+    --bg: 0 0% 100%;
+    --bg-subtle: 210 20% 98%;
+    --bg-panel: 210 20% 96.5%;
+    --bg-elevated: 0 0% 100%;
+    --bg-hover: 210 20% 93%;
+    --bg-active: 210 90% 95%;
+
+    --fg: 213 25% 15%;
+    --fg-muted: 215 15% 42%;
+    --fg-subtle: 215 12% 58%;
+
+    --border: 214 20% 88%;
+    --border-strong: 214 18% 78%;
+
+    --accent: 212 92% 42%;
+    --accent-fg: 0 0% 100%;
+    --accent-soft: 212 92% 95%;
+
+    --success: 145 63% 33%;
+    --success-soft: 145 60% 94%;
+    --warning: 35 92% 40%;
+    --warning-soft: 38 95% 94%;
+    --danger: 355 72% 46%;
+    --danger-soft: 355 85% 96%;
+    --info: 199 89% 40%;
+    --info-soft: 199 90% 95%;
+    --violet: 265 70% 52%;
+    --violet-soft: 265 80% 96%;
+
+    --ring: 212 92% 50%;
+    --shadow-color: 214 30% 40%;
+  }
+
+  .dark {
+    --bg: 220 20% 7%;
+    --bg-subtle: 220 18% 9%;
+    --bg-panel: 220 17% 11%;
+    --bg-elevated: 220 16% 13%;
+    --bg-hover: 220 15% 17%;
+    --bg-active: 212 60% 20%;
+
+    --fg: 213 25% 92%;
+    --fg-muted: 215 15% 65%;
+    --fg-subtle: 215 12% 50%;
+
+    --border: 220 14% 19%;
+    --border-strong: 220 12% 28%;
+
+    --accent: 212 96% 62%;
+    --accent-fg: 220 30% 8%;
+    --accent-soft: 212 60% 18%;
+
+    --success: 145 60% 55%;
+    --success-soft: 145 40% 15%;
+    --warning: 38 92% 62%;
+    --warning-soft: 38 50% 16%;
+    --danger: 355 85% 66%;
+    --danger-soft: 355 45% 17%;
+    --info: 199 89% 62%;
+    --info-soft: 199 50% 16%;
+    --violet: 265 85% 72%;
+    --violet-soft: 265 45% 19%;
+
+    --ring: 212 96% 62%;
+    --shadow-color: 220 40% 2%;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    background-color: hsl(var(--bg));
+    color: hsl(var(--fg));
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow: hidden;
+  }
+
+  ::selection {
+    background: hsl(var(--accent) / 0.3);
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 1px;
+  }
+
+  /* A slim, unobtrusive scrollbar, as in an editor. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--fg) / 0.16);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--fg) / 0.3);
+    background-clip: content-box;
+  }
+}
+
+@layer utilities {
+  .bg-app {
+    background-color: hsl(var(--bg));
+  }
+  .bg-subtle {
+    background-color: hsl(var(--bg-subtle));
+  }
+  .bg-panel {
+    background-color: hsl(var(--bg-panel));
+  }
+  .bg-elevated {
+    background-color: hsl(var(--bg-elevated));
+  }
+  .text-fg {
+    color: hsl(var(--fg));
+  }
+  .text-muted {
+    color: hsl(var(--fg-muted));
+  }
+  .text-subtle {
+    color: hsl(var(--fg-subtle));
+  }
+  .border-default {
+    border-color: hsl(var(--border));
+  }
+  .border-strong {
+    border-color: hsl(var(--border-strong));
+  }
+
+  .surface {
+    background-color: hsl(var(--bg-elevated));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius-md);
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* A quiet pulse for anything the daemon is actively working on. */
+  .pulse-live {
+    animation: pulse-live 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse-live {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
+
+  .stripes {
+    background-image: linear-gradient(
+      135deg,
+      hsl(var(--accent) / 0.35) 25%,
+      transparent 25%,
+      transparent 50%,
+      hsl(var(--accent) / 0.35) 50%,
+      hsl(var(--accent) / 0.35) 75%,
+      transparent 75%,
+      transparent
+    );
+    background-size: 12px 12px;
+    animation: stripes 0.8s linear infinite;
+  }
+  @keyframes stripes {
+    from {
+      background-position: 0 0;
+    }
+    to {
+      background-position: 12px 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pulse-live,
+    .stripes {
+      animation: none;
+    }
+  }
+}

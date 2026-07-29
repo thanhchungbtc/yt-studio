@@ -1,0 +1,21 @@
+# Hot reload for the daemon during `make dev`. The frontend is served by Vite,
+# which proxies /api and /events here, so only Go sources trigger a rebuild.
+root = "."
+tmp_dir = "var/air"
+
+[build]
+  cmd = "go build -o ./var/air/yt-studio ./cmd/server"
+  bin = "./var/air/yt-studio serve --db var/yt-studio.db --assets var/assets --listen 127.0.0.1:8080"
+  include_ext = ["go", "sql"]
+  exclude_dir = ["web", "var", ".git"]
+  exclude_regex = ["_test\\.go"]
+  delay = 300
+  stop_on_error = true
+  send_interrupt = true
+  kill_delay = "2s"
+
+[log]
+  time = true
+
+[misc]
+  clean_on_exit = true
