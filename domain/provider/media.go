@@ -39,10 +39,16 @@ type ImageProvider interface {
 }
 
 // ClipRequest asks for one chapter's composed clip.
+//
+// The titles are carried rather than looked up: a composer that burns text into
+// a frame needs the text, and passing it keeps the backend free of any
+// repository (§4).
 type ClipRequest struct {
 	VideoID       entity.VideoID
 	ChapterID     entity.ChapterID
 	Ordinal       int
+	ChapterTitle  string
+	VideoTitle    string
 	AudioAssetID  entity.AssetID
 	ImageAssetIDs []entity.AssetID
 }

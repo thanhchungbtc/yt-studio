@@ -44,6 +44,21 @@ the database (`var/yt-studio.db`), the content-addressed asset store
 one directory to delete. Override with `--db`, `--assets` or `YTS_DB`,
 `YTS_ASSETS`.
 
+The one thing under `var/` that is _not_ generated is `var/resources/` — the
+fixed production assets the real composer draws on (`chalkboard.jpg`, `bg.mp4`,
+`bg.mp3`, `fonts/CabinSketch-Bold.ttf`). They are operator-supplied and too
+large to commit; override the location with `--resources` or `YTS_RESOURCES`.
+
+### Real composition
+
+Set the `provider.composer` settings row to `ffmpeg` and clips and the final
+render are produced by the real pipeline instead of the mock: each chapter's
+stills dissolved across its narration, keyed onto the chalkboard under the
+chapter and video titles, then every chapter crossfaded over the looping
+background with the music mixed under. It needs `ffmpeg` and `ffprobe` on PATH;
+the daemon logs at startup if either is missing. Every other backend stays
+mocked, and switching back is the same row.
+
 ### Watching it work
 
 Against the defaults a task finishes in tens of milliseconds, so a whole render

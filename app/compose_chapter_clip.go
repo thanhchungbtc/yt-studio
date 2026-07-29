@@ -19,6 +19,7 @@ import (
 func ComposeChapterClip(
 	ctx context.Context,
 	t entity.Task,
+	videos repository.VideoReader,
 	chapters repository.ChapterReader,
 	composer provider.VideoComposer,
 	fields repository.ChapterFieldWriter,
@@ -53,10 +54,19 @@ func ComposeChapterClip(
 		}
 	}
 
+	// A composer may burn both titles into the frame, so they travel with the
+	// request rather than being fetched behind the port.
+	video, err := videos.VideoByID(ctx, chapter.VideoID)
+	if err != nil {
+		return classify(err)
+	}
+
 	assetID, err := composer.Clip(ctx, provider.ClipRequest{
 		VideoID:       chapter.VideoID,
 		ChapterID:     chapter.ID,
 		Ordinal:       chapter.Ordinal,
+		ChapterTitle:  chapter.Title,
+		VideoTitle:    video.Title,
 		AudioAssetID:  *chapter.AudioAssetID,
 		ImageAssetIDs: stills,
 	})

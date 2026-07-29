@@ -125,7 +125,7 @@ func (r *TaskRunner) dispatch(ctx context.Context, t entity.Task) entity.TaskOut
 		return GenerateStill(ctx, t, r.videos, r.channels, r.chapters, r.images,
 			r.chapterFields, r.assets, r.store, r.notifier, r.now())
 	case entity.TaskKindClip:
-		return ComposeChapterClip(ctx, t, r.chapters, r.composer, r.chapterFields,
+		return ComposeChapterClip(ctx, t, r.videos, r.chapters, r.composer, r.chapterFields,
 			r.assets, r.store, r.notifier, r.now())
 	case entity.TaskKindConcat:
 		return ComposeFinalVideo(ctx, t, r.chapters, r.composer, r.videoFields,

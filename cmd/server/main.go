@@ -23,6 +23,7 @@ import (
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
 	"github.com/tbui/yt-studio/adapters/eventbus"
+	"github.com/tbui/yt-studio/adapters/ffmpeg"
 	mockprovider "github.com/tbui/yt-studio/adapters/mock_provider"
 	"github.com/tbui/yt-studio/adapters/sqlite"
 	"github.com/tbui/yt-studio/app"
@@ -40,9 +41,12 @@ var version = "dev"
 // bootstrap holds the only configuration that must exist before the database is
 // open. Everything else is a settings row (§3).
 type bootstrap struct {
-	DB       string `help:"SQLite database file." default:"var/yt-studio.db" env:"YTS_DB" type:"path"`
-	Assets   string `help:"Content-addressed asset store root." default:"var/assets" env:"YTS_ASSETS" type:"path"`
-	Listen   string `help:"Listen address." default:"127.0.0.1:8080" env:"YTS_LISTEN"`
+	DB     string `help:"SQLite database file." default:"var/yt-studio.db" env:"YTS_DB" type:"path"`
+	Assets string `help:"Content-addressed asset store root." default:"var/assets" env:"YTS_ASSETS" type:"path"`
+	//nolint:lll // one flag, one line
+	Resources string `help:"Fixed production assets: chalkboard.jpg, bg.mp4, bg.mp3, fonts/." default:"var/resources" env:"YTS_RESOURCES" type:"path"`
+	Listen    string `help:"Listen address." default:"127.0.0.1:8080" env:"YTS_LISTEN"`
+	//nolint:lll // one flag, one line
 	LogLevel string `help:"Startup log level; the settings table takes over once loaded." default:"info" env:"YTS_LOG_LEVEL" enum:"debug,info,warn,error"`
 }
 
@@ -161,8 +165,21 @@ func (c *serveCmd) Run() error {
 	llm := mockprovider.NewLLM(assets, videoContextLookup(store), tuning)
 	tts := mockprovider.NewTTS(assets, tuning)
 	images := mockprovider.NewImage(assets, tuning)
-	composer := mockprovider.NewComposer(assets, tuning)
 	uploader := mockprovider.NewUploader(assets, tuning, time.Now)
+
+	ffmpegComposer := ffmpeg.New(assets, c.Resources, log)
+	composer := &selectedComposer{
+		mock: mockprovider.NewComposer(assets, tuning),
+		real: ffmpegComposer,
+		selected: func() string {
+			return settings.String(entity.SettingProviderComposer)
+		},
+	}
+	if err := ffmpegComposer.Check(); err != nil {
+		log.Info("ffmpeg composer is not available",
+			slog.String("reason", err.Error()),
+			slog.String("resources", c.Resources))
+	}
 
 	// --- scheduler ----------------------------------------------------------
 	pools, err := scheduler.NewPools(settings.PoolLimits())
@@ -278,6 +295,32 @@ func (c *serveCmd) Run() error {
 	}
 	log.Info("yt-studio stopped")
 	return nil
+}
+
+// selectedComposer routes each composition to the backend named by the
+// provider.composer setting, so switching between the mock and ffmpeg takes
+// effect on the next task rather than on the next restart (§3).
+type selectedComposer struct {
+	mock     provider.VideoComposer
+	real     provider.VideoComposer
+	selected func() string
+}
+
+var _ provider.VideoComposer = (*selectedComposer)(nil)
+
+func (s *selectedComposer) pick() provider.VideoComposer {
+	if s.selected() == "ffmpeg" {
+		return s.real
+	}
+	return s.mock
+}
+
+func (s *selectedComposer) Clip(ctx context.Context, req provider.ClipRequest) (entity.AssetID, error) {
+	return s.pick().Clip(ctx, req)
+}
+
+func (s *selectedComposer) Concat(ctx context.Context, req provider.ConcatRequest) (entity.AssetID, error) {
+	return s.pick().Concat(ctx, req)
 }
 
 // videoContextLookup gives the mock LLM the blueprint context its coalesced

@@ -130,6 +130,74 @@ func (f *FS) Put(ctx context.Context, kind entity.AssetKind, r io.Reader) (provi
 	return provider.StoredAsset{ID: id, Path: rel, Size: size}, nil
 }
 
+// PutFile ingests a file that is already on disk, by hashing it in place and
+// renaming it into the store. Nothing is copied when the source sits on the
+// same filesystem, which is what keeps a multi-gigabyte render cheap to ingest:
+// a composer writes its output once and hands the path over (§8.3).
+//
+// The source is consumed either way — renamed on success, removed when the
+// content address is already present.
+func (f *FS) PutFile(ctx context.Context, kind entity.AssetKind, src string) (provider.StoredAsset, error) {
+	if !kind.Valid() {
+		return provider.StoredAsset{}, fmt.Errorf("%w: unknown kind %q", entity.ErrInvalidAsset, kind)
+	}
+	file, err := os.Open(src) //nolint:gosec // src is produced by this process
+	if err != nil {
+		return provider.StoredAsset{}, fmt.Errorf("open source: %w", err)
+	}
+	h := sha256.New()
+	buf, ok := f.bufPool.Get().(*[]byte)
+	if !ok {
+		scratch := make([]byte, copyBufferSize)
+		buf = &scratch
+	}
+	size, copyErr := io.CopyBuffer(h, &ctxReader{ctx: ctx, r: file}, *buf)
+	f.bufPool.Put(buf)
+	if err := errors.Join(copyErr, file.Close()); err != nil {
+		return provider.StoredAsset{}, fmt.Errorf("hash source: %w", err)
+	}
+
+	id := entity.AssetID(hex.EncodeToString(h.Sum(nil)))
+	rel := RelPath(id, kind)
+	dst, err := f.resolve(rel)
+	if err != nil {
+		return provider.StoredAsset{}, err
+	}
+	if _, err := os.Stat(dst); err == nil {
+		_ = os.Remove(src)
+		return provider.StoredAsset{ID: id, Path: rel, Size: size, Existed: true}, nil
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return provider.StoredAsset{}, fmt.Errorf("create asset dir: %w", err)
+	}
+	if err := os.Rename(src, dst); err != nil {
+		// A rename across filesystems fails with EXDEV; fall back to streaming
+		// the bytes so a work directory outside the store root still works.
+		return f.copyInto(ctx, kind, src)
+	}
+	return provider.StoredAsset{ID: id, Path: rel, Size: size}, nil
+}
+
+// copyInto is PutFile's cross-filesystem fallback: the same bytes, ingested the
+// slow way.
+func (f *FS) copyInto(ctx context.Context, kind entity.AssetKind, src string) (provider.StoredAsset, error) {
+	in, err := os.Open(src) //nolint:gosec // src is produced by this process
+	if err != nil {
+		return provider.StoredAsset{}, fmt.Errorf("reopen source: %w", err)
+	}
+	defer func() {
+		_ = in.Close()
+		_ = os.Remove(src)
+	}()
+	return f.Put(ctx, kind, in)
+}
+
+// Path returns the absolute on-disk location of an asset, for the one consumer
+// that cannot take a reader: an external process invoked with argv.
+func (f *FS) Path(id entity.AssetID, kind entity.AssetKind) (string, error) {
+	return f.resolve(RelPath(id, kind))
+}
+
 // Open returns a seekable reader, so the HTTP layer can serve range requests
 // for video scrubbing without buffering.
 func (f *FS) Open(_ context.Context, id entity.AssetID, kind entity.AssetKind) (io.ReadSeekCloser, error) {
