@@ -13,6 +13,7 @@ import (
 	"fmt"
 
 	"github.com/tbui/yt-studio/domain/entity"
+	"github.com/tbui/yt-studio/domain/provider"
 	"github.com/tbui/yt-studio/domain/repository"
 )
 
@@ -40,6 +41,10 @@ func classify(err error) entity.TaskOutcome {
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		// The video was cancelled or the daemon is shutting down. Retrying is
 		// pointless; resume happens through the task table, not through a retry.
+		return entity.Failed{Err: err, Retryable: false}
+	case errors.Is(err, provider.ErrUnavailable):
+		// The backend cannot run until the operator installs something. Three
+		// attempts would only take three times as long to say so.
 		return entity.Failed{Err: err, Retryable: false}
 	case errors.Is(err, repository.ErrNotFound),
 		errors.Is(err, entity.ErrAssetNotFound),

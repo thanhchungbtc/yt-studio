@@ -12,7 +12,6 @@ package ffmpeg
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -26,8 +25,10 @@ import (
 )
 
 // ErrUnavailable reports a missing binary or resource file: the composition
-// cannot run at all until the operator fixes the installation.
-var ErrUnavailable = errors.New("ffmpeg composer unavailable")
+// cannot run at all until the operator fixes the installation. It wraps the
+// port's sentinel so the task fails once rather than retrying three times for
+// a binary that will not appear.
+var ErrUnavailable = fmt.Errorf("ffmpeg composer: %w", provider.ErrUnavailable)
 
 // Chapter clip geometry and timing. These are the reference pipeline's
 // constants and the output is defined by them; they are not tunable.

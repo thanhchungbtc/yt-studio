@@ -26,6 +26,7 @@ import (
 	"github.com/tbui/yt-studio/adapters/ffmpeg"
 	mockprovider "github.com/tbui/yt-studio/adapters/mock_provider"
 	"github.com/tbui/yt-studio/adapters/registry"
+	sampleprovider "github.com/tbui/yt-studio/adapters/sample_provider"
 	"github.com/tbui/yt-studio/adapters/sqlite"
 	"github.com/tbui/yt-studio/app"
 	deliveryhttp "github.com/tbui/yt-studio/delivery/http"
@@ -158,11 +159,14 @@ func (c *serveCmd) Run() error {
 			settings.Int(entity.SettingMockFailureRatePercent)
 	})
 	ffmpegComposer := ffmpeg.New(assets, c.Resources, log)
+	samples := sampleprovider.NewLibrary(c.Resources)
 
 	providers := registry.New(settings.String)
 	providers.RegisterLLM("mock", mockprovider.NewLLM(assets, videoContextLookup(store), tuning))
 	providers.RegisterTTS("mock", mockprovider.NewTTS(assets, tuning))
+	providers.RegisterTTS("sample", sampleprovider.NewTTS(samples, assets))
 	providers.RegisterImage("mock", mockprovider.NewImage(assets, tuning))
+	providers.RegisterImage("sample", sampleprovider.NewImage(samples, assets))
 	providers.RegisterComposer("mock", mockprovider.NewComposer(assets, tuning))
 	providers.RegisterComposer("ffmpeg", ffmpegComposer)
 	providers.RegisterUploader("mock", mockprovider.NewUploader(assets, tuning, time.Now))
@@ -181,6 +185,11 @@ func (c *serveCmd) Run() error {
 		log.Info("ffmpeg composer is not available",
 			slog.String("reason", err.Error()),
 			slog.String("resources", c.Resources))
+	}
+	if err := samples.Check(); err != nil {
+		log.Info("sample backends are not available",
+			slog.String("reason", err.Error()),
+			slog.String("dir", samples.Dir()))
 	}
 
 	// --- scheduler ----------------------------------------------------------

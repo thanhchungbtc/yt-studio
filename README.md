@@ -45,9 +45,10 @@ one directory to delete. Override with `--db`, `--assets` or `YTS_DB`,
 `YTS_ASSETS`.
 
 The one thing under `var/` that is _not_ generated is `var/resources/` — the
-fixed production assets the real composer draws on (`chalkboard.jpg`, `bg.mp4`,
-`bg.mp3`, `fonts/CabinSketch-Bold.ttf`). They are operator-supplied and too
-large to commit; override the location with `--resources` or `YTS_RESOURCES`.
+fixed production assets the real backends draw on (`chalkboard.jpg`, `bg.mp4`,
+`bg.mp3`, `fonts/CabinSketch-Bold.ttf`, and `sample/` below). They are
+operator-supplied and too large to commit; override the location with
+`--resources` or `YTS_RESOURCES`.
 
 ### Real composition
 
@@ -63,6 +64,28 @@ same row.
 Each `provider.*` row offers exactly the backends this build registered, so a
 value that names no backend is rejected on write and refuses to start the
 daemon on load. Nothing silently falls back to the mock.
+
+### Real narration and stills
+
+Set `provider.tts` and `provider.image` to `sample` and both are served from
+real media in `var/resources/sample/` instead of the generated tone and
+gradient:
+
+| File            | Serves                                                        |
+| --------------- | ------------------------------------------------------------- |
+| `*.wav`         | Narration. The first match is reused by every chapter.         |
+| `img*.jpg`      | Stills, rotated by chapter and slot so a chapter never repeats |
+
+Drop in another `img*.jpg` and it joins the rotation on the next restart. The
+daemon logs at startup if the directory is missing, and a task then fails once
+with the reason rather than retrying files that will not appear.
+
+This is a real backend, not a mock: no simulated latency, no injected
+failures. Two consequences are worth knowing before pointing it at a
+fifty-chapter video. The narration is whatever length your recording is, for
+every chapter — a two-minute sample means a 100-minute render and several
+gigabytes of intermediate clips. And `durationSeconds` on a chapter stays a
+word-count estimate from the script, so it will not match the audio.
 
 ### Watching it work
 

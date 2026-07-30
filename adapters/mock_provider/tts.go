@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math"
 	"strconv"
-	"strings"
 
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
@@ -21,9 +20,6 @@ const (
 	wavChannels   = 1
 	wavBitDepth   = 16
 	wavSeconds    = 1.0
-	// wordsPerMinute is used only to report the narration length a real backend
-	// would have produced, for the UI's chapter durations.
-	wordsPerMinute = 150.0
 )
 
 // TTS is the mock narration backend.
@@ -54,13 +50,6 @@ func (t *TTS) Speak(ctx context.Context, req provider.SpeakRequest) (entity.Asse
 		return "", fmt.Errorf("store audio: %w", err)
 	}
 	return stored.ID, nil
-}
-
-// EstimateDurationSeconds reports how long a real backend would have narrated
-// the given text. The mock's own file is one second regardless; this is what
-// the UI shows as a chapter duration.
-func EstimateDurationSeconds(text string) float64 {
-	return float64(len(strings.Fields(text))) / wordsPerMinute * 60
 }
 
 // renderWAV builds a complete 16-bit PCM RIFF/WAVE file: a two-tone chord with

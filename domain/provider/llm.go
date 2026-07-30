@@ -13,9 +13,16 @@ package provider
 
 import (
 	"context"
+	"errors"
 
 	"github.com/tbui/yt-studio/domain/entity"
 )
+
+// ErrUnavailable reports a backend that cannot run at all: a missing binary, a
+// missing resource file, an unconfigured credential. It is worth its own
+// sentinel because it is the one provider failure that retrying cannot fix —
+// the operator has to change something first.
+var ErrUnavailable = errors.New("backend unavailable")
 
 // BlueprintRequest asks for the chapter outline of a whole video.
 type BlueprintRequest struct {
