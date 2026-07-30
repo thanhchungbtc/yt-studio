@@ -1122,7 +1122,12 @@ const TaskRow = memo(function TaskRow({ task, onRetry }: { task: Task; onRetry: 
       <td className="px-2 py-1.5 text-right tabular text-muted">
         {task.attempt}/{task.maxAttempts}
       </td>
-      <td className="max-w-[280px] truncate px-2 py-1.5 text-[hsl(var(--danger))]">
+      {/* Truncated to keep the row height honest, but the whole message is what
+          an operator needs when a task fails, so it is on the title. */}
+      <td
+        className="max-w-[280px] truncate px-2 py-1.5 text-[hsl(var(--danger))]"
+        title={task.error ?? ''}
+      >
         {task.error ?? ''}
       </td>
       <td className="px-4 py-1.5 text-right">
