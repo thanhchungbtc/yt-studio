@@ -49,12 +49,9 @@ const NAV: NavItem[] = [
 ]
 
 /**
- * The window.
- *
- * A title bar across the top, an activity bar down the left, a status bar along
- * the bottom, and the route filling everything between. Nothing here scrolls;
- * only the panes inside a route do, which is what keeps the chrome fixed the
- * way a native window's is.
+ * The window: title bar, activity bar, status bar and the route between them.
+ * Nothing here scrolls — only the panes inside a route do — so the chrome stays
+ * fixed the way a native window's is.
  */
 export function AppShell() {
   return (
@@ -236,7 +233,7 @@ function StatusBar({ connection }: { connection: ConnectionState }) {
       <ConnectionPill state={connection} />
       <Divider />
 
-      {/* Capacity is the binding constraint of the whole system (§5), so it is
+      {/* Capacity is the binding constraint of the whole system, so it is
           on screen at all times rather than only on the operator console. */}
       <div className="flex min-w-0 items-center gap-1 overflow-hidden">
         {status?.pools.map((pool) => (

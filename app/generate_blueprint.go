@@ -14,8 +14,8 @@ import (
 // chapters.
 //
 // It is the root of the DAG and, when the gate is enabled, the point at which
-// the pipeline parks for human review (§6). The scheduler owns that decision;
-// this function just does the work and records the result.
+// the pipeline parks for human review. The scheduler owns that decision; this
+// function just does the work and records the result.
 //
 //nolint:revive // the parameter list is the dependency list
 func GenerateBlueprint(
@@ -74,8 +74,8 @@ func GenerateBlueprint(
 		if err != nil {
 			return classify(err)
 		}
-		// The still slots are pre-sized so that the two image tasks of a chapter
-		// can each write their own index atomically (§4).
+		// The still slots are pre-sized so that the two image tasks of a chapter can
+		// each write their own index atomically.
 		c.ImageAssetIDs = make([]entity.AssetID, video.ImagesPerChapter)
 		c.ImagePrompts = make([]string, 0, video.ImagesPerChapter)
 		chapters = append(chapters, c)

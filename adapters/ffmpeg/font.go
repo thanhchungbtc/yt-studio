@@ -63,8 +63,8 @@ func (f *fontCache) face(parsed *sfnt.Font, size int) (font.Face, error) {
 	}
 	face, err := opentype.NewFace(parsed, &opentype.FaceOptions{
 		Size: float64(size),
-		// 72 dpi makes one point one pixel, so the size passed here is the
-		// pixel size drawtext will render at.
+		// 72 dpi makes one point one pixel, so the size passed here is the pixel size
+		// drawtext will render at.
 		DPI:     72,
 		Hinting: font.HintingFull,
 	})

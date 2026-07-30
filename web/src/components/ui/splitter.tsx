@@ -3,12 +3,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 
 /**
- * The drag handle between two panes.
- *
- * It is a real `separator` with arrow-key support, so the sidebar can be sized
- * without a mouse, and it widens its *hit* area without widening its *drawn*
- * area — a 1px line you can grab from 5px away, which is what makes a desktop
- * splitter feel accurate rather than fiddly.
+ * The drag handle between two panes: a real `separator` with arrow-key support,
+ * whose *hit* area is wider than its *drawn* area — a 1px line grabbable from
+ * 5px away.
  */
 export function Splitter({
   width,

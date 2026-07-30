@@ -23,7 +23,7 @@ WHERE id = ?;
 DELETE FROM channels WHERE id = ?;
 
 -- Seeds are upserts by natural key, so running the seed a second time updates
--- in place instead of creating a duplicate (goal.md section 3).
+-- in place instead of creating a duplicate.
 -- name: UpsertChannelBySlug :exec
 INSERT INTO channels (
     id, slug, name, description, tone, voice, image_style, language,

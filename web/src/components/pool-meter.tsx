@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 /**
  * One pool's occupancy as discrete slots, so "2 of 2 busy with 40 queued" reads
  * at a glance — capacity is the binding constraint, and the operator console
- * exists to show where it is going (§5, §9).
+ * exists to show where it is going.
  */
 export const PoolMeter = memo(function PoolMeter({
   stat,

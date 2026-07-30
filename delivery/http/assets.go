@@ -15,7 +15,7 @@ import (
 )
 
 // immutableCacheControl is safe because the URL contains the content address:
-// the hash is the cache key, so a still caches forever for free (§9).
+// the hash is the cache key, so a still caches forever for free.
 const immutableCacheControl = "public, max-age=31536000, immutable"
 
 // assetHandler streams a stored artifact.

@@ -4,9 +4,8 @@ import { createContext, useContext } from 'react'
  * The window-level actions: things that mean the same thing on every screen and
  * are therefore owned by the shell rather than by a route.
  *
- * The context lives in its own module so that the palette — which both consumes
- * these commands and is mounted by their provider — does not import the
- * provider back.
+ * The context lives in its own module so the palette — which consumes these
+ * commands and is mounted by their provider — does not import the provider back.
  */
 export interface AppCommands {
   openPalette: () => void

@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 // The dev server proxies the daemon's API and event stream, so `make dev` runs
-// the Vite server and the Go binary side by side with no CORS in between (§9).
+// the Vite server and the Go binary side by side with no CORS in between.
 // The production build is what `go:embed` picks up.
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -44,7 +44,7 @@ export default defineConfig({
     // a content address and 404.
     assetsDir: 'app',
     // The operator console is not on the critical path to first paint, so it is
-    // lazily imported by the router and lands in its own chunk (§9). Rollup's
+    // lazily imported by the router and lands in its own chunk. Rollup's
     // default vendor splitting is left alone: hand-written groups produced a
     // circular chunk here for no measurable gain.
     reportCompressedSize: true,

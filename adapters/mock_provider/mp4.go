@@ -7,22 +7,17 @@ import (
 	"io"
 )
 
-// A hand-written minimal ISO base media file writer and reader.
+// A hand-written minimal ISO base media file writer and reader, so the mock
+// composer exercises content addressing and the asset store against a
+// structurally valid MP4.
 //
-// The composer mock has to produce a structurally valid MP4 so that content
-// addressing, the asset store and the composition path are all genuinely
-// exercised (§7, mock requirements). What it produces is a real two-track
-// container: a video track whose samples are the chapter's PNGs, declared with
-// QuickTime's `png ` sample entry, and an audio track carrying the narration as
-// 16-bit PCM (`sowt`). What it deliberately does not do is transcode. Real
-// composition is `os/exec` with explicit argv and stream copy, and is deferred
-// (§11).
-//
-// No media wrapper library is involved either way (§8.1).
+// The output is two real tracks — the chapter's PNGs under QuickTime's `png `
+// sample entry, and the narration as 16-bit PCM (`sowt`) — with no
+// transcoding and no media wrapper library.
 
 // mp4Sample is one run of payload bytes: its size, known up front so the sample
 // tables can be written before any payload is copied, and a reader opened
-// lazily so the data is streamed rather than buffered (§8.3).
+// lazily so the data is streamed rather than buffered.
 type mp4Sample struct {
 	size int64
 	open func() (io.ReadCloser, error)
@@ -301,9 +296,8 @@ type mp4Tracks struct {
 type opener func() (io.ReadSeekCloser, error)
 
 // readMP4 re-reads a file written by writeMP4 and returns its payload as lazily
-// opened, seeked readers. Concatenation is therefore a genuine stream copy: no
-// clip is ever held in memory, which is the property that has to survive into
-// the real composer (§8.3, §11).
+// opened, seeked readers, so concatenation is a genuine stream copy and no clip
+// is ever held in memory.
 func readMP4(open opener, size int64) (mp4Tracks, error) {
 	rc, err := open()
 	if err != nil {
@@ -380,8 +374,8 @@ func samplesFromStbl(open opener, stbl []byte) ([]mp4Sample, error) {
 	at := int64(binary.BigEndian.Uint32(stco[8:12]))
 
 	if uniform > 0 {
-		// Fixed-size samples (the PCM track): one contiguous run is enough, and
-		// it keeps the concat path to a single copy per input file.
+		// Fixed-size samples (the PCM track): one contiguous run is enough, and it
+		// keeps the concat path to a single copy per input file.
 		return []mp4Sample{sectionSample(open, at, uniform*int64(count))}, nil
 	}
 	if len(stsz) < 12+4*count {

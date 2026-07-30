@@ -12,7 +12,7 @@ import (
 
 // Uploader is the mock publishing backend. It reads the final render through
 // the asset store so the upload path genuinely touches the bytes, and returns a
-// receipt. Dry run is the default and stays the default (§11).
+// receipt. Dry run is the default and stays the default.
 type Uploader struct {
 	store  provider.AssetStore
 	tuning Tuning
@@ -43,8 +43,8 @@ func (u *Uploader) Upload(ctx context.Context, req provider.UploadRequest) (enti
 		return entity.UploadRecord{}, fmt.Errorf("final render %s is empty", req.FinalAssetID.Short())
 	}
 
-	// A stable pseudo-video-id derived from the content address, so re-running
-	// an upload of identical bytes yields an identical receipt.
+	// A stable pseudo-video-id derived from the content address, so re-running an
+	// upload of identical bytes yields an identical receipt.
 	seed := seedOf(string(req.FinalAssetID), string(req.VideoRef))
 	remoteID := "mock-" + strconv.FormatUint(seed, 36)
 

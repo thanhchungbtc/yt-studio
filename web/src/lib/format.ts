@@ -114,7 +114,7 @@ export function taskStateLabel(state: TaskState): string {
   return TASK_STATE_LABELS[state] ?? state
 }
 
-/** Human label for a chapter within its video, e.g. DSS-14#7 (§3). */
+/** Human label for a chapter within its video, e.g. DSS-14#7. */
 export function chapterKey(ref: string, ordinal: number): string {
   return `${ref}#${ordinal}`
 }

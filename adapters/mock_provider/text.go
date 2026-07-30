@@ -10,7 +10,7 @@ import (
 
 // Deterministic prose generation. Every phrase is chosen by a PRNG seeded only
 // from the request, so the same inputs always produce byte-identical output and
-// therefore the same content address (§8.4).
+// therefore the same content address.
 
 var (
 	titleOpeners = []string{
@@ -121,7 +121,7 @@ func chapterSummary(r *rand.Rand, topic string, ordinal int) string {
 
 // narration builds a script of roughly wordTarget words in sentences of varied
 // length, using a strings.Builder with reserved capacity rather than repeated
-// concatenation (§8.3).
+// concatenation.
 func narration(seed uint64, title, summary, tone string, wordTarget int) string {
 	r := deterministic(seed)
 	var b strings.Builder

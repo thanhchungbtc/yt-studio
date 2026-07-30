@@ -42,10 +42,9 @@ const FILTERS: { value: Filter; label: string; match: (state: VideoState) => boo
 /**
  * The sidebar: every channel, every video, always present.
  *
- * It is mounted by the `/videos` layout route rather than by either child, so
- * moving between two videos swaps only the detail pane — the list keeps its
- * scroll position, its filter and its focus, which is the whole difference
- * between a web page and an application window.
+ * Mounted by the `/videos` layout route rather than by either child, so moving
+ * between two videos swaps only the detail pane and the list keeps its scroll
+ * position, its filter and its focus.
  */
 export function VideoSidebar({ activeRef }: { activeRef?: string }) {
   const navigate = useNavigate()
@@ -522,7 +521,7 @@ const ChannelGroup = memo(function ChannelGroup({
   )
 })
 
-/** Memoised on the video object: an SSE delta re-renders exactly one row (§9). */
+/** Memoised on the video object: an SSE delta re-renders exactly one row. */
 const VideoRow = memo(function VideoRow({
   video,
   active,

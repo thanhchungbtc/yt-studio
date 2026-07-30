@@ -8,7 +8,7 @@ import (
 	"github.com/tbui/yt-studio/domain/entity"
 )
 
-// The §8.3 performance budgets, expressed as runnable gates. `benchstat` in CI
+// The performance budgets, expressed as runnable gates. `benchstat` in CI
 // compares these against the main baseline and blocks a regression over 5 %;
 // the tests below additionally fail outright if an absolute budget is missed.
 
@@ -78,7 +78,7 @@ func dispatchFixture(tb testing.TB) (*ReadySet, *Pools, []entity.Task) {
 }
 
 // pickNext is the dispatch decision in isolation: choose the next runnable task
-// and take its slot. The budget is under 1 ms and zero allocations (§8.3).
+// and take its slot. The budget is under 1 ms and zero allocations.
 func pickNext(rs *ReadySet, pools *Pools) *entity.Task {
 	t := rs.Next(entity.PoolImage)
 	if t == nil {
@@ -110,7 +110,7 @@ func BenchmarkDispatchDecision(b *testing.B) {
 }
 
 // TestDispatchDecisionIsAllocationFree asserts the zero-allocation requirement
-// of §8.3 directly rather than trusting the benchmark's report.
+// directly rather than trusting the benchmark's report.
 func TestDispatchDecisionIsAllocationFree(t *testing.T) {
 	// Not parallel: AllocsPerRun requires exclusive use of the process.
 	rs, pools, _ := dispatchFixture(t)
@@ -136,7 +136,7 @@ func TestDispatchDecisionIsAllocationFree(t *testing.T) {
 }
 
 // TestDispatchDecisionLatency asserts the absolute budget: picking the next
-// runnable task must take well under 1 ms (§8.3).
+// runnable task must take well under 1 ms.
 func TestDispatchDecisionLatency(t *testing.T) {
 	t.Parallel()
 	rs, pools, _ := dispatchFixture(t)
@@ -188,8 +188,8 @@ func BenchmarkRetryQueue(b *testing.B) {
 	}
 }
 
-// BenchmarkTaskDeltaJSON covers the JSON boundary §8.3 calls out: every task
-// transition is serialised onto the SSE stream.
+// BenchmarkTaskDeltaJSON covers the JSON boundary every task transition crosses
+// on its way to the SSE stream.
 func BenchmarkTaskDeltaJSON(b *testing.B) {
 	now := time.Unix(1_700_000_000, 0).UTC()
 	chapterID := entity.NewChapterID("v1", 7)

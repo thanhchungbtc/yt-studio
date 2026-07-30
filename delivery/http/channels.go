@@ -23,7 +23,7 @@ type ChannelOutput struct {
 	Body ChannelDTO
 }
 
-// ChannelKeyInput resolves a channel by slug or id (§3).
+// ChannelKeyInput resolves a channel by slug or id.
 type ChannelKeyInput struct {
 	Key string `path:"key" doc:"Channel slug or id"`
 }

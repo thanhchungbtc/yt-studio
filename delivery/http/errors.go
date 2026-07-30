@@ -15,7 +15,7 @@ import (
 // mapError translates a domain or use-case error into an HTTP status.
 //
 // Delivery knows nothing about why an operation failed beyond these sentinels,
-// which is what keeps handlers free of business logic (§7).
+// which is what keeps handlers free of business logic.
 func mapError(err error) error {
 	switch {
 	case err == nil:

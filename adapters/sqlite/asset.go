@@ -37,7 +37,7 @@ func (s *Store) ListAssetsByVideo(ctx context.Context, videoID entity.VideoID) (
 }
 
 // PutAsset records asset metadata. It is an upsert by content address, so
-// re-running a task that produced identical bytes is a no-op (§3).
+// re-running a task that produced identical bytes is a no-op.
 func (s *Store) PutAsset(ctx context.Context, a entity.Asset) error {
 	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
 		return q.PutAsset(ctx, sqlcgen.PutAssetParams{

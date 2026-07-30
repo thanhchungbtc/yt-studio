@@ -18,9 +18,9 @@ var ErrUnknownPool = errors.New("unknown pool")
 // ErrPoolLimitOutOfRange is returned when a requested limit is unusable.
 var ErrPoolLimitOutOfRange = errors.New("pool limit out of range")
 
-// Pools is the global admission control (§5). Limits are enforced across all
-// videos and all channels; a task acquires exactly one slot in exactly one pool
-// and holds it for the duration of the provider call.
+// Pools is the global admission control. Limits are enforced across all videos
+// and all channels; a task acquires exactly one slot in exactly one pool and
+// holds it for the duration of the provider call.
 //
 // The mechanism is golang.org/x/sync/semaphore.Weighted — context-cancellable
 // and FIFO-fair. We write no counter of our own.
@@ -39,8 +39,8 @@ type Pools struct {
 	mu      sync.Mutex
 	ballast [entity.NumPools]int64
 
-	// requests carries desired limits to the per-pool reconcilers, so an API
-	// call never blocks behind a running provider call.
+	// requests carries desired limits to the per-pool reconcilers, so an API call
+	// never blocks behind a running provider call.
 	requests [entity.NumPools]chan int64
 }
 
@@ -149,7 +149,7 @@ func (p *Pools) SetLimit(pool entity.Pool, n int) error {
 }
 
 // Run owns the per-pool reconcilers. It returns when ctx is done; every
-// goroutine it starts has exited by then (§8.2: goroutines are owned).
+// goroutine it starts has exited by then.
 func (p *Pools) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
 	for i := range entity.AllPools {

@@ -11,7 +11,7 @@ import (
 )
 
 // StartVideoOptions are the scheduler-shaped inputs, all sourced from settings
-// rows by the caller (§3).
+// rows by the caller.
 type StartVideoOptions struct {
 	MaxAttempts   int
 	BlueprintGate bool
@@ -21,7 +21,7 @@ type StartVideoOptions struct {
 // StartVideo builds a video's DAG and hands it to the scheduler.
 //
 // It is idempotent: task ids are deterministic and the graph insert is an
-// upsert, so calling it twice for the same video schedules nothing new (§3).
+// upsert, so calling it twice for the same video schedules nothing new.
 func StartVideo(
 	ctx context.Context,
 	videos repository.VideoReader,

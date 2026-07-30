@@ -54,7 +54,7 @@ const channelsRoute = createRoute({
 })
 
 // The operator console is not on the path to first paint, so it is split out of
-// the initial bundle (§9).
+// the initial bundle.
 const schedulerRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/scheduler',

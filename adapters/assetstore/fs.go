@@ -1,8 +1,8 @@
-// Package assetstore is the content-addressed file store behind every
-// generated artifact.
+// Package assetstore is the content-addressed file store behind every generated
+// artifact.
 //
 // Files stream in and out with a pooled 256 KiB buffer: a three-hour render is
-// never read into memory (§8.3).
+// never read into memory.
 package assetstore
 
 import (
@@ -118,7 +118,7 @@ func (f *FS) Put(ctx context.Context, kind entity.AssetKind, r io.Reader) (provi
 		return provider.StoredAsset{}, err
 	}
 	if _, err := os.Stat(dst); err == nil {
-		// Identical content already stored: re-running the task is a no-op (§3).
+		// Identical content already stored: re-running the task is a no-op.
 		return provider.StoredAsset{ID: id, Path: rel, Size: size, Existed: true}, nil
 	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
@@ -133,7 +133,7 @@ func (f *FS) Put(ctx context.Context, kind entity.AssetKind, r io.Reader) (provi
 // PutFile ingests a file that is already on disk, by hashing it in place and
 // renaming it into the store. Nothing is copied when the source sits on the
 // same filesystem, which is what keeps a multi-gigabyte render cheap to ingest:
-// a composer writes its output once and hands the path over (§8.3).
+// a composer writes its output once and hands the path over.
 //
 // The source is consumed either way — renamed on success, removed when the
 // content address is already present.
@@ -171,8 +171,8 @@ func (f *FS) PutFile(ctx context.Context, kind entity.AssetKind, src string) (pr
 		return provider.StoredAsset{}, fmt.Errorf("create asset dir: %w", err)
 	}
 	if err := os.Rename(src, dst); err != nil {
-		// A rename across filesystems fails with EXDEV; fall back to streaming
-		// the bytes so a work directory outside the store root still works.
+		// A rename across filesystems fails with EXDEV; fall back to streaming the
+		// bytes so a work directory outside the store root still works.
 		return f.copyInto(ctx, kind, src)
 	}
 	return provider.StoredAsset{ID: id, Path: rel, Size: size}, nil
@@ -233,7 +233,8 @@ func (f *FS) Stat(_ context.Context, id entity.AssetID, kind entity.AssetKind) (
 }
 
 // resolve joins a relative path to the root and refuses anything that would
-// escape it — a content address is attacker-supplied as far as this layer knows.
+// escape it — a content address is attacker-supplied as far as this layer
+// knows.
 func (f *FS) resolve(rel string) (string, error) {
 	clean := filepath.Clean(filepath.Join(f.root, rel))
 	if clean != f.root && !strings.HasPrefix(clean, f.root+string(os.PathSeparator)) {

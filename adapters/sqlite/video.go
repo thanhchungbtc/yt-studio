@@ -58,9 +58,8 @@ func (s *Store) ListVideos(ctx context.Context, f repository.VideoFilter) ([]ent
 		if err != nil {
 			return nil, fmt.Errorf("decode video %s: %w", r.ID, err)
 		}
-		// More than one state filter is applied here rather than in SQL: the
-		// list is paged and small, and it keeps the query plan a single index
-		// range scan.
+		// More than one state filter is applied here rather than in SQL: the list is
+		// paged and small, and it keeps the query plan a single index range scan.
 		if len(f.States) > 1 && !containsState(f.States, v.State) {
 			continue
 		}
@@ -187,8 +186,8 @@ func (s *Store) SetVideoState(ctx context.Context, id entity.VideoID, state enti
 		n := toUnix(now)
 		completedAt = &n
 	}
-	// started_at is COALESCE'd in SQL, so the first non-draft transition stamps
-	// it and every later one leaves it alone.
+	// started_at is COALESCE'd in SQL, so the first non-draft transition stamps it
+	// and every later one leaves it alone.
 	var startedAt *int64
 	if state != entity.VideoStateDraft {
 		n := toUnix(now)

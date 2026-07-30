@@ -220,7 +220,7 @@ type UpsertChannelBySlugParams struct {
 }
 
 // Seeds are upserts by natural key, so running the seed a second time updates
-// in place instead of creating a duplicate (goal.md section 3).
+// in place instead of creating a duplicate.
 func (q *Queries) UpsertChannelBySlug(ctx context.Context, arg UpsertChannelBySlugParams) error {
 	_, err := q.exec(ctx, q.upsertChannelBySlugStmt, upsertChannelBySlug,
 		arg.ID,

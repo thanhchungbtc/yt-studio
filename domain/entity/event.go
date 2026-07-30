@@ -2,16 +2,16 @@ package entity
 
 import "time"
 
-// EventKind names a delta pushed to connected clients over SSE (§9). Events
-// carry the delta, never a full state dump; the browser applies them to its
-// query cache.
+// EventKind names a delta pushed to connected clients over SSE. Events carry
+// the delta, never a full state dump; the browser applies them to its query
+// cache.
 type EventKind string
 
 // The complete set of event kinds.
 const (
 	// EventKindBatch carries every delta accumulated for one video within a
-	// coalescing window. A 50-chapter render must not emit hundreds of events
-	// per second (§9), so bursts arrive as one batch rather than N messages.
+	// coalescing window. A 50-chapter render must not emit hundreds of events per
+	// second, so bursts arrive as one batch rather than N messages.
 	EventKindBatch EventKind = "batch"
 	// EventKindScheduler carries pool utilisation for the operator console.
 	EventKindScheduler EventKind = "scheduler"
@@ -39,8 +39,8 @@ type TaskDelta struct {
 	Pool      Pool       `json:"pool"`
 	Gate      GateKind   `json:"gate,omitempty"`
 	Attempt   int        `json:"attempt"`
-	// Stale rides on the delta so the UI can flag a task the moment an
-	// upstream re-run marks it, without refetching the whole video.
+	// Stale rides on the delta so the UI can flag a task the moment an upstream
+	// re-run marks it, without refetching the whole video.
 	Stale     bool      `json:"stale"`
 	Error     string    `json:"error,omitempty"`
 	UpdatedAt time.Time `json:"updatedAt"`
@@ -73,7 +73,7 @@ type ChapterDelta struct {
 	UpdatedAt     time.Time `json:"updatedAt"`
 }
 
-// PoolStat is the live utilisation of one pool, for the operator console (§9).
+// PoolStat is the live utilisation of one pool, for the operator console.
 type PoolStat struct {
 	Pool     Pool `json:"pool"`
 	Limit    int  `json:"limit"`
@@ -92,12 +92,12 @@ type SchedulerDelta struct {
 	UpdatedA time.Time  `json:"updatedAt"`
 }
 
-// Event is one message on the single multiplexed SSE stream (§9). One stream
-// per client carries every video; the browser applies the deltas to its query
-// cache rather than refetching.
+// Event is one message on the single multiplexed SSE stream. One stream per
+// client carries every video; the browser applies the deltas to its query cache
+// rather than refetching.
 type Event struct {
-	// ID is monotonically increasing and is what a reconnecting client sends
-	// back as Last-Event-ID to resume without a full reload.
+	// ID is monotonically increasing and is what a reconnecting client sends back
+	// as Last-Event-ID to resume without a full reload.
 	ID      uint64    `json:"id"`
 	Kind    EventKind `json:"kind"`
 	VideoID VideoID   `json:"videoId,omitempty"`

@@ -8,7 +8,7 @@ import (
 )
 
 // VideoSummary is a video plus the task census the list view needs to show
-// progress and the bottleneck at a glance (§9).
+// progress and the bottleneck at a glance.
 type VideoSummary struct {
 	Video  entity.Video
 	Counts repository.TaskCounts

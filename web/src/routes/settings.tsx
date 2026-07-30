@@ -43,11 +43,10 @@ const GROUP_BLURBS: Record<string, string> = {
 
 /**
  * The settings screen is a plain CRUD surface over the settings table, with no
- * privileged file access anywhere (§3, §9).
+ * privileged file access anywhere.
  *
- * The group rail on the left is what turns forty rows into a preferences
- * window: it is a table of contents that scrolls the pane rather than a filter
- * that hides the rest, so the operator never loses their place.
+ * The group rail on the left is a table of contents that scrolls the pane rather
+ * than a filter that hides the rest.
  */
 export function SettingsRoute() {
   const settings = useQuery({ queryKey: qk.settings, queryFn: api.listSettings })

@@ -10,8 +10,8 @@ import (
 
 // FindOpenGate returns the task a video is currently parked on, if any.
 //
-// A gate is a row update (§6): there is no in-memory flow to suspend, so the
-// open gate is simply the one task in awaiting_approval.
+// A gate is a row update: there is no in-memory flow to suspend, so the open
+// gate is simply the one task in awaiting_approval.
 func FindOpenGate(
 	ctx context.Context,
 	tasks repository.TaskReader,
@@ -36,7 +36,7 @@ func FindOpenGate(
 
 // ApproveGate releases a gated task's successors. Waits may last days, so the
 // state lives in the task table and the daemon may have restarted since the
-// gate opened (§6).
+// gate opened.
 func ApproveGate(
 	ctx context.Context,
 	tasks repository.TaskReader,

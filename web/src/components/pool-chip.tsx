@@ -29,7 +29,7 @@ const SHORT: Record<PoolName, string> = {
 
 /**
  * A pool's occupancy as filled slots plus a queue badge. Capacity is the
- * binding constraint of the whole system (§5), so it lives in the status bar
+ * binding constraint of the whole system, so it lives in the status bar
  * where it is always visible.
  */
 export const PoolChip = memo(function PoolChip({ stat }: { stat: PoolStat }) {

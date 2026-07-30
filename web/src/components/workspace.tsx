@@ -9,10 +9,7 @@ import { useHotkeys } from '@/lib/hotkeys'
 /**
  * The window-level surfaces — the command palette, the new-video dialog, the
  * shortcuts sheet — mounted once, above every route, and reachable from
- * anywhere without prop drilling.
- *
- * They live here rather than in each route because in a desktop application
- * ⌘K means the same thing on every screen.
+ * anywhere without prop drilling, so ⌘K means the same thing on every screen.
  */
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [palette, setPalette] = useState(false)

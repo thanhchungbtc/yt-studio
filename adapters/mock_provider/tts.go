@@ -40,8 +40,8 @@ func (t *TTS) Speak(ctx context.Context, req provider.SpeakRequest) (entity.Asse
 	if err := simulate(ctx, t.tuning, 2); err != nil {
 		return "", err
 	}
-	// The tone is derived from the request, so two chapters never produce the
-	// same bytes and the content addressing is genuinely exercised.
+	// The tone is derived from the request, so two chapters never produce the same
+	// bytes and the content addressing is genuinely exercised.
 	seed := seedOf(string(req.VideoID), strconv.Itoa(req.Ordinal), req.Voice, req.Text)
 	buf := renderWAV(seed)
 
@@ -56,9 +56,9 @@ func (t *TTS) Speak(ctx context.Context, req provider.SpeakRequest) (entity.Asse
 // a short fade, so the waveform is non-trivial and the file is genuinely valid.
 func renderWAV(seed uint64) []byte {
 	r := deterministic(seed)
-	// Continuous rather than integer parameters: fifty chapters drawing from a
-	// few hundred discrete tones collide often enough that two chapters would
-	// share a content address.
+	// Continuous rather than integer parameters: fifty chapters drawing from a few
+	// hundred discrete tones collide often enough that two chapters would share a
+	// content address.
 	base := 110.0 + r.Float64()*220.0
 	harmonic := base * (1.2 + r.Float64()*0.9)
 	phase := r.Float64() * 2 * math.Pi
@@ -72,10 +72,10 @@ func renderWAV(seed uint64) []byte {
 	buf.WriteString("WAVE")
 
 	buf.WriteString("fmt ")
-	writeLE32(buf, 16)            // subchunk size
-	writeLE16(buf, 1)             // PCM
-	writeLE16(buf, wavChannels)   //
-	writeLE32(buf, wavSampleRate) //
+	writeLE32(buf, 16) // subchunk size
+	writeLE16(buf, 1)  // PCM
+	writeLE16(buf, wavChannels)
+	writeLE32(buf, wavSampleRate)
 	writeLE32(buf, wavSampleRate*wavChannels*wavBitDepth/8)
 	writeLE16(buf, wavChannels*wavBitDepth/8)
 	writeLE16(buf, wavBitDepth)

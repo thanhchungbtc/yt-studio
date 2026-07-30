@@ -14,7 +14,7 @@ import (
 //
 // The DAG keeps N clean per-chapter prompt tasks — individually retryable and
 // uniform with every other chapter task — while the provider serves them all
-// from one production behind singleflight (§4).
+// from one production behind singleflight.
 func ResolveImagePrompts(
 	ctx context.Context,
 	t entity.Task,

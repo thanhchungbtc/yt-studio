@@ -181,12 +181,12 @@ function AssetLightbox({
     [index, items.length, onIndex],
   )
 
-  // A new artifact is always shown fitted; carrying 1:1 across a step would
-  // land the operator somewhere in the middle of an image they have not seen.
+  // A new artifact is always shown fitted; carrying 1:1 across a step would land
+  // the operator mid-image.
   useEffect(() => setActualSize(false), [index])
 
-  // The neighbours are almost always where the operator goes next, and they are
-  // immutable — fetching them early costs one request and removes the flash.
+  // The neighbours are immutable and almost always next, so prefetching them
+  // removes the flash for one request.
   useEffect(() => {
     for (const neighbour of [items[index + 1], items[index - 1]]) {
       if (!neighbour || mediaTypeOf(neighbour.mime) !== 'image') continue

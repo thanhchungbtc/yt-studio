@@ -13,7 +13,7 @@ import (
 	"github.com/tbui/yt-studio/domain/repository"
 )
 
-// Settings is the typed, cached accessor over the settings table (§3).
+// Settings is the typed, cached accessor over the settings table.
 //
 // The whole table is read and validated once at startup, so an unparsable value
 // fails loudly then rather than at first use, and every typed getter afterwards
@@ -69,8 +69,8 @@ func (s *Settings) Load(ctx context.Context) error {
 		}
 		next[r.Key] = r
 	}
-	// Every key the code reads must exist, or a typed getter would silently
-	// fall back. Missing keys are a seeding bug and are caught here.
+	// Every key the code reads must exist, or a typed getter would silently fall
+	// back. Missing keys are a seeding bug and are caught here.
 	for _, d := range entity.DefaultSettings() {
 		if _, ok := next[d.Key]; !ok {
 			return fmt.Errorf("%w: %q is missing; run the seed", entity.ErrSettingNotFound, d.Key)
@@ -82,7 +82,8 @@ func (s *Settings) Load(ctx context.Context) error {
 	return nil
 }
 
-// All returns every setting, ordered by group then key, for the settings screen.
+// All returns every setting, ordered by group then key, for the settings
+// screen.
 func (s *Settings) All() []entity.Setting {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -155,7 +156,7 @@ func (s *Settings) PoolLimits() map[entity.Pool]int {
 	return out
 }
 
-// GateEnabled reports whether a gate is active (§6).
+// GateEnabled reports whether a gate is active.
 func (s *Settings) GateEnabled(g entity.GateKind) bool {
 	key := entity.GateEnabledKey(g)
 	if key == "" {
@@ -191,8 +192,8 @@ func (s *Settings) Set(ctx context.Context, key entity.SettingKey, value string)
 }
 
 func sortSettings(v []entity.Setting) {
-	// Insertion sort: the table is a few dozen rows and this avoids pulling in
-	// a comparator closure allocation on a path called by the settings screen.
+	// Insertion sort: the table is a few dozen rows and this avoids pulling in a
+	// comparator closure allocation on a path called by the settings screen.
 	for i := 1; i < len(v); i++ {
 		cur := v[i]
 		j := i - 1

@@ -22,7 +22,7 @@ import (
 // It is not a dependency container that handlers read from: every handler and
 // every register* function below takes the narrow interfaces it uses as
 // separate parameters, and this struct exists only so cmd/ can name what it is
-// passing (§7). Nothing in this package holds a reference to it.
+// passing. Nothing in this package holds a reference to it.
 type Deps struct {
 	Channels      repository.ChannelReader
 	ChannelWriter repository.ChannelWriter
@@ -62,8 +62,8 @@ type Deps struct {
 	Now      func() time.Time
 	Version  string
 	Started  time.Time
-	// Dist is the built web UI, embedded in production builds. A nil value
-	// serves a clear error instead of a blank page.
+	// Dist is the built web UI, embedded in production builds. A nil value serves
+	// a clear error instead of a blank page.
 	Dist fs.FS
 }
 
@@ -81,8 +81,8 @@ func init() { huma.DefaultArrayNullable = false }
 func NewRouter(d Deps) (http.Handler, huma.API) {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
-	// RealIP is deliberately absent: it trusts forwarding headers, and this
-	// daemon binds to loopback with nothing in front of it.
+	// RealIP is deliberately absent: it trusts forwarding headers, and this daemon
+	// binds to loopback with nothing in front of it.
 	r.Use(middleware.Recoverer)
 	r.Use(requestLogger(d.Log))
 	r.Use(middleware.Compress(5, "application/json", "text/html", "text/css", "text/javascript", "image/svg+xml"))
@@ -112,13 +112,12 @@ func NewRouter(d Deps) (http.Handler, huma.API) {
 	return r, api
 }
 
-// requestLogger records one structured line per request with the correlation
-// attributes §8.4 requires.
+// requestLogger records one structured line per request.
 func requestLogger(log *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// The SSE stream is long-lived; logging it on completion would be
-			// noise measured in hours.
+			// The SSE stream is long-lived; logging it on completion would be noise
+			// measured in hours.
 			if r.URL.Path == "/events" {
 				next.ServeHTTP(w, r)
 				return

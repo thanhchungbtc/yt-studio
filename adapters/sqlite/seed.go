@@ -11,7 +11,7 @@ import (
 
 // SeedSettings writes the default settings table. It is an upsert by key, so
 // running it a second time updates metadata in place and leaves operator-set
-// values alone (§3). This is what makes `make seed` stable and repeatable.
+// values alone. This is what makes `make seed` stable and repeatable.
 func SeedSettings(ctx context.Context, settings repository.SettingWriter) error {
 	if err := settings.UpsertSettings(ctx, entity.DefaultSettings()); err != nil {
 		return fmt.Errorf("seed settings: %w", err)
@@ -19,9 +19,9 @@ func SeedSettings(ctx context.Context, settings repository.SettingWriter) error 
 	return nil
 }
 
-// SeedChannels writes the demonstration channels. Ids are derived from the
-// slug so a re-seed is byte-identical rather than merely equivalent, which is
-// what keeps golden-file fixtures stable (§3).
+// SeedChannels writes the demonstration channels. Ids are derived from the slug
+// so a re-seed is byte-identical rather than merely equivalent, which is what
+// keeps golden-file fixtures stable.
 func SeedChannels(ctx context.Context, channels repository.ChannelWriter, now time.Time) error {
 	for _, c := range defaultChannels(now) {
 		if _, err := channels.UpsertChannelBySlug(ctx, c); err != nil {

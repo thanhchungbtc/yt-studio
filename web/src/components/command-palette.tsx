@@ -37,15 +37,11 @@ interface Command {
 }
 
 /**
- * The command palette.
- *
- * Everything the application can do is reachable from one keystroke: routes,
- * actions and — the reason it earns its place here — every video by ref or
- * title, so switching between two videos forty rows apart is two keys rather
- * than a scroll.
+ * The command palette: routes, actions and every video by ref or title, all one
+ * keystroke away.
  *
  * Matching is a subsequence scan scored on how early and how contiguously the
- * query lands, which is enough for a few hundred videos and costs nothing.
+ * query lands, which is enough for a few hundred videos.
  */
 export function CommandPalette({
   open,

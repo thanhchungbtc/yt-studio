@@ -29,10 +29,10 @@ import (
 	"github.com/tbui/yt-studio/domain/service"
 )
 
-// harness wires the real stack — SQLite, the content-addressed store, the mock
-// providers, the scheduler and the router — behind an httptest server. Nothing
-// is stubbed except the clock and the id generator, so these tests exercise the
-// same code path the binary does.
+// harness wires the real stack — SQLite, the content-addressed store, the
+// mock providers, the scheduler and the router — behind an httptest server.
+// Nothing is stubbed except the clock and the id generator, so these tests
+// exercise the same code path the binary does.
 type harness struct {
 	t      *testing.T
 	server *httptest.Server
@@ -51,8 +51,8 @@ func newHarness(t *testing.T) *harness {
 	if err != nil {
 		t.Fatalf("sqlite.Open: %v", err)
 	}
-	// The writer outlives the request context so the scheduler's final
-	// transitions still commit during shutdown; it is stopped explicitly last.
+	// The writer outlives the request context so the scheduler's final transitions
+	// still commit during shutdown; it is stopped explicitly last.
 	writerCtx, stopWriter := context.WithCancel(context.Background())
 	writerDone := make(chan struct{})
 	go func() {
@@ -127,7 +127,7 @@ func newHarness(t *testing.T) *harness {
 		Reporter: sched, Prompts: llm, Notifier: broker, Coalescer: broker,
 		Events: broker, SSEClients: broker.Subscribers,
 		LogLevel: level, Log: log,
-		// Deterministic ids keep artifact hashes stable across runs (§8.4).
+		// Deterministic ids keep artifact hashes stable across runs.
 		NewID:   func() string { return "vid-" + strconv.FormatUint(counter.Add(1), 10) },
 		Now:     func() time.Time { return time.Unix(1_700_000_000, 0).UTC() },
 		Version: "test", Started: time.Unix(1_700_000_000, 0).UTC(),
@@ -407,7 +407,7 @@ func TestPipelineEndToEndThroughBothGates(t *testing.T) {
 	}
 }
 
-// The same seed and inputs must produce identical artifact hashes (§8.4).
+// The same seed and inputs must produce identical artifact hashes.
 func TestArtifactHashesAreReproducible(t *testing.T) {
 	t.Parallel()
 
@@ -652,7 +652,7 @@ func TestSSEStreamsDeltas(t *testing.T) {
 	}
 }
 
-// A pool limit is a settings row, changeable at runtime without a restart (§3).
+// A pool limit is a settings row, changeable at runtime without a restart.
 func TestSettingsApplyWithoutRestart(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
@@ -699,7 +699,7 @@ func TestSettingsRejectBadValues(t *testing.T) {
 	}
 }
 
-// Mutations are idempotent by request key (§9).
+// Mutations are idempotent by request key.
 func TestIdempotencyKeyReplaysTheFirstResponse(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
@@ -890,7 +890,7 @@ func TestHealthAndSchedulerConsole(t *testing.T) {
 	}
 }
 
-// The API response budget is p99 under 50 ms (§8.3).
+// The API response budget is p99 under 50 ms.
 func TestAPIResponseLatencyBudget(t *testing.T) {
 	// Not parallel: the budget describes a single-operator deployment, and the
 	// other integration tests each run their own SQLite and scheduler. Measured

@@ -21,7 +21,7 @@ type rig struct {
 }
 
 // newRig wires a scheduler whose runner records pool occupancy and dependency
-// order, so every test also checks the §5 and §8.4 invariants as a side effect.
+// order, so every test also checks the pool and ordering invariants.
 func newRig(t *testing.T, limits map[entity.Pool]int, g *Graph, run func(t entity.Task) entity.TaskOutcome) *rig {
 	t.Helper()
 	if limits == nil {
@@ -103,7 +103,7 @@ func TestFullPipelineCompletes(t *testing.T) {
 }
 
 // A gated task must not release its successors; the pipeline parks and consumes
-// nothing until a human acts (§6).
+// nothing until a human acts.
 func TestBlueprintGateParksAndApprovalReleases(t *testing.T) {
 	t.Parallel()
 	g := testGraph(t, "v1", 6, 2, true)
@@ -232,8 +232,8 @@ func TestPermanentFailureBlocksOnlyItsTail(t *testing.T) {
 		return s.Failed == 1 && s.Running == 0 && s.Ready == 0 && s.RetryPending == 0
 	})
 
-	// Every other chapter's stills and narration still completed: a failure in
-	// one chapter must not stop the rest (§2, principle 3).
+	// Every other chapter's stills and narration still completed: a failure in one
+	// chapter must not stop the rest.
 	failedTail := len(g.Downstream(mustIndex(t, g, entity.NewTaskID("v1", entity.TaskKindScript, 2, -1))))
 	snap := r.sched.Snapshot()
 	if want := g.NodeCount() - failedTail; snap.Succeeded != want {
@@ -346,7 +346,7 @@ func taskOfKind(t *testing.T, g *Graph, kind entity.TaskKind, ordinal int) *enti
 
 // Re-running a task that already succeeded must not silently redo everything
 // below it. The downstream is flagged and left alone until an operator says
-// what to do with it (§9).
+// what to do with it.
 func TestRerunMarksDownstreamStaleWithoutRunningIt(t *testing.T) {
 	t.Parallel()
 	g := testGraph(t, "v1", 2, 1, false)
@@ -483,7 +483,7 @@ func TestRunStaleReRunsTheFlaggedTasks(t *testing.T) {
 	}
 }
 
-// A cancelled video frees its slots within 100 ms (§8.3).
+// A cancelled video frees its slots within 100 ms.
 func TestCancelFreesSlotsQuickly(t *testing.T) {
 	t.Parallel()
 	g := testGraph(t, "v1", 20, 2, false)
@@ -517,8 +517,8 @@ func TestCancelFreesSlotsQuickly(t *testing.T) {
 	if elapsed := time.Since(start); elapsed > 100*time.Millisecond {
 		t.Fatalf("cancel took %s, budget is 100ms", elapsed)
 	}
-	// The console snapshot is published just after the video state is written,
-	// so the queue depth is asserted on its own rather than in the same instant.
+	// The console snapshot is published just after the video state is written, so
+	// the queue depth is asserted on its own rather than in the same instant.
 	waitFor(t, 2*time.Second, "the ready queue to drain", func() bool {
 		return r.sched.Snapshot().Ready == 0
 	})
@@ -552,7 +552,7 @@ func TestCancelPropagatesToRunningTasks(t *testing.T) {
 	})
 }
 
-// A crash 45 minutes into a run must resume, not restart (§2, principle 4).
+// A crash 45 minutes into a run must resume, not restart.
 func TestResumeContinuesFromPersistedState(t *testing.T) {
 	t.Parallel()
 	g := testGraph(t, "v1", 8, 2, false)
@@ -583,8 +583,8 @@ func TestResumeContinuesFromPersistedState(t *testing.T) {
 	}
 	second := newRig(t, nil, restored, nil)
 	second.store = first.store
-	// The new tracker starts empty, so it must be told what the previous
-	// process already finished — otherwise it would flag every survivor.
+	// The new tracker starts empty, so it must be told what the previous process
+	// already finished — otherwise it would flag every survivor.
 	for i := range restored.NodeCount() {
 		if restored.Task(i).State == entity.TaskStateSucceeded {
 			second.order.finished(restored.Task(i).ID)
@@ -602,7 +602,7 @@ func TestResumeContinuesFromPersistedState(t *testing.T) {
 	}
 }
 
-// Two videos compete for the same global slots (§5).
+// Two videos compete for the same global slots.
 func TestPoolsAreGlobalAcrossVideos(t *testing.T) {
 	t.Parallel()
 	limits := map[entity.Pool]int{
@@ -650,7 +650,7 @@ func TestSubmitIsIdempotent(t *testing.T) {
 	}
 }
 
-// A burst of completions must commit in one transaction, not N (§8.3).
+// A burst of completions must commit in one transaction, not N.
 func TestTransitionsAreBatched(t *testing.T) {
 	t.Parallel()
 	limits := map[entity.Pool]int{

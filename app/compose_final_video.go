@@ -10,11 +10,9 @@ import (
 	"github.com/tbui/yt-studio/domain/repository"
 )
 
-// ComposeFinalVideo concatenates every chapter clip into the final render.
-//
-// The clips arrive in ordinal order and are copied through rather than
-// re-encoded: re-encoding three hours of already-correct video is the single
-// largest avoidable cost in the pipeline (§11).
+// ComposeFinalVideo concatenates every chapter clip into the final render. The
+// clips are handed to the composer in ordinal order; whether it can copy them
+// through or has to re-encode is the backend's decision.
 func ComposeFinalVideo(
 	ctx context.Context,
 	t entity.Task,

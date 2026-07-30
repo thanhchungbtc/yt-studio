@@ -41,7 +41,7 @@ import (
 var version = "dev"
 
 // bootstrap holds the only configuration that must exist before the database is
-// open. Everything else is a settings row (§3).
+// open. Everything else is a settings row.
 type bootstrap struct {
 	DB     string `help:"SQLite database file." default:"var/yt-studio.db" env:"YTS_DB" type:"path"`
 	Assets string `help:"Content-addressed asset store root." default:"var/assets" env:"YTS_ASSETS" type:"path"`
@@ -131,8 +131,8 @@ func (c *serveCmd) Run() error {
 	}
 	defer func() { _ = store.Close() }()
 
-	// The writer goroutine has its own cancel so it outlives the request
-	// context long enough to flush the scheduler's final transitions.
+	// The writer goroutine has its own cancel so it outlives the request context
+	// long enough to flush the scheduler's final transitions.
 	writerCtx, stopWriter := context.WithCancel(context.WithoutCancel(ctx))
 	writerGroup, _ := errgroup.WithContext(context.Background())
 	writerGroup.Go(func() error { return store.Run(writerCtx) })
@@ -152,8 +152,8 @@ func (c *serveCmd) Run() error {
 		return err
 	}
 
-	// Backends are registered before the settings are loaded, so a row naming
-	// one that does not exist fails at startup rather than at first task.
+	// Backends are registered before the settings are loaded, so a row naming one
+	// that does not exist fails at startup rather than at first task.
 	tuning := mockprovider.Tuning(func() (time.Duration, int) {
 		return settings.Duration(entity.SettingMockLatencyMillis),
 			settings.Int(entity.SettingMockFailureRatePercent)
@@ -310,7 +310,7 @@ func (c *serveCmd) Run() error {
 }
 
 // videoContextLookup gives the mock LLM the blueprint context its coalesced
-// prompt call needs, without the provider itself touching the database (§4).
+// prompt call needs, without the provider itself touching the database.
 func videoContextLookup(store *sqlite.Store) mockprovider.ContextLookup {
 	return func(ctx context.Context, videoID entity.VideoID) (mockprovider.VideoContext, error) {
 		v, err := store.VideoByID(ctx, videoID)

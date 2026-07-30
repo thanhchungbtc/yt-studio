@@ -6,13 +6,10 @@ import type { Task, TaskKind } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 /**
- * The pipeline, as the scheduler actually runs it.
- *
- * The DAG has no stage barriers — chapter 3's narration can be composing while
- * chapter 40's script is still being written — so this is emphatically not a
- * progress wizard. It is a census: for each kind of work, how much of it is
- * done, running, or has failed. That is the question an operator has when a
- * three-hour render is forty minutes in, and the answer is not a percentage.
+ * The pipeline, as the scheduler actually runs it. The DAG has no stage barriers
+ * — chapter 3 can be composing while chapter 40's script is written — so this is
+ * a census rather than a wizard: per kind of work, how much is done, running or
+ * failed.
  */
 const ORDER: TaskKind[] = [
   'blueprint',

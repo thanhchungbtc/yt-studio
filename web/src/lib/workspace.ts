@@ -5,11 +5,10 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
  * between launches — how wide the sidebar is, whether it is collapsed, which
  * channel groups are folded shut, which filter the list is under.
  *
- * It is deliberately not server state. It is one external store backed by
- * localStorage, read synchronously on first render so the layout never flashes
- * at the wrong width, and subscribed to through `useSyncExternalStore` so two
- * components reading the same key stay in step without a context re-rendering
- * the whole tree on every pixel of a drag.
+ * Deliberately not server state: one localStorage-backed external store, read
+ * synchronously on first render so the layout never flashes at the wrong width,
+ * and subscribed to through `useSyncExternalStore` so a drag does not re-render
+ * the tree through a context.
  */
 
 const PREFIX = 'yt-studio.'

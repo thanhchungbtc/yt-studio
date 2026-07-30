@@ -21,8 +21,8 @@ const (
 )
 
 // Slug is the stable, human-readable natural key of a Channel: lowercase
-// kebab-case, unique, and immutable once chosen (§3). It is a domain type, not
-// a bare string, so validation happens exactly once at the constructor.
+// kebab-case, unique, and immutable once chosen. It is a domain type, not a
+// bare string, so validation happens exactly once at the constructor.
 type Slug string
 
 // String returns the underlying text of the slug.
@@ -108,8 +108,8 @@ func (s Slug) Prefix() string {
 }
 
 // Ref is the stable, human-readable natural key of a Video, shaped like a JIRA
-// issue key: `DSS-1`, `HIS-42` (§3). The prefix comes from the owning channel's
-// slug and the number is a per-channel counter.
+// issue key: `DSS-1`, `HIS-42`. The prefix comes from the owning channel's slug
+// and the number is a per-channel counter.
 type Ref string
 
 // String returns the underlying text of the ref.
@@ -152,7 +152,7 @@ func ParseRef(s string) (prefix string, seq int, err error) {
 }
 
 // LooksLikeRef reports whether s has the shape of a video ref rather than an
-// opaque id. It is used by the API to resolve `/api/videos/{refOrID}` (§3).
+// opaque id. It is used by the API to resolve `/api/videos/{refOrID}`.
 func LooksLikeRef(s string) bool {
 	_, _, err := ParseRef(s)
 	return err == nil

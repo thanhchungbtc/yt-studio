@@ -1,6 +1,6 @@
 // Package app holds the use cases: one exported function per file, named after
 // what it does. This is where the real logic lives, so delivery layers stay
-// thin — an HTTP handler and a CLI command call the same function (§7).
+// thin — an HTTP handler and a CLI command call the same function.
 //
 // Every function declares exactly the narrow interfaces it uses as separate
 // parameters. There is no container struct of dependencies anywhere in this

@@ -47,8 +47,8 @@ func (c *Composer) Clip(ctx context.Context, req provider.ClipRequest) (entity.A
 
 	var audio []mp4Sample
 	if req.AudioAssetID != "" {
-		// The WAV header is skipped so the MP4 carries raw PCM, which is what
-		// the `sowt` sample entry declares.
+		// The WAV header is skipped so the MP4 carries raw PCM, which is what the
+		// `sowt` sample entry declares.
 		s, err := c.sample(ctx, req.AudioAssetID, entity.AssetKindAudio, wavHeaderBytes)
 		if err != nil {
 			return "", err
@@ -60,12 +60,8 @@ func (c *Composer) Clip(ctx context.Context, req provider.ClipRequest) (entity.A
 	return c.compose(ctx, entity.AssetKindClip, video, audio)
 }
 
-// Concat joins every chapter clip into the final render.
-//
-// Each input is re-read as byte ranges and copied straight through: re-encoding
-// three hours of already-correct video is the single largest avoidable cost in
-// the pipeline, and the mock is shaped so the real implementation inherits the
-// same property (§11).
+// Concat joins every chapter clip into the final render. Each input is re-read as
+// byte ranges and copied straight through, so no clip is ever held in memory.
 func (c *Composer) Concat(ctx context.Context, req provider.ConcatRequest) (entity.AssetID, error) {
 	if err := simulate(ctx, c.tuning, float64(len(req.ClipAssetIDs))/4); err != nil {
 		return "", err
@@ -102,8 +98,8 @@ func (c *Composer) compose(ctx context.Context, kind entity.AssetKind, video, au
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		_, err := writeMP4(pw, video, audio)
-		// Closing with the error propagates it to the reader rather than
-		// letting Put see a clean EOF on a truncated stream.
+		// Closing with the error propagates it to the reader rather than letting Put
+		// see a clean EOF on a truncated stream.
 		return pw.CloseWithError(err)
 	})
 	g.Go(func() error {

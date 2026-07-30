@@ -73,8 +73,8 @@ func TestLayOutTitles(t *testing.T) {
 func TestSectionGeometry(t *testing.T) {
 	t.Parallel()
 
-	// Ten per cent larger than the chapter frame, rounded down to even, centred
-	// on 1920x1080.
+	// Ten per cent larger than the chapter frame, rounded down to even, centred on
+	// 1920x1080.
 	w, h, x, y := sectionGeometry()
 	if w != 1478 || h != 844 || x != 221 || y != 118 {
 		t.Errorf("geometry = (%d, %d) at (%d, %d), want (1478, 844) at (221, 118)", w, h, x, y)

@@ -10,13 +10,9 @@ import (
 	"github.com/tbui/yt-studio/domain/scheduler"
 )
 
-// UpdateChapterScript records an operator's edit to a chapter's narration (§9).
-//
-// It still does not re-run anything — that decision stays with the operator —
-// but it no longer leaves the consequences invisible. The narration and clip
-// below this chapter were derived from the text that has just been replaced, so
-// they are flagged stale. Before this, an edited script and the audio of the
-// old one sat side by side with nothing anywhere saying they disagreed.
+// UpdateChapterScript records an operator's edit to a chapter's narration. It
+// re-runs nothing — that decision stays with the operator — but the narration
+// and clip derived from the replaced text are flagged stale.
 func UpdateChapterScript(
 	ctx context.Context,
 	chapters repository.ChapterReader,
@@ -46,13 +42,12 @@ func UpdateChapterScript(
 	c.DurationSeconds = duration
 
 	// Seeded on the chapter's own script task: the edit replaces that task's
-	// output, so everything below it is questionable while the script task
-	// itself is not — the operator's text is now the source of truth.
+	// output, so everything below it is questionable but the task itself is not.
 	if marker != nil {
 		seed := entity.NewTaskID(c.VideoID, entity.TaskKindScript, c.Ordinal, -1)
 		if _, err := marker.MarkStale(ctx, c.VideoID, []entity.TaskID{seed}); err != nil {
-			// A video that is not in the scheduler's memory has nothing running
-			// to invalidate, and the edit itself is already committed.
+			// A video that is not in the scheduler's memory has nothing running to
+			// invalidate, and the edit itself is already committed.
 			if !errors.Is(err, scheduler.ErrUnknownVideo) && !errors.Is(err, scheduler.ErrUnknownTask) {
 				return entity.Chapter{}, err
 			}

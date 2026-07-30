@@ -4,13 +4,9 @@ import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 /**
- * A right-click menu on any row.
- *
- * Radix owns the parts that are tedious to get right by hand and invisible when
- * they are: focus trapping, dismissal, roving arrow-key navigation, typeahead
- * and the aria roles. What is here is only the trigger surface and the styling,
- * which matches the tooltip and the dialog so a menu reads as the same
- * application.
+ * A right-click menu on any row. Radix owns focus trapping, dismissal, roving
+ * arrow-key navigation, typeahead and the aria roles; only the trigger surface
+ * and the styling are here.
  */
 export function ContextMenu({ items, children }: { items: ReactNode; children: ReactNode }) {
   return (

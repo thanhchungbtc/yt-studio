@@ -20,7 +20,8 @@ const (
 	CredentialStatusExpired CredentialStatus = "expired"
 )
 
-// AllCredentialStatuses lists every CredentialStatus, for validation and the UI.
+// AllCredentialStatuses lists every CredentialStatus, for validation and the
+// UI.
 var AllCredentialStatuses = []CredentialStatus{
 	CredentialStatusMissing,
 	CredentialStatusValid,
@@ -51,7 +52,7 @@ type StyleConfig struct {
 	WordsPerChapter int
 }
 
-// Channel owns identity, creative configuration and upload credentials (§3).
+// Channel owns identity, creative configuration and upload credentials.
 type Channel struct {
 	ID          ChannelID
 	Slug        Slug
@@ -66,7 +67,7 @@ type Channel struct {
 }
 
 // NewChannel validates and constructs a Channel. Cross-field rules that a
-// struct tag cannot express live here (§10, known costs).
+// struct tag cannot express live here.
 func NewChannel(id ChannelID, slug Slug, name string, style StyleConfig, now time.Time) (Channel, error) {
 	if strings.TrimSpace(string(id)) == "" {
 		return Channel{}, fmt.Errorf("%w: id must not be empty", ErrInvalidChannel)

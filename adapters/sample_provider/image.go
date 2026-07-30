@@ -23,8 +23,8 @@ type Image struct {
 	store provider.AssetStore
 
 	// encoded caches the PNG bytes per source file. A video asks for a hundred
-	// stills and there are only a handful of files behind them, so the decode
-	// and re-encode happen once each rather than once per chapter.
+	// stills and there are only a handful of files behind them, so the decode and
+	// re-encode happen once each rather than once per chapter.
 	mu      sync.Mutex
 	encoded map[string][]byte
 }

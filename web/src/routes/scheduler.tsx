@@ -29,7 +29,7 @@ const COLUMNS = '110px 100px 52px 76px 104px 56px minmax(0,1fr) 84px 64px'
  *
  * The table is virtualised and every row is memoised, so a fifty-chapter render
  * updating hundreds of tasks scrolls at 60 fps and a single task event
- * re-renders exactly one row (§9).
+ * re-renders exactly one row.
  */
 export function SchedulerRoute() {
   const [stateFilter, setStateFilter] = useState<TaskState | ''>('')
@@ -267,7 +267,7 @@ function TaskTable({ tasks, refById }: { tasks: Task[]; refById: Map<string, str
   )
 }
 
-/** Memoised on the task object: a delta replaces only that element (§9). */
+/** Memoised on the task object: a delta replaces only that element. */
 const SchedulerTaskRow = memo(function SchedulerTaskRow({
   task,
   videoRef,

@@ -1,13 +1,13 @@
 // Package provider declares the five ports through which the daemon reaches
-// generative backends and the store their output lands in (§7).
+// generative backends and the store their output lands in.
 //
-// The rule that survives into the real implementation: a provider call never
-// spans more than one unit of work. No multi-chapter calls, no fan-out inside a
-// provider. All orchestration — lifecycle, the cross-chapter DAG, resource
-// pools, retries, persistence, gates — belongs to the daemon.
+// The rule every backend obeys: a provider call never spans more than one unit
+// of work. No multi-chapter calls, no fan-out inside a provider. All
+// orchestration — lifecycle, the cross-chapter DAG, resource pools, retries,
+// persistence, gates — belongs to the daemon.
 //
 // The one deliberate exception is image prompting, where coalescing happens
-// behind the interface (§4): the DAG still holds N individually retryable
+// behind the interface: the DAG still holds N individually retryable
 // per-chapter tasks and the provider serves them from one primed batch.
 package provider
 
@@ -98,9 +98,9 @@ type Metadata struct {
 type LLMProvider interface {
 	Blueprint(ctx context.Context, req BlueprintRequest) (Blueprint, error)
 	Script(ctx context.Context, req ScriptRequest) (Script, error)
-	// ImagePrompts returns every chapter's prompts for one video. Callers are
-	// the N per-chapter tasks; the implementation coalesces them behind
-	// singleflight so exactly one real generation happens per video (§4).
+	// ImagePrompts returns every chapter's prompts for one video. Callers are the
+	// N per-chapter tasks; the implementation coalesces them behind singleflight
+	// so exactly one real generation happens per video.
 	ImagePrompts(ctx context.Context, videoID entity.VideoID) ([]ImagePrompt, error)
 	Metadata(ctx context.Context, req MetadataRequest) (Metadata, error)
 }

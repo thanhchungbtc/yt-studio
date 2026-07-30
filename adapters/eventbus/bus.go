@@ -1,9 +1,9 @@
-// Package eventbus is the in-process fan-out behind the SSE stream (§9).
+// Package eventbus is the in-process fan-out behind the SSE stream.
 //
 // One stream per client multiplexes every video. Bursts are coalesced per video
 // — at most one message per window — so a 50-chapter render does not emit
 // hundreds of events per second, while a lone state change still goes out
-// immediately and meets the 20 ms budget (§8.3).
+// immediately and meets the 20 ms budget.
 package eventbus
 
 import (
@@ -40,9 +40,9 @@ type bucket struct {
 type subscriber struct {
 	id uint64
 	ch chan *entity.Event
-	// dropped counts messages a slow client missed; it is reported once the
-	// client catches up so the UI can force a refetch instead of showing stale
-	// state forever.
+	// dropped counts messages a slow client missed; it is reported once the client
+	// catches up so the UI can force a refetch instead of showing stale state
+	// forever.
 	dropped atomic.Uint64
 }
 
@@ -65,7 +65,7 @@ type Broker struct {
 	histLen int
 }
 
-// New constructs a broker. coalesce is the per-video burst window (§9).
+// New constructs a broker. coalesce is the per-video burst window.
 func New(coalesce time.Duration, log *slog.Logger) *Broker {
 	if coalesce <= 0 {
 		coalesce = 50 * time.Millisecond
@@ -79,7 +79,7 @@ func New(coalesce time.Duration, log *slog.Logger) *Broker {
 	}
 }
 
-// SetCoalesce applies a settings change without a restart (§3).
+// SetCoalesce applies a settings change without a restart.
 func (b *Broker) SetCoalesce(d time.Duration) {
 	if d <= 0 {
 		return
@@ -113,7 +113,8 @@ func (b *Broker) NotifyVideo(d entity.VideoDelta) {
 	b.publish(ev)
 }
 
-// NotifyChapter records a chapter delta, emitted by use cases as artifacts land.
+// NotifyChapter records a chapter delta, emitted by use cases as artifacts
+// land.
 func (b *Broker) NotifyChapter(d entity.ChapterDelta) {
 	b.mu.Lock()
 	bk := b.bucketFor(d.VideoID)

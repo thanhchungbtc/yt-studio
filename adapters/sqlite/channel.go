@@ -76,7 +76,7 @@ func (s *Store) CreateChannel(ctx context.Context, c entity.Channel) error {
 }
 
 // UpdateChannel writes back mutable channel fields. The slug is immutable and
-// is deliberately absent from the statement (§3).
+// is deliberately absent from the statement.
 func (s *Store) UpdateChannel(ctx context.Context, c entity.Channel) error {
 	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
 		return q.UpdateChannel(ctx, sqlcgen.UpdateChannelParams{
@@ -122,7 +122,7 @@ func (s *Store) NextVideoSeq(ctx context.Context, id entity.ChannelID) (int, err
 }
 
 // UpsertChannelBySlug is the seed path: idempotent by natural key, so a fresh
-// database and a ten-times-seeded database end up in the same state (§3).
+// database and a ten-times-seeded database end up in the same state.
 func (s *Store) UpsertChannelBySlug(ctx context.Context, c entity.Channel) (entity.Channel, error) {
 	err := s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
 		return q.UpsertChannelBySlug(ctx, sqlcgen.UpsertChannelBySlugParams{

@@ -1,6 +1,6 @@
 name: CI
 
-# Standards are enforced, not intended (goal.md section 8). Every job here is a
+# Standards are enforced, not intended. Every job here is a
 # merge gate: lint, layering, race detection and the performance budgets.
 
 on:
@@ -195,7 +195,7 @@ jobs:
         run: |
           size=$(stat -c%s var/release/yt-studio-linux-amd64)
           echo "linux/amd64 binary: $((size / 1024 / 1024)) MB"
-          # Flag growth well beyond the current ~15 MB, per section 8.3.
+          # Flag growth well beyond the current ~15 MB.
           if [ "$size" -gt 41943040 ]; then
             echo "the binary has grown past 40 MB; investigate before merging"; exit 1
           fi

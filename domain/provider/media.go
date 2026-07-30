@@ -42,7 +42,7 @@ type ImageProvider interface {
 //
 // The titles are carried rather than looked up: a composer that burns text into
 // a frame needs the text, and passing it keeps the backend free of any
-// repository (§4).
+// repository.
 type ClipRequest struct {
 	VideoID       entity.VideoID
 	ChapterID     entity.ChapterID

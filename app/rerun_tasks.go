@@ -14,15 +14,11 @@ type RerunPlan struct {
 	Stale []entity.Task
 }
 
-// RerunTasks re-runs tasks that have already succeeded.
+// RerunTasks re-runs tasks that have already succeeded. Unlike RetryTask it does
+// not cascade: the dependents hold artifacts an operator may have reviewed, so
+// they are flagged stale and left for a decision.
 //
-// It is separate from RetryTask on purpose. Retrying a *failed* task cascades
-// and runs, because nothing below it ever produced anything. Re-running a
-// *succeeded* one does not: its dependents hold artifacts an operator may have
-// reviewed and signed off, so they are flagged and left for a decision (§9).
-//
-// With dryRun set nothing changes and the plan describes what would happen,
-// which is what lets the UI show the blast radius before the operator commits.
+// With dryRun nothing changes and the plan describes what would happen.
 func RerunTasks(
 	ctx context.Context,
 	tasks repository.TaskReader,
@@ -48,7 +44,7 @@ func RerunTasks(
 		seeds = append(seeds, t)
 	}
 
-	// Re-priming the batch is the point of re-running either prompt task (§4).
+	// Re-priming the batch is the point of re-running either prompt task.
 	if prompts != nil && !dryRun {
 		for _, t := range seeds {
 			if t.Kind == entity.TaskKindPrimeImagePrompts || t.Kind == entity.TaskKindImagePrompts {
@@ -68,8 +64,7 @@ func RerunTasks(
 	}
 	if !dryRun {
 		// The scheduler batches its writes, so the rows just read still show the
-		// pre-run flag. The caller asked for this and the loop has accepted it;
-		// reporting it any other way would only be a race with our own commit.
+		// pre-run flag.
 		for i := range stale {
 			stale[i].Stale = true
 		}
@@ -86,19 +81,16 @@ func RunStaleTasks(
 	ids []entity.TaskID,
 ) (int, error) {
 	// The stale set may include the per-chapter prompt reads, and replaying the
-	// cached batch would reproduce exactly what is being re-run (§4).
+	// cached batch would reproduce exactly what is being re-run.
 	if prompts != nil {
 		prompts.Forget(videoID)
 	}
 	return runner.RunStale(ctx, videoID, ids)
 }
 
-// AcceptStaleTasks clears the flag without re-running anything.
-//
-// Staleness is pessimistic: it records that an input moved, not that the output
-// is wrong. An operator who has looked at the artifact and is happy with it
-// should be able to say so, rather than being pushed into spending the compute
-// to prove what they already know (§9).
+// AcceptStaleTasks clears the flag without re-running anything. Staleness is
+// pessimistic — it records that an input moved, not that the output is wrong —
+// so an operator who has checked the artifact can keep it.
 func AcceptStaleTasks(
 	ctx context.Context,
 	accepter StaleAccepter,

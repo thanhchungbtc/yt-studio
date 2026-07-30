@@ -2,7 +2,7 @@
 // backends that produce real files.
 //
 // The mocks are the deliverable for this version, so they are held to real
-// standards (§7): valid PNG, WAV and MP4 output, one unit of work per call, no
+// standards: valid PNG, WAV and MP4 output, one unit of work per call, no
 // fan-out inside a provider, and nothing of the mock leaking outside this
 // package. Swapping in a real backend later is one type implementing one
 // interface, plus a settings row to select it.
@@ -24,7 +24,7 @@ import (
 var ErrInjectedFailure = errors.New("mock provider: injected transient failure")
 
 // Tuning reports the simulated work per unit and the injected failure rate. It
-// is read per call, so a settings edit applies without a restart (§3).
+// is read per call, so a settings edit applies without a restart.
 type Tuning func() (latency time.Duration, failureRatePercent int)
 
 // VideoContext is everything a mock needs to produce output that is coherent
@@ -41,12 +41,12 @@ type VideoContext struct {
 
 // ContextLookup resolves a video's context. Wiring it explicitly is what lets
 // ImagePrompts keep the narrow signature the port declares while still having
-// the blueprint it needs (§4).
+// the blueprint it needs.
 type ContextLookup func(ctx context.Context, videoID entity.VideoID) (VideoContext, error)
 
-// simulate burns the configured latency and may inject a transient failure.
-// It is context-aware: cancelling a video stops its in-flight calls, which is
-// what frees the pool slots within 100 ms (§8.3).
+// simulate burns the configured latency and may inject a transient failure. It
+// is context-aware: cancelling a video stops its in-flight calls, which is what
+// frees the pool slots within 100 ms.
 func simulate(ctx context.Context, tuning Tuning, factor float64) error {
 	latency, failureRate := 0*time.Millisecond, 0
 	if tuning != nil {
@@ -72,7 +72,7 @@ func simulate(ctx context.Context, tuning Tuning, factor float64) error {
 
 // seedOf derives a stable 64-bit seed from its parts. Every piece of generated
 // content hangs off one of these, so the same inputs always produce the same
-// bytes and therefore the same content address (§8.4, golden-file tests).
+// bytes and therefore the same content address.
 func seedOf(parts ...string) uint64 {
 	h := fnv.New64a()
 	for _, p := range parts {

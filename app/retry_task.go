@@ -19,7 +19,7 @@ func RetryTask(
 	if err != nil {
 		return entity.Task{}, err
 	}
-	// Re-priming the batch is the point of retrying either prompt task (§4).
+	// Re-priming the batch is the point of retrying either prompt task.
 	if prompts != nil && (t.Kind == entity.TaskKindPrimeImagePrompts || t.Kind == entity.TaskKindImagePrompts) {
 		prompts.Forget(t.VideoID)
 	}

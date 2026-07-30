@@ -126,7 +126,7 @@ func TestDeterministicIDs(t *testing.T) {
 }
 
 // Every task kind must map to exactly one valid pool, or admission control has
-// a hole (§5).
+// a hole.
 func TestEveryTaskKindHasAPool(t *testing.T) {
 	t.Parallel()
 	for _, kind := range entity.AllTaskKinds {
@@ -172,8 +172,8 @@ func TestTaskStateClassification(t *testing.T) {
 		if !state.Valid() {
 			t.Errorf("%q is in AllTaskStates but not Valid", state)
 		}
-		// Terminal and Open are complements by construction: a task the
-		// scheduler must still carry is exactly one it has not finished with.
+		// Terminal and Open are complements by construction: a task the scheduler
+		// must still carry is exactly one it has not finished with.
 		if state.Terminal() == state.Open() {
 			t.Errorf("%q: Terminal()=%v Open()=%v, expected complements", state, state.Terminal(), state.Open())
 		}
@@ -203,7 +203,7 @@ func TestVideoStateMachine(t *testing.T) {
 
 // Every outcome type must be handled at every type-switch site. `exhaustive`
 // cannot check a type switch, so the sealed set is asserted here and each site
-// has its own table-driven test (§8.2).
+// has its own table-driven test.
 func TestOutcomeSetIsSealedAndComplete(t *testing.T) {
 	t.Parallel()
 	outcomes := entity.AllTaskOutcomes()
@@ -303,7 +303,7 @@ func TestNewVideoValidation(t *testing.T) {
 }
 
 // A fresh database must boot with a complete, valid settings set and no
-// null-handling anywhere (§3).
+// null-handling anywhere.
 func TestDefaultSettingsAreValidAndComplete(t *testing.T) {
 	t.Parallel()
 	defaults := entity.DefaultSettings()

@@ -13,7 +13,7 @@ import (
 // GenerateMetadata writes the YouTube-facing listing for a finished render.
 //
 // When the upload gate is enabled this task carries it: on success the
-// scheduler parks in awaiting_approval and does not release the upload (§6).
+// scheduler parks in awaiting_approval and does not release the upload.
 //
 //nolint:revive // the parameter list is the dependency list
 func GenerateMetadata(

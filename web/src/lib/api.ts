@@ -67,7 +67,7 @@ function post<T>(path: string, body?: unknown, idempotencyKey?: string): Promise
 
 /**
  * Every action the UI can take is available here and, by construction, on the
- * same API the CLI would use. The UI has no privileged access (§9).
+ * same API the CLI would use. The UI has no privileged access.
  */
 export const api = {
   health: () => request<{ status: string; version: string; sseClients: number }>('/api/health'),
@@ -186,7 +186,7 @@ export const qk = {
   settings: ['settings'] as const,
 }
 
-/** The content-addressed URL of an asset; the hash is the cache key (§9). */
+/** The content-addressed URL of an asset; the hash is the cache key. */
 export function assetUrl(id: string | undefined): string | undefined {
   return id ? `/assets/${id}` : undefined
 }

@@ -58,7 +58,7 @@ func lookupFor(bp provider.Blueprint, images int) mockprovider.ContextLookup {
 }
 
 // The same inputs must always produce the same bytes, or golden-file tests and
-// content addressing both stop meaning anything (§3, §8.4).
+// content addressing both stop meaning anything.
 func TestProvidersAreDeterministic(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -104,7 +104,7 @@ func TestProvidersAreDeterministic(t *testing.T) {
 	}
 }
 
-// Content addressing means a second identical write is a no-op (§3).
+// Content addressing means a second identical write is a no-op.
 func TestIdenticalOutputReusesTheStoredFile(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -156,7 +156,7 @@ func TestBlueprintProducesTheRequestedChapters(t *testing.T) {
 }
 
 // All prompts come from one production; concurrent callers get their own slice
-// from the cache (§4).
+// from the cache.
 func TestImagePromptsAreCoalesced(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -276,8 +276,7 @@ func TestGeneratedAudioIsAValidWAV(t *testing.T) {
 }
 
 // The composer must produce a structurally valid MP4 whose boxes tile the file
-// exactly, and concat must be a stream copy of its inputs (§7 mock
-// requirements, §11).
+// exactly, and concat must be a stream copy of its inputs.
 func TestComposedMP4IsStructurallyValid(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

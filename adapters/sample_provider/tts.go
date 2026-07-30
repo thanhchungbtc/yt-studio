@@ -33,7 +33,7 @@ func NewTTS(lib *Library, store provider.AssetStore) *TTS {
 //
 // The file is streamed rather than read: it is megabytes per call, and the
 // store hashes and copies with a pooled buffer, so memory stays flat however
-// long the recording is (§8.3).
+// long the recording is.
 func (t *TTS) Speak(ctx context.Context, _ provider.SpeakRequest) (entity.AssetID, error) {
 	if err := t.lib.Check(); err != nil {
 		return "", err

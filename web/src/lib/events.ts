@@ -16,12 +16,11 @@ import type {
 export type ConnectionState = 'connecting' | 'live' | 'offline'
 
 /**
- * The single multiplexed SSE stream (§9).
+ * The single multiplexed SSE stream.
  *
- * Events carry deltas, which are applied to the query cache in place; the UI
- * never refetches to stay current. `EventSource` handles reconnection and
- * replays from `Last-Event-ID` on its own, so a dropped connection costs
- * nothing but a moment of staleness.
+ * Events carry deltas, applied to the query cache in place; the UI never
+ * refetches to stay current. `EventSource` handles reconnection and replays from
+ * `Last-Event-ID` on its own.
  */
 export function useEventStream(): ConnectionState {
   const queryClient = useQueryClient()
@@ -91,7 +90,7 @@ function applyEvent(client: QueryClient, event: StreamEvent): void {
 
 /**
  * Replaces only the changed elements of the cached arrays, so every unchanged
- * task keeps its object identity and a memoised row does not re-render (§9).
+ * task keeps its object identity and a memoised row does not re-render.
  */
 function applyTaskDeltas(client: QueryClient, deltas: TaskDelta[]): void {
   const byVideo = new Map<string, TaskDelta[]>()

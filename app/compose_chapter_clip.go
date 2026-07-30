@@ -13,7 +13,7 @@ import (
 // ComposeChapterClip joins one chapter's narration and stills into a clip.
 //
 // It is the join point of the DAG's two independent branches: the script/TTS
-// branch and the prompt/image branch (§4).
+// branch and the prompt/image branch.
 //
 //nolint:revive // the parameter list is the dependency list
 func ComposeChapterClip(

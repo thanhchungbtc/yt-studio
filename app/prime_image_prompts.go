@@ -13,7 +13,7 @@ import (
 // This task exists because the LLM pool is capped at 2: without it, the N
 // per-chapter prompt tasks would trickle through that cap and there would never
 // be a batch to coalesce. It occupies a real LLM slot; the per-chapter tasks
-// then fan out as cheap cache reads on a separate high-concurrency pool (§4).
+// then fan out as cheap cache reads on a separate high-concurrency pool.
 func PrimeImagePrompts(
 	ctx context.Context,
 	t entity.Task,

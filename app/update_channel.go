@@ -11,7 +11,7 @@ import (
 )
 
 // UpdateChannelInput carries the mutable fields of a channel. The slug is
-// absent on purpose: it is immutable (§3).
+// absent on purpose: it is immutable.
 type UpdateChannelInput struct {
 	Name        string
 	Description string

@@ -2,7 +2,7 @@ package entity
 
 // Pool is a global concurrency pool. Limits are enforced across all videos and
 // all channels: video A's chapter 3 competes with video B's chapter 40 for the
-// same slots (§5).
+// same slots.
 type Pool string
 
 // The complete set of pools. A task acquires exactly one slot in exactly one
@@ -17,7 +17,7 @@ const (
 	// PoolCompose covers per-chapter clips and the final concat.
 	PoolCompose Pool = "compose"
 	// PoolCache covers the per-chapter image-prompt tasks, which are cache reads
-	// against the coalesced batch and must not occupy a real LLM slot (§4).
+	// against the coalesced batch and must not occupy a real LLM slot.
 	PoolCache Pool = "cache"
 	// PoolUpload covers the YouTube upload.
 	PoolUpload Pool = "upload"
@@ -32,7 +32,7 @@ const NumPools = len(AllPools)
 
 // Index returns the dense array index of the pool, or -1 if unknown. It is
 // allocation-free and branch-predictable, so it is safe on the dispatch hot
-// path (§8.3).
+// path.
 func (p Pool) Index() int {
 	switch p {
 	case PoolLLM:
@@ -58,8 +58,8 @@ func (p Pool) Valid() bool { return p.Index() >= 0 }
 // String returns the underlying text of the pool name.
 func (p Pool) String() string { return string(p) }
 
-// DefaultPoolLimit is the seeded limit for each pool (§5). Every one of these
-// is a settings row and is changeable at runtime without a restart.
+// DefaultPoolLimit is the seeded limit for each pool. Every one of these is a
+// settings row and is changeable at runtime without a restart.
 func DefaultPoolLimit(p Pool) int {
 	switch p {
 	case PoolLLM, PoolTTS, PoolImage, PoolCompose:
@@ -76,5 +76,5 @@ func DefaultPoolLimit(p Pool) int {
 
 // MaxPoolLimit bounds the semaphore capacity a pool is created with. Runtime
 // limit changes move ballast inside this ceiling rather than rebuilding the
-// semaphore (§5).
+// semaphore.
 const MaxPoolLimit = 256

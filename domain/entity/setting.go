@@ -14,14 +14,14 @@ var ErrInvalidSetting = errors.New("invalid setting")
 // ErrSettingNotFound is returned by setting lookups for an unknown key.
 var ErrSettingNotFound = errors.New("setting not found")
 
-// SettingKey is the stable natural key of a runtime configuration value (§3).
+// SettingKey is the stable natural key of a runtime configuration value.
 type SettingKey string
 
 // String returns the underlying text of the key.
 func (k SettingKey) String() string { return string(k) }
 
 // The complete set of settings keys. Everything the daemon needs after the
-// database is open lives here as a row, not in a config file (§3).
+// database is open lives here as a row, not in a config file.
 const (
 	SettingPoolLLMLimit     SettingKey = "pool.llm.limit"
 	SettingPoolTTSLimit     SettingKey = "pool.tts.limit"
@@ -60,7 +60,7 @@ const (
 
 // SettingType is the declared type of a setting's text value. Every value is
 // stored as text and read through a typed accessor that parses and validates
-// it; an unparsable value fails loudly at startup (§3).
+// it; an unparsable value fails loudly at startup.
 type SettingType string
 
 // The complete set of setting value types.
@@ -80,21 +80,21 @@ func (t SettingType) Valid() bool {
 	}
 }
 
-// Setting is a single runtime configuration value keyed by a stable key (§3).
+// Setting is a single runtime configuration value keyed by a stable key.
 type Setting struct {
 	Key         SettingKey
 	Value       string
 	Type        SettingType
 	Group       string
 	Description string
-	// Min and Max bound integer settings; they are advisory to the UI and
-	// enforced by Validate.
+	// Min and Max bound integer settings; they are advisory to the UI and enforced
+	// by Validate.
 	Min int
 	Max int
 	// Options constrains the value to a fixed set. It is deliberately not
-	// persisted: which backends exist is a property of the running binary, not
-	// of the database, so it is supplied at load time by whoever registered
-	// them. An empty Options means the value is unconstrained.
+	// persisted: which backends exist is a property of the running binary, not of
+	// the database, so it is supplied at load time by whoever registered them. An
+	// empty Options means the value is unconstrained.
 	Options   []string
 	UpdatedAt time.Time
 }
@@ -172,7 +172,7 @@ func (s Setting) Duration() (time.Duration, error) {
 	return time.Duration(n) * time.Millisecond, nil
 }
 
-// PoolLimitKey maps a pool to the settings key holding its limit (§5).
+// PoolLimitKey maps a pool to the settings key holding its limit.
 func PoolLimitKey(p Pool) SettingKey {
 	switch p {
 	case PoolLLM:
@@ -192,7 +192,7 @@ func PoolLimitKey(p Pool) SettingKey {
 	}
 }
 
-// GateEnabledKey maps a gate to the settings key that turns it on or off (§6).
+// GateEnabledKey maps a gate to the settings key that turns it on or off.
 func GateEnabledKey(g GateKind) SettingKey {
 	switch g {
 	case GateBlueprint:
@@ -208,7 +208,7 @@ func GateEnabledKey(g GateKind) SettingKey {
 
 // DefaultSettings is the complete seeded settings table. The seed is an upsert
 // by key, so a fresh database and a ten-times-seeded database end up in the
-// same state (§3).
+// same state.
 func DefaultSettings() []Setting {
 	return []Setting{
 		{Key: SettingPoolLLMLimit, Value: "2", Type: SettingTypeInt, Group: "pools", Min: 1, Max: MaxPoolLimit, Description: "Concurrent LLM calls across all videos and channels."},
@@ -234,7 +234,7 @@ func DefaultSettings() []Setting {
 		{Key: SettingTaskRetryBaseMillis, Value: "250", Type: SettingTypeInt, Group: "scheduler", Min: 1, Max: 60000, Description: "Initial retry backoff."},
 		{Key: SettingTaskRetryMaxMillis, Value: "30000", Type: SettingTypeInt, Group: "scheduler", Min: 1, Max: 3600000, Description: "Maximum retry backoff."},
 
-		{Key: SettingSSECoalesceMillis, Value: "50", Type: SettingTypeInt, Group: "server", Min: 1, Max: 5000, Description: "Minimum interval between event batches per video (§9)."},
+		{Key: SettingSSECoalesceMillis, Value: "50", Type: SettingTypeInt, Group: "server", Min: 1, Max: 5000, Description: "Minimum interval between event batches per video."},
 		{Key: SettingLogLevel, Value: "info", Type: SettingTypeString, Group: "server", Description: "debug, info, warn or error; applied without a restart."},
 		{Key: SettingUploadDryRun, Value: "true", Type: SettingTypeBool, Group: "server", Description: "Uploads are simulated and produce a local receipt."},
 

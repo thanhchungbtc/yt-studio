@@ -690,7 +690,7 @@ function ChapterGrid({
 /**
  * One chapter: its stills side by side, its narration, and the tasks that
  * produced them. Memoised on the chapter and its task slice, so a delta for
- * chapter 7 never re-renders chapter 8 (§9).
+ * chapter 7 never re-renders chapter 8.
  */
 const ChapterCard = memo(function ChapterCard({
   chapter,
@@ -741,10 +741,8 @@ const ChapterCard = memo(function ChapterCard({
     },
   })
 
-  // The two meanings of "run this again", told apart by what is actually in
-  // the chapter. If something failed, nothing below it ever ran and cascading
-  // is free. If everything succeeded, re-running throws away work that may
-  // have been reviewed — so that goes through the confirmation instead.
+  // The two meanings of "run this again": a failure cascades freely, since
+  // nothing below it ever ran; a success goes through the confirmation.
   const failed = tasks.some((t) => t.state === 'failed')
   const chapterStale = tasks.some((t) => t.stale)
   const rerunSeeds = useMemo(
@@ -995,8 +993,8 @@ const ChapterTaskChip = memo(function ChapterTaskChip({ task }: { task: Task }) 
             ? 'info'
             : 'neutral'
   const label = task.index >= 0 ? `${taskLabel(task.kind)} ${task.index + 1}` : taskLabel(task.kind)
-  // Staleness outranks the state colour here: a succeeded-but-stale chip that
-  // still reads green is the one thing this whole feature exists to prevent.
+  // Staleness outranks the state colour: a succeeded-but-stale chip must not
+  // read green.
   return (
     <Tooltip
       label={

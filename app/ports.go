@@ -10,7 +10,7 @@ import (
 
 // The scheduler ports below are consumer-defined here: each one names exactly
 // the single operation a use case performs, so a handler's blast radius is
-// visible in its signature (§7).
+// visible in its signature.
 
 // GraphSubmitter admits a freshly built DAG.
 type GraphSubmitter interface {
@@ -22,7 +22,7 @@ type GraphResumer interface {
 	Resume(ctx context.Context, graphs []*scheduler.Graph) error
 }
 
-// GateApprover releases a gated task's successors (§6).
+// GateApprover releases a gated task's successors.
 type GateApprover interface {
 	Approve(ctx context.Context, taskID entity.TaskID) error
 }
@@ -54,7 +54,7 @@ type ChapterRetrier interface {
 
 // TaskRerunner re-runs tasks that already succeeded, flagging their downstream
 // stale instead of redoing it. With dryRun it reports the blast radius and
-// changes nothing (§9).
+// changes nothing.
 type TaskRerunner interface {
 	Rerun(ctx context.Context, videoID entity.VideoID, seeds []entity.TaskID, dryRun bool) ([]entity.TaskID, error)
 }
@@ -76,7 +76,7 @@ type StaleAccepter interface {
 	AcceptStale(ctx context.Context, videoID entity.VideoID, ids []entity.TaskID) (int, error)
 }
 
-// PoolLimiter applies a pool limit change without a restart (§5).
+// PoolLimiter applies a pool limit change without a restart.
 type PoolLimiter interface {
 	SetPoolLimit(ctx context.Context, pool entity.Pool, limit int) error
 }
@@ -97,7 +97,7 @@ type CoalesceSetter interface {
 }
 
 // PromptCacheInvalidator drops a video's coalesced image-prompt batch so a
-// retry regenerates it rather than replaying the cached one (§4).
+// retry regenerates it rather than replaying the cached one.
 type PromptCacheInvalidator interface {
 	Forget(videoID entity.VideoID)
 }

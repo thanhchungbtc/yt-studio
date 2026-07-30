@@ -24,7 +24,8 @@ const (
 	VideoStateRunning VideoState = "running"
 	// VideoStateAwaitingApproval is parked on a gate and consumes no resources.
 	VideoStateAwaitingApproval VideoState = "awaiting_approval"
-	// VideoStateBlocked has no runnable task and at least one permanently failed one.
+	// VideoStateBlocked has no runnable task and at least one permanently failed
+	// one.
 	VideoStateBlocked VideoState = "blocked"
 	// VideoStateCompleted finished the whole DAG, upload included.
 	VideoStateCompleted VideoState = "completed"
@@ -111,11 +112,11 @@ type UploadRecord struct {
 }
 
 // Video owns lifecycle state, the blueprint, the final artifact and the upload
-// record (§3).
+// record.
 type Video struct {
 	ID        VideoID
 	ChannelID ChannelID
-	// Ref is the stable human-readable natural key, e.g. DSS-14 (§3).
+	// Ref is the stable human-readable natural key, e.g. DSS-14.
 	Ref   Ref
 	Title string
 	Topic string

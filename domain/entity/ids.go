@@ -2,7 +2,7 @@
 //
 // Nothing in this package may import another yt-studio package. Identifiers are
 // distinct named types so that passing a ChapterID where a VideoID belongs is a
-// compile error, not a runtime surprise (§8.2).
+// compile error, not a runtime surprise.
 package entity
 
 import (
@@ -21,7 +21,7 @@ type ChapterID string
 
 // AssetID is the content address (sha256, hex) of an Asset. Two identical byte
 // streams always produce the same AssetID, which is what makes re-running a
-// task that produces identical output a no-op (§3).
+// task that produces identical output a no-op.
 type AssetID string
 
 // TaskID is the deterministic identifier of a Task. It is derived from the

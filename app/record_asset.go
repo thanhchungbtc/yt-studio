@@ -14,7 +14,7 @@ import (
 //
 // Providers return only a content address; the size and path come from the
 // store. The write is an upsert by that address, so a task re-run that produced
-// identical bytes changes nothing (§3).
+// identical bytes changes nothing.
 func RecordAsset(
 	ctx context.Context,
 	assets repository.AssetWriter,

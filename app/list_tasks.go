@@ -16,7 +16,7 @@ func ListTasksByVideo(
 	return tasks.ListTasksByVideo(ctx, videoID)
 }
 
-// ListRecentTasks powers the operator console's live table (§9).
+// ListRecentTasks powers the operator console's live table.
 func ListRecentTasks(ctx context.Context, tasks repository.TaskReader, limit int) ([]entity.Task, error) {
 	return tasks.ListRecentTasks(ctx, limit)
 }

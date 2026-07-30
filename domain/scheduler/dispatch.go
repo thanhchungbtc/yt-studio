@@ -25,8 +25,8 @@ var (
 )
 
 // Runner executes exactly one task and reports its outcome. Everything the
-// daemon owns — lifecycle, the DAG, pools, retries, persistence, gates — stays
-// outside it; a Runner does the provider call and records the artifacts.
+// daemon owns — lifecycle, the DAG, pools, retries, persistence, gates —
+// stays outside it; a Runner does the provider call and records the artifacts.
 //
 // It takes the task by value: the scheduler keeps mutating its own copy from
 // the dispatch goroutine, and a shared pointer would be a data race.
@@ -54,12 +54,12 @@ type Notifier interface {
 	NotifyScheduler(d entity.SchedulerDelta)
 }
 
-// Config holds the scheduler's tunables, all sourced from settings rows (§3).
+// Config holds the scheduler's tunables, all sourced from settings rows.
 type Config struct {
 	RetryBase time.Duration
 	RetryMax  time.Duration
-	// SafetyInterval is the in-memory consistency sweep. Polling is forbidden
-	// as the primary mechanism; this exists only as a net (§8.3).
+	// SafetyInterval is the in-memory consistency sweep. Polling is forbidden as
+	// the primary mechanism; this exists only as a net.
 	SafetyInterval time.Duration
 	// CompletionBuffer sizes the channel workers report on.
 	CompletionBuffer int
@@ -81,7 +81,7 @@ func (c Config) withDefaults() Config {
 	return c
 }
 
-// Status is the operator console's view of the scheduler (§9).
+// Status is the operator console's view of the scheduler.
 type Status struct {
 	Pools            []entity.PoolStat `json:"pools"`
 	Ready            int               `json:"ready"`
@@ -121,22 +121,22 @@ type completion struct {
 	videoID entity.VideoID
 	outcome entity.TaskOutcome
 	at      time.Time
-	// generation the task was dispatched under. A reset in the meantime bumps
-	// the graph's counter and this answer is thrown away.
+	// generation the task was dispatched under. A reset in the meantime bumps the
+	// graph's counter and this answer is thrown away.
 	generation uint64
 }
 
 // videoRun carries the cancellation scope of one video. Cancelling it stops
 // every in-flight provider call for that video, which is how a cancelled video
-// frees its slots within 100 ms (§8.3).
+// frees its slots within 100 ms.
 type videoRun struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
-// Scheduler is the event-driven dispatch loop (§8.3). Every task starts the
-// moment its own dependencies are met, regardless of what other chapters are
-// doing; there are no stage barriers.
+// Scheduler is the event-driven dispatch loop. Every task starts the moment its
+// own dependencies are met, regardless of what other chapters are doing; there
+// are no stage barriers.
 //
 // All mutable state below the ports is owned by the single loop goroutine.
 // Public methods are thin: they hand a command to the loop and wait.
@@ -159,10 +159,9 @@ type Scheduler struct {
 	runs      map[entity.VideoID]*videoRun
 	taskIndex map[entity.TaskID]entity.VideoID
 	touched   map[entity.VideoID]struct{}
-	// pending and spare alternate: a batch handed to the store is never the
-	// buffer the loop keeps appending to. Reusing a single slice would alias
-	// the store's view of it, and swapping keeps the steady state allocation
-	// free either way.
+	// pending and spare alternate: a batch handed to the store is never the buffer
+	// the loop keeps appending to. Reusing a single slice would alias the store's
+	// view of it, and swapping keeps the steady state allocation free either way.
 	pending  []repository.TaskTransition
 	spare    []repository.TaskTransition
 	retries  retryQueue
@@ -171,8 +170,8 @@ type Scheduler struct {
 
 	workers sync.WaitGroup
 	status  atomic.Pointer[Status]
-	// startedAt is read by the console from other goroutines, so it is stored
-	// as unix nanoseconds rather than a plain field.
+	// startedAt is read by the console from other goroutines, so it is stored as
+	// unix nanoseconds rather than a plain field.
 	startedAt atomic.Int64
 	running   atomic.Bool
 }
@@ -180,7 +179,7 @@ type Scheduler struct {
 func (s *Scheduler) started() time.Time { return time.Unix(0, s.startedAt.Load()) }
 
 // New constructs a Scheduler. Every dependency is an explicit parameter: the
-// signature is the whole dependency list (§7).
+// signature is the whole dependency list.
 func New(
 	pools *Pools,
 	store TransitionStore,
@@ -217,7 +216,7 @@ func New(
 }
 
 // Run owns the dispatch loop and the pool reconcilers, and returns only after
-// every goroutine it started has exited (§8.2).
+// every goroutine it started has exited.
 func (s *Scheduler) Run(ctx context.Context) error {
 	s.startedAt.Store(time.Now().UnixNano())
 	s.running.Store(true)
@@ -307,7 +306,7 @@ func (s *Scheduler) settle(ctx context.Context) {
 }
 
 // drainCompletions batches everything already reported so that N tasks
-// finishing together commit in one transaction (§8.3).
+// finishing together commit in one transaction.
 func (s *Scheduler) drainCompletions() {
 	const maxBatch = 128
 	for range maxBatch {
@@ -323,7 +322,7 @@ func (s *Scheduler) drainCompletions() {
 // pump is the dispatch decision: for every pool, start as many ready tasks as
 // there are free slots. Selection is greedy-with-skip and cannot deadlock — a
 // task holds at most one slot and never acquires a second, so there is no
-// hold-and-wait (§5).
+// hold-and-wait.
 func (s *Scheduler) pump(ctx context.Context) {
 	for _, pool := range entity.AllPools {
 		for {
@@ -355,9 +354,9 @@ func (s *Scheduler) startTask(ctx context.Context, t *entity.Task) {
 	snapshot := *t // by value: the loop keeps mutating its own copy
 	id, videoID := t.ID, t.VideoID
 
-	// Captured at dispatch: whatever happens to the task while the provider
-	// call is in flight, the completion can be matched against the state it
-	// was started from.
+	// Captured at dispatch: whatever happens to the task while the provider call
+	// is in flight, the completion can be matched against the state it was started
+	// from.
 	var generation uint64
 	if g, ok := s.graphs[videoID]; ok {
 		if idx, found := g.IndexOf(id); found {
@@ -381,7 +380,7 @@ func (s *Scheduler) startTask(ctx context.Context, t *entity.Task) {
 }
 
 // runSafely turns a panicking Runner into a permanent task failure instead of a
-// dead daemon. A provider is replaceable third-party code by design (§2).
+// dead daemon. A provider is replaceable third-party code by design.
 func runSafely(ctx context.Context, r Runner, t entity.Task) (outcome entity.TaskOutcome) {
 	defer func() {
 		if rec := recover(); rec != nil {
@@ -405,8 +404,8 @@ func (s *Scheduler) handleCompletion(c completion) {
 		return
 	}
 	if idx, found := g.IndexOf(c.taskID); found && g.Generation(idx) != c.generation {
-		// Reset while in flight. The answer is to a question that has since
-		// changed, so it is discarded; resetFrom has already re-queued the task.
+		// Reset while in flight. The answer is to a question that has since changed,
+		// so it is discarded; resetFrom has already re-queued the task.
 		return
 	}
 	if t.State != entity.TaskStateRunning {
@@ -462,7 +461,7 @@ func (s *Scheduler) markSucceeded(g *Graph, t *entity.Task) {
 
 // releaseDependents is the whole of dependency propagation: a completed task
 // signals its dependents directly. The task table is never rescanned to find
-// work (§8.3).
+// work.
 func (s *Scheduler) releaseDependents(g *Graph, idx int32) {
 	now := time.Now()
 	for _, d := range g.Dependents(idx) {
@@ -514,8 +513,8 @@ func (s *Scheduler) handleFailure(t *entity.Task, o entity.Failed) {
 }
 
 // retryDelay uses cenkalti/backoff's exponential schedule rather than a
-// hand-rolled one (§8.1). A fresh instance advanced to the current attempt
-// keeps the scheduler free of per-task retry state.
+// hand-rolled one. A fresh instance advanced to the current attempt keeps the
+// scheduler free of per-task retry state.
 func retryDelay(base, maxDelay time.Duration, attempt int) time.Duration {
 	b := backoff.NewExponentialBackOff()
 	b.InitialInterval = base
@@ -559,9 +558,9 @@ func (s *Scheduler) releaseDueRetries(now time.Time) {
 	}
 }
 
-// sweep is the safety net (§8.3): it re-derives readiness in memory for any
-// task whose dependencies are satisfied but which is not queued. It never
-// touches the database and never rescans the task table.
+// sweep is the safety net: it re-derives readiness in memory for any task whose
+// dependencies are satisfied but which is not queued. It never touches the
+// database and never rescans the task table.
 func (s *Scheduler) sweep() {
 	now := time.Now()
 	for videoID, g := range s.graphs {
@@ -638,8 +637,7 @@ func (s *Scheduler) recount(videoID entity.VideoID) {
 	*c = counters{total: len(g.tasks)}
 	for i := range g.tasks {
 		t := &g.tasks[i]
-		// Staleness cuts across the states below rather than partitioning
-		// with them: a stale task is usually also a succeeded one.
+		// Staleness cuts across the states below; it does not partition with them.
 		if t.Stale {
 			c.stale++
 		}

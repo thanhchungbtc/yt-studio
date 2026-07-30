@@ -2,11 +2,11 @@
 //
 // It is deliberately thin: a handler validates its input, calls exactly one
 // function in app/, and maps the result. No business logic lives here, which is
-// what makes adding a CLI a matter of calling the same app function (§7).
+// what makes adding a CLI a matter of calling the same app function.
 //
 // Handlers are typed huma operations, so the OpenAPI document — and therefore
 // the browser client's TypeScript types — are generated from these Go structs
-// rather than hand-written (§9).
+// rather than hand-written.
 package http
 
 import (
@@ -96,8 +96,7 @@ type TaskCountsDTO struct {
 	Blocked          int `json:"blocked"`
 	AwaitingApproval int `json:"awaitingApproval"`
 	Cancelled        int `json:"cancelled"`
-	// Stale cuts across the counts above rather than partitioning with them:
-	// a stale task is usually also a succeeded one.
+	// Stale cuts across the counts above; it does not partition with them.
 	Stale int `json:"stale"`
 }
 

@@ -9,7 +9,7 @@ import (
 
 // TaskEdge is one dependency arc of a video's DAG: To may not start until From
 // has released it. Edges are persisted so that recovery after a crash rebuilds
-// the exact graph rather than re-deriving it (§8.3).
+// the exact graph rather than re-deriving it.
 type TaskEdge struct {
 	VideoID entity.VideoID
 	From    entity.TaskID
@@ -61,14 +61,14 @@ type VideoGraph struct {
 }
 
 // TaskReader reads the task table. The scheduler never asks it "what can run
-// now?" — that is answered by the in-memory ready set (§8.3). These queries
-// serve the API, recovery and the operator console.
+// now?" — that is answered by the in-memory ready set. These queries serve
+// the API, recovery and the operator console.
 type TaskReader interface {
 	TaskByID(ctx context.Context, id entity.TaskID) (entity.Task, error)
 	ListTasksByVideo(ctx context.Context, videoID entity.VideoID) ([]entity.Task, error)
 	CountTasksByVideo(ctx context.Context, videoID entity.VideoID) (TaskCounts, error)
-	// ListOpenGraphs returns every video whose DAG still has open tasks, with
-	// its edges, so the daemon can resume rather than restart (§2, principle 4).
+	// ListOpenGraphs returns every video whose DAG still has open tasks, with its
+	// edges, so the daemon can resume rather than restart.
 	ListOpenGraphs(ctx context.Context) ([]VideoGraph, error)
 	// ListRecentTasks powers the scheduler console's live table.
 	ListRecentTasks(ctx context.Context, limit int) ([]entity.Task, error)
@@ -79,7 +79,7 @@ type TaskWriter interface {
 	// InsertGraph writes a whole DAG in one transaction, idempotently: task ids
 	// are deterministic, so re-enqueueing an existing video is a no-op.
 	InsertGraph(ctx context.Context, videoID entity.VideoID, tasks []entity.Task, edges []TaskEdge) error
-	// ApplyTransitions commits N transitions in a single transaction (§8.3).
+	// ApplyTransitions commits N transitions in a single transaction.
 	ApplyTransitions(ctx context.Context, transitions []TaskTransition) error
 	// DeleteGraph removes a video's tasks and edges, for a full re-run.
 	DeleteGraph(ctx context.Context, videoID entity.VideoID) error

@@ -17,7 +17,7 @@ import (
 // It is the one place in this package that holds state, because implementing an
 // interface requires a receiver. It contains no logic of its own: every branch
 // forwards to an exported use case whose signature names exactly the narrow
-// dependencies that branch touches (§7).
+// dependencies that branch touches.
 type TaskRunner struct {
 	videos        repository.VideoReader
 	videoFields   repository.VideoFieldWriter
@@ -76,7 +76,7 @@ func NewTaskRunner(
 
 // Run executes exactly one task. The switch is exhaustive over TaskKind and
 // ends in a panic, so adding a kind without handling it fails loudly rather
-// than silently succeeding (§8.2).
+// than silently succeeding.
 func (r *TaskRunner) Run(ctx context.Context, t entity.Task) entity.TaskOutcome {
 	log := r.log.With(
 		slog.String("video_id", t.VideoID.String()),

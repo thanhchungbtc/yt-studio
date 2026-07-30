@@ -40,9 +40,9 @@ func TestBuildGraphShape(t *testing.T) {
 	}
 }
 
-// The structurally important detail of §4: image prompts depend on the
-// blueprint alone, not on the chapter script. That is what gives the graph two
-// independent branches and starts the longest pole early.
+// Image prompts depend on the blueprint alone, not on the chapter script. That
+// is what gives the graph two independent branches and starts the longest pole
+// early.
 func TestImagePromptsDoNotDependOnScripts(t *testing.T) {
 	t.Parallel()
 	g := testGraph(t, "v1", 8, 2, false)
@@ -121,7 +121,7 @@ func TestEveryTaskAcquiresExactlyOnePool(t *testing.T) {
 }
 
 // Per-chapter prompt tasks must not sit in the LLM pool, or there would be no
-// point in the priming task (§4).
+// point in the priming task.
 func TestPromptFanOutUsesTheCachePool(t *testing.T) {
 	t.Parallel()
 	if got := entity.TaskKindImagePrompts.Pool(); got != entity.PoolCache {
@@ -152,8 +152,8 @@ func TestDownstreamCoversTheWholeTail(t *testing.T) {
 		t.Fatalf("downstream of blueprint = %d nodes, want all %d", got, g.NodeCount())
 	}
 
-	// A single chapter's script reaches its tts, clip, then concat, metadata
-	// and upload — but not another chapter's script.
+	// A single chapter's script reaches its tts, clip, then concat, metadata and
+	// upload — but not another chapter's script.
 	var scriptIdx int32 = -1
 	for i := range g.NodeCount() {
 		if g.Task(i).Kind == entity.TaskKindScript && g.Task(i).Ordinal == 2 {
@@ -204,7 +204,7 @@ func TestBuildGraphRejectsBadSpecs(t *testing.T) {
 }
 
 // Deterministic ids are what make re-enqueueing idempotent and golden-file
-// fixtures stable (§3, §8.4).
+// fixtures stable.
 func TestGraphIsDeterministic(t *testing.T) {
 	t.Parallel()
 	spec := BuildSpec{VideoID: "v1", ChapterCount: 6, ImagesPerChapter: 2, MaxAttempts: 3, Now: time.Unix(0, 0)}

@@ -38,7 +38,7 @@ func (s *Store) ListSettings(ctx context.Context) ([]entity.Setting, error) {
 }
 
 // UpdateSetting validates the new value against the row's declared type and
-// bounds, then writes it. The change applies without a daemon restart (§3).
+// bounds, then writes it. The change applies without a daemon restart.
 func (s *Store) UpdateSetting(ctx context.Context, key entity.SettingKey, value string) (entity.Setting, error) {
 	current, err := s.SettingByKey(ctx, key)
 	if err != nil {
@@ -64,8 +64,8 @@ func (s *Store) UpdateSetting(ctx context.Context, key entity.SettingKey, value 
 }
 
 // UpsertSettings is the seed path: idempotent by key, so a fresh database and a
-// ten-times-seeded database end up in the same state (§3). An existing row keeps
-// its operator-set value; only the metadata around it is refreshed.
+// ten-times-seeded database end up in the same state. An existing row keeps its
+// operator-set value; only the metadata around it is refreshed.
 func (s *Store) UpsertSettings(ctx context.Context, settings []entity.Setting) error {
 	now := toUnix(time.Now())
 	for _, st := range settings {

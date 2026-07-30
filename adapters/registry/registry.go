@@ -4,11 +4,11 @@
 // Selection is one mechanism used five times rather than a bespoke wrapper per
 // port: a backend is registered under a name, the settings row names one, and
 // the router resolves it per call so an edit on the settings screen applies to
-// the next task instead of the next restart (§3).
+// the next task instead of the next restart.
 //
 // A name that is not registered is an error, never a fallback. Silently
-// downgrading to a different backend because a settings value was misspelled
-// is the failure mode this package exists to prevent — the operator finds out
+// downgrading to a different backend because a settings value was misspelled is
+// the failure mode this package exists to prevent — the operator finds out
 // from a startup error, not from watching the output.
 package registry
 
@@ -108,8 +108,8 @@ func (r *Registry) RegisterUploader(name string, impl provider.Uploader) {
 }
 
 // Options reports the registered backend names per settings key, for
-// service.Settings.Constrain. This is what makes the settings screen a
-// dropdown of backends that genuinely exist in this binary.
+// service.Settings.Constrain. This is what makes the settings screen a dropdown
+// of backends that genuinely exist in this binary.
 func (r *Registry) Options() map[entity.SettingKey][]string {
 	return map[entity.SettingKey][]string{
 		entity.SettingProviderLLM:      r.llm.names(),
@@ -120,9 +120,9 @@ func (r *Registry) Options() map[entity.SettingKey][]string {
 	}
 }
 
-// PromptCache drops a video's coalesced image-prompt batch. It is declared
-// here rather than imported from app so this package stays below it; the
-// router satisfies app.PromptCacheInvalidator structurally.
+// PromptCache drops a video's coalesced image-prompt batch. It is declared here
+// rather than imported from app so this package stays below it; the router
+// satisfies app.PromptCacheInvalidator structurally.
 type PromptCache interface {
 	Forget(videoID entity.VideoID)
 }

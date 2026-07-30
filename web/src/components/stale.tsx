@@ -13,11 +13,8 @@ import { cn } from '@/lib/utils'
 /* -------------------------------------------------------------- the mark */
 
 /**
- * The stale mark.
- *
- * Deliberately not a red error tone. Nothing has gone wrong: an input moved and
- * this output has not been checked against it. Amber says "look at me", which
- * is exactly the claim being made.
+ * The stale mark. Amber rather than red: nothing has gone wrong, an input just
+ * moved and this output has not been checked against it.
  */
 export function StaleBadge({ className }: { className?: string }) {
   return (
@@ -47,12 +44,9 @@ export function StaleDot({ className }: { className?: string }) {
 /* ------------------------------------------------------------- the banner */
 
 /**
- * The stale set, and the two ways out of it.
- *
- * Both exits are given equal weight on purpose. Staleness is pessimistic — it
- * records that an input changed, not that the output is wrong — so an operator
- * who has looked at the artifact and is happy with it should not have to spend
- * the compute to prove what they already know (§9).
+ * The stale set, and the two ways out of it. Both exits carry equal weight:
+ * staleness records that an input changed, not that the output is wrong, so
+ * accepting is as legitimate as re-running.
  */
 export function StaleBanner({ video, tasks }: { video: Video; tasks: Task[] }) {
   const queryClient = useQueryClient()
@@ -202,12 +196,9 @@ function StaleReviewDialog({
 /* -------------------------------------------------------- the re-run gate */
 
 /**
- * The confirmation in front of re-running something that already worked.
- *
- * It exists to answer one question before the operator commits: what else does
- * this touch? A fifty-chapter render re-running one chapter's script also
- * invalidates the concatenation, the metadata and the upload, and that is not
- * obvious from the button that starts it.
+ * The confirmation in front of re-running something that already worked. It
+ * answers one question first: what else does this touch? Re-running one
+ * chapter's script also invalidates the concat, the metadata and the upload.
  */
 export function RerunDialog({
   open,

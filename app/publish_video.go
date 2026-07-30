@@ -10,7 +10,7 @@ import (
 )
 
 // PublishVideo uploads the final render. Dry run is the default and stays the
-// default until a real backend is wired in (§11).
+// default until a real backend is wired in.
 func PublishVideo(
 	ctx context.Context,
 	t entity.Task,

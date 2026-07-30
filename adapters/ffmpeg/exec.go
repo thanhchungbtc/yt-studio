@@ -49,7 +49,7 @@ func (c *Composer) exec(ctx context.Context, argv []string, onPercent func(int),
 
 	cmd := exec.CommandContext(ctx, "ffmpeg", argv...) //nolint:gosec // argv is built here, never from input
 	// The context kills the process; WaitDelay bounds how long we then wait for
-	// its pipes to close, so a cancelled video frees its slot promptly (§8.3).
+	// its pipes to close, so a cancelled video frees its slot promptly.
 	cmd.WaitDelay = 5 * time.Second
 
 	var tail tailWriter

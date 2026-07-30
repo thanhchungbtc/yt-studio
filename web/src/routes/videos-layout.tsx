@@ -11,11 +11,9 @@ import { SIDEBAR_MAX, SIDEBAR_MIN, SIDEBAR_DEFAULT, useSidebar } from '@/lib/wor
 /**
  * The `/videos` workspace: sidebar, splitter, detail.
  *
- * This is a layout route, so the sidebar is mounted once for both `/videos` and
- * `/videos/$ref`. Switching video swaps only what is to the right of the
- * splitter — the list does not remount, does not refetch and does not lose its
- * scroll position, which is what makes moving between two videos feel like
- * changing tabs in an application rather than following a link.
+ * A layout route, so the sidebar mounts once for both `/videos` and
+ * `/videos/$ref`. Switching video swaps only what is right of the splitter — the
+ * list does not remount, refetch or lose its scroll position.
  */
 export function VideosLayout() {
   const { width, collapsed, resize, toggle } = useSidebar()

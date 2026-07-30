@@ -11,7 +11,7 @@ import (
 
 // CreateVideoInput is the boundary shape for a new video. A zero chapter or
 // image count falls back to the caller-supplied defaults, which come from
-// settings rows (§3).
+// settings rows.
 type CreateVideoInput struct {
 	ChannelKey       string
 	Title            string

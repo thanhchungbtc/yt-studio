@@ -8,7 +8,7 @@ const initialRingCapacity = 128
 
 // ring is a fixed-stride FIFO of task pointers. Push and Pop are O(1) and
 // allocation-free once the buffer has reached its steady-state capacity, which
-// is what lets the dispatch decision hit its zero-allocation budget (§8.3).
+// is what lets the dispatch decision hit its zero-allocation budget.
 type ring struct {
 	buf   []*entity.Task
 	head  int
@@ -64,7 +64,7 @@ func (r *ring) pop() *entity.Task {
 }
 
 // ReadySet is the authoritative dispatch structure: the scheduler never queries
-// SQLite to answer "what can run now?" (§8.3).
+// SQLite to answer "what can run now?".
 //
 // It is owned by the dispatch goroutine alone and therefore carries no lock.
 // Cancellation and gate changes do not remove entries; they change the task's

@@ -19,7 +19,7 @@ type CreateChannelInput struct {
 }
 
 // CreateChannel validates and stores a new channel. The slug is chosen here and
-// never changes afterwards (§3).
+// never changes afterwards.
 func CreateChannel(
 	ctx context.Context,
 	channels repository.ChannelWriter,

@@ -16,8 +16,8 @@ const bundleDir = "app"
 
 // spaHandler serves the built React app from an embed.FS.
 //
-// Any unknown path falls through to index.html, because the client owns
-// routing — a deep link to /videos/DSS-14 must load the shell, not 404.
+// Any unknown path falls through to index.html, because the client owns routing
+// — a deep link to /videos/DSS-14 must load the shell, not 404.
 func spaHandler(dist fs.FS) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if dist == nil {

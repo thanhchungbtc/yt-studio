@@ -33,7 +33,7 @@ export function CreateVideoDialog({
   const [chapterCount, setChapterCount] = useState('50')
   const [imagesPerChapter, setImagesPerChapter] = useState('2')
   const [start, setStart] = useState(true)
-  // A stable key per dialog session makes a double submit a no-op (§9).
+  // A stable key per dialog session makes a double submit a no-op.
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID())
 
   // Reopening from a different channel should follow the operator's context.

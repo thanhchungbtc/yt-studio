@@ -33,7 +33,7 @@ type ListVideosInput struct {
 	Offset    int    `query:"offset" default:"0" minimum:"0"`
 }
 
-// VideoKeyInput resolves a video by ref or id (§3).
+// VideoKeyInput resolves a video by ref or id.
 type VideoKeyInput struct {
 	Key string `path:"key" doc:"Video ref (e.g. DSS-14) or id"`
 }

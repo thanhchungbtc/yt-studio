@@ -139,8 +139,8 @@ func TestClipComposesARealChapter(t *testing.T) {
 		t.Fatalf("resolve clip: %v", err)
 	}
 
-	// The mock narrates for exactly one second, so the clip is that plus the
-	// two crossfade pads and the trailing beat.
+	// The mock narrates for exactly one second, so the clip is that plus the two
+	// crossfade pads and the trailing beat.
 	const want = 1.0 + 2*chapterCrossfade + chapterTailPad
 	got := probeFloat(t, path, "-show_entries", "format=duration")
 	if diff := got - want; diff > 0.15 || diff < -0.15 {
@@ -195,8 +195,8 @@ func TestConcatComposesTheFinalRender(t *testing.T) {
 		t.Fatalf("resolve final: %v", err)
 	}
 
-	// The chapters overlap by one crossfade, so the render is shorter than the
-	// sum of its parts by exactly that much.
+	// The chapters overlap by one crossfade, so the render is shorter than the sum
+	// of its parts by exactly that much.
 	want := clipTotal - chapterCrossfade
 	got := probeFloat(t, path, "-select_streams", "v:0", "-show_entries", "stream=duration")
 	if diff := got - want; diff > 0.2 || diff < -0.2 {
@@ -238,9 +238,9 @@ func TestClipRejectsIncompleteRequests(t *testing.T) {
 // TestFitFontSizeTracksFreeType pins the pure-Go text measurement against the
 // only measurement that matters: the one libfreetype makes inside drawtext.
 //
-// They are different implementations, so they are not asked to agree exactly —
-// only closely enough that the chosen size never differs, given that a step is
-// two points and around fifty pixels wide at these sizes.
+// They are different implementations, so they are not asked to agree exactly
+// — only closely enough that the chosen size never differs, given that a step
+// is two points and around fifty pixels wide at these sizes.
 func TestFitFontSizeTracksFreeType(t *testing.T) {
 	requireFFmpeg(t)
 

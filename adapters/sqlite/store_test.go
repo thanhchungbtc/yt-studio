@@ -57,7 +57,7 @@ func seeded(t *testing.T) (*sqlite.Store, entity.Channel) {
 }
 
 // A fresh database and a ten-times-seeded database must end up in the same
-// state (§3).
+// state.
 func TestSeedIsIdempotent(t *testing.T) {
 	t.Parallel()
 	store, _ := seeded(t)
@@ -103,7 +103,7 @@ func TestSeedIsIdempotent(t *testing.T) {
 }
 
 // An operator's edit must survive a re-seed: the seed refreshes metadata, not
-// values (§3).
+// values.
 func TestSeedPreservesOperatorValues(t *testing.T) {
 	t.Parallel()
 	store, _ := seeded(t)
@@ -245,7 +245,7 @@ func TestVideoLifecyclePersistence(t *testing.T) {
 }
 
 // Two image tasks for the same chapter write concurrently; each must land
-// without clobbering the other (§4).
+// without clobbering the other.
 func TestSetChapterImageIsIndexed(t *testing.T) {
 	t.Parallel()
 	store, ch := seeded(t)
@@ -370,7 +370,7 @@ func TestGraphPersistenceRoundTrip(t *testing.T) {
 	}
 }
 
-// No scheduler query may fall back to a full table scan (§8.3).
+// No scheduler query may fall back to a full table scan.
 func TestSchedulerQueriesUseIndexes(t *testing.T) {
 	t.Parallel()
 	store, _ := seeded(t)
@@ -414,8 +414,8 @@ func TestSchedulerQueriesUseIndexes(t *testing.T) {
 			}
 			for _, line := range plan {
 				upper := strings.ToUpper(line)
-				// "SCAN <table>" without an index is the failure mode; a scan of
-				// a subquery or a temp b-tree is not.
+				// "SCAN <table>" without an index is the failure mode; a scan of a subquery
+				// or a temp b-tree is not.
 				if strings.HasPrefix(upper, "SCAN ") && !strings.Contains(upper, "USING") {
 					t.Fatalf("query plan does a full scan: %q\nfull plan: %v", line, plan)
 				}
@@ -425,7 +425,7 @@ func TestSchedulerQueriesUseIndexes(t *testing.T) {
 	}
 }
 
-// Migrations must be fast on an existing database (§8.3).
+// Migrations must be fast on an existing database.
 func TestMigrationsAreFastOnAnExistingDatabase(t *testing.T) {
 	// Not parallel: goose serialises migrations behind a package mutex, so a
 	// concurrent test would measure queueing rather than the migration.

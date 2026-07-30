@@ -126,9 +126,9 @@ func TestPromptCacheReachesTheSelectedBackend(t *testing.T) {
 		t.Fatalf("forgotten = %v; want [v1]", cached.forgotten)
 	}
 
-	// A backend that keeps no cache has nothing to drop, and an unknown one
-	// cannot be reached at all. Neither may panic, and neither may reach the
-	// backend that is no longer selected.
+	// A backend that keeps no cache has nothing to drop, and an unknown one cannot
+	// be reached at all. Neither may panic, and neither may reach the backend that
+	// is no longer selected.
 	selected = "plain"
 	reg.PromptCache().Forget("v2")
 	selected = "missing"

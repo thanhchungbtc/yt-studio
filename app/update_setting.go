@@ -13,9 +13,9 @@ import (
 // UpdateSetting writes one settings row and applies its side effects live.
 //
 // Changing a pool limit, the SSE coalescing window or the log level is a row
-// update applied without restarting the daemon (§3). Each side effect is
-// dispatched through a narrow port that is named in the signature, so it is
-// obvious from here what a settings edit can reach.
+// update applied without restarting the daemon. Each side effect is dispatched
+// through a narrow port that is named in the signature, so it is obvious from
+// here what a settings edit can reach.
 func UpdateSetting(
 	ctx context.Context,
 	settings *service.Settings,

@@ -11,7 +11,7 @@ import (
 	"github.com/tbui/yt-studio/domain/entity"
 )
 
-// Property-based tests over the scheduler's invariants (§8.4):
+// Property-based tests over the scheduler's invariants:
 //
 //   - never exceed the budget
 //   - never deadlock
@@ -36,9 +36,9 @@ func TestSchedulerInvariants(t *testing.T) {
 			entity.PoolUpload:  1,
 		}
 		// A deterministic subset of tasks fails transiently exactly once, so the
-		// retry path is inside the property rather than beside it. Failing more
-		// than once per task could exhaust MaxAttempts, which would make the
-		// property unsatisfiable rather than falsified.
+		// retry path is inside the property rather than beside it. Failing more than
+		// once per task could exhaust MaxAttempts, which would make the property
+		// unsatisfiable rather than falsified.
 		failEvery := rapid.IntRange(0, 7).Draw(rt, "failEvery")
 
 		g := testGraph(t, "v1", chapters, images, gates)

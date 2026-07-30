@@ -150,8 +150,8 @@ func TestMissingMediaIsUnavailableAndNotRetryable(t *testing.T) {
 	if !errors.Is(err, sampleprovider.ErrUnavailable) {
 		t.Fatalf("Check() = %v, want ErrUnavailable", err)
 	}
-	// The port's sentinel is what app.classify reads to decide against retrying
-	// a directory that will not appear on its own.
+	// The port's sentinel is what app.classify reads to decide against retrying a
+	// directory that will not appear on its own.
 	if !errors.Is(err, provider.ErrUnavailable) {
 		t.Fatalf("Check() does not wrap provider.ErrUnavailable: %v", err)
 	}

@@ -19,11 +19,11 @@ type EventSource interface {
 // heartbeatInterval keeps intermediaries from closing an idle stream.
 const heartbeatInterval = 20 * time.Second
 
-// eventsHandler is the single multiplexed SSE stream (§9).
+// eventsHandler is the single multiplexed SSE stream.
 //
 // Task state flows one way — daemon to browser — so EventSource gives
-// reconnection, event ids and resume-from-last-id for free over plain HTTP.
-// A WebSocket would add a bidirectional protocol with no use here.
+// reconnection, event ids and resume-from-last-id for free over plain HTTP. A
+// WebSocket would add a bidirectional protocol with no use here.
 func eventsHandler(source EventSource, log *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		flusher, ok := w.(http.Flusher)
@@ -73,8 +73,8 @@ func eventsHandler(source EventSource, log *slog.Logger) http.HandlerFunc {
 					log.Debug("sse client went away", slog.String("error", err.Error()))
 					return
 				}
-				// Drain anything already queued before flushing, so a burst
-				// costs one flush rather than one per message.
+				// Drain anything already queued before flushing, so a burst costs one flush
+				// rather than one per message.
 				drained := 0
 				for drained < 64 {
 					select {

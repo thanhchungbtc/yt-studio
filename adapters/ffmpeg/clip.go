@@ -58,8 +58,8 @@ func (c *Composer) Clip(ctx context.Context, req provider.ClipRequest) (entity.A
 	}
 	defer cleanup()
 
-	// Every still gets an equal share of the narration. The crossfades overlap,
-	// so each one has to be long enough to pay for its own transition.
+	// Every still gets an equal share of the narration. The crossfades overlap, so
+	// each one has to be long enough to pay for its own transition.
 	n := len(images)
 	stillDuration := (narration + float64(n-1)*imageCrossfade) / float64(n)
 

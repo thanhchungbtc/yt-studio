@@ -1,6 +1,6 @@
 // Package repository declares the persistence ports of the domain. Every port
 // is split into a reader and a writer so a use case can declare exactly the
-// half it needs in its signature (§7).
+// half it needs in its signature.
 //
 // Nothing here imports anything outside domain/entity.
 package repository
@@ -18,7 +18,7 @@ var ErrNotFound = errors.New("not found")
 // ErrConflict is returned by a writer when a natural key is already taken.
 var ErrConflict = errors.New("conflict")
 
-// ChannelReader reads channels by either key (§3: the API accepts either).
+// ChannelReader reads channels by either key.
 type ChannelReader interface {
 	ChannelByID(ctx context.Context, id entity.ChannelID) (entity.Channel, error)
 	ChannelBySlug(ctx context.Context, slug entity.Slug) (entity.Channel, error)
@@ -34,6 +34,6 @@ type ChannelWriter interface {
 	// behind video refs (DSS-1, DSS-2...). It is the only way a ref is minted.
 	NextVideoSeq(ctx context.Context, id entity.ChannelID) (int, error)
 	// UpsertChannelBySlug is the seed path: INSERT ... ON CONFLICT (slug) DO
-	// UPDATE, so running the seed a second time updates in place (§3).
+	// UPDATE, so running the seed a second time updates in place.
 	UpsertChannelBySlug(ctx context.Context, c entity.Channel) (entity.Channel, error)
 }

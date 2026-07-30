@@ -86,16 +86,16 @@ func (k AssetKind) MIME() string {
 	}
 }
 
-// Asset is a content-addressed file on disk plus its metadata (§3). The ID is
-// the sha256 of the bytes, so identical output re-uses the same row and the
-// same file — this is what makes a partial re-run cheap.
+// Asset is a content-addressed file on disk plus its metadata. The ID is the
+// sha256 of the bytes, so identical output re-uses the same row and the same
+// file — this is what makes a partial re-run cheap.
 type Asset struct {
 	ID        AssetID
 	VideoID   VideoID
 	ChapterID *ChapterID
 	Kind      AssetKind
-	// Path is relative to the configured asset root, never absolute, so the
-	// store can be moved without rewriting rows.
+	// Path is relative to the configured asset root, never absolute, so the store
+	// can be moved without rewriting rows.
 	Path string
 	Size int64
 	MIME string

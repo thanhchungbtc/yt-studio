@@ -12,9 +12,9 @@ import (
 // ResumeScheduler rebuilds every open video's DAG from the database and hands
 // it back to the loop.
 //
-// This is what makes a crash 45 minutes into a run resume rather than restart
-// (§2, principle 4): the task table is the state, edges are persisted, and a
-// task caught mid-flight is simply re-run because every step is idempotent.
+// This is what makes a crash 45 minutes into a run resume rather than restart:
+// the task table is the state, edges are persisted, and a task caught
+// mid-flight is simply re-run because every step is idempotent.
 func ResumeScheduler(
 	ctx context.Context,
 	tasks repository.TaskReader,

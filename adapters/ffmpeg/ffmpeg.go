@@ -3,11 +3,11 @@
 //
 // There is no wrapper library between this package and the binary. Every
 // invocation builds a []string and logs it, so a composition that fails at 2am
-// can be pasted straight into a shell (§8.1).
+// can be pasted straight into a shell.
 //
 // The provider is closed over its inputs: a request carries every string that
-// reaches the output — titles included — so nothing here reads a database, a
-// setting or a clock.
+// reaches the output — titles included — so nothing here reads a database,
+// a setting or a clock.
 package ffmpeg
 
 import (
@@ -26,8 +26,8 @@ import (
 
 // ErrUnavailable reports a missing binary or resource file: the composition
 // cannot run at all until the operator fixes the installation. It wraps the
-// port's sentinel so the task fails once rather than retrying three times for
-// a binary that will not appear.
+// port's sentinel so the task fails once rather than retrying three times for a
+// binary that will not appear.
 var ErrUnavailable = fmt.Errorf("ffmpeg composer: %w", provider.ErrUnavailable)
 
 // Chapter clip geometry and timing. These are the reference pipeline's
@@ -108,12 +108,12 @@ type Composer struct {
 	res   Resources
 	log   *slog.Logger
 	// work is the scratch root, kept under the store root so every intermediate
-	// file lands in var/ and the finished render can be renamed into place
-	// rather than copied.
+	// file lands in var/ and the finished render can be renamed into place rather
+	// than copied.
 	work string
-	// lanes bounds the still encodes within one chapter. The compose pool
-	// already bounds chapters against each other; this keeps a single chapter
-	// from taking the whole machine.
+	// lanes bounds the still encodes within one chapter. The compose pool already
+	// bounds chapters against each other; this keeps a single chapter from taking
+	// the whole machine.
 	lanes int
 
 	preflightOnce sync.Once
@@ -159,8 +159,8 @@ func (c *Composer) preflight() error {
 		}
 	}
 	// bg.mp3 and the font are optional — the reference pipeline degrades to no
-	// music and to ffmpeg's built-in font. The chalkboard and the background
-	// video are not: without them the output is a different video.
+	// music and to ffmpeg's built-in font. The chalkboard and the background video
+	// are not: without them the output is a different video.
 	for _, f := range []string{c.res.Chalkboard, c.res.BgVideo} {
 		if _, err := os.Stat(f); err != nil {
 			return fmt.Errorf("%w: %s: %w", ErrUnavailable, f, err)

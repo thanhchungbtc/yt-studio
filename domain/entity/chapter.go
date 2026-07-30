@@ -11,12 +11,12 @@ import (
 // ErrInvalidChapter is returned by the Chapter constructor for invalid input.
 var ErrInvalidChapter = errors.New("invalid chapter")
 
-// Chapter owns its ordinal, title, script, audio, images and composed clip (§3).
+// Chapter owns its ordinal, title, script, audio, images and composed clip.
 type Chapter struct {
 	ID      ChapterID
 	VideoID VideoID
-	// Ordinal is 1-based and unique within the video; it is the chapter's
-	// natural key together with the video ref (DSS-14#7).
+	// Ordinal is 1-based and unique within the video; it is the chapter's natural
+	// key together with the video ref (DSS-14#7).
 	Ordinal int
 	Title   string
 	Summary string
@@ -55,8 +55,8 @@ func NewChapter(videoID VideoID, ordinal int, title, summary string, now time.Ti
 	}, nil
 }
 
-// NaturalKey returns the human-readable key of a chapter within its video,
-// e.g. `DSS-14#7` (§3). It is used in logs and golden-file fixtures.
+// NaturalKey returns the human-readable key of a chapter within its video, e.g.
+// `DSS-14#7`. It is used in logs and golden-file fixtures.
 func (c Chapter) NaturalKey(videoRef Ref) string {
 	var b strings.Builder
 	b.Grow(len(videoRef) + 4)

@@ -73,7 +73,7 @@ func (s *Store) CountTasksByVideo(ctx context.Context, videoID entity.VideoID) (
 }
 
 // ListOpenGraphs reloads every video that still has open tasks, with its edges,
-// so the daemon resumes rather than restarts (§2, principle 4).
+// so the daemon resumes rather than restarts.
 func (s *Store) ListOpenGraphs(ctx context.Context) ([]repository.VideoGraph, error) {
 	videoIDs, err := s.rq.ListVideosWithOpenTasks(ctx)
 	if err != nil {
@@ -147,7 +147,7 @@ func (s *Store) InsertGraph(ctx context.Context, videoID entity.VideoID, tasks [
 }
 
 // ApplyTransitions commits N transitions in a single transaction, which is what
-// makes a burst of simultaneous completions one write rather than N (§8.3).
+// makes a burst of simultaneous completions one write rather than N.
 func (s *Store) ApplyTransitions(ctx context.Context, transitions []repository.TaskTransition) error {
 	if len(transitions) == 0 {
 		return nil

@@ -22,7 +22,7 @@ type ChapterOutput struct {
 	Body ChapterDTO
 }
 
-// UpdateScriptInput is an operator's inline script edit (§9).
+// UpdateScriptInput is an operator's inline script edit.
 type UpdateScriptInput struct {
 	ID   string `path:"id" doc:"Chapter id"`
 	Body struct {

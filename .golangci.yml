@@ -1,6 +1,6 @@
 version: "2"
 
-# Standards are enforced, not intended (goal.md section 8). Every linter below
+# Standards are enforced, not intended. Every linter below
 # is a merge gate; none of them are advisory.
 
 run:
@@ -123,7 +123,7 @@ linters:
             - pkg: github.com/tbui/yt-studio/adapters/sqlite
               desc: delivery must not reach past the ports into the database adapter
 
-        # Rejected dependencies (goal.md section 10).
+        # Rejected dependencies.
         everywhere:
           list-mode: lax
           files:

@@ -157,7 +157,7 @@ func (s *Store) SetChapterAudio(ctx context.Context, id entity.ChapterID, assetI
 
 // SetChapterImage records one still at its index. json_set makes this a single
 // atomic statement, so two concurrent image tasks cannot lose each other's
-// write (§4).
+// write.
 func (s *Store) SetChapterImage(ctx context.Context, id entity.ChapterID, index int, assetID entity.AssetID) error {
 	if index < 0 {
 		return fmt.Errorf("%w: image index must not be negative", entity.ErrInvalidChapter)

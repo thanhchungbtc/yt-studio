@@ -1,12 +1,8 @@
 /**
  * Everything the UI needs to *describe* an artifact, kept separate from the
- * components that draw one.
- *
- * An asset row on its own is a content hash, a MIME type and a size — which is
- * exactly what an operator cannot review. The helpers here rejoin an asset to
- * the chapter that owns it and to the prompt or script that produced it, so a
- * preview can answer "what is this, and what asked for it?" without a second
- * request.
+ * components that draw one. An asset row alone is a hash, a MIME type and a
+ * size; these helpers rejoin it to its chapter and to the prompt or script that
+ * produced it, so a preview needs no second request.
  */
 
 import { chapterKey } from './format'

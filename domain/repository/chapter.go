@@ -21,9 +21,10 @@ type ChapterWriter interface {
 
 // ChapterFieldWriter narrows writes to a single field.
 //
-// Two image tasks for the same chapter run concurrently by design (§4), so a
+// Two image tasks for the same chapter run concurrently by design, so a
 // read-modify-write of the whole row would lose one of them. Each method here
-// is one atomic statement, which removes the race rather than locking around it.
+// is one atomic statement, which removes the race rather than locking around
+// it.
 type ChapterFieldWriter interface {
 	SetChapterScript(ctx context.Context, id entity.ChapterID, script string, durationSeconds float64) error
 	SetChapterPrompts(ctx context.Context, id entity.ChapterID, prompts []string) error

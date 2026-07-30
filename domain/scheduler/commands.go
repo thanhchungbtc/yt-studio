@@ -43,8 +43,8 @@ type command struct {
 	limit   int
 	reason  string
 	dryRun  bool
-	// out and count are filled by the loop before it replies. The caller blocks
-	// on reply, so the write happens-before the read and no lock is needed.
+	// out and count are filled by the loop before it replies. The caller blocks on
+	// reply, so the write happens-before the read and no lock is needed.
 	out   *[]entity.TaskID
 	count *int
 	reply chan error
@@ -105,14 +105,14 @@ func (s *Scheduler) handleCommand(ctx context.Context, c command) {
 }
 
 // Submit persists a freshly built DAG and admits it to the loop. Task ids are
-// deterministic, so submitting the same video twice is idempotent (§3).
+// deterministic, so submitting the same video twice is idempotent.
 func (s *Scheduler) Submit(ctx context.Context, g *Graph) error {
 	if g == nil {
 		return fmt.Errorf("%w: nil graph", ErrInvalidGraph)
 	}
 	if g.Installed() {
-		// The loop already owns this graph and is mutating its tasks; reading
-		// them here to persist them again would be both a race and pointless.
+		// The loop already owns this graph and is mutating its tasks; reading them
+		// here to persist them again would be both a race and pointless.
 		return nil
 	}
 	if err := s.store.InsertGraph(ctx, g.VideoID, g.Tasks(), g.Edges()); err != nil {
@@ -122,12 +122,12 @@ func (s *Scheduler) Submit(ctx context.Context, g *Graph) error {
 }
 
 // Resume admits graphs rebuilt from the database at startup. A crash 45 minutes
-// into a run resumes rather than restarts (§2, principle 4).
+// into a run resumes rather than restarts.
 func (s *Scheduler) Resume(ctx context.Context, graphs []*Graph) error {
 	return s.send(ctx, command{kind: cmdResume, graphs: graphs})
 }
 
-// Approve releases a gated task's successors. A gate is a row update (§6).
+// Approve releases a gated task's successors. A gate is a row update.
 func (s *Scheduler) Approve(ctx context.Context, taskID entity.TaskID) error {
 	return s.send(ctx, command{kind: cmdApprove, taskID: taskID})
 }
@@ -138,7 +138,7 @@ func (s *Scheduler) Reject(ctx context.Context, taskID entity.TaskID, reason str
 }
 
 // Cancel stops a video. Its in-flight provider calls are cancelled through the
-// per-video context, so its slots come back within 100 ms (§8.3).
+// per-video context, so its slots come back within 100 ms.
 func (s *Scheduler) Cancel(ctx context.Context, videoID entity.VideoID) error {
 	return s.send(ctx, command{kind: cmdCancel, videoID: videoID})
 }
@@ -148,22 +148,17 @@ func (s *Scheduler) RetryTask(ctx context.Context, taskID entity.TaskID) error {
 	return s.send(ctx, command{kind: cmdRetryTask, taskID: taskID})
 }
 
-// RetryChapter resets every task of one chapter and everything downstream (§9).
+// RetryChapter resets every task of one chapter and everything downstream.
 func (s *Scheduler) RetryChapter(ctx context.Context, videoID entity.VideoID, ordinal int) error {
 	return s.send(ctx, command{kind: cmdRetryChapter, videoID: videoID, ordinal: ordinal})
 }
 
 // Rerun re-runs tasks that have already succeeded, and marks everything
-// downstream of them stale rather than re-running it (§9).
+// downstream of them stale rather than re-running it: unlike a failed task's
+// dependents, they hold artifacts an operator may have reviewed, so discarding
+// them is their decision.
 //
-// This is the deliberate counterpart to RetryTask. A *failed* task has nothing
-// downstream of it that ever ran, so cascading and running is free and needs no
-// permission. A *succeeded* task does: its dependents produced artifacts an
-// operator may already have reviewed, and throwing those away is a decision
-// they should make rather than a side effect of clicking retry.
-//
-// With dryRun set nothing is changed and the returned ids are what *would* go
-// stale, which is what lets the UI show the blast radius before committing.
+// With dryRun nothing changes and the returned ids are what would go stale.
 func (s *Scheduler) Rerun(
 	ctx context.Context,
 	videoID entity.VideoID,
@@ -178,9 +173,8 @@ func (s *Scheduler) Rerun(
 }
 
 // MarkStale flags everything downstream of the seeds without touching the seeds
-// themselves. It is what an edit made outside the pipeline calls — editing a
-// chapter script changes an input no task produced, so nothing needs re-running
-// for the downstream to have become questionable.
+// themselves. It is what an edit made outside the pipeline calls: no task needs
+// re-running for its downstream to have become questionable.
 func (s *Scheduler) MarkStale(
 	ctx context.Context,
 	videoID entity.VideoID,
@@ -221,7 +215,7 @@ func (s *Scheduler) Forget(ctx context.Context, videoID entity.VideoID) error {
 	return s.send(ctx, command{kind: cmdForget, videoID: videoID})
 }
 
-// SetPoolLimit applies a settings change to a pool without a restart (§5).
+// SetPoolLimit applies a settings change to a pool without a restart.
 func (s *Scheduler) SetPoolLimit(ctx context.Context, pool entity.Pool, limit int) error {
 	return s.send(ctx, command{kind: cmdSetPoolLimit, pool: pool, limit: limit})
 }
@@ -249,9 +243,9 @@ func (s *Scheduler) doResume(graphs []*Graph) error {
 	return nil
 }
 
-// install admits a graph and reconstructs the ready set from persisted state.
-// A task caught mid-flight by a crash is reclaimed as ready: its provider call
-// did not finish, and every step is idempotent by design (§2, principle 4).
+// install admits a graph and reconstructs the ready set from persisted state. A
+// task caught mid-flight by a crash is reclaimed as ready: its provider call
+// did not finish, and every step is idempotent by design.
 func (s *Scheduler) install(g *Graph) {
 	s.graphs[g.VideoID] = g
 	g.markInstalled()
@@ -401,9 +395,8 @@ func (s *Scheduler) doRetryChapter(videoID entity.VideoID, ordinal int) error {
 }
 
 // strictDownstream returns everything reachable from the seeds, excluding the
-// seeds themselves. That exclusion is the whole difference between a re-run and
-// a retry: the seed is what the operator asked to redo, its descendants are
-// what they are being asked about.
+// seeds themselves. That exclusion is the difference between a re-run and a
+// retry: the seeds are redone, their descendants only flagged.
 func strictDownstream(g *Graph, seeds []int32) []int32 {
 	affected := make([]bool, len(g.tasks))
 	for _, seed := range seeds {
@@ -450,10 +443,8 @@ func (s *Scheduler) doRerun(c command) error {
 	}
 	downstream := strictDownstream(g, seeds)
 
-	// Report exactly what will be flagged, not everything reachable. A task
-	// below the seed that has never run is not going to be marked, and listing
-	// it in the preview would promise a blast radius wider than the one the
-	// operator is about to get.
+	// Report exactly what will be flagged, not everything reachable: a task that
+	// has never run is not marked, so listing it would overstate the blast radius.
 	if c.out != nil {
 		ids := make([]entity.TaskID, 0, len(downstream))
 		for _, idx := range downstream {
@@ -468,10 +459,9 @@ func (s *Scheduler) doRerun(c command) error {
 	}
 
 	s.markStale(g, downstream)
-	// resetNodes, not resetFrom: only the seeds re-run.
-	// Their dependents are `succeeded` rather than `blocked`, so
-	// releaseDependents passes over them when the seeds finish and the stale set
-	// stays waiting for a decision.
+	// resetNodes, not resetFrom: only the seeds re-run. Their dependents are
+	// `succeeded` rather than `blocked`, so releaseDependents passes over them
+	// when the seeds finish and the stale set stays waiting for a decision.
 	s.resetNodes(g, seeds)
 	return nil
 }
@@ -499,14 +489,9 @@ func (s *Scheduler) doMarkStale(c command) error {
 	return nil
 }
 
-// markStale flags tasks that actually produced something. A task that never ran
-// is not stale, it is merely pending, and flagging it would be noise the
-// operator has to dismiss.
-//
-// A gated task counts. It has produced its artifact and is only parked waiting
-// for a human, so it is exactly as questionable as a succeeded one — and it is
-// the last thing an operator sees before approving, which makes it the worst
-// place to hide the fact that its input moved.
+// markStale flags tasks that actually produced something; a task that never ran
+// is merely pending. A gated task counts: its artifact exists and is the last
+// thing an operator sees before approving.
 func (s *Scheduler) markStale(g *Graph, indices []int32) {
 	now := time.Now()
 	for _, idx := range indices {
@@ -523,8 +508,8 @@ func (s *Scheduler) markStale(g *Graph, indices []int32) {
 		slog.Int("count", len(indices)))
 }
 
-// producedOutput reports whether a task has an artifact that staleness could
-// be about.
+// producedOutput reports whether a task has an artifact that staleness could be
+// about.
 func producedOutput(s entity.TaskState) bool {
 	return s == entity.TaskStateSucceeded || s == entity.TaskStateAwaitingApproval
 }
@@ -562,8 +547,7 @@ func (s *Scheduler) doRunStale(c command) error {
 	if len(indices) == 0 {
 		return nil
 	}
-	// Clearing the flag first means resetFrom re-admits them as ordinary work.
-	// Running a stale task is how it stops being stale.
+	// Clearing the flag first re-admits them as ordinary work.
 	for _, idx := range indices {
 		g.tasks[idx].Stale = false
 	}
@@ -599,11 +583,9 @@ func (s *Scheduler) doAcceptStale(c command) error {
 // their dependency counts against the surviving successes and re-admits
 // whatever is now runnable.
 //
-// A task that is in flight is reset like any other. Its generation is bumped
-// first, so the answer it is about to produce — computed from an input this
-// reset has just replaced — is discarded when it arrives rather than being
-// accepted as current. The provider call itself is not interrupted: it holds
-// one pool slot until it returns, and the work is simply wasted.
+// A task in flight is reset like any other: its generation is bumped so the
+// answer it is about to produce is discarded on arrival. The provider call is
+// not interrupted — it holds its slot until it returns, and the work is wasted.
 func (s *Scheduler) resetFrom(g *Graph, seeds []int32) {
 	affected := make([]bool, len(g.tasks))
 	for _, seed := range seeds {
@@ -627,16 +609,14 @@ func (s *Scheduler) resetFrom(g *Graph, seeds []int32) {
 // resetNodes clears exactly the nodes it is given and re-admits whichever of
 // them are runnable. It does not walk the graph.
 //
-// The distinction from resetFrom is the whole of the re-run design: retrying a
-// failure resets the closure, because nothing in it ever ran; re-running a
-// success resets only what was asked for, because its descendants hold
-// artifacts that are flagged stale and awaiting a decision instead.
+// Unlike resetFrom: retrying a failure resets the whole closure, since nothing
+// in it ever ran; re-running a success resets only the seeds, since their
+// descendants hold artifacts flagged stale and awaiting a decision.
 func (s *Scheduler) resetNodes(g *Graph, indices []int32) {
 	now := time.Now()
 	for _, i := range indices {
 		t := &g.tasks[i]
 		g.bumpGeneration(i)
-		// Re-running is the other way a task stops being stale.
 		t.Stale = false
 		t.State = entity.TaskStateBlocked
 		t.Attempt = 0
@@ -645,8 +625,8 @@ func (s *Scheduler) resetNodes(g *Graph, indices []int32) {
 		t.StartedAt = nil
 		t.FinishedAt = nil
 	}
-	// Dependency counts are recomputed only after every node has been cleared,
-	// so a node inside the set sees its siblings' new states rather than a
+	// Dependency counts are recomputed only after every node has been cleared, so
+	// a node inside the set sees its siblings' new states rather than a
 	// half-applied mixture.
 	for _, i := range indices {
 		t := &g.tasks[i]

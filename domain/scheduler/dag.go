@@ -1,7 +1,7 @@
 // Package scheduler owns dispatch: the per-video DAG, the global pools, the
 // in-memory ready set and the event-driven loop that ties them together.
 //
-// We own this outright (§7). Every off-the-shelf option costs a server process,
+// We own this outright. Every off-the-shelf option costs a server process,
 // which breaks the single-binary principle; `semaphore.Weighted` supplies the
 // concurrency control an engine would have supplied.
 package scheduler
@@ -30,7 +30,7 @@ type BuildSpec struct {
 	ImagesPerChapter int
 	MaxAttempts      int
 	// BlueprintGate parks the pipeline after the blueprint for human review;
-	// UploadGate parks it before upload (§6). Both are settings rows.
+	// UploadGate parks it before upload. Both are settings rows.
 	BlueprintGate bool
 	UploadGate    bool
 	Now           time.Time
@@ -38,33 +38,33 @@ type BuildSpec struct {
 
 // Graph is one video's precomputed dependency graph. It is built once at
 // enqueue time and never rebuilt: the scheduler answers "what can run now?"
-// from memory, never from a query (§8.3).
+// from memory, never from a query.
 type Graph struct {
 	VideoID entity.VideoID
 
-	// tasks is the authoritative in-memory copy. The ready set holds pointers
-	// into this slice, so it is allocated once at full size and never appended
-	// to afterwards — the pointers must stay valid.
+	// tasks is the authoritative in-memory copy. The ready set holds pointers into
+	// this slice, so it is allocated once at full size and never appended to
+	// afterwards — the pointers must stay valid.
 	tasks []entity.Task
 	// dependents[i] lists the nodes that i releases when it succeeds.
 	dependents [][]int32
-	// dependencies[i] lists the nodes i waits on. It is what a retry cascade
-	// and a recovery consistency check walk.
+	// dependencies[i] lists the nodes i waits on. It is what a retry cascade and a
+	// recovery consistency check walk.
 	dependencies [][]int32
 	byID         map[entity.TaskID]int32
 
 	// generations[i] counts how many times node i has been reset. A dispatch
-	// carries the generation it started under and its completion is discarded
-	// if they no longer match, which is what stops a task that was in flight
-	// when its input was retried from landing an answer to the old question.
+	// carries the generation it started under and its completion is discarded if
+	// they no longer match, which is what stops a task that was in flight when its
+	// input was retried from landing an answer to the old question.
 	//
-	// It is deliberately not persisted: a restart reclaims every in-flight task
-	// as ready, so there is no completion left to disambiguate.
+	// It is deliberately not persisted: a restart reclaims every in-flight task as
+	// ready, so there is no completion left to disambiguate.
 	generations []uint64
 
-	// installed flips once the dispatch loop owns this graph. After that the
-	// loop mutates tasks freely, so no other goroutine may read the slice —
-	// which is what makes a repeated Submit a cheap no-op rather than a race.
+	// installed flips once the dispatch loop owns this graph. After that the loop
+	// mutates tasks freely, so no other goroutine may read the slice — which is
+	// what makes a repeated Submit a cheap no-op rather than a race.
 	installed atomic.Bool
 }
 
@@ -127,14 +127,14 @@ func (g *Graph) Edges() []repository.TaskEdge {
 	return edges
 }
 
-// NodeCountFor returns the exact number of tasks a spec produces:
-// blueprint + prime + concat + metadata + upload, plus four per-chapter tasks
-// and one per still. It is exported so callers can preallocate too.
+// NodeCountFor returns the exact number of tasks a spec produces: blueprint +
+// prime + concat + metadata + upload, plus four per-chapter tasks and one per
+// still. It is exported so callers can preallocate too.
 func NodeCountFor(chapters, imagesPerChapter int) int {
 	return 5 + 4*chapters + chapters*imagesPerChapter
 }
 
-// BuildGraph constructs a video's DAG (§4).
+// BuildGraph constructs a video's DAG.
 //
 // The structurally important detail: image prompts depend on the blueprint
 // alone, not on the chapter script. That gives the graph two independent
@@ -213,8 +213,8 @@ func BuildGraph(spec BuildSpec) (*Graph, error) {
 		uploadGate = entity.GateUpload
 	}
 
-	// Canonical node order. It is deterministic so that golden-file tests over
-	// the dispatch sequence stay stable (§8.4).
+	// Canonical node order. It is deterministic so that golden-file tests over the
+	// dispatch sequence stay stable.
 	blueprint := add(entity.TaskKindBlueprint, -1, -1, blueprintGate)
 	prime := add(entity.TaskKindPrimeImagePrompts, -1, -1, entity.GateNone)
 
@@ -243,11 +243,10 @@ func BuildGraph(spec BuildSpec) (*Graph, error) {
 	}
 	concat := add(entity.TaskKindConcat, -1, -1, entity.GateNone)
 	// The metadata task carries the upload gate: on success it parks in
-	// awaiting_approval and does not release the upload task (§6).
+	// awaiting_approval and does not release the upload task.
 	metadata := add(entity.TaskKindMetadata, -1, -1, uploadGate)
 	upload := add(entity.TaskKindUpload, -1, -1, entity.GateNone)
 
-	// Arcs.
 	link(blueprint, prime)
 	for i := range n {
 		link(blueprint, scripts[i])
@@ -314,7 +313,7 @@ func (g *Graph) Roots() []int32 {
 }
 
 // Downstream returns i plus every node reachable from it, in ascending index
-// order. It is what a chapter retry resets (§9: per-chapter retry).
+// order. It is what a chapter retry resets.
 func (g *Graph) Downstream(i int32) []int32 {
 	seen := make([]bool, len(g.tasks))
 	stack := make([]int32, 0, 16)
@@ -346,7 +345,7 @@ func (g *Graph) Downstream(i int32) []int32 {
 }
 
 // GraphFromPersisted rebuilds an in-memory graph from rows read at startup, so
-// a crash 45 minutes into a run resumes rather than restarts (§2, principle 4).
+// a crash 45 minutes into a run resumes rather than restarts.
 func GraphFromPersisted(vg repository.VideoGraph) (*Graph, error) {
 	if len(vg.Tasks) == 0 {
 		return nil, fmt.Errorf("%w: no tasks for video %s", ErrInvalidGraph, vg.VideoID)

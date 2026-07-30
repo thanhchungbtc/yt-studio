@@ -24,7 +24,7 @@ type LLM struct {
 
 	// singleflight collapses concurrent callers onto one production; the cache
 	// serves every later caller. Both halves are needed: singleflight alone
-	// deduplicates only calls that overlap in time (§4).
+	// deduplicates only calls that overlap in time.
 	prompts singleflight.Group
 	cacheMu sync.RWMutex
 	cache   map[entity.VideoID][]provider.ImagePrompt
@@ -106,10 +106,10 @@ func (l *LLM) Script(ctx context.Context, req provider.ScriptRequest) (provider.
 
 // ImagePrompts returns every chapter's prompts for one video.
 //
-// All prompts come from one generation — better cross-chapter visual coherence,
-// and it avoids re-sending blueprint context N times. The DAG still holds N
-// individually retryable per-chapter tasks; singleflight is what collapses them
-// onto one production and serves the rest from cache (§4).
+// All prompts come from one generation — better cross-chapter visual
+// coherence, and it avoids re-sending blueprint context N times. The DAG still
+// holds N individually retryable per-chapter tasks; singleflight is what
+// collapses them onto one production and serves the rest from cache.
 func (l *LLM) ImagePrompts(ctx context.Context, videoID entity.VideoID) ([]provider.ImagePrompt, error) {
 	if cached, ok := l.cached(videoID); ok {
 		return cached, nil
@@ -176,7 +176,7 @@ func cloneprompts(in []provider.ImagePrompt) []provider.ImagePrompt {
 }
 
 // Forget drops a video's coalesced prompt batch, so a retry regenerates it
-// rather than replaying the output the operator rejected (§4).
+// rather than replaying the output the operator rejected.
 func (l *LLM) Forget(videoID entity.VideoID) {
 	l.cacheMu.Lock()
 	delete(l.cache, videoID)

@@ -13,7 +13,7 @@ type AssetReader interface {
 }
 
 // AssetWriter records asset metadata. Put is an upsert by content address:
-// re-running a task that produces identical bytes is a no-op (§3).
+// re-running a task that produces identical bytes is a no-op.
 type AssetWriter interface {
 	PutAsset(ctx context.Context, a entity.Asset) error
 }

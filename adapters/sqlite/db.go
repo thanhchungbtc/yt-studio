@@ -3,7 +3,7 @@
 // Two connection pools sit behind one type: a multi-connection read pool and a
 // single-connection write pool fed by one writer goroutine. Serialising writes
 // through a channel eliminates SQLite's write-lock contention instead of
-// retrying it (§8.3), and every statement is prepared once at open and reused.
+// retrying it, and every statement is prepared once at open and reused.
 package sqlite
 
 import (
@@ -32,7 +32,7 @@ var migrationsFS embed.FS
 // ErrClosed is returned when a write is submitted after the store has stopped.
 var ErrClosed = errors.New("sqlite store is closed")
 
-// Options are the bootstrap knobs. Everything else is a settings row (§3).
+// Options are the bootstrap knobs. Everything else is a settings row.
 type Options struct {
 	// Path is the database file, or ":memory:" for tests.
 	Path string
@@ -132,8 +132,8 @@ func Open(ctx context.Context, opts Options, log *slog.Logger) (*Store, error) {
 	}, nil
 }
 
-// dsn builds a connection string with the pragmas §8.3 requires stated
-// explicitly rather than inherited from defaults.
+// dsn builds a connection string with every pragma stated explicitly rather
+// than inherited from driver defaults.
 func dsn(opts Options, readOnly bool) string {
 	path := opts.Path
 	if path == "" {
@@ -163,8 +163,8 @@ func dsn(opts Options, readOnly bool) string {
 }
 
 // goose configures itself through package-level globals, so setup happens once
-// and the migration itself is serialised. Two stores opening concurrently — the
-// normal case in tests — would otherwise race inside the library.
+// and the migration itself is serialised. Two stores opening concurrently —
+// the normal case in tests — would otherwise race inside the library.
 var (
 	gooseOnce sync.Once
 	gooseErr  error
@@ -240,11 +240,11 @@ func (s *Store) submit(ctx context.Context, inTx bool, fn func(context.Context, 
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-	// Past this point the writer owns the operation and may be reading memory
-	// the caller passed in, so the caller must not walk away — not even on
-	// cancellation. Every queued op is answered: Run replies to what is still
-	// in the channel when it stops, and an op already executing always
-	// completes. The op's own context is what bounds how long that takes.
+	// Past this point the writer owns the operation and may be reading memory the
+	// caller passed in, so the caller must not walk away — not even on
+	// cancellation. Every queued op is answered: Run replies to what is still in
+	// the channel when it stops, and an op already executing always completes. The
+	// op's own context is what bounds how long that takes.
 	return <-op.reply
 }
 
@@ -253,8 +253,8 @@ func (s *Store) do(ctx context.Context, fn func(context.Context, *sqlcgen.Querie
 	return s.submit(ctx, false, fn)
 }
 
-// doTx runs several statements as one transaction on the writer goroutine.
-// N task transitions committing together is exactly this (§8.3).
+// doTx runs several statements as one transaction on the writer goroutine. N
+// task transitions committing together is exactly this.
 func (s *Store) doTx(ctx context.Context, fn func(context.Context, *sqlcgen.Queries) error) error {
 	return s.submit(ctx, true, fn)
 }

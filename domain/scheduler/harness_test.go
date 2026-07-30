@@ -93,8 +93,8 @@ func (s *recordingStore) persisted(videoID entity.VideoID) repository.VideoGraph
 	return repository.VideoGraph{VideoID: videoID, Tasks: tasks, Edges: s.edges[videoID]}
 }
 
-// poolWatcher asserts the §5 invariant continuously: no pool ever exceeds its
-// limit, and every task holds exactly one slot in exactly one pool.
+// poolWatcher asserts continuously that no pool exceeds its limit and every
+// task holds exactly one slot in exactly one pool.
 type poolWatcher struct {
 	mu      sync.Mutex
 	current map[entity.Pool]int

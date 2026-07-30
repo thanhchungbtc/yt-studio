@@ -86,7 +86,7 @@ type PutAssetParams struct {
 }
 
 // Content-addressed: an identical byte stream re-uses the existing row, which
-// is what makes a partial re-run cheap (goal.md section 3).
+// is what makes a partial re-run cheap.
 func (q *Queries) PutAsset(ctx context.Context, arg PutAssetParams) error {
 	_, err := q.exec(ctx, q.putAssetStmt, putAsset,
 		arg.ID,

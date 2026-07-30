@@ -9,7 +9,7 @@ import (
 )
 
 // GetVideo resolves a video by either key: the opaque id or the human-readable
-// ref such as DSS-14 (§3).
+// ref such as DSS-14.
 func GetVideo(ctx context.Context, videos repository.VideoReader, key string) (entity.Video, error) {
 	if key == "" {
 		return entity.Video{}, Invalid("video", "must not be empty")
