@@ -33,7 +33,6 @@ type Deps struct {
 	ChapterFields repository.ChapterFieldWriter
 	Assets        repository.AssetReader
 	Tasks         repository.TaskReader
-	TaskWriter    repository.TaskWriter
 	Store         provider.AssetStore
 	Settings      *service.Settings
 
@@ -94,10 +93,11 @@ func NewRouter(d Deps) (http.Handler, huma.API) {
 	config.OpenAPIPath = "/api/openapi"
 	api := humachi.New(r, config)
 
-	registerChannelRoutes(api, d.Channels, d.ChannelWriter, d.Videos, d.TaskWriter, d.Forgetter, d.NewID, d.Now)
+	registerChannelRoutes(api, d.Channels, d.ChannelWriter, d.Videos, d.VideoWriter, d.Forgetter,
+		d.Store, d.NewID, d.Now, d.Log)
 	registerVideoRoutes(api, d.Videos, d.VideoWriter, d.VideoStates, d.Channels, d.ChannelWriter,
-		d.Tasks, d.TaskWriter, d.Submitter, d.Canceller, d.Approver, d.Rejecter, d.Forgetter,
-		d.Settings, d.NewID, d.Now)
+		d.Tasks, d.Submitter, d.Canceller, d.Approver, d.Rejecter, d.Forgetter,
+		d.Store, d.Settings, d.NewID, d.Now, d.Log)
 	registerChapterRoutes(api, d.Videos, d.Chapters, d.ChapterFields, d.Notifier, d.ChapRetry, d.Prompts, d.StaleMark)
 	registerTaskRoutes(api, d.Videos, d.Tasks, d.TaskRetry, d.Prompts,
 		d.Rerunner, d.StaleRun, d.StaleOK)

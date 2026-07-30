@@ -2,12 +2,14 @@ package http
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/tbui/yt-studio/app"
 	"github.com/tbui/yt-studio/domain/entity"
+	"github.com/tbui/yt-studio/domain/provider"
 	"github.com/tbui/yt-studio/domain/repository"
 	"github.com/tbui/yt-studio/domain/service"
 )
@@ -227,11 +229,12 @@ func postVideoReject(
 func deleteVideo(
 	videos repository.VideoReader,
 	writer repository.VideoWriter,
-	tasks repository.TaskWriter,
 	forgetter app.VideoForgetter,
+	store provider.AssetStore,
+	log *slog.Logger,
 ) func(context.Context, *VideoKeyInput) (*struct{}, error) {
 	return func(ctx context.Context, in *VideoKeyInput) (*struct{}, error) {
-		if err := app.DeleteVideo(ctx, videos, writer, tasks, forgetter, in.Key); err != nil {
+		if err := app.DeleteVideo(ctx, videos, writer, forgetter, store, log, in.Key); err != nil {
 			return nil, mapError(err)
 		}
 		return nil, nil //nolint:nilnil // huma models 204 as a nil body
@@ -247,15 +250,16 @@ func registerVideoRoutes(
 	channels repository.ChannelReader,
 	channelWriter repository.ChannelWriter,
 	taskReader repository.TaskReader,
-	taskWriter repository.TaskWriter,
 	submitter app.GraphSubmitter,
 	canceller app.VideoCanceller,
 	approver app.GateApprover,
 	rejecter app.GateRejecter,
 	forgetter app.VideoForgetter,
+	store provider.AssetStore,
 	settings *service.Settings,
 	newID func() string,
 	now func() time.Time,
+	log *slog.Logger,
 ) {
 	huma.Register(api, huma.Operation{
 		OperationID: "listVideos", Method: "GET", Path: "/api/videos",
@@ -296,5 +300,5 @@ func registerVideoRoutes(
 	huma.Register(api, huma.Operation{
 		OperationID: "deleteVideo", Method: "DELETE", Path: "/api/videos/{key}",
 		Summary: "Delete a video", Tags: []string{"videos"}, DefaultStatus: 204,
-	}, deleteVideo(videos, videoWriter, taskWriter, forgetter))
+	}, deleteVideo(videos, videoWriter, forgetter, store, log))
 }

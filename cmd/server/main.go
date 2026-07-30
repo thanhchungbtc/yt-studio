@@ -60,11 +60,20 @@ type seedCmd struct {
 	bootstrap
 }
 
+type sweepCmd struct {
+	bootstrap
+	//nolint:lll // one flag, one line
+	Apply bool `help:"Actually delete. Without it the sweep only reports what it would free." default:"false"`
+	//nolint:lll // one flag, one line
+	Force bool `help:"Sweep even when the database references no assets at all, which normally means --db is wrong." default:"false"`
+}
+
 type versionCmd struct{}
 
 type cli struct {
 	Serve   serveCmd   `cmd:"" default:"withargs" help:"Run the daemon."`
 	Seed    seedCmd    `cmd:"" help:"Apply migrations and write the default settings and channels, then exit."`
+	Sweep   sweepCmd   `cmd:"" help:"Reclaim asset files nothing references. Reports unless --apply is given."`
 	Version versionCmd `cmd:"" help:"Print the version."`
 }
 
@@ -103,6 +112,92 @@ func (c *seedCmd) Run() error {
 	err = seed(gctx, store, log)
 	stopWriter()
 	return errors.Join(err, g.Wait(), store.Close())
+}
+
+// Run reclaims store files that nothing in the database references.
+//
+// It repairs asset ownership first, unconditionally. That order is the whole
+// safety property: a file a surviving video reaches only through its chapters'
+// id lists has no owning row until the repair gives it one, and without the row
+// this command would read it as garbage.
+func (c *sweepCmd) Run() error {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	_, log := newLogger(c.LogLevel)
+
+	store, err := sqlite.Open(ctx, sqlite.Options{Path: c.DB}, log)
+	if err != nil {
+		return err
+	}
+	g, gctx := errgroup.WithContext(ctx)
+	writerCtx, stopWriter := context.WithCancel(gctx)
+	g.Go(func() error { return store.Run(writerCtx) })
+
+	err = sweep(gctx, store, c.Assets, c.Apply, c.Force, log)
+	stopWriter()
+	return errors.Join(err, g.Wait(), store.Close())
+}
+
+func sweep(
+	ctx context.Context,
+	store *sqlite.Store,
+	root string,
+	apply, force bool,
+	log *slog.Logger,
+) error {
+	assets, err := assetstore.New(root)
+	if err != nil {
+		return err
+	}
+	if _, err := app.RepairAssetOwnership(ctx, store, store, store, assets, time.Now().UTC(), log); err != nil {
+		return fmt.Errorf("repair asset ownership: %w", err)
+	}
+	report, sweepErr := app.SweepAssets(ctx, store, assets, app.SweepOptions{
+		Apply: apply,
+		Force: force,
+		Now:   time.Now(),
+	}, log)
+	// The report is printed even when the sweep refused: those numbers are what
+	// explain the refusal.
+	printSweepReport(report, apply && sweepErr == nil)
+	return sweepErr
+}
+
+func printSweepReport(report app.SweepReport, applied bool) {
+	fmt.Printf("%-14s %d\n", "files", report.Files)
+	fmt.Printf("%-14s %d\n", "referenced", report.Referenced)
+	fmt.Printf("%-14s %d\n", "unreferenced", report.Unreferenced)
+	fmt.Printf("%-14s %d\n", "debris", report.Debris)
+	if report.Unrecognised > 0 {
+		fmt.Printf("%-14s %d (kept; nothing in the database describes them)\n", "unrecognised", report.Unrecognised)
+		for _, rel := range report.UnrecognisedSample {
+			fmt.Printf("               %s\n", rel)
+		}
+	}
+	if applied {
+		fmt.Printf("%-14s %d files, %s\n", "removed", report.Removed, humanBytes(report.Bytes))
+		return
+	}
+	if report.Reclaimable() > 0 {
+		fmt.Printf("\n%d files can be reclaimed. Re-run with --apply to delete them.\n", report.Reclaimable())
+	}
+}
+
+// humanBytes formats a byte count for one line of operator output.
+func humanBytes(n int64) string {
+	const unit = 1024
+	if n < unit {
+		return fmt.Sprintf("%d B", n)
+	}
+	value := float64(n)
+	for _, suffix := range []string{"KiB", "MiB", "GiB", "TiB"} {
+		value /= unit
+		if value < unit {
+			return fmt.Sprintf("%.1f %s", value, suffix)
+		}
+	}
+	return fmt.Sprintf("%.1f PiB", value)
 }
 
 func seed(ctx context.Context, store *sqlite.Store, log *slog.Logger) error {
@@ -150,6 +245,15 @@ func (c *serveCmd) Run() error {
 	assets, err := assetstore.New(c.Assets)
 	if err != nil {
 		return err
+	}
+
+	// Before anything can serve a delete, every reference to a stored file must
+	// have the row that says who owns it: that is what a delete consults to decide
+	// which files it may reclaim. Normally this finds nothing and costs one query.
+	if repaired, err := app.RepairAssetOwnership(ctx, store, store, store, assets, time.Now().UTC(), log); err != nil {
+		return fmt.Errorf("repair asset ownership: %w", err)
+	} else if repaired > 0 {
+		log.Info("reconstructed asset ownership rows", slog.Int("rows", repaired))
 	}
 
 	// Backends are registered before the settings are loaded, so a row naming one
@@ -226,7 +330,6 @@ func (c *serveCmd) Run() error {
 		ChapterFields: store,
 		Assets:        store,
 		Tasks:         store,
-		TaskWriter:    store,
 		Store:         assets,
 		Settings:      settings,
 

@@ -26,7 +26,17 @@ type VideoReader interface {
 type VideoWriter interface {
 	CreateVideo(ctx context.Context, v entity.Video) error
 	UpdateVideo(ctx context.Context, v entity.Video) error
-	DeleteVideo(ctx context.Context, id entity.VideoID) error
+	// DeleteVideo removes a video and everything that belongs to it — its
+	// chapters, its asset rows and its task graph — as one transaction, and
+	// returns the assets whose last owner it just removed.
+	//
+	// Those returned assets are the files the caller may unlink: their rows are
+	// gone and no other video's row names the same content address. Anything
+	// still shared with a surviving video is deliberately absent. The unlink
+	// happens after this returns, never inside it — a crash in between leaves an
+	// unreferenced file, which the sweep reclaims, where the other order would
+	// leave a live row pointing at nothing.
+	DeleteVideo(ctx context.Context, id entity.VideoID) ([]entity.Asset, error)
 }
 
 // VideoFieldWriter narrows writes to a single field, so a task that produced

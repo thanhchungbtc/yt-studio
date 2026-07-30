@@ -9,10 +9,26 @@ import (
 	"context"
 )
 
-const getAssetByID = `-- name: GetAssetByID :one
-SELECT id, video_id, chapter_id, kind, path, size, mime, provenance, created_at FROM assets WHERE id = ?
+const countAssetOwners = `-- name: CountAssetOwners :one
+SELECT COUNT(*) AS owners FROM assets WHERE id = ?
 `
 
+// The whole reference count. Run it once a video's rows are gone: zero owners
+// means the file is unreachable and safe to unlink.
+func (q *Queries) CountAssetOwners(ctx context.Context, id string) (int64, error) {
+	row := q.queryRow(ctx, q.countAssetOwnersStmt, countAssetOwners, id)
+	var owners int64
+	err := row.Scan(&owners)
+	return owners, err
+}
+
+const getAssetByID = `-- name: GetAssetByID :one
+SELECT id, video_id, chapter_id, kind, path, size, mime, provenance, created_at FROM assets WHERE id = ? LIMIT 1
+`
+
+// Serving is by content address alone. Every owner's row carries the same path,
+// size and mime -- all three are functions of the address and the kind -- so any
+// one row answers the question.
 func (q *Queries) GetAssetByID(ctx context.Context, id string) (Asset, error) {
 	row := q.queryRow(ctx, q.getAssetByIDStmt, getAssetByID, id)
 	var i Asset
@@ -28,6 +44,40 @@ func (q *Queries) GetAssetByID(ctx context.Context, id string) (Asset, error) {
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const listAssetAddresses = `-- name: ListAssetAddresses :many
+SELECT DISTINCT id, kind FROM assets ORDER BY id
+`
+
+type ListAssetAddressesRow struct {
+	ID   string
+	Kind string
+}
+
+// Every address the database still knows about, for the sweep to compare the
+// store against.
+func (q *Queries) ListAssetAddresses(ctx context.Context) ([]ListAssetAddressesRow, error) {
+	rows, err := q.query(ctx, q.listAssetAddressesStmt, listAssetAddresses)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAssetAddressesRow{}
+	for rows.Next() {
+		var i ListAssetAddressesRow
+		if err := rows.Scan(&i.ID, &i.Kind); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listAssetsByVideo = `-- name: ListAssetsByVideo :many
@@ -67,10 +117,82 @@ func (q *Queries) ListAssetsByVideo(ctx context.Context, videoID string) ([]Asse
 	return items, nil
 }
 
+const listMissingAssetOwners = `-- name: ListMissingAssetOwners :many
+WITH refs AS (
+    SELECT id AS video_id, CAST(NULL AS TEXT) AS chapter_id,
+           blueprint_asset_id AS asset_id, CAST('blueprint' AS TEXT) AS kind
+    FROM videos WHERE blueprint_asset_id IS NOT NULL AND blueprint_asset_id <> ''
+    UNION ALL
+    SELECT id AS video_id, CAST(NULL AS TEXT) AS chapter_id,
+           final_asset_id AS asset_id, CAST('final' AS TEXT) AS kind
+    FROM videos WHERE final_asset_id IS NOT NULL AND final_asset_id <> ''
+    UNION ALL
+    SELECT video_id, id AS chapter_id,
+           audio_asset_id AS asset_id, CAST('audio' AS TEXT) AS kind
+    FROM chapters WHERE audio_asset_id IS NOT NULL AND audio_asset_id <> ''
+    UNION ALL
+    SELECT video_id, id AS chapter_id,
+           clip_asset_id AS asset_id, CAST('clip' AS TEXT) AS kind
+    FROM chapters WHERE clip_asset_id IS NOT NULL AND clip_asset_id <> ''
+    UNION ALL
+    SELECT c.video_id AS video_id, c.id AS chapter_id,
+           CAST(j.value AS TEXT) AS asset_id, CAST('image' AS TEXT) AS kind
+    FROM chapters c, json_each(c.image_asset_ids_json) j
+    WHERE j.value IS NOT NULL AND j.value <> ''
+)
+SELECT DISTINCT video_id, chapter_id, asset_id, kind
+FROM refs
+WHERE NOT EXISTS (
+    SELECT 1 FROM assets a WHERE a.id = asset_id AND a.video_id = refs.video_id
+)
+`
+
+type ListMissingAssetOwnersRow struct {
+	VideoID   string
+	ChapterID *string
+	AssetID   *string
+	Kind      string
+}
+
+// Ownership edges present in the data but missing from the assets table.
+//
+// Before the (id, video_id) key, a video that reused another video's bytes got
+// no row of its own, so the only surviving record of that reference is the id
+// sitting on the video or on its chapters. This finds those. It normally returns
+// nothing: the anti-join is what makes the one-time repair a no-op once it has
+// run, cheap enough to attempt at every startup.
+func (q *Queries) ListMissingAssetOwners(ctx context.Context) ([]ListMissingAssetOwnersRow, error) {
+	rows, err := q.query(ctx, q.listMissingAssetOwnersStmt, listMissingAssetOwners)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMissingAssetOwnersRow{}
+	for rows.Next() {
+		var i ListMissingAssetOwnersRow
+		if err := rows.Scan(
+			&i.VideoID,
+			&i.ChapterID,
+			&i.AssetID,
+			&i.Kind,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const putAsset = `-- name: PutAsset :exec
 INSERT INTO assets (id, video_id, chapter_id, kind, path, size, mime, provenance, created_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT (id) DO NOTHING
+ON CONFLICT (id, video_id) DO NOTHING
 `
 
 type PutAssetParams struct {
@@ -85,8 +207,10 @@ type PutAssetParams struct {
 	CreatedAt  int64
 }
 
-// Content-addressed: an identical byte stream re-uses the existing row, which
-// is what makes a partial re-run cheap.
+// One row per video per content address. The file is still stored once: two
+// videos that produce identical bytes share it and each records its own
+// ownership, which is what lets a delete tell "nobody else needs this file" from
+// "another video still does" (goal.md section 3).
 func (q *Queries) PutAsset(ctx context.Context, arg PutAssetParams) error {
 	_, err := q.exec(ctx, q.putAssetStmt, putAsset,
 		arg.ID,

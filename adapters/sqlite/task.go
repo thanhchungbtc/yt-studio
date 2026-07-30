@@ -174,15 +174,6 @@ func (s *Store) ApplyTransitions(ctx context.Context, transitions []repository.T
 	})
 }
 
-// DeleteGraph removes a video's tasks and edges, for a full re-run.
-func (s *Store) DeleteGraph(ctx context.Context, videoID entity.VideoID) error {
-	return s.doTx(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
-		if err := q.DeleteTaskDepsByVideo(ctx, string(videoID)); err != nil {
-			return fmt.Errorf("delete deps of %s: %w", videoID, err)
-		}
-		if err := q.DeleteTasksByVideo(ctx, string(videoID)); err != nil {
-			return fmt.Errorf("delete tasks of %s: %w", videoID, err)
-		}
-		return nil
-	})
-}
+// A video's tasks and edges are deleted as part of DeleteVideo's transaction
+// rather than through a port of their own: a graph without its video is not a
+// state anything wants, so there is no caller for the narrower operation.

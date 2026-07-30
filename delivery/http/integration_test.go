@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -121,7 +122,7 @@ func newHarness(t *testing.T) *harness {
 	handler, _ := deliveryhttp.NewRouter(deliveryhttp.Deps{
 		Channels: store, ChannelWriter: store, Videos: store, VideoWriter: store,
 		VideoStates: store, Chapters: store, ChapterFields: store, Assets: store,
-		Tasks: store, TaskWriter: store, Store: assets, Settings: settings,
+		Tasks: store, Store: assets, Settings: settings,
 		Submitter: sched, Canceller: sched, Approver: sched, Rejecter: sched,
 		Forgetter: sched, TaskRetry: sched, ChapRetry: sched, Pools: sched,
 		Reporter: sched, Prompts: llm, Notifier: broker, Coalescer: broker,
@@ -823,6 +824,7 @@ func TestAPIErrorsAreMapped(t *testing.T) {
 		want         int
 	}{
 		{http.MethodGet, "/api/videos/DSS-999", nil, http.StatusNotFound},
+		{http.MethodDelete, "/api/videos/DSS-999", nil, http.StatusNotFound},
 		{http.MethodGet, "/api/channels/no-such-channel", nil, http.StatusNotFound},
 		{http.MethodGet, "/api/tasks/nope", nil, http.StatusNotFound},
 		{http.MethodPost, "/api/videos", map[string]any{"channel": "deep-sleep-stories"}, http.StatusUnprocessableEntity},
@@ -922,4 +924,116 @@ func TestAPIResponseLatencyBudget(t *testing.T) {
 		t.Fatalf("API p99 = %s, budget is 50ms", p99)
 	}
 	t.Logf("API p99 = %s (median %s)", p99, durations[len(durations)/2])
+}
+
+// assetListing is a video's artifacts as the API reports them.
+type assetListing struct {
+	Assets []struct {
+		ID   string `json:"id"`
+		Kind string `json:"kind"`
+	} `json:"assets"`
+}
+
+func (h *harness) fileExists(id, kind string) bool {
+	h.t.Helper()
+	path := filepath.Join(h.assets.Root(), assetstore.RelPath(entity.AssetID(id), entity.AssetKind(kind)))
+	_, err := os.Stat(path)
+	switch {
+	case err == nil:
+		return true
+	case os.IsNotExist(err):
+		return false
+	default:
+		h.t.Fatalf("stat %s: %v", path, err)
+		return false
+	}
+}
+
+// Deleting a video takes its rows, its running work and its files with it. The
+// video here is parked at the upload gate with a live graph in the scheduler,
+// which is the state an operator is most likely to delete from.
+func TestDeleteVideoRemovesEverythingItOwns(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+
+	createVideo(h, 3, 2, true)
+	h.approve("DSS-1", "blueprint", 15*time.Second)
+	h.waitForGate("DSS-1", "upload", 30*time.Second)
+
+	var produced assetListing
+	h.json(http.MethodGet, "/api/videos/DSS-1/assets", nil, http.StatusOK, &produced)
+	if len(produced.Assets) < 10 {
+		t.Fatalf("the video only produced %d artifacts; the test needs it to have worked", len(produced.Assets))
+	}
+	first := produced.Assets[0]
+	if resp, _ := h.do(http.MethodGet, "/assets/"+first.ID, nil); resp.StatusCode != http.StatusOK {
+		t.Fatalf("artifact is not served before the delete: %d", resp.StatusCode)
+	}
+
+	h.json(http.MethodDelete, "/api/videos/DSS-1", nil, http.StatusNoContent, nil)
+
+	for _, path := range []string{
+		"/api/videos/DSS-1",
+		"/api/videos/DSS-1/tasks",
+		"/api/videos/DSS-1/chapters",
+		"/api/videos/DSS-1/assets",
+	} {
+		if resp, _ := h.do(http.MethodGet, path, nil); resp.StatusCode != http.StatusNotFound {
+			t.Errorf("GET %s = %d after the delete, want 404", path, resp.StatusCode)
+		}
+	}
+
+	// Nothing else references these bytes, so every one of them is reclaimed:
+	// both the row that served them and the file behind it.
+	for _, a := range produced.Assets {
+		if resp, _ := h.do(http.MethodGet, "/assets/"+a.ID, nil); resp.StatusCode != http.StatusNotFound {
+			t.Errorf("GET /assets/%s = %d after the delete, want 404", a.ID[:12], resp.StatusCode)
+		}
+		if h.fileExists(a.ID, a.Kind) {
+			t.Errorf("%s artifact %s was left on disk", a.Kind, a.ID[:12])
+		}
+	}
+
+	// Deleting it again is a not-found, not a second success.
+	if resp, _ := h.do(http.MethodDelete, "/api/videos/DSS-1", nil); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("second delete = %d, want 404", resp.StatusCode)
+	}
+
+	// The list is empty rather than holding a row that points at nothing.
+	var list struct {
+		Videos []videoBody `json:"videos"`
+		Total  int         `json:"total"`
+	}
+	h.json(http.MethodGet, "/api/videos", nil, http.StatusOK, &list)
+	if list.Total != 0 || len(list.Videos) != 0 {
+		t.Errorf("videos after the delete = %d (total %d)", len(list.Videos), list.Total)
+	}
+}
+
+// A channel takes its videos' files with it too: the cascade goes through the
+// same per-video path rather than leaving the disk to the foreign key.
+func TestDeleteChannelReclaimsItsVideosFiles(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+
+	createVideo(h, 2, 1, true)
+	h.approve("DSS-1", "blueprint", 15*time.Second)
+	h.waitForGate("DSS-1", "upload", 30*time.Second)
+
+	var produced assetListing
+	h.json(http.MethodGet, "/api/videos/DSS-1/assets", nil, http.StatusOK, &produced)
+	if len(produced.Assets) == 0 {
+		t.Fatal("the video produced no artifacts")
+	}
+
+	h.json(http.MethodDelete, "/api/channels/deep-sleep-stories", nil, http.StatusNoContent, nil)
+
+	if resp, _ := h.do(http.MethodGet, "/api/videos/DSS-1", nil); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("the channel's video survived: %d", resp.StatusCode)
+	}
+	for _, a := range produced.Assets {
+		if h.fileExists(a.ID, a.Kind) {
+			t.Errorf("%s artifact %s was left on disk", a.Kind, a.ID[:12])
+		}
+	}
 }

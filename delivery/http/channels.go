@@ -2,12 +2,14 @@ package http
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/tbui/yt-studio/app"
 	"github.com/tbui/yt-studio/domain/entity"
+	"github.com/tbui/yt-studio/domain/provider"
 	"github.com/tbui/yt-studio/domain/repository"
 )
 
@@ -114,11 +116,13 @@ func deleteChannel(
 	channels repository.ChannelReader,
 	writer repository.ChannelWriter,
 	videos repository.VideoReader,
-	tasks repository.TaskWriter,
+	videoWriter repository.VideoWriter,
 	forgetter app.VideoForgetter,
+	store provider.AssetStore,
+	log *slog.Logger,
 ) func(context.Context, *ChannelKeyInput) (*struct{}, error) {
 	return func(ctx context.Context, in *ChannelKeyInput) (*struct{}, error) {
-		if err := app.DeleteChannel(ctx, channels, writer, videos, tasks, forgetter, in.Key); err != nil {
+		if err := app.DeleteChannel(ctx, channels, writer, videos, videoWriter, forgetter, store, log, in.Key); err != nil {
 			return nil, mapError(err)
 		}
 		return nil, nil //nolint:nilnil // huma models 204 as a nil body
@@ -130,10 +134,12 @@ func registerChannelRoutes(
 	channels repository.ChannelReader,
 	channelWriter repository.ChannelWriter,
 	videos repository.VideoReader,
-	tasks repository.TaskWriter,
+	videoWriter repository.VideoWriter,
 	forgetter app.VideoForgetter,
+	store provider.AssetStore,
 	newID func() string,
 	now func() time.Time,
+	log *slog.Logger,
 ) {
 	huma.Register(api, huma.Operation{
 		OperationID: "listChannels", Method: "GET", Path: "/api/channels",
@@ -158,5 +164,5 @@ func registerChannelRoutes(
 	huma.Register(api, huma.Operation{
 		OperationID: "deleteChannel", Method: "DELETE", Path: "/api/channels/{key}",
 		Summary: "Delete a channel", Tags: []string{"channels"}, DefaultStatus: 204,
-	}, deleteChannel(channels, channelWriter, videos, tasks, forgetter))
+	}, deleteChannel(channels, channelWriter, videos, videoWriter, forgetter, store, log))
 }

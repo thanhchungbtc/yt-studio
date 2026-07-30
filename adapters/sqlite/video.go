@@ -205,11 +205,51 @@ func (s *Store) SetVideoState(ctx context.Context, id entity.VideoID, state enti
 	})
 }
 
-// DeleteVideo removes a video and, by cascade, its chapters.
-func (s *Store) DeleteVideo(ctx context.Context, id entity.VideoID) error {
-	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
-		return q.DeleteVideo(ctx, string(id))
+// DeleteVideo removes a video and everything below it in one transaction, and
+// reports which files that left unreferenced.
+//
+// Chapters and asset rows go by foreign key; tasks and their edges are deleted
+// explicitly, because a task is keyed by video without a constraint to hang a
+// cascade on. Doing it as one transaction is what keeps a failure from leaving a
+// video with no graph, or a graph with no video.
+//
+// The owner count is asked *after* the rows are gone, so an address with no
+// owners left is one nothing surviving can reach. An address another video still
+// owns is simply not returned, and its file stays where it is.
+func (s *Store) DeleteVideo(ctx context.Context, id entity.VideoID) ([]entity.Asset, error) {
+	var unreferenced []entity.Asset
+	err := s.doTx(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
+		// Reset per attempt: the caller sees the result of the commit that stuck.
+		unreferenced = nil
+
+		owned, err := q.ListAssetsByVideo(ctx, string(id))
+		if err != nil {
+			return fmt.Errorf("list assets of %s: %w", id, err)
+		}
+		if err := q.DeleteTaskDepsByVideo(ctx, string(id)); err != nil {
+			return fmt.Errorf("delete deps of %s: %w", id, err)
+		}
+		if err := q.DeleteTasksByVideo(ctx, string(id)); err != nil {
+			return fmt.Errorf("delete tasks of %s: %w", id, err)
+		}
+		if err := q.DeleteVideo(ctx, string(id)); err != nil {
+			return fmt.Errorf("delete video %s: %w", id, err)
+		}
+		for _, row := range owned {
+			owners, err := q.CountAssetOwners(ctx, row.ID)
+			if err != nil {
+				return fmt.Errorf("count owners of asset %s: %w", row.ID, err)
+			}
+			if owners == 0 {
+				unreferenced = append(unreferenced, assetFromRow(row))
+			}
+		}
+		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
+	return unreferenced, nil
 }
 
 var (

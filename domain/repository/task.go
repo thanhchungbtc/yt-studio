@@ -81,6 +81,4 @@ type TaskWriter interface {
 	InsertGraph(ctx context.Context, videoID entity.VideoID, tasks []entity.Task, edges []TaskEdge) error
 	// ApplyTransitions commits N transitions in a single transaction.
 	ApplyTransitions(ctx context.Context, transitions []TaskTransition) error
-	// DeleteGraph removes a video's tasks and edges, for a full re-run.
-	DeleteGraph(ctx context.Context, videoID entity.VideoID) error
 }

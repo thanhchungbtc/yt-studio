@@ -27,6 +27,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.applyTaskTransitionStmt, err = db.PrepareContext(ctx, applyTaskTransition); err != nil {
 		return nil, fmt.Errorf("error preparing query ApplyTaskTransition: %w", err)
 	}
+	if q.countAssetOwnersStmt, err = db.PrepareContext(ctx, countAssetOwners); err != nil {
+		return nil, fmt.Errorf("error preparing query CountAssetOwners: %w", err)
+	}
 	if q.countTasksByVideoStmt, err = db.PrepareContext(ctx, countTasksByVideo); err != nil {
 		return nil, fmt.Errorf("error preparing query CountTasksByVideo: %w", err)
 	}
@@ -90,6 +93,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.insertTaskDepStmt, err = db.PrepareContext(ctx, insertTaskDep); err != nil {
 		return nil, fmt.Errorf("error preparing query InsertTaskDep: %w", err)
 	}
+	if q.listAssetAddressesStmt, err = db.PrepareContext(ctx, listAssetAddresses); err != nil {
+		return nil, fmt.Errorf("error preparing query ListAssetAddresses: %w", err)
+	}
 	if q.listAssetsByVideoStmt, err = db.PrepareContext(ctx, listAssetsByVideo); err != nil {
 		return nil, fmt.Errorf("error preparing query ListAssetsByVideo: %w", err)
 	}
@@ -98,6 +104,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.listChaptersByVideoStmt, err = db.PrepareContext(ctx, listChaptersByVideo); err != nil {
 		return nil, fmt.Errorf("error preparing query ListChaptersByVideo: %w", err)
+	}
+	if q.listMissingAssetOwnersStmt, err = db.PrepareContext(ctx, listMissingAssetOwners); err != nil {
+		return nil, fmt.Errorf("error preparing query ListMissingAssetOwners: %w", err)
 	}
 	if q.listRecentTasksStmt, err = db.PrepareContext(ctx, listRecentTasks); err != nil {
 		return nil, fmt.Errorf("error preparing query ListRecentTasks: %w", err)
@@ -179,6 +188,11 @@ func (q *Queries) Close() error {
 	if q.applyTaskTransitionStmt != nil {
 		if cerr := q.applyTaskTransitionStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing applyTaskTransitionStmt: %w", cerr)
+		}
+	}
+	if q.countAssetOwnersStmt != nil {
+		if cerr := q.countAssetOwnersStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing countAssetOwnersStmt: %w", cerr)
 		}
 	}
 	if q.countTasksByVideoStmt != nil {
@@ -286,6 +300,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing insertTaskDepStmt: %w", cerr)
 		}
 	}
+	if q.listAssetAddressesStmt != nil {
+		if cerr := q.listAssetAddressesStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listAssetAddressesStmt: %w", cerr)
+		}
+	}
 	if q.listAssetsByVideoStmt != nil {
 		if cerr := q.listAssetsByVideoStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listAssetsByVideoStmt: %w", cerr)
@@ -299,6 +318,11 @@ func (q *Queries) Close() error {
 	if q.listChaptersByVideoStmt != nil {
 		if cerr := q.listChaptersByVideoStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listChaptersByVideoStmt: %w", cerr)
+		}
+	}
+	if q.listMissingAssetOwnersStmt != nil {
+		if cerr := q.listMissingAssetOwnersStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listMissingAssetOwnersStmt: %w", cerr)
 		}
 	}
 	if q.listRecentTasksStmt != nil {
@@ -461,6 +485,7 @@ type Queries struct {
 	db                          DBTX
 	tx                          *sql.Tx
 	applyTaskTransitionStmt     *sql.Stmt
+	countAssetOwnersStmt        *sql.Stmt
 	countTasksByVideoStmt       *sql.Stmt
 	countVideosStmt             *sql.Stmt
 	createChannelStmt           *sql.Stmt
@@ -482,9 +507,11 @@ type Queries struct {
 	incrementVideoSeqStmt       *sql.Stmt
 	insertTaskStmt              *sql.Stmt
 	insertTaskDepStmt           *sql.Stmt
+	listAssetAddressesStmt      *sql.Stmt
 	listAssetsByVideoStmt       *sql.Stmt
 	listChannelsStmt            *sql.Stmt
 	listChaptersByVideoStmt     *sql.Stmt
+	listMissingAssetOwnersStmt  *sql.Stmt
 	listRecentTasksStmt         *sql.Stmt
 	listSettingsStmt            *sql.Stmt
 	listStaleTasksByVideoStmt   *sql.Stmt
@@ -516,6 +543,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		db:                          tx,
 		tx:                          tx,
 		applyTaskTransitionStmt:     q.applyTaskTransitionStmt,
+		countAssetOwnersStmt:        q.countAssetOwnersStmt,
 		countTasksByVideoStmt:       q.countTasksByVideoStmt,
 		countVideosStmt:             q.countVideosStmt,
 		createChannelStmt:           q.createChannelStmt,
@@ -537,9 +565,11 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		incrementVideoSeqStmt:       q.incrementVideoSeqStmt,
 		insertTaskStmt:              q.insertTaskStmt,
 		insertTaskDepStmt:           q.insertTaskDepStmt,
+		listAssetAddressesStmt:      q.listAssetAddressesStmt,
 		listAssetsByVideoStmt:       q.listAssetsByVideoStmt,
 		listChannelsStmt:            q.listChannelsStmt,
 		listChaptersByVideoStmt:     q.listChaptersByVideoStmt,
+		listMissingAssetOwnersStmt:  q.listMissingAssetOwnersStmt,
 		listRecentTasksStmt:         q.listRecentTasksStmt,
 		listSettingsStmt:            q.listSettingsStmt,
 		listStaleTasksByVideoStmt:   q.listStaleTasksByVideoStmt,

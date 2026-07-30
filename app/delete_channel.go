@@ -3,20 +3,27 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
+	"github.com/tbui/yt-studio/domain/provider"
 	"github.com/tbui/yt-studio/domain/repository"
 )
 
-// DeleteChannel removes a channel and, by cascade, its videos and chapters. Its
-// videos are dropped from the scheduler first so nothing keeps running against
-// rows that no longer exist.
+// DeleteChannel removes a channel and everything it owns.
+//
+// Its videos are deleted one at a time through the same path a single delete
+// takes, rather than left to the channel's foreign key, so each one is dropped
+// from the scheduler first and its unreferenced files are reclaimed. Cascading
+// from the channel row would take the rows and leave the disk.
 func DeleteChannel(
 	ctx context.Context,
 	channels repository.ChannelReader,
 	writer repository.ChannelWriter,
 	videos repository.VideoReader,
-	tasks repository.TaskWriter,
+	videoWriter repository.VideoWriter,
 	forgetter VideoForgetter,
+	store provider.AssetStore,
+	log *slog.Logger,
 	key string,
 ) error {
 	c, err := GetChannel(ctx, channels, key)
@@ -31,9 +38,11 @@ func DeleteChannel(
 		if err := forgetter.Forget(ctx, v.ID); err != nil {
 			return fmt.Errorf("forget %s: %w", v.Ref, err)
 		}
-		if err := tasks.DeleteGraph(ctx, v.ID); err != nil {
-			return fmt.Errorf("delete graph of %s: %w", v.Ref, err)
+		unreferenced, err := videoWriter.DeleteVideo(ctx, v.ID)
+		if err != nil {
+			return fmt.Errorf("delete %s: %w", v.Ref, err)
 		}
+		reclaim(ctx, store, log, unreferenced, v.Ref)
 	}
 	return writer.DeleteChannel(ctx, c.ID)
 }

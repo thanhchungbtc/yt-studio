@@ -10,6 +10,7 @@ import (
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
 	"github.com/tbui/yt-studio/domain/entity"
+	"github.com/tbui/yt-studio/domain/provider"
 )
 
 func newStore(t *testing.T) *assetstore.FS {
@@ -120,5 +121,105 @@ func TestPathResolvesUnderTheRoot(t *testing.T) {
 	}
 	if want := filepath.Join(store.Root(), assetstore.RelPath(id, entity.AssetKindClip)); path != want {
 		t.Errorf("path = %s, want %s", path, want)
+	}
+}
+
+func TestDeleteIsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	store := newStore(t)
+	stored, err := store.Put(t.Context(), entity.AssetKindImage, bytes.NewReader([]byte("a still")))
+	if err != nil {
+		t.Fatalf("put: %v", err)
+	}
+
+	if err := store.Delete(t.Context(), stored.ID, entity.AssetKindImage); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(store.Root(), stored.Path)); !os.IsNotExist(err) {
+		t.Errorf("file survived the delete: %v", err)
+	}
+	// A reclaim interrupted after the database committed is retried, and must not
+	// fail on the half it already finished.
+	if err := store.Delete(t.Context(), stored.ID, entity.AssetKindImage); err != nil {
+		t.Errorf("deleting an absent asset = %v, want nil", err)
+	}
+}
+
+func TestRemoveRefusesToEscapeTheRoot(t *testing.T) {
+	t.Parallel()
+
+	store := newStore(t)
+	if err := store.Remove(t.Context(), filepath.Join("..", "outside.txt")); err == nil {
+		t.Error("expected a path outside the root to be refused")
+	}
+}
+
+// The sweep decides what to delete from what Walk says a file is, so the
+// classification is the safety-critical part: only a file this package wrote may
+// be recognised as an asset.
+func TestWalkClassifiesWhatItFinds(t *testing.T) {
+	t.Parallel()
+
+	store := newStore(t)
+	asset, err := store.Put(t.Context(), entity.AssetKindImage, bytes.NewReader([]byte("a still")))
+	if err != nil {
+		t.Fatalf("put: %v", err)
+	}
+	debris := writeTemp(t, store, "half a render")
+
+	// Two impostors: the right shape in the wrong place, and the right place with
+	// the wrong name.
+	strays := map[string]string{
+		filepath.Join(store.Root(), "notes.txt"):                     "written by a person",
+		filepath.Join(store.Root(), "image", "aa", "not-a-hash.png"): "wrong name",
+	}
+	for path, content := range strays {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	seen := map[string]provider.StoredFile{}
+	if err := store.Walk(t.Context(), func(f provider.StoredFile) error {
+		seen[f.Rel] = f
+		return nil
+	}); err != nil {
+		t.Fatalf("walk: %v", err)
+	}
+	if len(seen) != 4 {
+		t.Fatalf("walked %d files, want 4: %v", len(seen), seen)
+	}
+
+	found, ok := seen[assetstore.RelPath(asset.ID, entity.AssetKindImage)]
+	if !ok {
+		t.Fatal("the stored asset was not walked")
+	}
+	if found.ID != asset.ID || found.Kind != entity.AssetKindImage {
+		t.Errorf("asset walked as id=%q kind=%q", found.ID, found.Kind)
+	}
+	if found.Size != asset.Size || found.Temporary {
+		t.Errorf("asset walked as %+v", found)
+	}
+
+	relDebris, err := filepath.Rel(store.Root(), debris)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if temp := seen[relDebris]; !temp.Temporary || temp.ID != "" {
+		t.Errorf("scratch file walked as %+v, want temporary with no address", temp)
+	}
+
+	for path := range strays {
+		rel, err := filepath.Rel(store.Root(), path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if stray := seen[rel]; stray.ID != "" {
+			t.Errorf("%s was recognised as asset %s", rel, stray.ID)
+		}
 	}
 }

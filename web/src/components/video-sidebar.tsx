@@ -291,11 +291,16 @@ export function VideoSidebar({ activeRef }: { activeRef?: string }) {
         ))}
       </div>
 
-      <DeleteVideoDialog
-        video={pendingDelete}
-        active={pendingDelete?.ref === activeRef}
-        onClose={() => setPendingDelete(null)}
-      />
+      {/* Keyed on the target, so a failed attempt on one video never greets the
+          next one with the previous error still on screen. */}
+      {pendingDelete && (
+        <DeleteVideoDialog
+          key={pendingDelete.ref}
+          video={pendingDelete}
+          active={pendingDelete.ref === activeRef}
+          onClose={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   )
 }
@@ -311,7 +316,7 @@ function DeleteVideoDialog({
   active,
   onClose,
 }: {
-  video: Video | null
+  video: Video
   active: boolean
   onClose: () => void
 }) {
@@ -319,56 +324,56 @@ function DeleteVideoDialog({
   const navigate = useNavigate()
 
   const remove = useMutation({
-    mutationFn: (ref: string) => api.deleteVideo(ref),
-    onSuccess: async () => {
-      if (!video) return
-      queryClient.removeQueries({ queryKey: qk.video(video.ref) })
-      await queryClient.invalidateQueries({ queryKey: qk.videos({}) })
-      void queryClient.invalidateQueries({ queryKey: qk.channels })
-      // The detail pane is showing something that no longer exists.
+    mutationFn: () => api.deleteVideo(video.ref),
+    onSuccess: () => {
+      // Leave first, drop the cache second. The detail pane is looking at a video
+      // that no longer exists, and pulling its data out from under it while it is
+      // still mounted only buys a refetch that 404s.
       if (active) void navigate({ to: '/videos' })
       onClose()
+
+      // Both keys: the pane reads the video by ref and its chapters, tasks and
+      // artifacts by id, and the event stream writes to both.
+      queryClient.removeQueries({ queryKey: qk.video(video.ref) })
+      queryClient.removeQueries({ queryKey: qk.video(video.id) })
+      void queryClient.invalidateQueries({ queryKey: qk.videos({}) })
+      void queryClient.invalidateQueries({ queryKey: qk.channels })
+      // The console's table can still be holding this video's tasks.
+      void queryClient.invalidateQueries({ queryKey: qk.recentTasks })
     },
   })
 
-  const running = video?.state === 'running' || video?.state === 'awaiting_approval'
+  const running = video.state === 'running' || video.state === 'awaiting_approval'
 
   return (
     <Modal
-      open={video !== null}
+      open
       onOpenChange={(next) => {
-        if (!next && !remove.isPending) {
-          remove.reset()
-          onClose()
-        }
+        if (!next && !remove.isPending) onClose()
       }}
-      title={`Delete ${video?.ref ?? ''}?`}
+      title={`Delete ${video.ref}?`}
       description="The video, its chapters and its task graph are removed. This cannot be undone."
       footer={
         <>
           <Button variant="ghost" disabled={remove.isPending} onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            variant="danger"
-            disabled={remove.isPending}
-            onClick={() => video && remove.mutate(video.ref)}
-          >
+          <Button variant="danger" disabled={remove.isPending} onClick={() => remove.mutate()}>
             {remove.isPending ? 'Deleting…' : 'Delete'}
           </Button>
         </>
       }
     >
       <div className="space-y-2 text-[12.5px] text-muted">
-        <p className="text-fg">{video?.title}</p>
+        <p className="text-fg">{video.title}</p>
         {running && (
           <p className="text-[hsl(var(--warning))]">
             This video is still working. Deleting it stops its tasks first.
           </p>
         )}
         <p>
-          Generated files stay in the content-addressed store — deleting the video does not reclaim
-          disk.
+          Its generated files are deleted from the store too — apart from any another video also
+          uses, which stay.
         </p>
         {remove.isError && <ErrorNotice error={remove.error} />}
       </div>

@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -230,6 +231,106 @@ func (f *FS) Stat(_ context.Context, id entity.AssetID, kind entity.AssetKind) (
 		return provider.StoredAsset{}, fmt.Errorf("stat asset %s: %w", id.Short(), err)
 	}
 	return provider.StoredAsset{ID: id, Path: rel, Size: info.Size(), Existed: true}, nil
+}
+
+// Delete unlinks one stored file. A missing file is success: the caller unlinks
+// after its database transaction has committed, so a retry of an interrupted
+// reclaim must not fail on the half it already finished.
+//
+// Empty shard directories are left behind. There are 256 of them per kind at
+// most, they are reused by the next asset with the same digest prefix, and
+// removing them would race every concurrent Put into the same shard.
+func (f *FS) Delete(ctx context.Context, id entity.AssetID, kind entity.AssetKind) error {
+	return f.Remove(ctx, RelPath(id, kind))
+}
+
+// Remove unlinks one path relative to the root, which is how the sweep reaches a
+// file that is not a valid content address.
+func (f *FS) Remove(_ context.Context, rel string) error {
+	path, err := f.resolve(rel)
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("remove %s: %w", rel, err)
+	}
+	return nil
+}
+
+// Walk visits every regular file in the store, so a sweep can compare what is on
+// disk against what the database still references.
+//
+// It walks rather than reading a manifest because the store is the authority on
+// what exists: a file whose row was lost is exactly what needs finding, and it
+// would be invisible to anything driven from the database side.
+func (f *FS) Walk(ctx context.Context, fn func(provider.StoredFile) error) error {
+	tmpDir := filepath.Join(f.root, ".tmp")
+	return filepath.WalkDir(f.root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if d.IsDir() || !d.Type().IsRegular() {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			// The file went away mid-walk, which is a Put being cleaned up under us.
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			return fmt.Errorf("stat %s: %w", path, err)
+		}
+		rel, err := filepath.Rel(f.root, path)
+		if err != nil {
+			return fmt.Errorf("relativise %s: %w", path, err)
+		}
+		found := provider.StoredFile{
+			Rel:       rel,
+			Size:      info.Size(),
+			Temporary: strings.HasPrefix(path, tmpDir+string(os.PathSeparator)),
+			ModTime:   info.ModTime(),
+		}
+		if id, kind, ok := parseRelPath(rel); ok {
+			found.ID, found.Kind = id, kind
+		}
+		return fn(found)
+	})
+}
+
+// parseRelPath is RelPath read backwards. It insists on the whole layout --
+// kind/shard/<64 hex digits><ext>, with the shard matching the digest -- so that
+// only a file this package wrote can be recognised as an asset, and anything
+// else is left for a human to look at.
+func parseRelPath(rel string) (entity.AssetID, entity.AssetKind, bool) {
+	parts := strings.Split(rel, string(os.PathSeparator))
+	if len(parts) != 3 {
+		return "", "", false
+	}
+	kind := entity.AssetKind(parts[0])
+	if !kind.Valid() {
+		return "", "", false
+	}
+	name := parts[2]
+	digest := strings.TrimSuffix(name, kind.Ext())
+	if digest == name || len(digest) != 64 || !isHex(digest) {
+		return "", "", false
+	}
+	if parts[1] != digest[:2] {
+		return "", "", false
+	}
+	return entity.AssetID(digest), kind, true
+}
+
+func isHex(s string) bool {
+	for _, c := range s {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 // resolve joins a relative path to the root and refuses anything that would
