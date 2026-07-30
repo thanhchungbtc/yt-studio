@@ -91,7 +91,7 @@ func (e *recordingExpander) Expand(_ context.Context, videoID entity.VideoID, ta
 func (f *fixture) draft(ref string, chapterCount, images int) entity.Video {
 	f.t.Helper()
 	v, err := entity.NewVideo(entity.VideoID(ref), f.channel.ID, entity.Ref(ref),
-		"The Long Winter", "a northern port town", chapterCount, images, testTime)
+		"The Long Winter", "a northern port town", chapterCount, images, 0, testTime)
 	if err != nil {
 		f.t.Fatalf("NewVideo: %v", err)
 	}

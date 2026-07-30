@@ -19,7 +19,7 @@ func (q *Queries) DeleteChaptersByVideo(ctx context.Context, videoID string) err
 }
 
 const getChapterByID = `-- name: GetChapterByID :one
-SELECT id, video_id, ordinal, title, summary, script, image_prompts_json, audio_asset_id, image_asset_ids_json, clip_asset_id, duration_seconds, created_at, updated_at FROM chapters WHERE id = ?
+SELECT id, video_id, ordinal, title, summary, script, image_prompts_json, audio_asset_id, image_asset_ids_json, clip_asset_id, duration_seconds, created_at, updated_at, estimated_words FROM chapters WHERE id = ?
 `
 
 func (q *Queries) GetChapterByID(ctx context.Context, id string) (Chapter, error) {
@@ -39,12 +39,13 @@ func (q *Queries) GetChapterByID(ctx context.Context, id string) (Chapter, error
 		&i.DurationSeconds,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EstimatedWords,
 	)
 	return i, err
 }
 
 const listChaptersByVideo = `-- name: ListChaptersByVideo :many
-SELECT id, video_id, ordinal, title, summary, script, image_prompts_json, audio_asset_id, image_asset_ids_json, clip_asset_id, duration_seconds, created_at, updated_at FROM chapters WHERE video_id = ? ORDER BY ordinal
+SELECT id, video_id, ordinal, title, summary, script, image_prompts_json, audio_asset_id, image_asset_ids_json, clip_asset_id, duration_seconds, created_at, updated_at, estimated_words FROM chapters WHERE video_id = ? ORDER BY ordinal
 `
 
 func (q *Queries) ListChaptersByVideo(ctx context.Context, videoID string) ([]Chapter, error) {
@@ -70,6 +71,7 @@ func (q *Queries) ListChaptersByVideo(ctx context.Context, videoID string) ([]Ch
 			&i.DurationSeconds,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.EstimatedWords,
 		); err != nil {
 			return nil, err
 		}
@@ -181,8 +183,8 @@ const upsertChapter = `-- name: UpsertChapter :exec
 INSERT INTO chapters (
     id, video_id, ordinal, title, summary, script, image_prompts_json,
     audio_asset_id, image_asset_ids_json, clip_asset_id, duration_seconds,
-    created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    estimated_words, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (id) DO UPDATE SET
     ordinal = excluded.ordinal,
     title = excluded.title,
@@ -193,6 +195,7 @@ ON CONFLICT (id) DO UPDATE SET
     image_asset_ids_json = excluded.image_asset_ids_json,
     clip_asset_id = excluded.clip_asset_id,
     duration_seconds = excluded.duration_seconds,
+    estimated_words = excluded.estimated_words,
     updated_at = excluded.updated_at
 `
 
@@ -208,6 +211,7 @@ type UpsertChapterParams struct {
 	ImageAssetIdsJson string
 	ClipAssetID       *string
 	DurationSeconds   float64
+	EstimatedWords    int64
 	CreatedAt         int64
 	UpdatedAt         int64
 }
@@ -225,6 +229,7 @@ func (q *Queries) UpsertChapter(ctx context.Context, arg UpsertChapterParams) er
 		arg.ImageAssetIdsJson,
 		arg.ClipAssetID,
 		arg.DurationSeconds,
+		arg.EstimatedWords,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)

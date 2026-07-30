@@ -35,6 +35,7 @@ export interface Style {
   imageStyle: string
   language: string
   wordsPerChapter: number
+  wordsPerMinute: number
 }
 
 export interface Channel {
@@ -89,6 +90,7 @@ export interface Video {
   state: VideoState
   chapterCount: number
   imagesPerChapter: number
+  targetDurationMinutes: number
   blueprintAssetId?: string
   finalAssetId?: string
   metadata?: Metadata
@@ -113,6 +115,7 @@ export interface Chapter {
   imageAssetIds: string[]
   clipAssetId?: string
   durationSeconds: number
+  estimatedWords: number
   updatedAt: string
 }
 

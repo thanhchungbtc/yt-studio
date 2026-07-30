@@ -11,9 +11,15 @@ import (
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
-// wordsPerMinute is the narration speed the word budget is derived from. It
-// matches the figure the system prompt states out loud, so the two cannot drift.
-const wordsPerMinute = 130
+// narrationRate is the channel's reading speed, which is the number the whole
+// budget is derived from at both ends: words planned here, duration reported
+// after the script is written.
+func narrationRate(style entity.StyleConfig) int {
+	if style.WordsPerMinute > 0 {
+		return style.WordsPerMinute
+	}
+	return entity.DefaultWordsPerMinute
+}
 
 // wordsPerChapter is the channel's per-chapter target, falling back to the
 // domain default so a budget handed to a model is never zero.
@@ -34,13 +40,24 @@ type blueprintPrompt struct {
 	DurationMinutes int
 }
 
+// newBlueprintPrompt resolves the video's spoken-word budget.
+//
+// A target duration is the honest input — the channel wants three hours and
+// does not much mind how many chapters that takes — so when one is set the
+// budget comes from it. Without one the length is whatever the requested
+// chapters come to at the channel's usual size, which is how videos planned
+// before durations existed keep the shape they were planned with.
 func newBlueprintPrompt(req provider.BlueprintRequest) blueprintPrompt {
-	total := req.ChapterCount * wordsPerChapter(req.Style)
+	rate := narrationRate(req.Style)
+	total := req.TargetDurationMinutes * rate
+	if total <= 0 {
+		total = req.ChapterCount * wordsPerChapter(req.Style)
+	}
 	return blueprintPrompt{
 		BlueprintRequest: req,
-		WordsPerMinute:   wordsPerMinute,
+		WordsPerMinute:   rate,
 		TotalWords:       total,
-		DurationMinutes:  total / wordsPerMinute,
+		DurationMinutes:  total / rate,
 	}
 }
 
@@ -118,9 +135,10 @@ func (c *Client) Blueprint(ctx context.Context, req provider.BlueprintRequest) (
 	chapters := make([]provider.BlueprintChapter, 0, len(doc.Chapters))
 	for _, ch := range doc.Chapters {
 		chapters = append(chapters, provider.BlueprintChapter{
-			Ordinal: ch.Order,
-			Title:   ch.Title,
-			Summary: ch.brief(),
+			Ordinal:        ch.Order,
+			Title:          ch.Title,
+			Summary:        ch.brief(),
+			EstimatedWords: ch.EstimatedWords,
 		})
 	}
 	return provider.Blueprint{

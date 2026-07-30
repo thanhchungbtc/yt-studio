@@ -176,7 +176,7 @@ func TestVideoLifecyclePersistence(t *testing.T) {
 	ctx := context.Background()
 	now := time.Unix(1_700_000_000, 0).UTC()
 
-	v, err := entity.NewVideo("v1", ch.ID, "DSS-1", "Title", "topic", 3, 2, now)
+	v, err := entity.NewVideo("v1", ch.ID, "DSS-1", "Title", "topic", 3, 2, 0, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,7 +252,7 @@ func TestSetChapterImageIsIndexed(t *testing.T) {
 	ctx := context.Background()
 	now := time.Unix(0, 0).UTC()
 
-	v, err := entity.NewVideo("v1", ch.ID, "DSS-1", "Title", "", 1, 3, now)
+	v, err := entity.NewVideo("v1", ch.ID, "DSS-1", "Title", "", 1, 3, 0, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -300,7 +300,7 @@ func TestGraphPersistenceRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	now := time.Unix(0, 0).UTC()
 
-	v, err := entity.NewVideo("v1", ch.ID, "DSS-1", "Title", "", 4, 2, now)
+	v, err := entity.NewVideo("v1", ch.ID, "DSS-1", "Title", "", 4, 2, 0, now)
 	if err != nil {
 		t.Fatal(err)
 	}

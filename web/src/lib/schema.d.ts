@@ -477,8 +477,16 @@ export interface components {
       readonly $schema?: string
       audioAssetId?: string
       clipAssetId?: string
-      /** Format: double */
+      /**
+       * Format: double
+       * @description Measured from the script once it exists
+       */
       durationSeconds: number
+      /**
+       * Format: int64
+       * @description Spoken-word budget the blueprint assigned this chapter
+       */
+      estimatedWords: number
       id: string
       imageAssetIds: string[]
       imagePrompts: string[]
@@ -534,6 +542,11 @@ export interface components {
       imagesPerChapter?: number
       /** @description Enqueue the DAG immediately */
       start?: boolean
+      /**
+       * Format: int64
+       * @description Planned running time; omit to let it fall out of the chapter count
+       */
+      targetDurationMinutes?: number
       title: string
       topic?: string
     }
@@ -748,6 +761,11 @@ export interface components {
        * @description Target narration length of one chapter
        */
       wordsPerChapter: number
+      /**
+       * Format: int64
+       * @description Reading speed this channel's voice narrates at
+       */
+      wordsPerMinute: number
     }
     StyleInputDTO: {
       /** @description Visual direction handed to the image backend */
@@ -763,6 +781,11 @@ export interface components {
        * @description Target narration length of one chapter
        */
       wordsPerChapter?: number
+      /**
+       * Format: int64
+       * @description Reading speed this channel's voice narrates at
+       */
+      wordsPerMinute?: number
     }
     TaskCountsDTO: {
       /** Format: int64 */
@@ -891,7 +914,10 @@ export interface components {
       readonly $schema?: string
       blueprintAssetId?: string
       channelId: string
-      /** Format: int64 */
+      /**
+       * Format: int64
+       * @description Chapters asked for; the accepted blueprint decides the real number
+       */
       chapterCount: number
       /** Format: date-time */
       completedAt?: string
@@ -911,6 +937,11 @@ export interface components {
       /** @enum {string} */
       state:
         'draft' | 'running' | 'awaiting_approval' | 'blocked' | 'completed' | 'failed' | 'cancelled'
+      /**
+       * Format: int64
+       * @description Planned running time; zero means it falls out of the chapter count
+       */
+      targetDurationMinutes: number
       title: string
       topic: string
       /** Format: date-time */

@@ -125,6 +125,7 @@ export function ChannelsRoute() {
                   <KeyValue label="Image style">{channel.style.imageStyle || '—'}</KeyValue>
                   <KeyValue label="Language">{channel.style.language}</KeyValue>
                   <KeyValue label="Words / chapter">{channel.style.wordsPerChapter}</KeyValue>
+                  <KeyValue label="Words / minute">{channel.style.wordsPerMinute}</KeyValue>
                   <KeyValue label="Videos minted">{channel.videoSeq}</KeyValue>
                   <KeyValue label="Created">{formatAbsolute(channel.createdAt)}</KeyValue>
                 </dl>
@@ -189,6 +190,7 @@ function ChannelDialog({
   const [imageStyle, setImageStyle] = useState(channel?.style.imageStyle ?? '')
   const [language, setLanguage] = useState(channel?.style.language ?? 'en-US')
   const [words, setWords] = useState(String(channel?.style.wordsPerChapter ?? 450))
+  const [wpm, setWpm] = useState(String(channel?.style.wordsPerMinute ?? 130))
   const [credentials, setCredentials] = useState(channel?.credentials ?? 'missing')
 
   const save = useMutation({
@@ -199,6 +201,7 @@ function ChannelDialog({
         imageStyle,
         language,
         wordsPerChapter: Number(words) || 0,
+        wordsPerMinute: Number(wpm) || 0,
       }
       return channel
         ? api.updateChannel(channel.slug, { name, description, style, credentials })
@@ -309,6 +312,21 @@ function ChannelDialog({
                 max={5000}
                 value={words}
                 onChange={(e) => setWords(e.target.value)}
+              />
+            )}
+          </Field>
+          {/* The reading speed both ends of the pipeline use: the blueprint
+              budgets words from a target length with it, and a finished script
+              reports its length with it. */}
+          <Field label="Words per minute" hint="How fast this voice narrates.">
+            {(id) => (
+              <Input
+                id={id}
+                type="number"
+                min={60}
+                max={300}
+                value={wpm}
+                onChange={(e) => setWpm(e.target.value)}
               />
             )}
           </Field>

@@ -124,6 +124,10 @@ type Video struct {
 
 	ChapterCount     int
 	ImagesPerChapter int
+	// TargetDurationMinutes is how long the finished video should run. Zero
+	// means unset, and the length is whatever ChapterCount chapters of the
+	// channel's usual size come to.
+	TargetDurationMinutes int
 
 	BlueprintAssetID *AssetID
 	FinalAssetID     *AssetID
@@ -138,7 +142,9 @@ type Video struct {
 }
 
 // NewVideo validates and constructs a Video in the draft state.
-func NewVideo(id VideoID, channelID ChannelID, ref Ref, title, topic string, chapterCount, imagesPerChapter int, now time.Time) (Video, error) {
+//
+//nolint:revive // the parameter list is the video's shape
+func NewVideo(id VideoID, channelID ChannelID, ref Ref, title, topic string, chapterCount, imagesPerChapter, targetDurationMinutes int, now time.Time) (Video, error) {
 	if strings.TrimSpace(string(id)) == "" {
 		return Video{}, fmt.Errorf("%w: id must not be empty", ErrInvalidVideo)
 	}
@@ -160,17 +166,22 @@ func NewVideo(id VideoID, channelID ChannelID, ref Ref, title, topic string, cha
 		return Video{}, fmt.Errorf("%w: images per chapter must be %d..%d, got %d",
 			ErrInvalidVideo, MinImagesPerChapter, MaxImagesPerChapter, imagesPerChapter)
 	}
+	if targetDurationMinutes < 0 || targetDurationMinutes > MaxDurationMinutes {
+		return Video{}, fmt.Errorf("%w: target duration must be 0..%d minutes, got %d",
+			ErrInvalidVideo, MaxDurationMinutes, targetDurationMinutes)
+	}
 	return Video{
-		ID:               id,
-		ChannelID:        channelID,
-		Ref:              ref,
-		Title:            title,
-		Topic:            strings.TrimSpace(topic),
-		State:            VideoStateDraft,
-		ChapterCount:     chapterCount,
-		ImagesPerChapter: imagesPerChapter,
-		CreatedAt:        now,
-		UpdatedAt:        now,
+		ID:                    id,
+		ChannelID:             channelID,
+		Ref:                   ref,
+		Title:                 title,
+		Topic:                 strings.TrimSpace(topic),
+		State:                 VideoStateDraft,
+		ChapterCount:          chapterCount,
+		ImagesPerChapter:      imagesPerChapter,
+		TargetDurationMinutes: targetDurationMinutes,
+		CreatedAt:             now,
+		UpdatedAt:             now,
 	}, nil
 }
 
@@ -180,6 +191,9 @@ const (
 	MaxChapterCount     = 500
 	MinImagesPerChapter = 1
 	MaxImagesPerChapter = 20
+	// MaxDurationMinutes bounds a target length at twelve hours, which is well
+	// past the longest thing this channel would publish.
+	MaxDurationMinutes = 720
 )
 
 // ChapterCountBand returns the inclusive range of chapter counts an accepted

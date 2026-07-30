@@ -381,3 +381,64 @@ func TestBlueprintPromptSubstitutesAWordBudget(t *testing.T) {
 		t.Errorf("user prompt did not substitute the domain default:\n%s", user)
 	}
 }
+
+// A target duration is the honest input for a channel that wants three hours
+// and does not much mind how many chapters that takes.
+func TestBlueprintBudgetsFromTheTargetDuration(t *testing.T) {
+	t.Parallel()
+	g := newGateway(t, http.StatusOK, completion(outline(2)))
+	c := newClient(t, g, "")
+
+	req := testRequest(45)
+	req.TargetDurationMinutes = 180
+	req.Style.WordsPerMinute = 130
+	if _, err := c.Blueprint(context.Background(), req); err != nil {
+		t.Fatalf("Blueprint: %v", err)
+	}
+	user := g.messages(t)["user"]
+	// 180 minutes at 130 wpm is 23400 words, whatever the chapter count says.
+	for _, want := range []string{"Target duration: 180 minutes", "23400 words"} {
+		if !strings.Contains(user, want) {
+			t.Errorf("user prompt is missing %q:\n%s", want, user)
+		}
+	}
+}
+
+// The channel's reading speed is the number both ends of the pipeline use: a
+// slower voice means fewer words for the same running time.
+func TestBlueprintBudgetsAtTheChannelReadingSpeed(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ rate, want int }{{100, 18000}, {150, 27000}} {
+		g := newGateway(t, http.StatusOK, completion(outline(1)))
+		c := newClient(t, g, "")
+
+		req := testRequest(45)
+		req.TargetDurationMinutes = 180
+		req.Style.WordsPerMinute = tc.rate
+		if _, err := c.Blueprint(context.Background(), req); err != nil {
+			t.Fatalf("Blueprint: %v", err)
+		}
+		want := strconv.Itoa(tc.want) + " words"
+		if user := g.messages(t)["user"]; !strings.Contains(user, want) {
+			t.Errorf("at %d wpm the prompt is missing %q:\n%s", tc.rate, want, user)
+		}
+	}
+}
+
+// The blueprint's per-chapter budget crosses the port as a field, so the script
+// writer reads it instead of recovering it from prose.
+func TestBlueprintCarriesEachChapterBudget(t *testing.T) {
+	t.Parallel()
+	g := newGateway(t, http.StatusOK, completion(
+		`{"chapters":[{"title":"Intro","estimated_words":160},{"title":"Deep","estimated_words":620}]}`))
+	c := newClient(t, g, "")
+
+	bp, err := c.Blueprint(context.Background(), testRequest(2))
+	if err != nil {
+		t.Fatalf("Blueprint: %v", err)
+	}
+	if bp.Chapters[0].EstimatedWords != 160 || bp.Chapters[1].EstimatedWords != 620 {
+		t.Fatalf("budgets = %d/%d, want 160/620",
+			bp.Chapters[0].EstimatedWords, bp.Chapters[1].EstimatedWords)
+	}
+}

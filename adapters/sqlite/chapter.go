@@ -106,6 +106,7 @@ func chapterParams(c entity.Chapter) (sqlcgen.UpsertChapterParams, error) {
 		ImageAssetIdsJson: imagesJSON,
 		ClipAssetID:       assetIDPtr(c.ClipAssetID),
 		DurationSeconds:   c.DurationSeconds,
+		EstimatedWords:    int64(c.EstimatedWords),
 		CreatedAt:         toUnix(c.CreatedAt),
 		UpdatedAt:         toUnix(c.UpdatedAt),
 	}, nil

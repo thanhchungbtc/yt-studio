@@ -25,6 +25,7 @@ type StyleDTO struct {
 	ImageStyle      string `json:"imageStyle" doc:"Visual direction handed to the image backend"`
 	Language        string `json:"language" doc:"BCP-47 language tag"`
 	WordsPerChapter int    `json:"wordsPerChapter" doc:"Target narration length of one chapter"`
+	WordsPerMinute  int    `json:"wordsPerMinute" doc:"Reading speed this channel's voice narrates at"`
 }
 
 // StyleInputDTO is the same configuration on the way in, where every field is
@@ -36,6 +37,7 @@ type StyleInputDTO struct {
 	ImageStyle      string `json:"imageStyle,omitempty" doc:"Visual direction handed to the image backend"`
 	Language        string `json:"language,omitempty" doc:"BCP-47 language tag"`
 	WordsPerChapter int    `json:"wordsPerChapter,omitempty" doc:"Target narration length of one chapter"`
+	WordsPerMinute  int    `json:"wordsPerMinute,omitempty" doc:"Reading speed this channel's voice narrates at"`
 }
 
 // Into converts the request DTO to the domain type.
@@ -46,6 +48,7 @@ func (s StyleInputDTO) Into() entity.StyleConfig {
 		ImageStyle:      s.ImageStyle,
 		Language:        s.Language,
 		WordsPerChapter: s.WordsPerChapter,
+		WordsPerMinute:  s.WordsPerMinute,
 	}
 }
 
@@ -56,6 +59,7 @@ func styleFrom(s entity.StyleConfig) StyleDTO {
 		ImageStyle:      s.ImageStyle,
 		Language:        s.Language,
 		WordsPerChapter: s.WordsPerChapter,
+		WordsPerMinute:  s.WordsPerMinute,
 	}
 }
 
@@ -133,42 +137,45 @@ type UploadDTO struct {
 
 // VideoDTO is a video as the API presents it.
 type VideoDTO struct {
-	ID               string        `json:"id"`
-	ChannelID        string        `json:"channelId"`
-	Ref              string        `json:"ref" doc:"Stable human-readable natural key, e.g. DSS-14"`
-	Title            string        `json:"title"`
-	Topic            string        `json:"topic"`
-	State            string        `json:"state" enum:"draft,running,awaiting_approval,blocked,completed,failed,cancelled"`
-	ChapterCount     int           `json:"chapterCount"`
-	ImagesPerChapter int           `json:"imagesPerChapter"`
-	BlueprintAssetID string        `json:"blueprintAssetId,omitempty"`
-	FinalAssetID     string        `json:"finalAssetId,omitempty"`
-	Metadata         *MetadataDTO  `json:"metadata,omitempty"`
-	Upload           *UploadDTO    `json:"upload,omitempty"`
-	Error            string        `json:"error,omitempty"`
-	Counts           TaskCountsDTO `json:"counts"`
-	CreatedAt        time.Time     `json:"createdAt"`
-	UpdatedAt        time.Time     `json:"updatedAt"`
-	StartedAt        *time.Time    `json:"startedAt,omitempty"`
-	CompletedAt      *time.Time    `json:"completedAt,omitempty"`
+	ID           string `json:"id"`
+	ChannelID    string `json:"channelId"`
+	Ref          string `json:"ref" doc:"Stable human-readable natural key, e.g. DSS-14"`
+	Title        string `json:"title"`
+	Topic        string `json:"topic"`
+	State        string `json:"state" enum:"draft,running,awaiting_approval,blocked,completed,failed,cancelled"`
+	ChapterCount int    `json:"chapterCount" doc:"Chapters asked for; the accepted blueprint decides the real number"`
+	//nolint:lll // one field, one line
+	TargetDurationMinutes int           `json:"targetDurationMinutes" doc:"Planned running time; zero means it falls out of the chapter count"`
+	ImagesPerChapter      int           `json:"imagesPerChapter"`
+	BlueprintAssetID      string        `json:"blueprintAssetId,omitempty"`
+	FinalAssetID          string        `json:"finalAssetId,omitempty"`
+	Metadata              *MetadataDTO  `json:"metadata,omitempty"`
+	Upload                *UploadDTO    `json:"upload,omitempty"`
+	Error                 string        `json:"error,omitempty"`
+	Counts                TaskCountsDTO `json:"counts"`
+	CreatedAt             time.Time     `json:"createdAt"`
+	UpdatedAt             time.Time     `json:"updatedAt"`
+	StartedAt             *time.Time    `json:"startedAt,omitempty"`
+	CompletedAt           *time.Time    `json:"completedAt,omitempty"`
 }
 
 func videoFrom(v entity.Video, counts repository.TaskCounts) VideoDTO {
 	dto := VideoDTO{
-		ID:               string(v.ID),
-		ChannelID:        string(v.ChannelID),
-		Ref:              string(v.Ref),
-		Title:            v.Title,
-		Topic:            v.Topic,
-		State:            string(v.State),
-		ChapterCount:     v.ChapterCount,
-		ImagesPerChapter: v.ImagesPerChapter,
-		Error:            v.Error,
-		Counts:           countsFrom(counts),
-		CreatedAt:        v.CreatedAt,
-		UpdatedAt:        v.UpdatedAt,
-		StartedAt:        v.StartedAt,
-		CompletedAt:      v.CompletedAt,
+		ID:                    string(v.ID),
+		ChannelID:             string(v.ChannelID),
+		Ref:                   string(v.Ref),
+		Title:                 v.Title,
+		Topic:                 v.Topic,
+		State:                 string(v.State),
+		ChapterCount:          v.ChapterCount,
+		TargetDurationMinutes: v.TargetDurationMinutes,
+		ImagesPerChapter:      v.ImagesPerChapter,
+		Error:                 v.Error,
+		Counts:                countsFrom(counts),
+		CreatedAt:             v.CreatedAt,
+		UpdatedAt:             v.UpdatedAt,
+		StartedAt:             v.StartedAt,
+		CompletedAt:           v.CompletedAt,
 	}
 	if v.BlueprintAssetID != nil {
 		dto.BlueprintAssetID = string(*v.BlueprintAssetID)
@@ -212,7 +219,8 @@ type ChapterDTO struct {
 	AudioAssetID    string    `json:"audioAssetId,omitempty"`
 	ImageAssetIDs   []string  `json:"imageAssetIds"`
 	ClipAssetID     string    `json:"clipAssetId,omitempty"`
-	DurationSeconds float64   `json:"durationSeconds"`
+	DurationSeconds float64   `json:"durationSeconds" doc:"Measured from the script once it exists"`
+	EstimatedWords  int       `json:"estimatedWords" doc:"Spoken-word budget the blueprint assigned this chapter"`
 	UpdatedAt       time.Time `json:"updatedAt"`
 }
 
@@ -235,6 +243,7 @@ func chapterFrom(c entity.Chapter) ChapterDTO {
 		ImagePrompts:    prompts,
 		ImageAssetIDs:   images,
 		DurationSeconds: c.DurationSeconds,
+		EstimatedWords:  c.EstimatedWords,
 		UpdatedAt:       c.UpdatedAt,
 	}
 	if c.AudioAssetID != nil {

@@ -99,7 +99,7 @@ func NewRouter(d Deps) (http.Handler, huma.API) {
 	registerVideoRoutes(api, d.Videos, d.VideoWriter, d.VideoStates, d.Channels, d.ChannelWriter,
 		d.Tasks, d.Chapters, d.Submitter, d.Expander, d.Canceller, d.Approver, d.Rejecter, d.Forgetter,
 		d.Store, d.Settings, d.NewID, d.Now, d.Log)
-	registerChapterRoutes(api, d.Videos, d.Chapters, d.ChapterFields, d.Notifier, d.ChapRetry, d.Prompts, d.StaleMark)
+	registerChapterRoutes(api, d.Videos, d.Channels, d.Chapters, d.ChapterFields, d.Notifier, d.ChapRetry, d.Prompts, d.StaleMark)
 	registerTaskRoutes(api, d.Videos, d.Tasks, d.TaskRetry, d.Prompts,
 		d.Rerunner, d.StaleRun, d.StaleOK)
 	registerSettingRoutes(api, d.Settings, d.Pools, d.Coalescer, d.LogLevel)

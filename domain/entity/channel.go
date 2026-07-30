@@ -50,6 +50,11 @@ type StyleConfig struct {
 	Language string
 	// WordsPerChapter is the target narration length of one chapter.
 	WordsPerChapter int
+	// WordsPerMinute is how fast this channel's voice reads. It is what turns a
+	// word count into a duration, in both directions: the blueprint budgets
+	// words from a target length, and a finished script reports the length it
+	// actually came to.
+	WordsPerMinute int
 }
 
 // Channel owns identity, creative configuration and upload credentials.
@@ -82,6 +87,9 @@ func NewChannel(id ChannelID, slug Slug, name string, style StyleConfig, now tim
 	if style.WordsPerChapter <= 0 {
 		style.WordsPerChapter = DefaultWordsPerChapter
 	}
+	if style.WordsPerMinute <= 0 {
+		style.WordsPerMinute = DefaultWordsPerMinute
+	}
 	if style.Language == "" {
 		style.Language = DefaultLanguage
 	}
@@ -100,4 +108,7 @@ func NewChannel(id ChannelID, slug Slug, name string, style StyleConfig, now tim
 const (
 	DefaultWordsPerChapter = 450
 	DefaultLanguage        = "en-US"
+	// DefaultWordsPerMinute is an unhurried narration speed, chosen for a
+	// channel someone falls asleep to rather than for a briefing.
+	DefaultWordsPerMinute = 130
 )

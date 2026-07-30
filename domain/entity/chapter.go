@@ -27,9 +27,16 @@ type Chapter struct {
 	ImageAssetIDs []AssetID
 	ClipAssetID   *AssetID
 
+	// DurationSeconds is how long the narration actually came to, measured from
+	// the script once it exists.
 	DurationSeconds float64
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	// EstimatedWords is the spoken-word budget the blueprint assigned to this
+	// chapter, before a word of it was written. It is deliberately uneven across
+	// a video: a deep chapter carries roughly twice a short one. Zero means the
+	// blueprint did not assign one.
+	EstimatedWords int
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 // NewChapter validates and constructs a Chapter.

@@ -2,8 +2,6 @@ package ninerouter
 
 import (
 	"context"
-	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/tbui/yt-studio/domain/entity"
@@ -17,22 +15,17 @@ type scriptPrompt struct {
 	TargetWords int
 }
 
-// briefWords finds the word budget the blueprint wrote into this chapter's
-// brief, in the direction footer it ends with — "exploration · curious · deep ·
-// ~420 words".
+// newScriptPrompt resolves the chapter's word budget: the one the blueprint
+// assigned if it assigned one, and the channel's per-chapter average otherwise.
 //
-// The budget is per-chapter and deliberately uneven: a deep chapter carries
-// roughly twice a short one. It reaches us inside the brief text because
-// ScriptRequest carries a summary and not a plan, so it is read back out here
-// rather than flattened to the channel average.
-var briefWords = regexp.MustCompile(`~\s*(\d+)\s+words`)
-
+// The budget is deliberately uneven across a video — a deep chapter carries
+// roughly twice a short one — so falling back to the average flattens pacing
+// the outline was built around. It arrives as a field rather than as prose
+// inside the brief, which is what makes that fallback rare and visible.
 func newScriptPrompt(req provider.ScriptRequest) scriptPrompt {
-	target := wordsPerChapter(req.Style)
-	if match := briefWords.FindStringSubmatch(req.ChapterSummary); match != nil {
-		if n, err := strconv.Atoi(match[1]); err == nil && n > 0 {
-			target = n
-		}
+	target := req.TargetWords
+	if target <= 0 {
+		target = wordsPerChapter(req.Style)
 	}
 	return scriptPrompt{ScriptRequest: req, TargetWords: target}
 }

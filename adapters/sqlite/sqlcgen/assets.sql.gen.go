@@ -210,7 +210,7 @@ type PutAssetParams struct {
 // One row per video per content address. The file is still stored once: two
 // videos that produce identical bytes share it and each records its own
 // ownership, which is what lets a delete tell "nobody else needs this file" from
-// "another video still does" (goal.md section 3).
+// "another video still does".
 func (q *Queries) PutAsset(ctx context.Context, arg PutAssetParams) error {
 	_, err := q.exec(ctx, q.putAssetStmt, putAsset,
 		arg.ID,

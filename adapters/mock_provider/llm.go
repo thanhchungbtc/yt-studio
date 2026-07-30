@@ -59,9 +59,10 @@ func (l *LLM) Blueprint(ctx context.Context, req provider.BlueprintRequest) (pro
 	for i := 1; i <= req.ChapterCount; i++ {
 		cr := deterministic(seed ^ uint64(i)*0x100000001B3) //nolint:gosec // deterministic mixing
 		bp.Chapters = append(bp.Chapters, provider.BlueprintChapter{
-			Ordinal: i,
-			Title:   chapterTitle(cr, req.Topic, i),
-			Summary: chapterSummary(cr, req.Topic, i),
+			Ordinal:        i,
+			Title:          chapterTitle(cr, req.Topic, i),
+			Summary:        chapterSummary(cr, req.Topic, i),
+			EstimatedWords: mockChapterWords(req),
 		})
 	}
 
@@ -81,12 +82,25 @@ func (l *LLM) Blueprint(ctx context.Context, req provider.BlueprintRequest) (pro
 	return bp, nil
 }
 
+// mockChapterWords is the flat per-chapter budget the mock plans with. It does
+// not vary by pacing the way a real outline does; it exists so the field is
+// populated and the pipeline is exercised end to end.
+func mockChapterWords(req provider.BlueprintRequest) int {
+	if req.Style.WordsPerChapter > 0 {
+		return req.Style.WordsPerChapter
+	}
+	return entity.DefaultWordsPerChapter
+}
+
 // Script writes exactly one chapter's narration.
 func (l *LLM) Script(ctx context.Context, req provider.ScriptRequest) (provider.Script, error) {
 	if err := simulate(ctx, l.tuning, 1); err != nil {
 		return provider.Script{}, err
 	}
-	words := req.Style.WordsPerChapter
+	words := req.TargetWords
+	if words <= 0 {
+		words = req.Style.WordsPerChapter
+	}
 	if words <= 0 {
 		words = entity.DefaultWordsPerChapter
 	}

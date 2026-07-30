@@ -31,6 +31,7 @@ export function CreateVideoDialog({
   const [title, setTitle] = useState('')
   const [topic, setTopic] = useState('')
   const [chapterCount, setChapterCount] = useState('50')
+  const [durationMinutes, setDurationMinutes] = useState('180')
   const [imagesPerChapter, setImagesPerChapter] = useState('2')
   const [start, setStart] = useState(true)
   // A stable key per dialog session makes a double submit a no-op.
@@ -49,6 +50,7 @@ export function CreateVideoDialog({
           title,
           topic,
           chapterCount: Number(chapterCount) || 0,
+          targetDurationMinutes: Number(durationMinutes) || 0,
           imagesPerChapter: Number(imagesPerChapter) || 0,
           start,
         },
@@ -66,6 +68,7 @@ export function CreateVideoDialog({
 
   const chapters = Number(chapterCount) || 0
   const stills = Number(imagesPerChapter) || 0
+  const minutes = Number(durationMinutes) || 0
   const taskEstimate = 5 + 4 * chapters + chapters * stills
 
   return (
@@ -77,8 +80,14 @@ export function CreateVideoDialog({
       footer={
         <>
           <span className="mr-auto text-[11.5px] text-subtle">
-            About <span className="tabular font-medium text-muted">{taskEstimate}</span> tasks,
-            settled when you approve the blueprint
+            About <span className="tabular font-medium text-muted">{taskEstimate}</span> tasks
+            {minutes > 0 && (
+              <>
+                {' '}
+                over <span className="tabular font-medium text-muted">{minutes}</span> min
+              </>
+            )}
+            , settled when you approve the blueprint
           </span>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
@@ -132,6 +141,22 @@ export function CreateVideoDialog({
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               placeholder="A northern port town over one winter, told through its shipping ledgers."
+            />
+          )}
+        </Field>
+
+        <Field
+          label="Target duration"
+          hint="Minutes. The blueprint budgets words to fill it; 0 lets the chapter count decide."
+        >
+          {(id) => (
+            <Input
+              id={id}
+              type="number"
+              min={0}
+              max={720}
+              value={durationMinutes}
+              onChange={(e) => setDurationMinutes(e.target.value)}
             />
           )}
         </Field>

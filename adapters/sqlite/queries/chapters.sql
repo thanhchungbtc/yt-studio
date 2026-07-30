@@ -11,8 +11,8 @@ DELETE FROM chapters WHERE video_id = ?;
 INSERT INTO chapters (
     id, video_id, ordinal, title, summary, script, image_prompts_json,
     audio_asset_id, image_asset_ids_json, clip_asset_id, duration_seconds,
-    created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    estimated_words, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (id) DO UPDATE SET
     ordinal = excluded.ordinal,
     title = excluded.title,
@@ -23,6 +23,7 @@ ON CONFLICT (id) DO UPDATE SET
     image_asset_ids_json = excluded.image_asset_ids_json,
     clip_asset_id = excluded.clip_asset_id,
     duration_seconds = excluded.duration_seconds,
+    estimated_words = excluded.estimated_words,
     updated_at = excluded.updated_at;
 
 -- Field-scoped updates. Two image tasks for the same chapter run concurrently,

@@ -97,6 +97,7 @@ func channelFromRow(r sqlcgen.Channel) entity.Channel {
 			ImageStyle:      r.ImageStyle,
 			Language:        r.Language,
 			WordsPerChapter: int(r.WordsPerChapter),
+			WordsPerMinute:  int(r.WordsPerMinute),
 		},
 		Credentials: entity.CredentialStatus(r.Credentials),
 		VideoSeq:    int(r.VideoSeq),
@@ -107,21 +108,22 @@ func channelFromRow(r sqlcgen.Channel) entity.Channel {
 
 func videoFromRow(r sqlcgen.Video) (entity.Video, error) {
 	v := entity.Video{
-		ID:               entity.VideoID(r.ID),
-		ChannelID:        entity.ChannelID(r.ChannelID),
-		Ref:              entity.Ref(r.Ref),
-		Title:            r.Title,
-		Topic:            r.Topic,
-		State:            entity.VideoState(r.State),
-		ChapterCount:     int(r.ChapterCount),
-		ImagesPerChapter: int(r.ImagesPerChapter),
-		BlueprintAssetID: toAssetID(r.BlueprintAssetID),
-		FinalAssetID:     toAssetID(r.FinalAssetID),
-		Error:            r.Error,
-		CreatedAt:        fromUnix(r.CreatedAt),
-		UpdatedAt:        fromUnix(r.UpdatedAt),
-		StartedAt:        fromUnixPtr(r.StartedAt),
-		CompletedAt:      fromUnixPtr(r.CompletedAt),
+		ID:                    entity.VideoID(r.ID),
+		ChannelID:             entity.ChannelID(r.ChannelID),
+		Ref:                   entity.Ref(r.Ref),
+		Title:                 r.Title,
+		Topic:                 r.Topic,
+		State:                 entity.VideoState(r.State),
+		ChapterCount:          int(r.ChapterCount),
+		TargetDurationMinutes: int(r.TargetDurationMinutes),
+		ImagesPerChapter:      int(r.ImagesPerChapter),
+		BlueprintAssetID:      toAssetID(r.BlueprintAssetID),
+		FinalAssetID:          toAssetID(r.FinalAssetID),
+		Error:                 r.Error,
+		CreatedAt:             fromUnix(r.CreatedAt),
+		UpdatedAt:             fromUnix(r.UpdatedAt),
+		StartedAt:             fromUnixPtr(r.StartedAt),
+		CompletedAt:           fromUnixPtr(r.CompletedAt),
 	}
 	if r.MetadataJson != nil && *r.MetadataJson != "" {
 		var m entity.Metadata
@@ -151,6 +153,7 @@ func chapterFromRow(r sqlcgen.Chapter) (entity.Chapter, error) {
 		AudioAssetID:    toAssetID(r.AudioAssetID),
 		ClipAssetID:     toAssetID(r.ClipAssetID),
 		DurationSeconds: r.DurationSeconds,
+		EstimatedWords:  int(r.EstimatedWords),
 		CreatedAt:       fromUnix(r.CreatedAt),
 		UpdatedAt:       fromUnix(r.UpdatedAt),
 	}

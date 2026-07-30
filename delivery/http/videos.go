@@ -49,7 +49,9 @@ type CreateVideoInput struct {
 		Topic            string `json:"topic,omitempty" maxLength:"500"`
 		ChapterCount     int    `json:"chapterCount,omitempty" minimum:"0" maximum:"500" doc:"Defaults to the video.default_chapter_count setting"`
 		ImagesPerChapter int    `json:"imagesPerChapter,omitempty" minimum:"0" maximum:"20" doc:"Defaults to the video.default_images_per_chapter setting"`
-		Start            bool   `json:"start,omitempty" doc:"Enqueue the DAG immediately"`
+		//nolint:lll // one field, one line
+		TargetDurationMinutes int  `json:"targetDurationMinutes,omitempty" minimum:"0" maximum:"720" doc:"Planned running time; omit to let it fall out of the chapter count"`
+		Start                 bool `json:"start,omitempty" doc:"Enqueue the DAG immediately"`
 	}
 }
 
@@ -121,11 +123,12 @@ func postVideo(
 			settings.Int(entity.SettingVideoDefaultChapters),
 			settings.Int(entity.SettingVideoDefaultImages),
 			app.CreateVideoInput{
-				ChannelKey:       in.Body.Channel,
-				Title:            in.Body.Title,
-				Topic:            in.Body.Topic,
-				ChapterCount:     in.Body.ChapterCount,
-				ImagesPerChapter: in.Body.ImagesPerChapter,
+				ChannelKey:            in.Body.Channel,
+				Title:                 in.Body.Title,
+				Topic:                 in.Body.Topic,
+				ChapterCount:          in.Body.ChapterCount,
+				ImagesPerChapter:      in.Body.ImagesPerChapter,
+				TargetDurationMinutes: in.Body.TargetDurationMinutes,
 			})
 		if err != nil {
 			return nil, mapError(err)

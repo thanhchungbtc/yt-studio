@@ -110,6 +110,7 @@ export const api = {
       title: string
       topic?: string
       chapterCount?: number
+      targetDurationMinutes?: number
       imagesPerChapter?: number
       start?: boolean
     },

@@ -31,6 +31,7 @@ func scriptRequest() provider.ScriptRequest {
 			"exploration · unsettling · deep · ~280 words",
 		BlueprintTitle:   "The Long Winter of the Harbour",
 		BlueprintSummary: "a northern port town over one winter",
+		TargetWords:      280,
 		Style: entity.StyleConfig{
 			Tone:            "calm, measured, nocturnal",
 			Language:        "en-US",
@@ -86,10 +87,9 @@ func TestScriptStoresThePlainText(t *testing.T) {
 }
 
 // The blueprint budgets each chapter unevenly — a deep chapter carries roughly
-// twice a short one — and that number reaches us inside the brief, because
-// ScriptRequest carries a summary rather than a plan. Falling back to the
-// channel average would flatten the pacing the outline was built around.
-func TestScriptTakesTheWordBudgetFromTheBrief(t *testing.T) {
+// twice a short one — so the chapter's own budget must win over the channel
+// average, or the pacing the outline was built around is flattened.
+func TestScriptTakesTheWordBudgetFromTheBlueprint(t *testing.T) {
 	t.Parallel()
 	g := newGateway(t, http.StatusOK, completion(narration))
 	c := newClient(t, g, "")
@@ -99,7 +99,7 @@ func TestScriptTakesTheWordBudgetFromTheBrief(t *testing.T) {
 	}
 	user := g.messages(t)["user"]
 	if !strings.Contains(user, "about 280 words") {
-		t.Errorf("the brief's budget of 280 did not reach the prompt:\n%s", user)
+		t.Errorf("the chapter's budget of 280 did not reach the prompt:\n%s", user)
 	}
 	if strings.Contains(user, "about 420 words") {
 		t.Errorf("the channel average overrode the chapter's own budget:\n%s", user)
@@ -109,13 +109,12 @@ func TestScriptTakesTheWordBudgetFromTheBrief(t *testing.T) {
 func TestScriptFallsBackToTheChannelBudget(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name    string
-		style   entity.StyleConfig
-		summary string
-		want    int
+		name  string
+		style entity.StyleConfig
+		want  int
 	}{
-		{"brief carries no footer", entity.StyleConfig{WordsPerChapter: 420}, "Just a concept.", 420},
-		{"channel has no target", entity.StyleConfig{}, "Just a concept.", entity.DefaultWordsPerChapter},
+		{"blueprint assigned none", entity.StyleConfig{WordsPerChapter: 420}, 420},
+		{"channel has no target either", entity.StyleConfig{}, entity.DefaultWordsPerChapter},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -124,7 +123,7 @@ func TestScriptFallsBackToTheChannelBudget(t *testing.T) {
 			c := newClient(t, g, "")
 
 			req := scriptRequest()
-			req.Style, req.ChapterSummary = tc.style, tc.summary
+			req.Style, req.TargetWords = tc.style, 0
 			if _, err := c.Script(context.Background(), req); err != nil {
 				t.Fatalf("Script: %v", err)
 			}

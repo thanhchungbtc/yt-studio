@@ -12,8 +12,8 @@ import (
 const createChannel = `-- name: CreateChannel :exec
 INSERT INTO channels (
     id, slug, name, description, tone, voice, image_style, language,
-    words_per_chapter, credentials, video_seq, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    words_per_chapter, words_per_minute, credentials, video_seq, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type CreateChannelParams struct {
@@ -26,6 +26,7 @@ type CreateChannelParams struct {
 	ImageStyle      string
 	Language        string
 	WordsPerChapter int64
+	WordsPerMinute  int64
 	Credentials     string
 	VideoSeq        int64
 	CreatedAt       int64
@@ -43,6 +44,7 @@ func (q *Queries) CreateChannel(ctx context.Context, arg CreateChannelParams) er
 		arg.ImageStyle,
 		arg.Language,
 		arg.WordsPerChapter,
+		arg.WordsPerMinute,
 		arg.Credentials,
 		arg.VideoSeq,
 		arg.CreatedAt,
@@ -61,7 +63,7 @@ func (q *Queries) DeleteChannel(ctx context.Context, id string) error {
 }
 
 const getChannelByID = `-- name: GetChannelByID :one
-SELECT id, slug, name, description, tone, voice, image_style, language, words_per_chapter, credentials, video_seq, created_at, updated_at FROM channels WHERE id = ?
+SELECT id, slug, name, description, tone, voice, image_style, language, words_per_chapter, credentials, video_seq, created_at, updated_at, words_per_minute FROM channels WHERE id = ?
 `
 
 func (q *Queries) GetChannelByID(ctx context.Context, id string) (Channel, error) {
@@ -81,12 +83,13 @@ func (q *Queries) GetChannelByID(ctx context.Context, id string) (Channel, error
 		&i.VideoSeq,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WordsPerMinute,
 	)
 	return i, err
 }
 
 const getChannelBySlug = `-- name: GetChannelBySlug :one
-SELECT id, slug, name, description, tone, voice, image_style, language, words_per_chapter, credentials, video_seq, created_at, updated_at FROM channels WHERE slug = ?
+SELECT id, slug, name, description, tone, voice, image_style, language, words_per_chapter, credentials, video_seq, created_at, updated_at, words_per_minute FROM channels WHERE slug = ?
 `
 
 func (q *Queries) GetChannelBySlug(ctx context.Context, slug string) (Channel, error) {
@@ -106,12 +109,13 @@ func (q *Queries) GetChannelBySlug(ctx context.Context, slug string) (Channel, e
 		&i.VideoSeq,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WordsPerMinute,
 	)
 	return i, err
 }
 
 const listChannels = `-- name: ListChannels :many
-SELECT id, slug, name, description, tone, voice, image_style, language, words_per_chapter, credentials, video_seq, created_at, updated_at FROM channels ORDER BY name
+SELECT id, slug, name, description, tone, voice, image_style, language, words_per_chapter, credentials, video_seq, created_at, updated_at, words_per_minute FROM channels ORDER BY name
 `
 
 func (q *Queries) ListChannels(ctx context.Context) ([]Channel, error) {
@@ -137,6 +141,7 @@ func (q *Queries) ListChannels(ctx context.Context) ([]Channel, error) {
 			&i.VideoSeq,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.WordsPerMinute,
 		); err != nil {
 			return nil, err
 		}
@@ -154,7 +159,7 @@ func (q *Queries) ListChannels(ctx context.Context) ([]Channel, error) {
 const updateChannel = `-- name: UpdateChannel :exec
 UPDATE channels
 SET name = ?, description = ?, tone = ?, voice = ?, image_style = ?,
-    language = ?, words_per_chapter = ?, credentials = ?, updated_at = ?
+    language = ?, words_per_chapter = ?, words_per_minute = ?, credentials = ?, updated_at = ?
 WHERE id = ?
 `
 
@@ -166,6 +171,7 @@ type UpdateChannelParams struct {
 	ImageStyle      string
 	Language        string
 	WordsPerChapter int64
+	WordsPerMinute  int64
 	Credentials     string
 	UpdatedAt       int64
 	ID              string
@@ -180,6 +186,7 @@ func (q *Queries) UpdateChannel(ctx context.Context, arg UpdateChannelParams) er
 		arg.ImageStyle,
 		arg.Language,
 		arg.WordsPerChapter,
+		arg.WordsPerMinute,
 		arg.Credentials,
 		arg.UpdatedAt,
 		arg.ID,
@@ -190,8 +197,8 @@ func (q *Queries) UpdateChannel(ctx context.Context, arg UpdateChannelParams) er
 const upsertChannelBySlug = `-- name: UpsertChannelBySlug :exec
 INSERT INTO channels (
     id, slug, name, description, tone, voice, image_style, language,
-    words_per_chapter, credentials, video_seq, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    words_per_chapter, words_per_minute, credentials, video_seq, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (slug) DO UPDATE SET
     name = excluded.name,
     description = excluded.description,
@@ -200,6 +207,7 @@ ON CONFLICT (slug) DO UPDATE SET
     image_style = excluded.image_style,
     language = excluded.language,
     words_per_chapter = excluded.words_per_chapter,
+    words_per_minute = excluded.words_per_minute,
     updated_at = excluded.updated_at
 `
 
@@ -213,6 +221,7 @@ type UpsertChannelBySlugParams struct {
 	ImageStyle      string
 	Language        string
 	WordsPerChapter int64
+	WordsPerMinute  int64
 	Credentials     string
 	VideoSeq        int64
 	CreatedAt       int64
@@ -232,6 +241,7 @@ func (q *Queries) UpsertChannelBySlug(ctx context.Context, arg UpsertChannelBySl
 		arg.ImageStyle,
 		arg.Language,
 		arg.WordsPerChapter,
+		arg.WordsPerMinute,
 		arg.Credentials,
 		arg.VideoSeq,
 		arg.CreatedAt,

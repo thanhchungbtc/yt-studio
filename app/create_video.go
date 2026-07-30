@@ -18,6 +18,9 @@ type CreateVideoInput struct {
 	Topic            string
 	ChapterCount     int
 	ImagesPerChapter int
+	// TargetDurationMinutes is optional. Zero leaves the length to fall out of
+	// the chapter count and the channel's usual chapter size.
+	TargetDurationMinutes int
 }
 
 // CreateVideo mints a video in the draft state, with a ref taken from the
@@ -55,7 +58,8 @@ func CreateVideo(
 		return entity.Video{}, fmt.Errorf("%w: %w", ErrValidation, err)
 	}
 
-	v, err := entity.NewVideo(entity.VideoID(newID()), channel.ID, ref, in.Title, in.Topic, chapters, images, now)
+	v, err := entity.NewVideo(entity.VideoID(newID()), channel.ID, ref, in.Title, in.Topic,
+		chapters, images, in.TargetDurationMinutes, now)
 	if err != nil {
 		return entity.Video{}, fmt.Errorf("%w: %w", ErrValidation, err)
 	}

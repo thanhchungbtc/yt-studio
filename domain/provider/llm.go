@@ -26,13 +26,18 @@ var ErrUnavailable = errors.New("backend unavailable")
 
 // BlueprintRequest asks for the chapter outline of a whole video.
 type BlueprintRequest struct {
-	VideoID      entity.VideoID
-	VideoRef     entity.Ref
-	ChannelSlug  entity.Slug
-	Title        string
-	Topic        string
+	VideoID     entity.VideoID
+	VideoRef    entity.Ref
+	ChannelSlug entity.Slug
+	Title       string
+	Topic       string
+	// ChapterCount is the number of chapters asked for. It is a target, not a
+	// contract: the outline that comes back is what the video becomes.
 	ChapterCount int
-	Style        entity.StyleConfig
+	// TargetDurationMinutes is how long the finished video should run. Zero
+	// means unset, and the budget falls back to the channel's chapter size.
+	TargetDurationMinutes int
+	Style                 entity.StyleConfig
 }
 
 // BlueprintChapter is one outlined chapter.
@@ -40,6 +45,9 @@ type BlueprintChapter struct {
 	Ordinal int
 	Title   string
 	Summary string
+	// EstimatedWords is this chapter's share of the video's spoken-word budget,
+	// assigned by whoever planned it. Zero means unassigned.
+	EstimatedWords int
 }
 
 // Blueprint is the outline plus the asset the JSON was written to.
@@ -60,7 +68,10 @@ type ScriptRequest struct {
 	ChapterSummary   string
 	BlueprintTitle   string
 	BlueprintSummary string
-	Style            entity.StyleConfig
+	// TargetWords is the spoken-word budget for this chapter, as the blueprint
+	// assigned it. Zero means the channel's per-chapter average applies.
+	TargetWords int
+	Style       entity.StyleConfig
 }
 
 // Script is one chapter's narration plus the asset it was written to.

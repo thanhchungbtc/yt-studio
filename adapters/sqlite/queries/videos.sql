@@ -19,13 +19,14 @@ WHERE (CAST(sqlc.arg(channel_id) AS TEXT) = '' OR channel_id = sqlc.arg(channel_
 -- name: CreateVideo :exec
 INSERT INTO videos (
     id, channel_id, ref, title, topic, state, chapter_count, images_per_chapter,
-    blueprint_asset_id, final_asset_id, metadata_json, upload_json, error,
-    created_at, updated_at, started_at, completed_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    target_duration_minutes, blueprint_asset_id, final_asset_id, metadata_json,
+    upload_json, error, created_at, updated_at, started_at, completed_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: UpdateVideo :exec
 UPDATE videos
 SET title = ?, topic = ?, state = ?, chapter_count = ?, images_per_chapter = ?,
+    target_duration_minutes = ?,
     blueprint_asset_id = ?, final_asset_id = ?, metadata_json = ?,
     upload_json = ?, error = ?, updated_at = ?, started_at = ?, completed_at = ?
 WHERE id = ?;

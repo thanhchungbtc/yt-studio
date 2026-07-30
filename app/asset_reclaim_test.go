@@ -93,7 +93,7 @@ func (f *fixture) video(ref, title string) (entity.Video, entity.Chapter) {
 	f.t.Helper()
 	ctx := context.Background()
 
-	v, err := entity.NewVideo(entity.VideoID(ref), f.channel.ID, entity.Ref(ref), title, "", 1, 1, testTime)
+	v, err := entity.NewVideo(entity.VideoID(ref), f.channel.ID, entity.Ref(ref), title, "", 1, 1, 0, testTime)
 	if err != nil {
 		f.t.Fatalf("NewVideo: %v", err)
 	}

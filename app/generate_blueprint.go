@@ -47,13 +47,14 @@ func GenerateBlueprint(
 	}
 
 	bp, err := llm.Blueprint(ctx, provider.BlueprintRequest{
-		VideoID:      video.ID,
-		VideoRef:     video.Ref,
-		ChannelSlug:  channel.Slug,
-		Title:        video.Title,
-		Topic:        video.Topic,
-		ChapterCount: video.ChapterCount,
-		Style:        channel.Style,
+		VideoID:               video.ID,
+		VideoRef:              video.Ref,
+		ChannelSlug:           channel.Slug,
+		Title:                 video.Title,
+		Topic:                 video.Topic,
+		ChapterCount:          video.ChapterCount,
+		TargetDurationMinutes: video.TargetDurationMinutes,
+		Style:                 channel.Style,
 	})
 	if err != nil {
 		return classify(fmt.Errorf("generate blueprint: %w", err))
@@ -93,6 +94,9 @@ func GenerateBlueprint(
 		// each write their own index atomically.
 		c.ImageAssetIDs = make([]entity.AssetID, video.ImagesPerChapter)
 		c.ImagePrompts = make([]string, 0, video.ImagesPerChapter)
+		// The budget the outline assigned this chapter, carried as a field so the
+		// script writer reads it rather than recovering it from prose.
+		c.EstimatedWords = bc.EstimatedWords
 		chapters = append(chapters, c)
 	}
 	if err := chapterWriter.ReplaceChapters(ctx, video.ID, chapters); err != nil {

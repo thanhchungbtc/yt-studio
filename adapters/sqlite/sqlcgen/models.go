@@ -30,6 +30,7 @@ type Channel struct {
 	VideoSeq        int64
 	CreatedAt       int64
 	UpdatedAt       int64
+	WordsPerMinute  int64
 }
 
 type Chapter struct {
@@ -46,6 +47,7 @@ type Chapter struct {
 	DurationSeconds   float64
 	CreatedAt         int64
 	UpdatedAt         int64
+	EstimatedWords    int64
 }
 
 type Setting struct {
@@ -88,21 +90,22 @@ type TaskDep struct {
 }
 
 type Video struct {
-	ID               string
-	ChannelID        string
-	Ref              string
-	Title            string
-	Topic            string
-	State            string
-	ChapterCount     int64
-	ImagesPerChapter int64
-	BlueprintAssetID *string
-	FinalAssetID     *string
-	MetadataJson     *string
-	UploadJson       *string
-	Error            string
-	CreatedAt        int64
-	UpdatedAt        int64
-	StartedAt        *int64
-	CompletedAt      *int64
+	ID                    string
+	ChannelID             string
+	Ref                   string
+	Title                 string
+	Topic                 string
+	State                 string
+	ChapterCount          int64
+	ImagesPerChapter      int64
+	BlueprintAssetID      *string
+	FinalAssetID          *string
+	MetadataJson          *string
+	UploadJson            *string
+	Error                 string
+	CreatedAt             int64
+	UpdatedAt             int64
+	StartedAt             *int64
+	CompletedAt           *int64
+	TargetDurationMinutes int64
 }
