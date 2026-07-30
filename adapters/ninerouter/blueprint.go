@@ -142,10 +142,12 @@ func (c *Client) Blueprint(ctx context.Context, req provider.BlueprintRequest) (
 		})
 	}
 	return provider.Blueprint{
-		Title:    doc.Title,
-		Summary:  doc.Summary,
-		Chapters: chapters,
-		AssetID:  assetID,
+		BlueprintOutline: provider.BlueprintOutline{
+			Title:    doc.Title,
+			Summary:  doc.Summary,
+			Chapters: chapters,
+		},
+		AssetID: assetID,
 	}, nil
 }
 

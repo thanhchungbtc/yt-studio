@@ -50,26 +50,46 @@ type BlueprintChapter struct {
 	EstimatedWords int
 }
 
-// Blueprint is the outline plus the asset the JSON was written to.
-type Blueprint struct {
+// BlueprintOutline is the whole video plan one chapter is written inside.
+//
+// The writer sees every chapter in order, not just its own. That is what lets
+// it build on ground an earlier chapter already covered and leave room for one
+// still to come, instead of re-deriving the same idea under a different title
+// forty minutes later.
+type BlueprintOutline struct {
 	Title    string
 	Summary  string
 	Chapters []BlueprintChapter
-	AssetID  entity.AssetID
+}
+
+// Chapter returns the outlined chapter at an ordinal.
+func (o BlueprintOutline) Chapter(ordinal int) (BlueprintChapter, bool) {
+	for _, c := range o.Chapters {
+		if c.Ordinal == ordinal {
+			return c, true
+		}
+	}
+	return BlueprintChapter{}, false
+}
+
+// Blueprint is the outline plus the asset the JSON was written to.
+type Blueprint struct {
+	BlueprintOutline
+	AssetID entity.AssetID
 }
 
 // ScriptRequest asks for one chapter's narration. It carries the blueprint
 // context it needs so the provider never reads the database.
 type ScriptRequest struct {
-	VideoID          entity.VideoID
-	ChapterID        entity.ChapterID
-	Ordinal          int
-	ChapterTitle     string
-	ChapterSummary   string
-	BlueprintTitle   string
-	BlueprintSummary string
-	// TargetWords is the spoken-word budget for this chapter, as the blueprint
-	// assigned it. Zero means the channel's per-chapter average applies.
+	VideoID   entity.VideoID
+	ChapterID entity.ChapterID
+	// Ordinal says which chapter of the outline to write. The chapter's own
+	// title, brief and budget are read out of Blueprint rather than repeated
+	// here, so there is no second copy to disagree with it.
+	Ordinal   int
+	Blueprint BlueprintOutline
+	// TargetWords is the resolved budget: what the blueprint assigned this
+	// chapter, or the channel's average when it assigned none.
 	TargetWords int
 	Style       entity.StyleConfig
 }

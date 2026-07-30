@@ -70,10 +70,12 @@ func TestProvidersAreDeterministic(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		// The blueprint's own output is the outline a script is written inside,
+		// so it goes straight across with nothing to translate.
 		script, err := llm.Script(ctx, provider.ScriptRequest{
 			VideoID: "v1", ChapterID: "v1:ch:1", Ordinal: 1,
-			ChapterTitle: bp.Chapters[0].Title, ChapterSummary: bp.Chapters[0].Summary,
-			Style: testStyle,
+			Blueprint: bp.BlueprintOutline,
+			Style:     testStyle,
 		})
 		if err != nil {
 			t.Fatal(err)

@@ -350,6 +350,8 @@ func (c *serveCmd) Run() error {
 		Settings:      settings,
 
 		Submitter:  sched,
+		Resumer:    sched,
+		Requeuer:   sched,
 		Expander:   sched,
 		Canceller:  sched,
 		Approver:   sched,

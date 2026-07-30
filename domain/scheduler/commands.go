@@ -24,6 +24,7 @@ const (
 	cmdCancel
 	cmdRetryTask
 	cmdRetryChapter
+	cmdRequeue
 	cmdRerun
 	cmdMarkStale
 	cmdRunStale
@@ -89,6 +90,8 @@ func (s *Scheduler) handleCommand(ctx context.Context, c command) {
 		err = s.doRetryTask(c.taskID)
 	case cmdRetryChapter:
 		err = s.doRetryChapter(c.videoID, c.ordinal)
+	case cmdRequeue:
+		err = s.doRequeue(c)
 	case cmdRerun:
 		err = s.doRerun(c)
 	case cmdMarkStale:
@@ -172,6 +175,19 @@ func (s *Scheduler) RetryTask(ctx context.Context, taskID entity.TaskID) error {
 // RetryChapter resets every task of one chapter and everything downstream.
 func (s *Scheduler) RetryChapter(ctx context.Context, videoID entity.VideoID, ordinal int) error {
 	return s.send(ctx, command{kind: cmdRetryChapter, videoID: videoID, ordinal: ordinal})
+}
+
+// Requeue resets every task a video stopped on — cancelled or failed — and
+// everything downstream of them, and reports how many it reset.
+//
+// It is what resuming a cancelled video means. Re-submitting the head graph
+// cannot be it: the DAG has already expanded, so the loop would be told a video
+// is one node while the database holds hundreds. Nothing stopped is a no-op
+// rather than an error, which keeps the operator's button idempotent.
+func (s *Scheduler) Requeue(ctx context.Context, videoID entity.VideoID) (int, error) {
+	var n int
+	err := s.send(ctx, command{kind: cmdRequeue, videoID: videoID, count: &n})
+	return n, err
 }
 
 // Rerun re-runs tasks that have already succeeded, and marks everything
@@ -487,10 +503,19 @@ func (s *Scheduler) doCancel(videoID entity.VideoID) error {
 // rejected at the gate, has produced nothing the graph depends on. Both are
 // worth being able to run again — without them a transient provider error
 // would kill a video permanently.
+//
+// A cancelled blueprint is the same case, but only while the graph is still one
+// node: with the gate off, expansion happens inside the blueprint's own run, so
+// a cancel landing in that window leaves a cancelled blueprint over a DAG that
+// was built from its outline. Expansion, not the state, is what must not be
+// rolled twice.
 func guardBlueprintReset(g *Graph, indices []int32) error {
 	for _, i := range indices {
 		t := &g.tasks[i]
 		if t.Kind != entity.TaskKindBlueprint || t.State == entity.TaskStateFailed {
+			continue
+		}
+		if t.State == entity.TaskStateCancelled && !g.Expanded() {
 			continue
 		}
 		return fmt.Errorf("%w: %s is %s; reject it first, or start a new video",
@@ -533,6 +558,33 @@ func (s *Scheduler) doRetryChapter(videoID entity.VideoID, ordinal int) error {
 		return err
 	}
 	s.resetFrom(g, seeds)
+	return nil
+}
+
+func (s *Scheduler) doRequeue(c command) error {
+	g, ok := s.graphs[c.videoID]
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrUnknownVideo, c.videoID)
+	}
+	seeds := make([]int32, 0, 16)
+	for i := range g.tasks {
+		switch g.tasks[i].State {
+		case entity.TaskStateCancelled, entity.TaskStateFailed:
+			seeds = append(seeds, int32(i)) //nolint:gosec // bounded by graph size
+		case entity.TaskStateBlocked, entity.TaskStateReady, entity.TaskStateRunning,
+			entity.TaskStateAwaitingApproval, entity.TaskStateSucceeded:
+			// Still open, or holding an artifact: not what the video stopped on.
+		}
+	}
+	if len(seeds) == 0 {
+		*c.count = 0
+		return nil
+	}
+	if err := guardBlueprintReset(g, seeds); err != nil {
+		return err
+	}
+	s.resetFrom(g, seeds)
+	*c.count = len(seeds)
 	return nil
 }
 

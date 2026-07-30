@@ -152,6 +152,14 @@ function applyChapterDeltas(client: QueryClient, deltas: ChapterDelta[]): void {
   }
 
   for (const [videoId, videoDeltas] of byVideo) {
+    // A chapter the cache has never seen is one the blueprint has just created.
+    // The delta carries none of what a chapter card shows — no summary, no
+    // script, no prompts — so appending a husk would be worse than refetching:
+    // the operator would be reviewing an outline rendered as blanks.
+    const cached = client.getQueryData<Chapter[]>(qk.chapters(videoId))
+    const known = new Set(cached?.map((c) => c.id))
+    const unseen = cached !== undefined && videoDeltas.some((d) => !known.has(d.id))
+
     client.setQueryData<Chapter[]>(qk.chapters(videoId), (prev) => {
       if (!prev) return prev
       const index = new Map(videoDeltas.map((d) => [d.id, d]))
@@ -184,7 +192,7 @@ function applyChapterDeltas(client: QueryClient, deltas: ChapterDelta[]): void {
       return changed ? next : prev
     })
     // The script body is deliberately not on the wire; fetch it when it lands.
-    if (videoDeltas.some((d) => d.hasScript)) {
+    if (unseen || videoDeltas.some((d) => d.hasScript)) {
       void client.invalidateQueries({ queryKey: qk.chapters(videoId), refetchType: 'active' })
     }
   }
@@ -194,6 +202,23 @@ function sameIds(a: string[] | undefined, b: string[] | undefined): boolean {
   if (a === b) return true
   if (!a || !b || a.length !== b.length) return false
   return a.every((value, i) => value === b[i])
+}
+
+/**
+ * Matches the cached video *body*, not the key it was fetched under.
+ *
+ * The detail pane opens a video by whichever key the URL carried — its ref, or
+ * its id — while a delta only ever carries the id. Keying off the cached video's
+ * own id patches the entry either way; guessing at the key silently misses it,
+ * and a header that never moves while the sidebar does is the shape that bug
+ * takes. The length check keeps this off ['video', key, 'tasks'|'chapters'],
+ * whose bodies are arrays.
+ */
+function videoEntries(id: string) {
+  return (query: { queryKey: readonly unknown[]; state: { data: unknown } }): boolean =>
+    query.queryKey[0] === 'video' &&
+    query.queryKey.length === 2 &&
+    (query.state.data as Video | undefined)?.id === id
 }
 
 function applyVideoDelta(client: QueryClient, delta: VideoDelta): void {
@@ -222,8 +247,7 @@ function applyVideoDelta(client: QueryClient, delta: VideoDelta): void {
     }
   }
 
-  client.setQueryData<Video>(qk.video(delta.id), patch)
-  if (delta.ref) client.setQueryData<Video>(qk.video(delta.ref), patch)
+  client.setQueriesData<Video>({ predicate: videoEntries(delta.id) }, patch)
 
   // The list view shows progress inline, so patch it rather than refetching.
   client.setQueriesData<{ videos: Video[]; total: number }>({ queryKey: ['videos'] }, (prev) => {
@@ -238,11 +262,10 @@ function applyVideoDelta(client: QueryClient, delta: VideoDelta): void {
     return changed ? { ...prev, videos } : prev
   })
 
-  // A finished or newly gated video changes what the detail page can offer.
+  // A finished or newly gated video changes what the detail page can offer: the
+  // final render, the publish metadata, the upload receipt. None of those ride
+  // on the delta, so this is a refetch rather than a patch.
   if (delta.state === 'awaiting_approval' || delta.state === 'completed') {
-    void client.invalidateQueries({ queryKey: qk.video(delta.id), refetchType: 'active' })
-    if (delta.ref) {
-      void client.invalidateQueries({ queryKey: qk.video(delta.ref), refetchType: 'active' })
-    }
+    void client.invalidateQueries({ predicate: videoEntries(delta.id), refetchType: 'active' })
   }
 }

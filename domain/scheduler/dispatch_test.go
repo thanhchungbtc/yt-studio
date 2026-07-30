@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -478,9 +479,12 @@ func TestRunStaleReRunsTheFlaggedTasks(t *testing.T) {
 		s := r.sched.Snapshot()
 		return s.Succeeded == g.NodeCount() && s.Running == 0
 	})
-	if r.store.stale(tts.ID) {
-		t.Fatal("a re-run task is still marked stale")
-	}
+	// The flag is cleared in memory before the transition reaches the store, so
+	// this waits on the persisted copy rather than reading it in the same instant
+	// the snapshot settles.
+	waitFor(t, 5*time.Second, "the re-run task to stop being stale", func() bool {
+		return !r.store.stale(tts.ID)
+	})
 }
 
 // A cancelled video frees its slots within 100 ms.
@@ -600,6 +604,99 @@ func TestResumeContinuesFromPersistedState(t *testing.T) {
 	if v := second.order.failure(); v != "" {
 		t.Fatalf("dependency order violated after resume: %s", v)
 	}
+}
+
+// Cancelling is not the end of a video: requeueing what it stopped on runs it
+// to completion, and does not disturb the work it had already finished.
+func TestRequeueResumesACancelledVideo(t *testing.T) {
+	t.Parallel()
+	g := testGraph(t, "v1", 6, 2, false)
+	release := make(chan struct{})
+	r := newRig(t, nil, g, func(task entity.Task) entity.TaskOutcome {
+		if task.Kind == entity.TaskKindClip {
+			<-release // hold the video open so a cancel lands mid-render
+		}
+		return entity.Success{}
+	})
+	ctx := startScheduler(t, r.sched)
+	if err := r.sched.Submit(ctx, g); err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
+	waitFor(t, 10*time.Second, "the render to reach the clips", func() bool {
+		return r.pools.InFlight(entity.PoolCompose) > 0
+	})
+	if err := r.sched.Cancel(ctx, "v1"); err != nil {
+		t.Fatalf("Cancel: %v", err)
+	}
+	waitFor(t, 2*time.Second, "the video to be cancelled", func() bool {
+		return r.lifecycle.state("v1") == entity.VideoStateCancelled
+	})
+	close(release)
+	succeeded := r.sched.Snapshot().Succeeded
+	if succeeded == 0 || succeeded == g.NodeCount() {
+		t.Fatalf("cancelled with %d/%d succeeded; the run was not partial", succeeded, g.NodeCount())
+	}
+
+	n, err := r.sched.Requeue(ctx, "v1")
+	if err != nil {
+		t.Fatalf("Requeue: %v", err)
+	}
+	if n == 0 {
+		t.Fatal("requeued nothing, want every cancelled task")
+	}
+	waitFor(t, 20*time.Second, "the requeued video to finish", func() bool {
+		return r.sched.Snapshot().Succeeded == g.NodeCount()
+	})
+	if v := r.order.failure(); v != "" {
+		t.Fatalf("dependency order violated after requeue: %s", v)
+	}
+	// A second press with nothing stopped is a no-op rather than a re-run.
+	again, err := r.sched.Requeue(ctx, "v1")
+	if err != nil {
+		t.Fatalf("Requeue again: %v", err)
+	}
+	if again != 0 {
+		t.Fatalf("requeued %d tasks from a finished video, want 0", again)
+	}
+}
+
+// A blueprint cancelled before it expanded anything is the one blueprint a
+// requeue may roll again: nothing downstream was built from it.
+func TestRequeueRerunsAnUnexpandedCancelledBlueprint(t *testing.T) {
+	t.Parallel()
+	head, err := BuildHeadGraph(HeadSpec{VideoID: "v1", MaxAttempts: 3, Now: time.Unix(0, 0).UTC()})
+	if err != nil {
+		t.Fatalf("BuildHeadGraph: %v", err)
+	}
+	release := make(chan struct{})
+	var attempts atomic.Int32
+	r := newRig(t, nil, head, func(entity.Task) entity.TaskOutcome {
+		if attempts.Add(1) == 1 {
+			<-release
+		}
+		return entity.Success{}
+	})
+	ctx := startScheduler(t, r.sched)
+	if err := r.sched.Submit(ctx, head); err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
+	waitFor(t, 5*time.Second, "the blueprint to start", func() bool {
+		return r.pools.InFlight(entity.PoolLLM) > 0
+	})
+	if err := r.sched.Cancel(ctx, "v1"); err != nil {
+		t.Fatalf("Cancel: %v", err)
+	}
+	waitFor(t, 2*time.Second, "the video to be cancelled", func() bool {
+		return r.lifecycle.state("v1") == entity.VideoStateCancelled
+	})
+	close(release)
+
+	if _, err := r.sched.Requeue(ctx, "v1"); err != nil {
+		t.Fatalf("Requeue: %v", err)
+	}
+	waitFor(t, 10*time.Second, "the blueprint to run again", func() bool {
+		return r.sched.Snapshot().Succeeded == 1
+	})
 }
 
 // Two videos compete for the same global slots.

@@ -114,6 +114,8 @@ func postVideo(
 	videos repository.VideoReader,
 	tasks repository.TaskReader,
 	submitter app.GraphSubmitter,
+	resumer app.GraphResumer,
+	requeuer app.VideoRequeuer,
 	settings *service.Settings,
 	newID func() string,
 	now func() time.Time,
@@ -134,7 +136,8 @@ func postVideo(
 			return nil, mapError(err)
 		}
 		if in.Body.Start {
-			if _, err := app.StartVideo(ctx, videos, tasks, submitter, now(), startOptions(settings), string(v.ID)); err != nil {
+			if _, err := app.StartVideo(ctx, videos, tasks, submitter, resumer, requeuer, now(),
+				startOptions(settings), string(v.ID)); err != nil {
 				return nil, mapError(err)
 			}
 		}
@@ -167,11 +170,14 @@ func postVideoStart(
 	videos repository.VideoReader,
 	tasks repository.TaskReader,
 	submitter app.GraphSubmitter,
+	resumer app.GraphResumer,
+	requeuer app.VideoRequeuer,
 	settings *service.Settings,
 	now func() time.Time,
 ) func(context.Context, *VideoKeyInput) (*VideoOutput, error) {
 	return func(ctx context.Context, in *VideoKeyInput) (*VideoOutput, error) {
-		v, err := app.StartVideo(ctx, videos, tasks, submitter, now(), startOptions(settings), in.Key)
+		v, err := app.StartVideo(ctx, videos, tasks, submitter, resumer, requeuer, now(),
+			startOptions(settings), in.Key)
 		if err != nil {
 			return nil, mapError(err)
 		}
@@ -269,6 +275,8 @@ func registerVideoRoutes(
 	taskReader repository.TaskReader,
 	chapters repository.ChapterReader,
 	submitter app.GraphSubmitter,
+	resumer app.GraphResumer,
+	requeuer app.VideoRequeuer,
 	expander app.GraphExpander,
 	canceller app.VideoCanceller,
 	approver app.GateApprover,
@@ -293,13 +301,15 @@ func registerVideoRoutes(
 	huma.Register(api, huma.Operation{
 		OperationID: "createVideo", Method: "POST", Path: "/api/videos",
 		Summary: "Create a video", Tags: []string{"videos"}, DefaultStatus: 201,
-	}, postVideo(channels, channelWriter, videoWriter, videos, taskReader, submitter, settings, newID, now))
+	}, postVideo(channels, channelWriter, videoWriter, videos, taskReader, submitter, resumer,
+		requeuer, settings, newID, now))
 
 	huma.Register(api, huma.Operation{
 		OperationID: "startVideo", Method: "POST", Path: "/api/videos/{key}/start",
 		Summary: "Enqueue a video's DAG", Tags: []string{"videos"},
-		Description: "Idempotent: task ids are deterministic, so starting twice schedules nothing new.",
-	}, postVideoStart(videos, taskReader, submitter, settings, now))
+		Description: "Enqueues the blueprint of a draft, or requeues whatever a cancelled " +
+			"or failed video stopped on. Idempotent: a video with nothing stopped is left alone.",
+	}, postVideoStart(videos, taskReader, submitter, resumer, requeuer, settings, now))
 
 	huma.Register(api, huma.Operation{
 		OperationID: "cancelVideo", Method: "POST", Path: "/api/videos/{key}/cancel",

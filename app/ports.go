@@ -48,6 +48,11 @@ type VideoForgetter interface {
 	Forget(ctx context.Context, videoID entity.VideoID) error
 }
 
+// VideoRequeuer resets every task a video stopped on, for a resume.
+type VideoRequeuer interface {
+	Requeue(ctx context.Context, videoID entity.VideoID) (int, error)
+}
+
 // TaskRetrier resets one task and everything downstream of it.
 type TaskRetrier interface {
 	RetryTask(ctx context.Context, taskID entity.TaskID) error

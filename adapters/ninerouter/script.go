@@ -2,32 +2,48 @@ package ninerouter
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
-// scriptPrompt is what the script templates render against: the request, plus
-// the word budget resolved from the brief or the channel.
+// scriptPrompt is what the script templates render against: the whole outline,
+// the one chapter being written, and the budget it has to hit.
 type scriptPrompt struct {
-	provider.ScriptRequest
+	Blueprint provider.BlueprintOutline
+	Chapter   provider.BlueprintChapter
+	// TargetWords is the resolved budget. It is separate from Chapter's own
+	// figure because that one may be zero, and a prompt that asks for zero
+	// words is worse than one that falls back to the channel average.
 	TargetWords int
+	Style       entity.StyleConfig
 }
 
-// newScriptPrompt resolves the chapter's word budget: the one the blueprint
-// assigned if it assigned one, and the channel's per-chapter average otherwise.
+// newScriptPrompt finds the chapter in the outline and resolves its budget.
 //
-// The budget is deliberately uneven across a video — a deep chapter carries
-// roughly twice a short one — so falling back to the average flattens pacing
-// the outline was built around. It arrives as a field rather than as prose
-// inside the brief, which is what makes that fallback rare and visible.
-func newScriptPrompt(req provider.ScriptRequest) scriptPrompt {
+// The chapter is looked up rather than passed alongside, so the assignment and
+// the outline entry it points at are the same object by construction.
+func newScriptPrompt(req provider.ScriptRequest) (scriptPrompt, error) {
+	ch, ok := req.Blueprint.Chapter(req.Ordinal)
+	if !ok {
+		return scriptPrompt{}, fmt.Errorf(
+			"chapter %d is not in the outline of %s", req.Ordinal, req.VideoID)
+	}
 	target := req.TargetWords
+	if target <= 0 {
+		target = ch.EstimatedWords
+	}
 	if target <= 0 {
 		target = wordsPerChapter(req.Style)
 	}
-	return scriptPrompt{ScriptRequest: req, TargetWords: target}
+	return scriptPrompt{
+		Blueprint:   req.Blueprint,
+		Chapter:     ch,
+		TargetWords: target,
+		Style:       req.Style,
+	}, nil
 }
 
 // Script writes one chapter's narration.
@@ -37,7 +53,10 @@ func newScriptPrompt(req provider.ScriptRequest) scriptPrompt {
 // error to catch a model that prefaced its answer, which is why the system
 // prompt spends a section on it — every character here is read aloud.
 func (c *Client) Script(ctx context.Context, req provider.ScriptRequest) (provider.Script, error) {
-	prompt := newScriptPrompt(req)
+	prompt, err := newScriptPrompt(req)
+	if err != nil {
+		return provider.Script{}, err
+	}
 	system, err := render(scriptSystemPrompt, prompt)
 	if err != nil {
 		return provider.Script{}, err

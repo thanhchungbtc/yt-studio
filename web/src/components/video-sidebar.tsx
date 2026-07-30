@@ -332,8 +332,8 @@ function DeleteVideoDialog({
       if (active) void navigate({ to: '/videos' })
       onClose()
 
-      // Both keys: the pane reads the video by ref and its chapters, tasks and
-      // artifacts by id, and the event stream writes to both.
+      // Both keys: the pane reads the video under whichever one the URL carried,
+      // and its chapters, tasks and artifacts by id.
       queryClient.removeQueries({ queryKey: qk.video(video.ref) })
       queryClient.removeQueries({ queryKey: qk.video(video.id) })
       void queryClient.invalidateQueries({ queryKey: qk.videos({}) })

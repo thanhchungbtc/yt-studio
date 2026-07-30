@@ -50,11 +50,13 @@ func (l *LLM) Blueprint(ctx context.Context, req provider.BlueprintRequest) (pro
 	seed := seedOf(string(req.VideoID), req.Title, req.Topic, strconv.Itoa(req.ChapterCount))
 
 	bp := provider.Blueprint{
-		Title: req.Title,
-		Summary: fmt.Sprintf("%s. A %d-chapter narration in a %s register, produced for %s.",
-			firstNonEmpty(req.Topic, req.Title), req.ChapterCount,
-			firstNonEmpty(req.Style.Tone, "neutral"), req.ChannelSlug),
-		Chapters: make([]provider.BlueprintChapter, 0, req.ChapterCount),
+		BlueprintOutline: provider.BlueprintOutline{
+			Title: req.Title,
+			Summary: fmt.Sprintf("%s. A %d-chapter narration in a %s register, produced for %s.",
+				firstNonEmpty(req.Topic, req.Title), req.ChapterCount,
+				firstNonEmpty(req.Style.Tone, "neutral"), req.ChannelSlug),
+			Chapters: make([]provider.BlueprintChapter, 0, req.ChapterCount),
+		},
 	}
 	for i := 1; i <= req.ChapterCount; i++ {
 		cr := deterministic(seed ^ uint64(i)*0x100000001B3) //nolint:gosec // deterministic mixing
@@ -97,15 +99,25 @@ func (l *LLM) Script(ctx context.Context, req provider.ScriptRequest) (provider.
 	if err := simulate(ctx, l.tuning, 1); err != nil {
 		return provider.Script{}, err
 	}
+	// The chapter is read out of the outline rather than passed alongside it, so
+	// the assignment and the entry it points at cannot disagree.
+	ch, ok := req.Blueprint.Chapter(req.Ordinal)
+	if !ok {
+		return provider.Script{}, fmt.Errorf(
+			"chapter %d is not in the outline of %s", req.Ordinal, req.VideoID)
+	}
 	words := req.TargetWords
+	if words <= 0 {
+		words = ch.EstimatedWords
+	}
 	if words <= 0 {
 		words = req.Style.WordsPerChapter
 	}
 	if words <= 0 {
 		words = entity.DefaultWordsPerChapter
 	}
-	seed := seedOf(string(req.VideoID), strconv.Itoa(req.Ordinal), req.ChapterTitle)
-	text := narration(seed, req.ChapterTitle, req.ChapterSummary, req.Style.Tone, words)
+	seed := seedOf(string(req.VideoID), strconv.Itoa(req.Ordinal), ch.Title)
+	text := narration(seed, ch.Title, ch.Summary, req.Style.Tone, words)
 
 	stored, err := l.store.Put(ctx, entity.AssetKindScript, strings.NewReader(text))
 	if err != nil {

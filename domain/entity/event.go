@@ -47,9 +47,12 @@ type TaskDelta struct {
 }
 
 // VideoDelta is the subset of a Video that changes often enough to stream.
+//
+// It identifies the video by id and nothing else. The scheduler works in ids
+// and never loads a video row, so a ref here could only ever go out empty —
+// and a client that keyed off it would silently drop every update.
 type VideoDelta struct {
 	ID    VideoID    `json:"id"`
-	Ref   Ref        `json:"ref"`
 	State VideoState `json:"state"`
 	// Done and Total drive the progress bar without a refetch.
 	Done      int       `json:"done"`

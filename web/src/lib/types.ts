@@ -206,7 +206,6 @@ export interface TaskDelta {
 
 export interface VideoDelta {
   id: string
-  ref: string
   state: VideoState
   done: number
   total: number

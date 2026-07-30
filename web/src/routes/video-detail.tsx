@@ -1132,11 +1132,11 @@ const TaskRow = memo(function TaskRow({ task, onRetry }: { task: Task; onRetry: 
       </td>
       <td className="px-4 py-1.5 text-right">
         {/*
-          A blueprint may only be re-run from `failed`. The whole DAG below it
-          was built from the chapters it produced, and that expansion is
-          one-way — so the way back is to reject the outline first.
+          A blueprint may only be re-run from `failed` or `cancelled`. The whole
+          DAG below it was built from the chapters it produced, and that
+          expansion is one-way — so the way back is to reject the outline first.
         */}
-        {task.kind === 'blueprint' && task.state !== 'failed' ? (
+        {task.kind === 'blueprint' && task.state !== 'failed' && task.state !== 'cancelled' ? (
           <Tooltip label="The pipeline below is built from this outline. Reject it first, or start a new video.">
             <span className="text-[11px] text-subtle">locked</span>
           </Tooltip>

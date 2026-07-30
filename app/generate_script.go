@@ -42,16 +42,21 @@ func GenerateScript(
 		return classify(err)
 	}
 
+	// The whole outline goes with every chapter. A writer that can see what
+	// chapter 12 already covered is what keeps chapter 31 from covering it
+	// again, and that is the failure a fifty-chapter video actually has.
+	outline, err := blueprintOutline(ctx, chapters, video)
+	if err != nil {
+		return classify(err)
+	}
+
 	script, err := llm.Script(ctx, provider.ScriptRequest{
-		VideoID:          video.ID,
-		ChapterID:        chapter.ID,
-		Ordinal:          chapter.Ordinal,
-		ChapterTitle:     chapter.Title,
-		ChapterSummary:   chapter.Summary,
-		BlueprintTitle:   video.Title,
-		BlueprintSummary: video.Topic,
-		TargetWords:      chapter.EstimatedWords,
-		Style:            channel.Style,
+		VideoID:     video.ID,
+		ChapterID:   chapter.ID,
+		Ordinal:     chapter.Ordinal,
+		Blueprint:   outline,
+		TargetWords: chapter.EstimatedWords,
+		Style:       channel.Style,
 	})
 	if err != nil {
 		return classify(fmt.Errorf("generate script for chapter %d: %w", chapter.Ordinal, err))
@@ -74,6 +79,33 @@ func GenerateScript(
 		notifier.NotifyChapter(chapterDelta(chapter))
 	}
 	return entity.Success{Assets: []entity.AssetID{script.AssetID}}
+}
+
+// blueprintOutline projects a video's chapters as the plan a script is written
+// inside.
+func blueprintOutline(
+	ctx context.Context,
+	chapters repository.ChapterReader,
+	video entity.Video,
+) (provider.BlueprintOutline, error) {
+	rows, err := chapters.ListChaptersByVideo(ctx, video.ID)
+	if err != nil {
+		return provider.BlueprintOutline{}, err
+	}
+	out := provider.BlueprintOutline{
+		Title:    video.Title,
+		Summary:  video.Topic,
+		Chapters: make([]provider.BlueprintChapter, 0, len(rows)),
+	}
+	for _, c := range rows {
+		out.Chapters = append(out.Chapters, provider.BlueprintChapter{
+			Ordinal:        c.Ordinal,
+			Title:          c.Title,
+			Summary:        c.Summary,
+			EstimatedWords: c.EstimatedWords,
+		})
+	}
+	return out, nil
 }
 
 // NarrationSeconds turns a word count into a duration at a channel's reading

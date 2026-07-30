@@ -37,9 +37,11 @@ var _ provider.LLMProvider = (*shortLLM)(nil)
 func (l *shortLLM) Blueprint(ctx context.Context, req provider.BlueprintRequest) (provider.Blueprint, error) {
 	l.asked = req.ChapterCount
 	bp := provider.Blueprint{
-		Title:    req.Title,
-		Summary:  "an outline",
-		Chapters: make([]provider.BlueprintChapter, 0, l.chapters),
+		BlueprintOutline: provider.BlueprintOutline{
+			Title:    req.Title,
+			Summary:  "an outline",
+			Chapters: make([]provider.BlueprintChapter, 0, l.chapters),
+		},
 	}
 	for i := range l.chapters {
 		ordinal := i + 1
@@ -438,6 +440,22 @@ func (s *recordingSubmitter) Submit(_ context.Context, g *scheduler.Graph) error
 	return nil
 }
 
+// recordingResumer and recordingRequeuer stand in for the loop on the resume
+// path StartVideo takes over a video that already has tasks.
+type recordingResumer struct{ graphs []*scheduler.Graph }
+
+func (r *recordingResumer) Resume(_ context.Context, graphs []*scheduler.Graph) error {
+	r.graphs = append(r.graphs, graphs...)
+	return nil
+}
+
+type recordingRequeuer struct{ videos []entity.VideoID }
+
+func (r *recordingRequeuer) Requeue(_ context.Context, videoID entity.VideoID) (int, error) {
+	r.videos = append(r.videos, videoID)
+	return 0, nil
+}
+
 // A fresh video is enqueued as a lone blueprint.
 func TestStartVideoEnqueuesOnlyTheBlueprint(t *testing.T) {
 	t.Parallel()
@@ -445,7 +463,8 @@ func TestStartVideoEnqueuesOnlyTheBlueprint(t *testing.T) {
 	v := f.draft("DSS-1", 50, 2)
 
 	submitter := &recordingSubmitter{}
-	if _, err := app.StartVideo(context.Background(), f.store, f.store, submitter, testTime,
+	if _, err := app.StartVideo(context.Background(), f.store, f.store, submitter,
+		&recordingResumer{}, &recordingRequeuer{}, testTime,
 		app.StartVideoOptions{MaxAttempts: 3, BlueprintGate: true}, string(v.ID)); err != nil {
 		t.Fatalf("StartVideo: %v", err)
 	}
@@ -461,11 +480,12 @@ func TestStartVideoEnqueuesOnlyTheBlueprint(t *testing.T) {
 	}
 }
 
-// Starting a video that already has tasks schedules nothing new. It reads the
-// task table rather than trusting the loop's memory, because a cancelled video
-// is not resumed at startup — and a head graph submitted over an expanded DAG
-// would leave the loop believing the video is one node.
-func TestStartVideoIsIdempotentOverAnExpandedGraph(t *testing.T) {
+// Starting a video that already has tasks never submits a second head graph:
+// that would leave the loop believing the video is one node while the database
+// holds hundreds. It resumes instead, handing the loop the DAG as persisted —
+// which is the only way back to a cancelled video, since one whose tasks are
+// all terminal is not reloaded at startup.
+func TestStartVideoResumesAnExpandedGraphInsteadOfResubmitting(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	ctx := context.Background()
@@ -482,11 +502,22 @@ func TestStartVideoIsIdempotentOverAnExpandedGraph(t *testing.T) {
 	}
 
 	submitter := &recordingSubmitter{}
-	if _, err := app.StartVideo(ctx, f.store, f.store, submitter, testTime,
+	resumer := &recordingResumer{}
+	requeuer := &recordingRequeuer{}
+	if _, err := app.StartVideo(ctx, f.store, f.store, submitter, resumer, requeuer, testTime,
 		app.StartVideoOptions{MaxAttempts: 3}, string(v.ID)); err != nil {
 		t.Fatalf("StartVideo: %v", err)
 	}
 	if len(submitter.graphs) != 0 {
 		t.Fatalf("submitted %d graphs over an already-enqueued video, want none", len(submitter.graphs))
+	}
+	if len(resumer.graphs) != 1 {
+		t.Fatalf("resumed %d graphs, want 1", len(resumer.graphs))
+	}
+	if got, want := resumer.graphs[0].NodeCount(), full.NodeCount(); got != want {
+		t.Fatalf("resumed a %d-node graph, want the persisted %d", got, want)
+	}
+	if len(requeuer.videos) != 1 || requeuer.videos[0] != v.ID {
+		t.Fatalf("requeued %v, want [%s]", requeuer.videos, v.ID)
 	}
 }

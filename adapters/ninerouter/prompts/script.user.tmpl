@@ -1,18 +1,32 @@
-Video: {{ .BlueprintTitle }}
-{{- with .BlueprintSummary }}
-About: {{ . }}
+## Full Video Blueprint
+
+Title: {{ .Blueprint.Title }}
+{{- with .Blueprint.Summary }}
+Summary: {{ . }}
 {{- end }}
+
+Chapter structure (in order):
+{{ range .Blueprint.Chapters }}
+{{ if eq .Ordinal $.Chapter.Ordinal }}>>> YOU ARE WRITING THIS ONE <<<
+{{ end }}Chapter {{ .Ordinal }}: {{ .Title }}{{ if gt .EstimatedWords 0 }} — about {{ .EstimatedWords }} words{{ end }}
+{{ .Summary }}
+{{ end }}
+---
+
+## Your Assignment: Write a script for this chapter
+
+Chapter {{ .Chapter.Ordinal }}: {{ .Chapter.Title }}
+Target word count: about {{ .TargetWords }} words
 {{- with .Style.Tone }}
-Tone: {{ . }}
+Voice style: {{ . }}
 {{- end }}
 {{- with .Style.Language }}
 Language: {{ . }}
 {{- end }}
 
-Chapter {{ .Ordinal }}: {{ .ChapterTitle }}
-Word budget: about {{ .TargetWords }} words
-
 Brief:
-{{ .ChapterSummary }}
+{{ .Chapter.Summary }}
 
-Write the narration for this chapter now.
+Everything above this line is context. Write only the narration for chapter
+{{ .Chapter.Ordinal }}, about {{ .TargetWords }} words, beginning with the first
+words the listener hears.

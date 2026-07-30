@@ -372,7 +372,7 @@ export interface paths {
     put?: never
     /**
      * Enqueue a video's DAG
-     * @description Idempotent: task ids are deterministic, so starting twice schedules nothing new.
+     * @description Enqueues the blueprint of a draft, or requeues whatever a cancelled or failed video stopped on. Idempotent: a video with nothing stopped is left alone.
      */
     post: operations['startVideo']
     delete?: never

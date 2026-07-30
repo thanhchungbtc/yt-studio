@@ -70,6 +70,10 @@ type TaskReader interface {
 	// ListOpenGraphs returns every video whose DAG still has open tasks, with its
 	// edges, so the daemon can resume rather than restart.
 	ListOpenGraphs(ctx context.Context) ([]VideoGraph, error)
+	// GraphByVideo returns one video's persisted DAG whatever state its tasks are
+	// in. A video whose tasks are all terminal is not among the open graphs
+	// reloaded at startup, so this is the only way back to a cancelled one.
+	GraphByVideo(ctx context.Context, videoID entity.VideoID) (VideoGraph, error)
 	// ListRecentTasks powers the scheduler console's live table.
 	ListRecentTasks(ctx context.Context, limit int) ([]entity.Task, error)
 }

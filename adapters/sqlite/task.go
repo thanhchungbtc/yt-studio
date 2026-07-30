@@ -81,26 +81,35 @@ func (s *Store) ListOpenGraphs(ctx context.Context) ([]repository.VideoGraph, er
 	}
 	out := make([]repository.VideoGraph, 0, len(videoIDs))
 	for _, id := range videoIDs {
-		videoID := entity.VideoID(id)
-		tasks, err := s.ListTasksByVideo(ctx, videoID)
+		g, err := s.GraphByVideo(ctx, entity.VideoID(id))
 		if err != nil {
 			return nil, err
 		}
-		depRows, err := s.rq.ListTaskDepsByVideo(ctx, id)
-		if err != nil {
-			return nil, fmt.Errorf("list deps of %s: %w", id, err)
-		}
-		edges := make([]repository.TaskEdge, 0, len(depRows))
-		for _, d := range depRows {
-			edges = append(edges, repository.TaskEdge{
-				VideoID: entity.VideoID(d.VideoID),
-				From:    entity.TaskID(d.FromID),
-				To:      entity.TaskID(d.ToID),
-			})
-		}
-		out = append(out, repository.VideoGraph{VideoID: videoID, Tasks: tasks, Edges: edges})
+		out = append(out, g)
 	}
 	return out, nil
+}
+
+// GraphByVideo reloads one video's DAG regardless of what state its tasks are
+// in, which is what resuming a video the loop has forgotten needs.
+func (s *Store) GraphByVideo(ctx context.Context, videoID entity.VideoID) (repository.VideoGraph, error) {
+	tasks, err := s.ListTasksByVideo(ctx, videoID)
+	if err != nil {
+		return repository.VideoGraph{}, err
+	}
+	depRows, err := s.rq.ListTaskDepsByVideo(ctx, string(videoID))
+	if err != nil {
+		return repository.VideoGraph{}, fmt.Errorf("list deps of %s: %w", videoID, err)
+	}
+	edges := make([]repository.TaskEdge, 0, len(depRows))
+	for _, d := range depRows {
+		edges = append(edges, repository.TaskEdge{
+			VideoID: entity.VideoID(d.VideoID),
+			From:    entity.TaskID(d.FromID),
+			To:      entity.TaskID(d.ToID),
+		})
+	}
+	return repository.VideoGraph{VideoID: videoID, Tasks: tasks, Edges: edges}, nil
 }
 
 // InsertGraph writes a whole DAG in one transaction. Task ids are
