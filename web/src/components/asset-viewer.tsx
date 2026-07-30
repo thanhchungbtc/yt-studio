@@ -250,6 +250,12 @@ function AssetLightbox({
         <DialogPrimitive.Overlay className="animate-in-fade fixed inset-0 z-40 bg-black/70 backdrop-blur-[3px]" />
         <DialogPrimitive.Content
           aria-describedby={undefined}
+          onOpenAutoFocus={(event) => {
+            // Keep focus on the dialog itself; auto-focusing the first toolbar
+            // button pops its tooltip open the moment the viewer appears.
+            event.preventDefault()
+            ;(event.target as HTMLElement).focus()
+          }}
           className={cn(
             'animate-in-zoom fixed inset-3 z-50 flex flex-col overflow-hidden sm:inset-6',
             'rounded-[var(--radius-xl)] border border-[hsl(var(--border-strong))] bg-[hsl(var(--bg-elevated))] elev-3',
