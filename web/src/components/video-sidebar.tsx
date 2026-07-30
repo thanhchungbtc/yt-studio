@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import {
   AlertTriangle,
@@ -8,13 +8,15 @@ import {
   ListFilter,
   Plus,
   Search,
+  Trash2,
   X,
 } from 'lucide-react'
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { VideoStateDot } from '@/components/state-badges'
 import { Button } from '@/components/ui/button'
-import { Kbd, Ring, Skeleton, Tooltip } from '@/components/ui/primitives'
+import { ContextMenu, ContextMenuItem, ContextMenuLabel } from '@/components/ui/menu'
+import { ErrorNotice, Kbd, Modal, Ring, Skeleton, Tooltip } from '@/components/ui/primitives'
 import { api, qk } from '@/lib/api'
 import { useAppCommands } from '@/lib/app-commands'
 import { formatRelative, videoStateLabel } from '@/lib/format'
@@ -57,6 +59,11 @@ export function VideoSidebar({ activeRef }: { activeRef?: string }) {
 
   const searchRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+
+  // The confirmation lives here rather than in the row, so the dialog survives
+  // the row unmounting the moment the delete succeeds.
+  const [pendingDelete, setPendingDelete] = useState<Video | null>(null)
+  const requestDelete = useCallback((video: Video) => setPendingDelete(video), [])
 
   const videos = useQuery({ queryKey: qk.videos({}), queryFn: () => api.listVideos({}) })
   const channels = useQuery({ queryKey: qk.channels, queryFn: api.listChannels })
@@ -280,10 +287,93 @@ export function VideoSidebar({ activeRef }: { activeRef?: string }) {
             activeRef={activeRef}
             onToggle={() => toggleGroup(group.channel.id)}
             onCreate={() => openCreateVideo(group.channel.slug)}
+            onRequestDelete={requestDelete}
           />
         ))}
       </div>
+
+      <DeleteVideoDialog
+        video={pendingDelete}
+        active={pendingDelete?.ref === activeRef}
+        onClose={() => setPendingDelete(null)}
+      />
     </div>
+  )
+}
+
+/* ---------------------------------------------------------------- deletion */
+
+/**
+ * Deleting a video is irreversible and takes its chapters and its whole task
+ * graph with it, so it asks first and says exactly what it is about to remove.
+ */
+function DeleteVideoDialog({
+  video,
+  active,
+  onClose,
+}: {
+  video: Video | null
+  active: boolean
+  onClose: () => void
+}) {
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
+
+  const remove = useMutation({
+    mutationFn: (ref: string) => api.deleteVideo(ref),
+    onSuccess: async () => {
+      if (!video) return
+      queryClient.removeQueries({ queryKey: qk.video(video.ref) })
+      await queryClient.invalidateQueries({ queryKey: qk.videos({}) })
+      void queryClient.invalidateQueries({ queryKey: qk.channels })
+      // The detail pane is showing something that no longer exists.
+      if (active) void navigate({ to: '/videos' })
+      onClose()
+    },
+  })
+
+  const running = video?.state === 'running' || video?.state === 'awaiting_approval'
+
+  return (
+    <Modal
+      open={video !== null}
+      onOpenChange={(next) => {
+        if (!next && !remove.isPending) {
+          remove.reset()
+          onClose()
+        }
+      }}
+      title={`Delete ${video?.ref ?? ''}?`}
+      description="The video, its chapters and its task graph are removed. This cannot be undone."
+      footer={
+        <>
+          <Button variant="ghost" disabled={remove.isPending} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            disabled={remove.isPending}
+            onClick={() => video && remove.mutate(video.ref)}
+          >
+            {remove.isPending ? 'Deleting…' : 'Delete'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-2 text-[12.5px] text-muted">
+        <p className="text-fg">{video?.title}</p>
+        {running && (
+          <p className="text-[hsl(var(--warning))]">
+            This video is still working. Deleting it stops its tasks first.
+          </p>
+        )}
+        <p>
+          Generated files stay in the content-addressed store — deleting the video does not reclaim
+          disk.
+        </p>
+        {remove.isError && <ErrorNotice error={remove.error} />}
+      </div>
+    </Modal>
   )
 }
 
@@ -347,6 +437,7 @@ const ChannelGroup = memo(function ChannelGroup({
   activeRef,
   onToggle,
   onCreate,
+  onRequestDelete,
 }: {
   channel: Channel
   videos: Video[]
@@ -354,6 +445,7 @@ const ChannelGroup = memo(function ChannelGroup({
   activeRef: string | undefined
   onToggle: () => void
   onCreate: () => void
+  onRequestDelete: (video: Video) => void
 }) {
   const live = videos.filter((v) => v.state === 'running').length
   const gated = videos.filter((v) => v.state === 'awaiting_approval').length
@@ -417,7 +509,12 @@ const ChannelGroup = memo(function ChannelGroup({
       {!collapsed && (
         <ul className="px-1.5 pt-1">
           {videos.map((video) => (
-            <VideoRow key={video.id} video={video} active={video.ref === activeRef} />
+            <VideoRow
+              key={video.id}
+              video={video}
+              active={video.ref === activeRef}
+              onRequestDelete={onRequestDelete}
+            />
           ))}
         </ul>
       )}
@@ -426,89 +523,109 @@ const ChannelGroup = memo(function ChannelGroup({
 })
 
 /** Memoised on the video object: an SSE delta re-renders exactly one row (§9). */
-const VideoRow = memo(function VideoRow({ video, active }: { video: Video; active: boolean }) {
+const VideoRow = memo(function VideoRow({
+  video,
+  active,
+  onRequestDelete,
+}: {
+  video: Video
+  active: boolean
+  onRequestDelete: (video: Video) => void
+}) {
   const running = video.state === 'running'
   const { succeeded, total, failed } = video.counts
 
   return (
     <li>
-      <Link
-        to="/videos/$ref"
-        params={{ ref: video.ref }}
-        data-ref={video.ref}
-        aria-current={active ? 'page' : undefined}
-        className={cn(
-          'group relative flex items-center gap-2.5 rounded-[var(--radius-sm)] px-2 py-1.5 outline-none transition-colors',
-          active
-            ? 'bg-[hsl(var(--bg-active))]'
-            : 'hover:bg-[hsl(var(--bg-hover))] focus-visible:bg-[hsl(var(--bg-hover))]',
-        )}
+      <ContextMenu
+        items={
+          <>
+            <ContextMenuLabel>{video.ref}</ContextMenuLabel>
+            <ContextMenuItem tone="danger" onSelect={() => onRequestDelete(video)}>
+              <Trash2 className="h-3.5 w-3.5" aria-hidden />
+              Delete video…
+            </ContextMenuItem>
+          </>
+        }
       >
-        {active && (
-          <span
-            aria-hidden
-            className="absolute inset-y-1 left-0 w-[2px] rounded-full bg-[hsl(var(--accent))]"
-          />
-        )}
-
-        <Tooltip
-          label={`${succeeded} of ${total} tasks${failed ? `, ${failed} failed` : ''}`}
-          side="right"
+        <Link
+          to="/videos/$ref"
+          params={{ ref: video.ref }}
+          data-ref={video.ref}
+          aria-current={active ? 'page' : undefined}
+          className={cn(
+            'group relative flex items-center gap-2.5 rounded-[var(--radius-sm)] px-2 py-1.5 outline-none transition-colors',
+            active
+              ? 'bg-[hsl(var(--bg-active))]'
+              : 'hover:bg-[hsl(var(--bg-hover))] focus-visible:bg-[hsl(var(--bg-hover))]',
+          )}
         >
-          <span className="relative flex h-4 w-4 shrink-0 items-center justify-center">
-            {total > 0 ? (
-              <Ring value={succeeded} total={total} failed={failed} size={16} />
-            ) : (
-              <VideoStateDot state={video.state} />
-            )}
-          </span>
-        </Tooltip>
-
-        <span className="min-w-0 flex-1">
-          <span className="flex items-baseline gap-1.5">
+          {active && (
             <span
-              className={cn(
-                'shrink-0 font-mono text-[10.5px] font-semibold',
-                active ? 'text-[hsl(var(--accent))]' : 'text-subtle',
-              )}
-            >
-              {video.ref}
-            </span>
-            <span
-              className={cn(
-                'truncate text-[12.5px]',
-                active ? 'font-medium text-fg' : 'text-fg/90',
-              )}
-            >
-              {video.title}
-            </span>
-          </span>
-          <span className="mt-[1px] flex items-center gap-1.5 text-[10.5px] text-subtle">
-            <VideoStateDot state={video.state} className="h-[5px] w-[5px]" />
-            <span className="truncate">{videoStateLabel(video.state)}</span>
-            {running && total > 0 && (
-              <span className="tabular shrink-0">
-                {succeeded}/{total}
-              </span>
-            )}
-            <span className="ml-auto shrink-0 tabular">{formatRelative(video.updatedAt)}</span>
-          </span>
-        </span>
+              aria-hidden
+              className="absolute inset-y-1 left-0 w-[2px] rounded-full bg-[hsl(var(--accent))]"
+            />
+          )}
 
-        {video.counts.stale > 0 && (
-          <Tooltip label={`${video.counts.stale} stale — an input changed after they ran`}>
-            <span className="tabular shrink-0 rounded-full bg-[hsl(var(--warning)/0.18)] px-1.5 text-[10px] font-medium leading-[16px] text-[hsl(var(--warning))]">
-              {video.counts.stale}
+          <Tooltip
+            label={`${succeeded} of ${total} tasks${failed ? `, ${failed} failed` : ''}`}
+            side="right"
+          >
+            <span className="relative flex h-4 w-4 shrink-0 items-center justify-center">
+              {total > 0 ? (
+                <Ring value={succeeded} total={total} failed={failed} size={16} />
+              ) : (
+                <VideoStateDot state={video.state} />
+              )}
             </span>
           </Tooltip>
-        )}
-        {failed > 0 && (
-          <AlertTriangle
-            className="h-3.5 w-3.5 shrink-0 text-[hsl(var(--danger))]"
-            aria-label={`${failed} failed tasks`}
-          />
-        )}
-      </Link>
+
+          <span className="min-w-0 flex-1">
+            <span className="flex items-baseline gap-1.5">
+              <span
+                className={cn(
+                  'shrink-0 font-mono text-[10.5px] font-semibold',
+                  active ? 'text-[hsl(var(--accent))]' : 'text-subtle',
+                )}
+              >
+                {video.ref}
+              </span>
+              <span
+                className={cn(
+                  'truncate text-[12.5px]',
+                  active ? 'font-medium text-fg' : 'text-fg/90',
+                )}
+              >
+                {video.title}
+              </span>
+            </span>
+            <span className="mt-[1px] flex items-center gap-1.5 text-[10.5px] text-subtle">
+              <VideoStateDot state={video.state} className="h-[5px] w-[5px]" />
+              <span className="truncate">{videoStateLabel(video.state)}</span>
+              {running && total > 0 && (
+                <span className="tabular shrink-0">
+                  {succeeded}/{total}
+                </span>
+              )}
+              <span className="ml-auto shrink-0 tabular">{formatRelative(video.updatedAt)}</span>
+            </span>
+          </span>
+
+          {video.counts.stale > 0 && (
+            <Tooltip label={`${video.counts.stale} stale — an input changed after they ran`}>
+              <span className="tabular shrink-0 rounded-full bg-[hsl(var(--warning)/0.18)] px-1.5 text-[10px] font-medium leading-[16px] text-[hsl(var(--warning))]">
+                {video.counts.stale}
+              </span>
+            </Tooltip>
+          )}
+          {failed > 0 && (
+            <AlertTriangle
+              className="h-3.5 w-3.5 shrink-0 text-[hsl(var(--danger))]"
+              aria-label={`${failed} failed tasks`}
+            />
+          )}
+        </Link>
+      </ContextMenu>
     </li>
   )
 })
