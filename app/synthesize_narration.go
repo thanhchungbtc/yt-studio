@@ -17,7 +17,6 @@ func SynthesizeNarration(
 	ctx context.Context,
 	t entity.Task,
 	videos repository.VideoReader,
-	channels repository.ChannelReader,
 	chapters repository.ChapterReader,
 	tts provider.TTSProvider,
 	fields repository.ChapterFieldWriter,
@@ -43,18 +42,11 @@ func SynthesizeNarration(
 	if err != nil {
 		return classify(err)
 	}
-	channel, err := channels.ChannelByID(ctx, video.ChannelID)
-	if err != nil {
-		return classify(err)
-	}
-
 	assetID, err := tts.Speak(ctx, provider.SpeakRequest{
 		VideoID:   video.ID,
 		ChapterID: chapter.ID,
 		Ordinal:   chapter.Ordinal,
 		Text:      chapter.Script,
-		Voice:     channel.Style.Voice,
-		Language:  channel.Style.Language,
 	})
 	if err != nil {
 		return classify(fmt.Errorf("narrate chapter %d: %w", chapter.Ordinal, err))

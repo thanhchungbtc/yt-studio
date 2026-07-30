@@ -13,13 +13,9 @@ import (
 // UpdateChapterScript records an operator's edit to a chapter's narration. It
 // re-runs nothing — that decision stays with the operator — but the narration
 // and clip derived from the replaced text are flagged stale.
-//
-//nolint:revive // the parameter list is the dependency list
 func UpdateChapterScript(
 	ctx context.Context,
 	chapters repository.ChapterReader,
-	videos repository.VideoReader,
-	channels repository.ChannelReader,
 	fields repository.ChapterFieldWriter,
 	notifier ChapterNotifier,
 	marker StaleMarker,
@@ -34,18 +30,9 @@ func UpdateChapterScript(
 	if err != nil {
 		return entity.Chapter{}, err
 	}
-	// The re-timed duration has to use the same reading speed the blueprint
-	// budgeted with, which is the channel's, so an edited chapter and a
-	// generated one are measured the same way.
-	video, err := videos.VideoByID(ctx, c.VideoID)
-	if err != nil {
-		return entity.Chapter{}, err
-	}
-	channel, err := channels.ChannelByID(ctx, video.ChannelID)
-	if err != nil {
-		return entity.Chapter{}, err
-	}
-	duration := NarrationSeconds(CountWords(script), channel.Style.WordsPerMinute)
+	// The same reading speed the blueprint budgeted with, so an edited chapter
+	// and a generated one are measured the same way.
+	duration := NarrationSeconds(CountWords(script))
 	if err := fields.SetChapterScript(ctx, id, script, duration); err != nil {
 		return entity.Chapter{}, err
 	}

@@ -54,20 +54,14 @@ func (s *Store) ListChannels(ctx context.Context) ([]entity.Channel, error) {
 func (s *Store) CreateChannel(ctx context.Context, c entity.Channel) error {
 	err := s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
 		return q.CreateChannel(ctx, sqlcgen.CreateChannelParams{
-			ID:              string(c.ID),
-			Slug:            string(c.Slug),
-			Name:            c.Name,
-			Description:     c.Description,
-			Tone:            c.Style.Tone,
-			Voice:           c.Style.Voice,
-			ImageStyle:      c.Style.ImageStyle,
-			Language:        c.Style.Language,
-			WordsPerChapter: int64(c.Style.WordsPerChapter),
-			WordsPerMinute:  int64(c.Style.WordsPerMinute),
-			Credentials:     string(c.Credentials),
-			VideoSeq:        int64(c.VideoSeq),
-			CreatedAt:       toUnix(c.CreatedAt),
-			UpdatedAt:       toUnix(c.UpdatedAt),
+			ID:          string(c.ID),
+			Slug:        string(c.Slug),
+			Name:        c.Name,
+			Description: c.Description,
+			Credentials: string(c.Credentials),
+			VideoSeq:    int64(c.VideoSeq),
+			CreatedAt:   toUnix(c.CreatedAt),
+			UpdatedAt:   toUnix(c.UpdatedAt),
 		})
 	})
 	if err != nil {
@@ -81,17 +75,11 @@ func (s *Store) CreateChannel(ctx context.Context, c entity.Channel) error {
 func (s *Store) UpdateChannel(ctx context.Context, c entity.Channel) error {
 	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
 		return q.UpdateChannel(ctx, sqlcgen.UpdateChannelParams{
-			Name:            c.Name,
-			Description:     c.Description,
-			Tone:            c.Style.Tone,
-			Voice:           c.Style.Voice,
-			ImageStyle:      c.Style.ImageStyle,
-			Language:        c.Style.Language,
-			WordsPerChapter: int64(c.Style.WordsPerChapter),
-			WordsPerMinute:  int64(c.Style.WordsPerMinute),
-			Credentials:     string(c.Credentials),
-			UpdatedAt:       toUnix(c.UpdatedAt),
-			ID:              string(c.ID),
+			Name:        c.Name,
+			Description: c.Description,
+			Credentials: string(c.Credentials),
+			UpdatedAt:   toUnix(c.UpdatedAt),
+			ID:          string(c.ID),
 		})
 	})
 }
@@ -128,19 +116,13 @@ func (s *Store) NextVideoSeq(ctx context.Context, id entity.ChannelID) (int, err
 func (s *Store) UpsertChannelBySlug(ctx context.Context, c entity.Channel) (entity.Channel, error) {
 	err := s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
 		return q.UpsertChannelBySlug(ctx, sqlcgen.UpsertChannelBySlugParams{
-			ID:              string(c.ID),
-			Slug:            string(c.Slug),
-			Name:            c.Name,
-			Description:     c.Description,
-			Tone:            c.Style.Tone,
-			Voice:           c.Style.Voice,
-			ImageStyle:      c.Style.ImageStyle,
-			Language:        c.Style.Language,
-			WordsPerChapter: int64(c.Style.WordsPerChapter),
-			WordsPerMinute:  int64(c.Style.WordsPerMinute),
-			Credentials:     string(c.Credentials),
-			CreatedAt:       toUnix(c.CreatedAt),
-			UpdatedAt:       toUnix(c.UpdatedAt),
+			ID:          string(c.ID),
+			Slug:        string(c.Slug),
+			Name:        c.Name,
+			Description: c.Description,
+			Credentials: string(c.Credentials),
+			CreatedAt:   toUnix(c.CreatedAt),
+			UpdatedAt:   toUnix(c.UpdatedAt),
 		})
 	})
 	if err != nil {

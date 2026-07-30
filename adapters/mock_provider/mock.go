@@ -34,7 +34,6 @@ type VideoContext struct {
 	Ref              entity.Ref
 	Title            string
 	Topic            string
-	Style            entity.StyleConfig
 	Chapters         []provider.BlueprintChapter
 	ImagesPerChapter int
 }

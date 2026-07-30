@@ -12,8 +12,6 @@ type SpeakRequest struct {
 	ChapterID entity.ChapterID
 	Ordinal   int
 	Text      string
-	Voice     string
-	Language  string
 }
 
 // TTSProvider narrates one chapter per call.
@@ -28,7 +26,6 @@ type ImageRequest struct {
 	Ordinal   int
 	Index     int
 	Prompt    string
-	Style     string
 	Width     int
 	Height    int
 }

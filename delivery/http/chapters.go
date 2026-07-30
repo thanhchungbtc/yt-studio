@@ -57,14 +57,12 @@ func getChapters(videos repository.VideoReader, chapters repository.ChapterReade
 
 func putChapterScript(
 	chapters repository.ChapterReader,
-	videos repository.VideoReader,
-	channels repository.ChannelReader,
 	fields repository.ChapterFieldWriter,
 	notifier app.ChapterNotifier,
 	marker app.StaleMarker,
 ) func(context.Context, *UpdateScriptInput) (*ChapterOutput, error) {
 	return func(ctx context.Context, in *UpdateScriptInput) (*ChapterOutput, error) {
-		c, err := app.UpdateChapterScript(ctx, chapters, videos, channels, fields, notifier, marker,
+		c, err := app.UpdateChapterScript(ctx, chapters, fields, notifier, marker,
 			entity.ChapterID(in.ID), in.Body.Script)
 		if err != nil {
 			return nil, mapError(err)
@@ -93,7 +91,6 @@ func postChapterRetry(
 func registerChapterRoutes(
 	api huma.API,
 	videos repository.VideoReader,
-	channels repository.ChannelReader,
 	chapters repository.ChapterReader,
 	fields repository.ChapterFieldWriter,
 	notifier app.ChapterNotifier,
@@ -109,7 +106,7 @@ func registerChapterRoutes(
 	huma.Register(api, huma.Operation{
 		OperationID: "updateChapterScript", Method: "PUT", Path: "/api/chapters/{id}/script",
 		Summary: "Edit a chapter's script", Tags: []string{"chapters"},
-	}, putChapterScript(chapters, videos, channels, fields, notifier, marker))
+	}, putChapterScript(chapters, fields, notifier, marker))
 
 	huma.Register(api, huma.Operation{
 		OperationID: "retryChapter", Method: "POST", Path: "/api/videos/{key}/chapters/{ordinal}/retry",

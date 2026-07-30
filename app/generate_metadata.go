@@ -20,7 +20,6 @@ func GenerateMetadata(
 	ctx context.Context,
 	t entity.Task,
 	videos repository.VideoReader,
-	channels repository.ChannelReader,
 	chapters repository.ChapterReader,
 	llm provider.LLMProvider,
 	videoFields repository.VideoFieldWriter,
@@ -29,10 +28,6 @@ func GenerateMetadata(
 	now time.Time,
 ) entity.TaskOutcome {
 	video, err := videos.VideoByID(ctx, t.VideoID)
-	if err != nil {
-		return classify(err)
-	}
-	channel, err := channels.ChannelByID(ctx, video.ChannelID)
 	if err != nil {
 		return classify(err)
 	}
@@ -56,7 +51,6 @@ func GenerateMetadata(
 		Title:    video.Title,
 		Topic:    video.Topic,
 		Chapters: outline,
-		Style:    channel.Style,
 	})
 	if err != nil {
 		return classify(fmt.Errorf("generate metadata: %w", err))

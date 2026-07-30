@@ -36,21 +36,6 @@ func UpdateChannel(
 		c.Name = name
 	}
 	c.Description = in.Description
-	if in.Style.Tone != "" {
-		c.Style.Tone = in.Style.Tone
-	}
-	if in.Style.Voice != "" {
-		c.Style.Voice = in.Style.Voice
-	}
-	if in.Style.ImageStyle != "" {
-		c.Style.ImageStyle = in.Style.ImageStyle
-	}
-	if in.Style.Language != "" {
-		c.Style.Language = in.Style.Language
-	}
-	if in.Style.WordsPerChapter > 0 {
-		c.Style.WordsPerChapter = in.Style.WordsPerChapter
-	}
 	if in.Credentials != "" {
 		if !in.Credentials.Valid() {
 			return entity.Channel{}, Invalid("credentials", fmt.Sprintf("must be one of %v", entity.AllCredentialStatuses))

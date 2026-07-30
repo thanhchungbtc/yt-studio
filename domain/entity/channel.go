@@ -39,23 +39,11 @@ func (c CredentialStatus) Valid() bool {
 }
 
 // StyleConfig is the per-channel creative configuration handed to providers.
-type StyleConfig struct {
-	// Tone steers the LLM's narration voice, e.g. "calm, measured, nocturnal".
-	Tone string
-	// Voice names the TTS voice for this channel.
-	Voice string
-	// ImageStyle steers the image provider, e.g. "muted watercolour, wide shot".
-	ImageStyle string
-	// Language is a BCP-47 tag; scripts and metadata are produced in it.
-	Language string
-	// WordsPerChapter is the target narration length of one chapter.
-	WordsPerChapter int
-	// WordsPerMinute is how fast this channel's voice reads. It is what turns a
-	// word count into a duration, in both directions: the blueprint budgets
-	// words from a target length, and a finished script reports the length it
-	// actually came to.
-	WordsPerMinute int
-}
+//
+// Deliberately empty: what belongs in it is being reconsidered, and an empty
+// struct says "nothing decided yet" where leftover fields would say "these are
+// the ones". It is kept rather than deleted so the seam survives the rethink.
+type StyleConfig struct{}
 
 // Channel owns identity, creative configuration and upload credentials.
 type Channel struct {
@@ -84,15 +72,6 @@ func NewChannel(id ChannelID, slug Slug, name string, style StyleConfig, now tim
 	if name == "" {
 		return Channel{}, fmt.Errorf("%w: name must not be empty", ErrInvalidChannel)
 	}
-	if style.WordsPerChapter <= 0 {
-		style.WordsPerChapter = DefaultWordsPerChapter
-	}
-	if style.WordsPerMinute <= 0 {
-		style.WordsPerMinute = DefaultWordsPerMinute
-	}
-	if style.Language == "" {
-		style.Language = DefaultLanguage
-	}
 	return Channel{
 		ID:          id,
 		Slug:        slug,
@@ -103,12 +82,3 @@ func NewChannel(id ChannelID, slug Slug, name string, style StyleConfig, now tim
 		UpdatedAt:   now,
 	}, nil
 }
-
-// Defaults applied by the Channel constructor when a field is left blank.
-const (
-	DefaultWordsPerChapter = 450
-	DefaultLanguage        = "en-US"
-	// DefaultWordsPerMinute is an unhurried narration speed, chosen for a
-	// channel someone falls asleep to rather than for a briefing.
-	DefaultWordsPerMinute = 130
-)

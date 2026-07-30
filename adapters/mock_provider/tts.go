@@ -42,7 +42,7 @@ func (t *TTS) Speak(ctx context.Context, req provider.SpeakRequest) (entity.Asse
 	}
 	// The tone is derived from the request, so two chapters never produce the same
 	// bytes and the content addressing is genuinely exercised.
-	seed := seedOf(string(req.VideoID), strconv.Itoa(req.Ordinal), req.Voice, req.Text)
+	seed := seedOf(string(req.VideoID), strconv.Itoa(req.Ordinal), req.Text)
 	buf := renderWAV(seed)
 
 	stored, err := t.store.Put(ctx, entity.AssetKindAudio, bytes.NewReader(buf))

@@ -52,9 +52,8 @@ func (l *LLM) Blueprint(ctx context.Context, req provider.BlueprintRequest) (pro
 	bp := provider.Blueprint{
 		BlueprintOutline: provider.BlueprintOutline{
 			Title: req.Title,
-			Summary: fmt.Sprintf("%s. A %d-chapter narration in a %s register, produced for %s.",
-				firstNonEmpty(req.Topic, req.Title), req.ChapterCount,
-				firstNonEmpty(req.Style.Tone, "neutral"), req.ChannelSlug),
+			Summary: fmt.Sprintf("%s. A %d-chapter narration produced for %s.",
+				firstNonEmpty(req.Topic, req.Title), req.ChapterCount, req.ChannelSlug),
 			Chapters: make([]provider.BlueprintChapter, 0, req.ChapterCount),
 		},
 	}
@@ -87,12 +86,7 @@ func (l *LLM) Blueprint(ctx context.Context, req provider.BlueprintRequest) (pro
 // mockChapterWords is the flat per-chapter budget the mock plans with. It does
 // not vary by pacing the way a real outline does; it exists so the field is
 // populated and the pipeline is exercised end to end.
-func mockChapterWords(req provider.BlueprintRequest) int {
-	if req.Style.WordsPerChapter > 0 {
-		return req.Style.WordsPerChapter
-	}
-	return entity.DefaultWordsPerChapter
-}
+func mockChapterWords(provider.BlueprintRequest) int { return entity.DefaultWordsPerChapter }
 
 // Script writes exactly one chapter's narration.
 func (l *LLM) Script(ctx context.Context, req provider.ScriptRequest) (provider.Script, error) {
@@ -111,13 +105,10 @@ func (l *LLM) Script(ctx context.Context, req provider.ScriptRequest) (provider.
 		words = ch.EstimatedWords
 	}
 	if words <= 0 {
-		words = req.Style.WordsPerChapter
-	}
-	if words <= 0 {
 		words = entity.DefaultWordsPerChapter
 	}
 	seed := seedOf(string(req.VideoID), strconv.Itoa(req.Ordinal), ch.Title)
-	text := narration(seed, ch.Title, ch.Summary, req.Style.Tone, words)
+	text := narration(seed, ch.Title, ch.Summary, words)
 
 	stored, err := l.store.Put(ctx, entity.AssetKindScript, strings.NewReader(text))
 	if err != nil {
@@ -164,7 +155,7 @@ func (l *LLM) ImagePrompts(ctx context.Context, videoID entity.VideoID) ([]provi
 				out = append(out, provider.ImagePrompt{
 					Ordinal: ch.Ordinal,
 					Index:   j,
-					Prompt:  imagePrompt(seed, ch.Title, ch.Summary, vc.Style.ImageStyle),
+					Prompt:  imagePrompt(seed, ch.Title, ch.Summary),
 				})
 			}
 		}
@@ -235,7 +226,7 @@ func (l *LLM) Metadata(ctx context.Context, req provider.MetadataRequest) (provi
 	md := entity.Metadata{
 		Title:       truncate(req.Title, 100),
 		Description: desc.String(),
-		Tags:        tagsFor(r, req.Topic, req.Style),
+		Tags:        tagsFor(r, req.Topic),
 		CategoryID:  "22",
 		Privacy:     "private",
 	}

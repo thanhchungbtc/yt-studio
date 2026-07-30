@@ -196,6 +196,17 @@ const (
 	MaxDurationMinutes = 720
 )
 
+// The narration constants. They are what turn a word count into a duration and
+// back, so a video cannot be planned or timed without them.
+const (
+	// DefaultWordsPerChapter is the spoken length of one chapter when nothing
+	// has assigned it a budget of its own.
+	DefaultWordsPerChapter = 450
+	// DefaultWordsPerMinute is an unhurried narration speed, chosen for a
+	// channel someone falls asleep to rather than for a briefing.
+	DefaultWordsPerMinute = 130
+)
+
 // ChapterCountBand returns the inclusive range of chapter counts an accepted
 // blueprint may have, for a video briefed with target chapters.
 //

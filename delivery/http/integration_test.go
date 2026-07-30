@@ -178,10 +178,6 @@ func videoContext(store *sqlite.Store) mockprovider.ContextLookup {
 		if err != nil {
 			return mockprovider.VideoContext{}, err
 		}
-		ch, err := store.ChannelByID(ctx, v.ChannelID)
-		if err != nil {
-			return mockprovider.VideoContext{}, err
-		}
 		rows, err := store.ListChaptersByVideo(ctx, videoID)
 		if err != nil {
 			return mockprovider.VideoContext{}, err
@@ -191,7 +187,7 @@ func videoContext(store *sqlite.Store) mockprovider.ContextLookup {
 			outline = append(outline, provider.BlueprintChapter{Ordinal: c.Ordinal, Title: c.Title, Summary: c.Summary})
 		}
 		return mockprovider.VideoContext{
-			Ref: v.Ref, Title: v.Title, Topic: v.Topic, Style: ch.Style,
+			Ref: v.Ref, Title: v.Title, Topic: v.Topic,
 			Chapters: outline, ImagesPerChapter: v.ImagesPerChapter,
 		}, nil
 	}
@@ -808,8 +804,7 @@ func TestChannelCRUD(t *testing.T) {
 		Name string `json:"name"`
 	}
 	h.json(http.MethodPost, "/api/channels", map[string]any{
-		"name":  "Quiet Rivers",
-		"style": map[string]any{"tone": "hushed", "voice": "slate-mid", "language": "en-GB", "wordsPerChapter": 300},
+		"name": "Quiet Rivers",
 	}, http.StatusCreated, &created)
 	if created.Slug != "quiet-rivers" {
 		t.Fatalf("slug = %q, want quiet-rivers (derived from the name)", created.Slug)

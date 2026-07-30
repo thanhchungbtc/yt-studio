@@ -40,7 +40,7 @@ func (i *Image) Generate(ctx context.Context, req provider.ImageRequest) (entity
 	if err := simulate(ctx, i.tuning, 2); err != nil {
 		return "", err
 	}
-	seed := seedOf(string(req.VideoID), strconv.Itoa(req.Ordinal), strconv.Itoa(req.Index), req.Prompt, req.Style)
+	seed := seedOf(string(req.VideoID), strconv.Itoa(req.Ordinal), strconv.Itoa(req.Index), req.Prompt)
 	img := renderStill(seed)
 
 	var buf bytes.Buffer

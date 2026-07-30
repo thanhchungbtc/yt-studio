@@ -74,7 +74,7 @@ export function ChannelsRoute() {
           <EmptyState
             icon={<Tv />}
             title="No channels"
-            description="A channel carries the voice, the visual style and the credentials every video inherits."
+            description="A channel carries the ref sequence and the credentials every video inherits."
             action={
               <Button variant="primary" onClick={() => setCreating(true)}>
                 <Plus className="h-3.5 w-3.5" />
@@ -120,12 +120,6 @@ export function ChannelsRoute() {
                   <p className="mb-2 text-[12px] text-muted">{channel.description}</p>
                 )}
                 <dl>
-                  <KeyValue label="Tone">{channel.style.tone || '—'}</KeyValue>
-                  <KeyValue label="Voice">{channel.style.voice || '—'}</KeyValue>
-                  <KeyValue label="Image style">{channel.style.imageStyle || '—'}</KeyValue>
-                  <KeyValue label="Language">{channel.style.language}</KeyValue>
-                  <KeyValue label="Words / chapter">{channel.style.wordsPerChapter}</KeyValue>
-                  <KeyValue label="Words / minute">{channel.style.wordsPerMinute}</KeyValue>
                   <KeyValue label="Videos minted">{channel.videoSeq}</KeyValue>
                   <KeyValue label="Created">{formatAbsolute(channel.createdAt)}</KeyValue>
                 </dl>
@@ -185,24 +179,11 @@ function ChannelDialog({
   const [name, setName] = useState(channel?.name ?? '')
   const [slug, setSlug] = useState(channel?.slug ?? '')
   const [description, setDescription] = useState(channel?.description ?? '')
-  const [tone, setTone] = useState(channel?.style.tone ?? '')
-  const [voice, setVoice] = useState(channel?.style.voice ?? '')
-  const [imageStyle, setImageStyle] = useState(channel?.style.imageStyle ?? '')
-  const [language, setLanguage] = useState(channel?.style.language ?? 'en-US')
-  const [words, setWords] = useState(String(channel?.style.wordsPerChapter ?? 450))
-  const [wpm, setWpm] = useState(String(channel?.style.wordsPerMinute ?? 130))
   const [credentials, setCredentials] = useState(channel?.credentials ?? 'missing')
 
   const save = useMutation({
     mutationFn: () => {
-      const style = {
-        tone,
-        voice,
-        imageStyle,
-        language,
-        wordsPerChapter: Number(words) || 0,
-        wordsPerMinute: Number(wpm) || 0,
-      }
+      const style = {}
       return channel
         ? api.updateChannel(channel.slug, { name, description, style, credentials })
         : api.createChannel({ ...(slug ? { slug } : {}), name, description, style })
@@ -269,67 +250,7 @@ function ChannelDialog({
           )}
         </Field>
 
-        <Field label="Tone" hint="Handed to the LLM with every script request.">
-          {(id) => (
-            <Input
-              id={id}
-              value={tone}
-              onChange={(e) => setTone(e.target.value)}
-              placeholder="calm, measured, nocturnal"
-            />
-          )}
-        </Field>
-
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Voice">
-            {(id) => <Input id={id} value={voice} onChange={(e) => setVoice(e.target.value)} />}
-          </Field>
-          <Field label="Language">
-            {(id) => (
-              <Input id={id} value={language} onChange={(e) => setLanguage(e.target.value)} />
-            )}
-          </Field>
-        </div>
-
-        <Field label="Image style">
-          {(id) => (
-            <Input
-              id={id}
-              value={imageStyle}
-              onChange={(e) => setImageStyle(e.target.value)}
-              placeholder="muted watercolour, wide shot"
-            />
-          )}
-        </Field>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Words per chapter">
-            {(id) => (
-              <Input
-                id={id}
-                type="number"
-                min={50}
-                max={5000}
-                value={words}
-                onChange={(e) => setWords(e.target.value)}
-              />
-            )}
-          </Field>
-          {/* The reading speed both ends of the pipeline use: the blueprint
-              budgets words from a target length with it, and a finished script
-              reports its length with it. */}
-          <Field label="Words per minute" hint="How fast this voice narrates.">
-            {(id) => (
-              <Input
-                id={id}
-                type="number"
-                min={60}
-                max={300}
-                value={wpm}
-                onChange={(e) => setWpm(e.target.value)}
-              />
-            )}
-          </Field>
           {channel && (
             <Field label="Credentials">
               {(id) => (

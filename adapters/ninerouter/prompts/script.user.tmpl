@@ -17,16 +17,7 @@ Chapter structure (in order):
 
 Chapter {{ .Chapter.Ordinal }}: {{ .Chapter.Title }}
 Target word count: about {{ .TargetWords }} words
-{{- with .Style.Tone }}
-Voice style: {{ . }}
-{{- end }}
-{{- with .Style.Language }}
-Language: {{ . }}
-{{- end }}
 
 Brief:
 {{ .Chapter.Summary }}
 
-Everything above this line is context. Write only the narration for chapter
-{{ .Chapter.Ordinal }}, about {{ .TargetWords }} words, beginning with the first
-words the listener hears.

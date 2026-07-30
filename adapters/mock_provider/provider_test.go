@@ -24,14 +24,6 @@ func newStore(t *testing.T) *assetstore.FS {
 	return store
 }
 
-var testStyle = entity.StyleConfig{
-	Tone:            "calm, measured",
-	Voice:           "amber-low",
-	ImageStyle:      "muted watercolour",
-	Language:        "en-US",
-	WordsPerChapter: 120,
-}
-
 func blueprintRequest(chapters int) provider.BlueprintRequest {
 	return provider.BlueprintRequest{
 		VideoID:      "v1",
@@ -40,7 +32,6 @@ func blueprintRequest(chapters int) provider.BlueprintRequest {
 		Title:        "The Long Winter",
 		Topic:        "a northern port town",
 		ChapterCount: chapters,
-		Style:        testStyle,
 	}
 }
 
@@ -50,7 +41,6 @@ func lookupFor(bp provider.Blueprint, images int) mockprovider.ContextLookup {
 			Ref:              "DSS-1",
 			Title:            bp.Title,
 			Topic:            "a northern port town",
-			Style:            testStyle,
 			Chapters:         bp.Chapters,
 			ImagesPerChapter: images,
 		}, nil
@@ -75,14 +65,13 @@ func TestProvidersAreDeterministic(t *testing.T) {
 		script, err := llm.Script(ctx, provider.ScriptRequest{
 			VideoID: "v1", ChapterID: "v1:ch:1", Ordinal: 1,
 			Blueprint: bp.BlueprintOutline,
-			Style:     testStyle,
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
 		tts := mockprovider.NewTTS(store, nil)
 		audio, err := tts.Speak(ctx, provider.SpeakRequest{
-			VideoID: "v1", ChapterID: "v1:ch:1", Ordinal: 1, Text: script.Text, Voice: testStyle.Voice,
+			VideoID: "v1", ChapterID: "v1:ch:1", Ordinal: 1, Text: script.Text,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -90,7 +79,7 @@ func TestProvidersAreDeterministic(t *testing.T) {
 		images := mockprovider.NewImage(store, nil)
 		still, err := images.Generate(ctx, provider.ImageRequest{
 			VideoID: "v1", ChapterID: "v1:ch:1", Ordinal: 1, Index: 0,
-			Prompt: "a wide harbour at low tide", Style: testStyle.ImageStyle,
+			Prompt: "a wide harbour at low tide",
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -244,7 +233,7 @@ func TestGeneratedAudioIsAValidWAV(t *testing.T) {
 	tts := mockprovider.NewTTS(store, nil)
 
 	id, err := tts.Speak(ctx, provider.SpeakRequest{
-		VideoID: "v1", ChapterID: "v1:ch:1", Ordinal: 1, Text: "hello there", Voice: "amber-low",
+		VideoID: "v1", ChapterID: "v1:ch:1", Ordinal: 1, Text: "hello there",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -290,7 +279,7 @@ func TestComposedMP4IsStructurallyValid(t *testing.T) {
 	makeClip := func(ordinal int) entity.AssetID {
 		audio, err := tts.Speak(ctx, provider.SpeakRequest{
 			VideoID: "v1", ChapterID: entity.NewChapterID("v1", ordinal), Ordinal: ordinal,
-			Text: "narration for chapter", Voice: "amber-low",
+			Text: "narration for chapter",
 		})
 		if err != nil {
 			t.Fatal(err)

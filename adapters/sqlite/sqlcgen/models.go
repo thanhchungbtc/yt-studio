@@ -17,20 +17,14 @@ type Asset struct {
 }
 
 type Channel struct {
-	ID              string
-	Slug            string
-	Name            string
-	Description     string
-	Tone            string
-	Voice           string
-	ImageStyle      string
-	Language        string
-	WordsPerChapter int64
-	Credentials     string
-	VideoSeq        int64
-	CreatedAt       int64
-	UpdatedAt       int64
-	WordsPerMinute  int64
+	ID          string
+	Slug        string
+	Name        string
+	Description string
+	Credentials string
+	VideoSeq    int64
+	CreatedAt   int64
+	UpdatedAt   int64
 }
 
 type Chapter struct {

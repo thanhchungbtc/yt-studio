@@ -134,13 +134,13 @@ func (r *TaskRunner) dispatch(ctx context.Context, t entity.Task) entity.TaskOut
 	case entity.TaskKindImagePrompts:
 		return ResolveImagePrompts(ctx, t, r.llm, r.chapters, r.chapterFields)
 	case entity.TaskKindScript:
-		return GenerateScript(ctx, t, r.videos, r.channels, r.chapters, r.llm,
+		return GenerateScript(ctx, t, r.videos, r.chapters, r.llm,
 			r.chapterFields, r.assets, r.store, r.notifier, r.now())
 	case entity.TaskKindTTS:
-		return SynthesizeNarration(ctx, t, r.videos, r.channels, r.chapters, r.tts,
+		return SynthesizeNarration(ctx, t, r.videos, r.chapters, r.tts,
 			r.chapterFields, r.assets, r.store, r.notifier, r.now())
 	case entity.TaskKindImage:
-		return GenerateStill(ctx, t, r.videos, r.channels, r.chapters, r.images,
+		return GenerateStill(ctx, t, r.videos, r.chapters, r.images,
 			r.chapterFields, r.assets, r.store, r.notifier, r.now())
 	case entity.TaskKindClip:
 		return ComposeChapterClip(ctx, t, r.videos, r.chapters, r.composer, r.chapterFields,
@@ -149,7 +149,7 @@ func (r *TaskRunner) dispatch(ctx context.Context, t entity.Task) entity.TaskOut
 		return ComposeFinalVideo(ctx, t, r.chapters, r.composer, r.videoFields,
 			r.assets, r.store, r.now())
 	case entity.TaskKindMetadata:
-		return GenerateMetadata(ctx, t, r.videos, r.channels, r.chapters, r.llm,
+		return GenerateMetadata(ctx, t, r.videos, r.chapters, r.llm,
 			r.videoFields, r.assets, r.store, r.now())
 	case entity.TaskKindUpload:
 		return PublishVideo(ctx, t, r.videos, r.channels, r.uploader, r.videoFields, r.dryRun)

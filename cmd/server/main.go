@@ -439,10 +439,6 @@ func videoContextLookup(store *sqlite.Store) mockprovider.ContextLookup {
 		if err != nil {
 			return mockprovider.VideoContext{}, err
 		}
-		ch, err := store.ChannelByID(ctx, v.ChannelID)
-		if err != nil {
-			return mockprovider.VideoContext{}, err
-		}
 		rows, err := store.ListChaptersByVideo(ctx, videoID)
 		if err != nil {
 			return mockprovider.VideoContext{}, err
@@ -459,7 +455,6 @@ func videoContextLookup(store *sqlite.Store) mockprovider.ContextLookup {
 			Ref:              v.Ref,
 			Title:            v.Title,
 			Topic:            v.Topic,
-			Style:            ch.Style,
 			Chapters:         outline,
 			ImagesPerChapter: v.ImagesPerChapter,
 		}, nil

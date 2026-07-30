@@ -54,7 +54,6 @@ func GenerateBlueprint(
 		Topic:                 video.Topic,
 		ChapterCount:          video.ChapterCount,
 		TargetDurationMinutes: video.TargetDurationMinutes,
-		Style:                 channel.Style,
 	})
 	if err != nil {
 		return classify(fmt.Errorf("generate blueprint: %w", err))

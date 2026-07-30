@@ -747,46 +747,8 @@ export interface components {
       /** Format: int64 */
       count: number
     }
-    StyleDTO: {
-      /** @description Visual direction handed to the image backend */
-      imageStyle: string
-      /** @description BCP-47 language tag */
-      language: string
-      /** @description Narration register handed to the LLM */
-      tone: string
-      /** @description TTS voice name */
-      voice: string
-      /**
-       * Format: int64
-       * @description Target narration length of one chapter
-       */
-      wordsPerChapter: number
-      /**
-       * Format: int64
-       * @description Reading speed this channel's voice narrates at
-       */
-      wordsPerMinute: number
-    }
-    StyleInputDTO: {
-      /** @description Visual direction handed to the image backend */
-      imageStyle?: string
-      /** @description BCP-47 language tag */
-      language?: string
-      /** @description Narration register handed to the LLM */
-      tone?: string
-      /** @description TTS voice name */
-      voice?: string
-      /**
-       * Format: int64
-       * @description Target narration length of one chapter
-       */
-      wordsPerChapter?: number
-      /**
-       * Format: int64
-       * @description Reading speed this channel's voice narrates at
-       */
-      wordsPerMinute?: number
-    }
+    StyleDTO: Record<string, never>
+    StyleInputDTO: Record<string, never>
     TaskCountsDTO: {
       /** Format: int64 */
       awaitingApproval: number

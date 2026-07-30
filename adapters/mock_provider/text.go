@@ -4,8 +4,6 @@ import (
 	"math/rand/v2"
 	"strconv"
 	"strings"
-
-	"github.com/tbui/yt-studio/domain/entity"
 )
 
 // Deterministic prose generation. Every phrase is chosen by a PRNG seeded only
@@ -122,7 +120,7 @@ func chapterSummary(r *rand.Rand, topic string, ordinal int) string {
 // narration builds a script of roughly wordTarget words in sentences of varied
 // length, using a strings.Builder with reserved capacity rather than repeated
 // concatenation.
-func narration(seed uint64, title, summary, tone string, wordTarget int) string {
+func narration(seed uint64, title, summary string, wordTarget int) string {
 	r := deterministic(seed)
 	var b strings.Builder
 	b.Grow(wordTarget * 7)
@@ -142,11 +140,6 @@ func narration(seed uint64, title, summary, tone string, wordTarget int) string 
 	if summary != "" {
 		write(summary)
 		b.WriteByte(' ')
-	}
-	if tone != "" {
-		write("The telling stays ")
-		write(tone)
-		b.WriteString(". ")
 	}
 
 	for words < wordTarget {
@@ -181,7 +174,7 @@ func countWords(s string) int {
 	return n
 }
 
-func imagePrompt(seed uint64, chapterTitle, chapterSummary, style string) string {
+func imagePrompt(seed uint64, chapterTitle, chapterSummary string) string {
 	r := deterministic(seed)
 	var b strings.Builder
 	b.Grow(192)
@@ -190,10 +183,6 @@ func imagePrompt(seed uint64, chapterTitle, chapterSummary, style string) string
 	b.WriteString(pick(r, imageLighting))
 	b.WriteString(", ")
 	b.WriteString(pick(r, imageComposition))
-	if style != "" {
-		b.WriteString(", ")
-		b.WriteString(style)
-	}
 	b.WriteString(" — for \"")
 	b.WriteString(chapterTitle)
 	b.WriteString("\"")
@@ -204,13 +193,10 @@ func imagePrompt(seed uint64, chapterTitle, chapterSummary, style string) string
 	return b.String()
 }
 
-func tagsFor(r *rand.Rand, topic string, style entity.StyleConfig) []string {
+func tagsFor(r *rand.Rand, topic string) []string {
 	tags := make([]string, 0, 6)
 	if topic != "" {
 		tags = append(tags, strings.ToLower(topic))
-	}
-	if style.Tone != "" {
-		tags = append(tags, strings.Split(style.Tone, ",")[0])
 	}
 	seen := make(map[string]struct{}, 6)
 	for _, t := range tags {

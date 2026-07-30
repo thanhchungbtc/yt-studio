@@ -17,7 +17,6 @@ func GenerateScript(
 	ctx context.Context,
 	t entity.Task,
 	videos repository.VideoReader,
-	channels repository.ChannelReader,
 	chapters repository.ChapterReader,
 	llm provider.LLMProvider,
 	fields repository.ChapterFieldWriter,
@@ -37,11 +36,6 @@ func GenerateScript(
 	if err != nil {
 		return classify(err)
 	}
-	channel, err := channels.ChannelByID(ctx, video.ChannelID)
-	if err != nil {
-		return classify(err)
-	}
-
 	// The whole outline goes with every chapter. A writer that can see what
 	// chapter 12 already covered is what keeps chapter 31 from covering it
 	// again, and that is the failure a fifty-chapter video actually has.
@@ -56,7 +50,6 @@ func GenerateScript(
 		Ordinal:     chapter.Ordinal,
 		Blueprint:   outline,
 		TargetWords: chapter.EstimatedWords,
-		Style:       channel.Style,
 	})
 	if err != nil {
 		return classify(fmt.Errorf("generate script for chapter %d: %w", chapter.Ordinal, err))
@@ -67,7 +60,7 @@ func GenerateScript(
 		return classify(err)
 	}
 
-	duration := NarrationSeconds(script.WordCount, channel.Style.WordsPerMinute)
+	duration := NarrationSeconds(script.WordCount)
 	if err := fields.SetChapterScript(ctx, chapter.ID, script.Text, duration); err != nil {
 		return classify(err)
 	}
@@ -108,18 +101,11 @@ func blueprintOutline(
 	return out, nil
 }
 
-// NarrationSeconds turns a word count into a duration at a channel's reading
-// speed.
-//
-// The rate is the channel's rather than a constant here, because it is the same
-// number the blueprint budgeted words with: planning a three-hour video and
-// then reporting it as two and a half is the drift this exists to prevent. A
-// zero or absent rate falls back to the domain default.
-func NarrationSeconds(words, wordsPerMinute int) float64 {
-	if wordsPerMinute <= 0 {
-		wordsPerMinute = entity.DefaultWordsPerMinute
-	}
-	return float64(words) / float64(wordsPerMinute) * 60
+// NarrationSeconds turns a word count into a duration at the narration speed
+// the blueprint budgeted words with. Planning a three-hour video and then
+// reporting it as two and a half is the drift one shared constant prevents.
+func NarrationSeconds(words int) float64 {
+	return float64(words) / float64(entity.DefaultWordsPerMinute) * 60
 }
 
 // CountWords counts whitespace-separated words without allocating, which is

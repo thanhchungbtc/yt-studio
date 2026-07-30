@@ -16,9 +16,8 @@ type scriptPrompt struct {
 	Chapter   provider.BlueprintChapter
 	// TargetWords is the resolved budget. It is separate from Chapter's own
 	// figure because that one may be zero, and a prompt that asks for zero
-	// words is worse than one that falls back to the channel average.
+	// words is worse than one that falls back to the default.
 	TargetWords int
-	Style       entity.StyleConfig
 }
 
 // newScriptPrompt finds the chapter in the outline and resolves its budget.
@@ -36,14 +35,9 @@ func newScriptPrompt(req provider.ScriptRequest) (scriptPrompt, error) {
 		target = ch.EstimatedWords
 	}
 	if target <= 0 {
-		target = wordsPerChapter(req.Style)
+		target = entity.DefaultWordsPerChapter
 	}
-	return scriptPrompt{
-		Blueprint:   req.Blueprint,
-		Chapter:     ch,
-		TargetWords: target,
-		Style:       req.Style,
-	}, nil
+	return scriptPrompt{Blueprint: req.Blueprint, Chapter: ch, TargetWords: target}, nil
 }
 
 // Script writes one chapter's narration.

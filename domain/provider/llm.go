@@ -35,9 +35,8 @@ type BlueprintRequest struct {
 	// contract: the outline that comes back is what the video becomes.
 	ChapterCount int
 	// TargetDurationMinutes is how long the finished video should run. Zero
-	// means unset, and the budget falls back to the channel's chapter size.
+	// means unset, and the budget falls back to the default chapter size.
 	TargetDurationMinutes int
-	Style                 entity.StyleConfig
 }
 
 // BlueprintChapter is one outlined chapter.
@@ -89,9 +88,8 @@ type ScriptRequest struct {
 	Ordinal   int
 	Blueprint BlueprintOutline
 	// TargetWords is the resolved budget: what the blueprint assigned this
-	// chapter, or the channel's average when it assigned none.
+	// chapter, or the default when it assigned none.
 	TargetWords int
-	Style       entity.StyleConfig
 }
 
 // Script is one chapter's narration plus the asset it was written to.
@@ -116,7 +114,6 @@ type MetadataRequest struct {
 	Title    string
 	Topic    string
 	Chapters []BlueprintChapter
-	Style    entity.StyleConfig
 }
 
 // Metadata is the generated listing plus the asset the JSON was written to.

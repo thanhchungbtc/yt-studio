@@ -20,7 +20,6 @@ func GenerateStill(
 	ctx context.Context,
 	t entity.Task,
 	videos repository.VideoReader,
-	channels repository.ChannelReader,
 	chapters repository.ChapterReader,
 	images provider.ImageProvider,
 	fields repository.ChapterFieldWriter,
@@ -50,18 +49,12 @@ func GenerateStill(
 	if err != nil {
 		return classify(err)
 	}
-	channel, err := channels.ChannelByID(ctx, video.ChannelID)
-	if err != nil {
-		return classify(err)
-	}
-
 	assetID, err := images.Generate(ctx, provider.ImageRequest{
 		VideoID:   video.ID,
 		ChapterID: chapter.ID,
 		Ordinal:   chapter.Ordinal,
 		Index:     t.Index,
 		Prompt:    chapter.ImagePrompts[t.Index],
-		Style:     channel.Style.ImageStyle,
 	})
 	if err != nil {
 		return classify(fmt.Errorf("generate still %d of chapter %d: %w", t.Index, chapter.Ordinal, err))

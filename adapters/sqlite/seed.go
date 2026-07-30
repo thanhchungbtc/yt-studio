@@ -41,36 +41,21 @@ func defaultChannels(now time.Time) []entity.Channel {
 		slug        entity.Slug
 		name        string
 		description string
-		style       entity.StyleConfig
 	}{
 		{
 			slug:        "deep-sleep-stories",
 			name:        "Deep Sleep Stories",
 			description: "Three-hour narrated stories for falling asleep to.",
-			style: entity.StyleConfig{
-				Tone:            "calm, measured, nocturnal; never startling",
-				Voice:           "amber-low",
-				ImageStyle:      "muted watercolour, wide shot, soft moonlight",
-				Language:        "en-US",
-				WordsPerChapter: 420,
-			},
 		},
 		{
 			slug:        "history-explained",
 			name:        "History Explained",
 			description: "Long-form narrated histories, one chapter per turning point.",
-			style: entity.StyleConfig{
-				Tone:            "clear, confident, documentary",
-				Voice:           "slate-mid",
-				ImageStyle:      "archival illustration, warm sepia, fine line work",
-				Language:        "en-US",
-				WordsPerChapter: 480,
-			},
 		},
 	}
 	out := make([]entity.Channel, 0, len(specs))
 	for _, s := range specs {
-		c, err := entity.NewChannel(SeedChannelID(s.slug), s.slug, s.name, s.style, now)
+		c, err := entity.NewChannel(SeedChannelID(s.slug), s.slug, s.name, entity.StyleConfig{}, now)
 		if err != nil {
 			// Unreachable: the specs above are constants and are covered by a test.
 			panic(fmt.Sprintf("invalid seed channel %q: %v", s.slug, err))

@@ -11,25 +11,6 @@ import (
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
-// narrationRate is the channel's reading speed, which is the number the whole
-// budget is derived from at both ends: words planned here, duration reported
-// after the script is written.
-func narrationRate(style entity.StyleConfig) int {
-	if style.WordsPerMinute > 0 {
-		return style.WordsPerMinute
-	}
-	return entity.DefaultWordsPerMinute
-}
-
-// wordsPerChapter is the channel's per-chapter target, falling back to the
-// domain default so a budget handed to a model is never zero.
-func wordsPerChapter(style entity.StyleConfig) int {
-	if style.WordsPerChapter > 0 {
-		return style.WordsPerChapter
-	}
-	return entity.DefaultWordsPerChapter
-}
-
 // blueprintPrompt is what the templates render against: the request, plus the
 // two figures the model needs and Go has to compute because text/template
 // cannot do arithmetic.
@@ -42,16 +23,16 @@ type blueprintPrompt struct {
 
 // newBlueprintPrompt resolves the video's spoken-word budget.
 //
-// A target duration is the honest input — the channel wants three hours and
-// does not much mind how many chapters that takes — so when one is set the
-// budget comes from it. Without one the length is whatever the requested
-// chapters come to at the channel's usual size, which is how videos planned
-// before durations existed keep the shape they were planned with.
+// A target duration is the honest input — you want three hours and do not much
+// mind how many chapters that takes — so when one is set the budget comes from
+// it. Without one the length is whatever the requested chapters come to at the
+// default size, which is how videos planned before durations existed keep the
+// shape they were planned with.
 func newBlueprintPrompt(req provider.BlueprintRequest) blueprintPrompt {
-	rate := narrationRate(req.Style)
+	rate := entity.DefaultWordsPerMinute
 	total := req.TargetDurationMinutes * rate
 	if total <= 0 {
-		total = req.ChapterCount * wordsPerChapter(req.Style)
+		total = req.ChapterCount * entity.DefaultWordsPerChapter
 	}
 	return blueprintPrompt{
 		BlueprintRequest: req,

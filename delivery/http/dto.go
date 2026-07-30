@@ -19,49 +19,17 @@ import (
 
 // StyleDTO is a channel's creative configuration as the API returns it. Every
 // field is always present; a blank one means the channel leaves it unset.
-type StyleDTO struct {
-	Tone            string `json:"tone" doc:"Narration register handed to the LLM"`
-	Voice           string `json:"voice" doc:"TTS voice name"`
-	ImageStyle      string `json:"imageStyle" doc:"Visual direction handed to the image backend"`
-	Language        string `json:"language" doc:"BCP-47 language tag"`
-	WordsPerChapter int    `json:"wordsPerChapter" doc:"Target narration length of one chapter"`
-	WordsPerMinute  int    `json:"wordsPerMinute" doc:"Reading speed this channel's voice narrates at"`
-}
+type StyleDTO struct{}
 
 // StyleInputDTO is the same configuration on the way in, where every field is
 // optional: an omitted one leaves the stored value alone. Input and output are
 // separate types precisely so the generated client sees that difference.
-type StyleInputDTO struct {
-	Tone            string `json:"tone,omitempty" doc:"Narration register handed to the LLM"`
-	Voice           string `json:"voice,omitempty" doc:"TTS voice name"`
-	ImageStyle      string `json:"imageStyle,omitempty" doc:"Visual direction handed to the image backend"`
-	Language        string `json:"language,omitempty" doc:"BCP-47 language tag"`
-	WordsPerChapter int    `json:"wordsPerChapter,omitempty" doc:"Target narration length of one chapter"`
-	WordsPerMinute  int    `json:"wordsPerMinute,omitempty" doc:"Reading speed this channel's voice narrates at"`
-}
+type StyleInputDTO struct{}
 
 // Into converts the request DTO to the domain type.
-func (s StyleInputDTO) Into() entity.StyleConfig {
-	return entity.StyleConfig{
-		Tone:            s.Tone,
-		Voice:           s.Voice,
-		ImageStyle:      s.ImageStyle,
-		Language:        s.Language,
-		WordsPerChapter: s.WordsPerChapter,
-		WordsPerMinute:  s.WordsPerMinute,
-	}
-}
+func (StyleInputDTO) Into() entity.StyleConfig { return entity.StyleConfig{} }
 
-func styleFrom(s entity.StyleConfig) StyleDTO {
-	return StyleDTO{
-		Tone:            s.Tone,
-		Voice:           s.Voice,
-		ImageStyle:      s.ImageStyle,
-		Language:        s.Language,
-		WordsPerChapter: s.WordsPerChapter,
-		WordsPerMinute:  s.WordsPerMinute,
-	}
-}
+func styleFrom(entity.StyleConfig) StyleDTO { return StyleDTO{} }
 
 // ChannelDTO is a channel as the API presents it.
 type ChannelDTO struct {

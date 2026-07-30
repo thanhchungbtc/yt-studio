@@ -29,14 +29,7 @@ export type PoolName = 'llm' | 'tts' | 'image' | 'compose' | 'cache' | 'upload'
 
 export type GateKind = 'blueprint' | 'upload'
 
-export interface Style {
-  tone: string
-  voice: string
-  imageStyle: string
-  language: string
-  wordsPerChapter: number
-  wordsPerMinute: number
-}
+export interface Style {}
 
 export interface Channel {
   id: string
