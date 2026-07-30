@@ -15,9 +15,14 @@ import (
 // matches the figure the system prompt states out loud, so the two cannot drift.
 const wordsPerMinute = 130
 
-// defaultWordsPerChapter stands in when a channel has no target, so the budget
-// handed to the model is never zero.
-const defaultWordsPerChapter = 420
+// wordsPerChapter is the channel's per-chapter target, falling back to the
+// domain default so a budget handed to a model is never zero.
+func wordsPerChapter(style entity.StyleConfig) int {
+	if style.WordsPerChapter > 0 {
+		return style.WordsPerChapter
+	}
+	return entity.DefaultWordsPerChapter
+}
 
 // blueprintPrompt is what the templates render against: the request, plus the
 // two figures the model needs and Go has to compute because text/template
@@ -30,11 +35,7 @@ type blueprintPrompt struct {
 }
 
 func newBlueprintPrompt(req provider.BlueprintRequest) blueprintPrompt {
-	words := req.Style.WordsPerChapter
-	if words <= 0 {
-		words = defaultWordsPerChapter
-	}
-	total := req.ChapterCount * words
+	total := req.ChapterCount * wordsPerChapter(req.Style)
 	return blueprintPrompt{
 		BlueprintRequest: req,
 		WordsPerMinute:   wordsPerMinute,
@@ -218,6 +219,15 @@ func section(b *strings.Builder) {
 	if b.Len() > 0 {
 		b.WriteString("\n\n")
 	}
+}
+
+// putText stores a plain-text artifact and returns its content address.
+func (c *Client) putText(ctx context.Context, kind entity.AssetKind, text string) (entity.AssetID, error) {
+	stored, err := c.store.Put(ctx, kind, strings.NewReader(text))
+	if err != nil {
+		return "", fmt.Errorf("store %s: %w", kind, err)
+	}
+	return stored.ID, nil
 }
 
 // putJSON stores a document and returns its content address.

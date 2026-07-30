@@ -1,0 +1,18 @@
+Video: {{ .BlueprintTitle }}
+{{- with .BlueprintSummary }}
+About: {{ . }}
+{{- end }}
+{{- with .Style.Tone }}
+Tone: {{ . }}
+{{- end }}
+{{- with .Style.Language }}
+Language: {{ . }}
+{{- end }}
+
+Chapter {{ .Ordinal }}: {{ .ChapterTitle }}
+Word budget: about {{ .TargetWords }} words
+
+Brief:
+{{ .ChapterSummary }}
+
+Write the narration for this chapter now.

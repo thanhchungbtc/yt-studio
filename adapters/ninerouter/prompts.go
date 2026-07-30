@@ -23,6 +23,8 @@ var prompts = template.Must(template.ParseFS(promptFS, "prompts/*.tmpl"))
 const (
 	blueprintSystemPrompt = "blueprint.system.tmpl"
 	blueprintUserPrompt   = "blueprint.user.tmpl"
+	scriptSystemPrompt    = "script.system.tmpl"
+	scriptUserPrompt      = "script.user.tmpl"
 )
 
 // render executes one template against its request.
