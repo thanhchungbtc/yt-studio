@@ -177,6 +177,9 @@ func printSweepReport(report app.SweepReport, applied bool) {
 	}
 	if applied {
 		fmt.Printf("%-14s %d files, %s\n", "removed", report.Removed, humanBytes(report.Bytes))
+		if report.DirsRemoved > 0 {
+			fmt.Printf("%-14s %d empty directories\n", "pruned", report.DirsRemoved)
+		}
 		return
 	}
 	if report.Reclaimable() > 0 {

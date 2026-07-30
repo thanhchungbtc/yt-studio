@@ -63,6 +63,10 @@ type SweepReport struct {
 	// Apply was set.
 	Removed int
 	Bytes   int64
+	// DirsRemoved counts the empty kind and shard directories pruned afterwards.
+	// A dry run leaves it at zero rather than guessing: which directories end up
+	// empty depends on which files the run would have deleted.
+	DirsRemoved int
 }
 
 // Reclaimable is what a dry run would free.
@@ -157,6 +161,14 @@ func SweepAssets(
 			report.Removed++
 			report.Bytes += f.Size
 		}
+		// Tidying the directories a delete cannot: a shard is shared by every
+		// address with the same digest prefix, so emptiness is only knowable once
+		// the files are gone.
+		pruned, err := sweeper.PruneEmptyDirs(ctx)
+		if err != nil {
+			return report, err
+		}
+		report.DirsRemoved = pruned
 	}
 
 	log.Info("swept the asset store",
@@ -167,6 +179,7 @@ func SweepAssets(
 		slog.Int("debris", report.Debris),
 		slog.Int("unrecognised", report.Unrecognised),
 		slog.Int("removed", report.Removed),
-		slog.Int64("bytes", report.Bytes))
+		slog.Int64("bytes", report.Bytes),
+		slog.Int("dirs_removed", report.DirsRemoved))
 	return report, nil
 }

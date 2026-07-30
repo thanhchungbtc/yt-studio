@@ -223,3 +223,93 @@ func TestWalkClassifiesWhatItFinds(t *testing.T) {
 		}
 	}
 }
+
+func TestPruneEmptyDirsLeavesWhatIsInUse(t *testing.T) {
+	t.Parallel()
+
+	store := newStore(t)
+	kept, err := store.Put(t.Context(), entity.AssetKindImage, bytes.NewReader([]byte("a still that stays")))
+	if err != nil {
+		t.Fatalf("put: %v", err)
+	}
+	gone, err := store.Put(t.Context(), entity.AssetKindAudio, bytes.NewReader([]byte("narration to delete")))
+	if err != nil {
+		t.Fatalf("put: %v", err)
+	}
+	if err := store.Delete(t.Context(), gone.ID, entity.AssetKindAudio); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	// The staging directory exists because Put made it, and must survive: every
+	// write recreates it and its use has no rename to retry.
+	tmpDir := filepath.Join(store.Root(), ".tmp")
+	if _, err := os.Stat(tmpDir); err != nil {
+		t.Fatalf("the staging directory is missing before the prune: %v", err)
+	}
+
+	// Both the shard and the kind above it are now empty, so both go: two levels
+	// from one pass.
+	pruned, err := store.PruneEmptyDirs(t.Context())
+	if err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if pruned != 2 {
+		t.Errorf("pruned %d directories, want 2 (the empty shard and its kind)", pruned)
+	}
+
+	if _, err := os.Stat(filepath.Join(store.Root(), "audio")); !os.IsNotExist(err) {
+		t.Errorf("the emptied kind directory survived: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(store.Root(), kept.Path)); err != nil {
+		t.Errorf("a stored asset was disturbed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Dir(filepath.Join(store.Root(), kept.Path))); err != nil {
+		t.Errorf("a shard still holding an asset was pruned: %v", err)
+	}
+	if _, err := os.Stat(tmpDir); err != nil {
+		t.Errorf("the staging directory was pruned: %v", err)
+	}
+	if _, err := os.Stat(store.Root()); err != nil {
+		t.Errorf("the root was pruned: %v", err)
+	}
+
+	// Nothing left to do the second time.
+	if again, err := store.PruneEmptyDirs(t.Context()); err != nil || again != 0 {
+		t.Errorf("second prune = %d, %v; want 0, nil", again, err)
+	}
+}
+
+// A write whose shard directory is pruned out from under it retries rather than
+// failing the task, which is what makes pruning safe against a live daemon.
+func TestPutSurvivesAPrunedShardDirectory(t *testing.T) {
+	t.Parallel()
+
+	store := newStore(t)
+	const content = "the bytes arrive either way"
+	sum := sha256.Sum256([]byte(content))
+	id := entity.AssetID(hex.EncodeToString(sum[:]))
+	shard := filepath.Dir(filepath.Join(store.Root(), assetstore.RelPath(id, entity.AssetKindImage)))
+
+	// Stand the directory up and take it away again: the state Put finds if a
+	// prune lands between its MkdirAll and its Rename.
+	if err := os.MkdirAll(shard, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(shard); err != nil {
+		t.Fatal(err)
+	}
+
+	stored, err := store.Put(t.Context(), entity.AssetKindImage, bytes.NewReader([]byte(content)))
+	if err != nil {
+		t.Fatalf("put with a missing shard directory: %v", err)
+	}
+	if stored.ID != id {
+		t.Errorf("id = %s, want %s", stored.ID, id)
+	}
+	got, err := os.ReadFile(filepath.Join(store.Root(), stored.Path))
+	if err != nil {
+		t.Fatalf("read stored file: %v", err)
+	}
+	if string(got) != content {
+		t.Errorf("stored content = %q", got)
+	}
+}

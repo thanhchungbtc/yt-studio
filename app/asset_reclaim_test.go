@@ -379,6 +379,12 @@ func TestSweepReclaimsOnlyWhatNothingReferences(t *testing.T) {
 	if applied.Removed != 2 {
 		t.Errorf("removed %d files, want 2 (the orphan and the crashed write)", applied.Removed)
 	}
+	if applied.DirsRemoved == 0 {
+		t.Error("the directories the orphan left empty were not pruned")
+	}
+	if dry.DirsRemoved != 0 {
+		t.Error("a dry run pruned directories")
+	}
 	if applied.Bytes == 0 {
 		t.Error("no bytes were reported reclaimed")
 	}

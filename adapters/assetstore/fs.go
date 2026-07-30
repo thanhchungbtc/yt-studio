@@ -15,6 +15,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 
@@ -122,13 +123,36 @@ func (f *FS) Put(ctx context.Context, kind entity.AssetKind, r io.Reader) (provi
 		// Identical content already stored: re-running the task is a no-op.
 		return provider.StoredAsset{ID: id, Path: rel, Size: size, Existed: true}, nil
 	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return provider.StoredAsset{}, fmt.Errorf("create asset dir: %w", err)
-	}
-	if err := os.Rename(tmpName, dst); err != nil {
-		return provider.StoredAsset{}, fmt.Errorf("commit asset: %w", err)
+	if err := f.commit(tmpName, dst); err != nil {
+		return provider.StoredAsset{}, err
 	}
 	return provider.StoredAsset{ID: id, Path: rel, Size: size}, nil
+}
+
+// commit renames a staged file into place, re-creating its shard directory if
+// that directory has gone missing.
+//
+// One thing removes directories under the root — the sweep, pruning the empty
+// ones — and the only window it can hurt is the gap between creating a shard
+// directory and renaming into it, when that directory is legitimately empty.
+// Retrying once closes it, and costs nothing on the path where nothing raced.
+// It also makes a `find -type d -empty -delete` run by hand harmless.
+func (f *FS) commit(tmp, dst string) error {
+	dir := filepath.Dir(dst)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create asset dir: %w", err)
+	}
+	err := os.Rename(tmp, dst)
+	if errors.Is(err, os.ErrNotExist) {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("recreate asset dir: %w", err)
+		}
+		err = os.Rename(tmp, dst)
+	}
+	if err != nil {
+		return fmt.Errorf("commit asset: %w", err)
+	}
+	return nil
 }
 
 // PutFile ingests a file that is already on disk, by hashing it in place and
@@ -256,6 +280,62 @@ func (f *FS) Remove(_ context.Context, rel string) error {
 	}
 	return nil
 }
+
+// PruneEmptyDirs removes the kind and shard directories that no longer hold
+// anything, and reports how many it removed.
+//
+// Emptiness is checked rather than inferred, and deeper directories go first, so
+// a kind directory is only considered once the shards under it are gone. A
+// directory that fills up between the check and the removal simply stays: the
+// next sweep will find it empty again if it empties.
+//
+// The staging directory is left alone. Every write recreates it, so pruning it
+// buys nothing, and unlike a shard directory its use has no rename to retry.
+func (f *FS) PruneEmptyDirs(ctx context.Context) (int, error) {
+	tmpDir := filepath.Join(f.root, ".tmp")
+	var dirs []string
+	err := filepath.WalkDir(f.root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if !d.IsDir() || path == f.root {
+			return nil
+		}
+		if path == tmpDir {
+			return fs.SkipDir
+		}
+		dirs = append(dirs, path)
+		return nil
+	})
+	if err != nil {
+		return 0, fmt.Errorf("walk the asset store: %w", err)
+	}
+
+	sort.SliceStable(dirs, func(i, j int) bool { return depth(dirs[i]) > depth(dirs[j]) })
+
+	var removed int
+	for _, dir := range dirs {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return removed, fmt.Errorf("read %s: %w", dir, err)
+		}
+		if len(entries) > 0 {
+			continue
+		}
+		if err := os.Remove(dir); err == nil {
+			removed++
+		}
+	}
+	return removed, nil
+}
+
+func depth(path string) int { return strings.Count(path, string(os.PathSeparator)) }
 
 // Walk visits every regular file in the store, so a sweep can compare what is on
 // disk against what the database still references.

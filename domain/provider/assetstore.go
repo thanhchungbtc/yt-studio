@@ -64,4 +64,9 @@ type AssetSweeper interface {
 	// Remove unlinks one path relative to the store root. A missing file is
 	// success, for the same reason it is in Delete.
 	Remove(ctx context.Context, rel string) error
+	// PruneEmptyDirs removes the directories left holding nothing once files have
+	// gone, and reports how many. It is the last step of a sweep rather than part
+	// of removing a file, because a shard directory is shared by every address
+	// with the same digest prefix.
+	PruneEmptyDirs(ctx context.Context) (int, error)
 }
