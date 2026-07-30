@@ -37,6 +37,7 @@ type Deps struct {
 	Settings      *service.Settings
 
 	Submitter  app.GraphSubmitter
+	Expander   app.GraphExpander
 	Canceller  app.VideoCanceller
 	Approver   app.GateApprover
 	Rejecter   app.GateRejecter
@@ -96,7 +97,7 @@ func NewRouter(d Deps) (http.Handler, huma.API) {
 	registerChannelRoutes(api, d.Channels, d.ChannelWriter, d.Videos, d.VideoWriter, d.Forgetter,
 		d.Store, d.NewID, d.Now, d.Log)
 	registerVideoRoutes(api, d.Videos, d.VideoWriter, d.VideoStates, d.Channels, d.ChannelWriter,
-		d.Tasks, d.Submitter, d.Canceller, d.Approver, d.Rejecter, d.Forgetter,
+		d.Tasks, d.Chapters, d.Submitter, d.Expander, d.Canceller, d.Approver, d.Rejecter, d.Forgetter,
 		d.Store, d.Settings, d.NewID, d.Now, d.Log)
 	registerChapterRoutes(api, d.Videos, d.Chapters, d.ChapterFields, d.Notifier, d.ChapRetry, d.Prompts, d.StaleMark)
 	registerTaskRoutes(api, d.Videos, d.Tasks, d.TaskRetry, d.Prompts,

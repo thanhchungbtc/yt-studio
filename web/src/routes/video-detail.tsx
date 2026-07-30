@@ -180,7 +180,9 @@ export function VideoDetailRoute() {
         aria-label={`${percent(v.counts.succeeded, v.counts.total)}% complete`}
       />
 
-      {openGate && <GateBanner video={v} task={openGate} />}
+      {openGate && (
+        <GateBanner video={v} task={openGate} chapterCount={chapters.data?.length ?? 0} />
+      )}
       <StaleBanner video={v} tasks={tasks.data ?? []} />
       {v.error && <ErrorNotice error={new Error(v.error)} className="mx-4 mt-3" />}
 
@@ -210,7 +212,12 @@ export function VideoDetailRoute() {
 
       <div className="min-h-0 flex-1 overflow-hidden">
         {tab === 'overview' && (
-          <Overview video={v} tasks={tasks.data ?? []} loading={tasks.isPending} />
+          <Overview
+            video={v}
+            tasks={tasks.data ?? []}
+            chapters={chapters.data ?? []}
+            loading={tasks.isPending}
+          />
         )}
         {tab === 'chapters' && (
           <ChapterGrid
@@ -376,7 +383,15 @@ function videoLevelItems(video: Video): ViewerItem[] {
   return items
 }
 
-function GateBanner({ video, task }: { video: Video; task: Task }) {
+function GateBanner({
+  video,
+  task,
+  chapterCount,
+}: {
+  video: Video
+  task: Task
+  chapterCount: number
+}) {
   const openViewer = useAssetViewer()
   const items = videoLevelItems(video)
   const blueprint = video.blueprintAssetId
@@ -391,11 +406,20 @@ function GateBanner({ video, task }: { video: Video; task: Task }) {
         Gate open
       </Badge>
       <div className="min-w-0 flex-1 text-[12px] text-fg">
-        <p>
-          Paused for review after <strong>{taskLabel(task.kind)}</strong>. Nothing downstream is
-          running and no resources are held — approving is a single row update, so this can wait as
-          long as you need.
-        </p>
+        {task.gate === 'blueprint' ? (
+          <p>
+            Paused for review after <strong>{taskLabel(task.kind)}</strong>. Nothing downstream
+            exists yet: approving is what builds the rest of the pipeline, for the{' '}
+            <strong>{chapterCount}</strong> chapters below. Nothing is running and no resources are
+            held, so this can wait as long as you need.
+          </p>
+        ) : (
+          <p>
+            Paused for review after <strong>{taskLabel(task.kind)}</strong>. Nothing downstream is
+            running and no resources are held — approving is a single row update, so this can wait
+            as long as you need.
+          </p>
+        )}
         <div className="mt-1.5 flex flex-wrap gap-3 text-[11.5px]">
           {task.gate === 'blueprint' && blueprint && (
             <button
@@ -423,7 +447,17 @@ function GateBanner({ video, task }: { video: Video; task: Task }) {
 
 /* ------------------------------------------------------------------ overview */
 
-function Overview({ video, tasks, loading }: { video: Video; tasks: Task[]; loading: boolean }) {
+function Overview({
+  video,
+  tasks,
+  chapters,
+  loading,
+}: {
+  video: Video
+  tasks: Task[]
+  chapters: Chapter[]
+  loading: boolean
+}) {
   const openViewer = useAssetViewer()
   const items = videoLevelItems(video)
   const openAt = (id: string) =>
@@ -549,7 +583,24 @@ function Overview({ video, tasks, loading }: { video: Video; tasks: Task[]; load
               </PanelHeader>
               <dl className="px-3 py-2">
                 <KeyValue label="Ref">{video.ref}</KeyValue>
-                <KeyValue label="Chapters">{video.chapterCount}</KeyValue>
+                {/*
+                  The chapter count a video is created with is a target the
+                  blueprint is briefed with, not a promise. Until an outline
+                  exists there is no real number to show, and once one does the
+                  target is the less interesting of the two.
+                */}
+                <KeyValue label="Chapters">
+                  {chapters.length === 0 ? (
+                    <span className="text-muted">~{video.chapterCount} target</span>
+                  ) : (
+                    <>
+                      {chapters.length}
+                      {chapters.length !== video.chapterCount && (
+                        <span className="ml-1.5 text-subtle">({video.chapterCount} asked for)</span>
+                      )}
+                    </>
+                  )}
+                </KeyValue>
                 <KeyValue label="Stills / chapter">{video.imagesPerChapter}</KeyValue>
                 <KeyValue label="Created">{formatAbsolute(video.createdAt)}</KeyValue>
                 <KeyValue label="Started">{formatAbsolute(video.startedAt)}</KeyValue>
@@ -1075,9 +1126,20 @@ const TaskRow = memo(function TaskRow({ task, onRetry }: { task: Task; onRetry: 
         {task.error ?? ''}
       </td>
       <td className="px-4 py-1.5 text-right">
-        <Button size="xs" variant="ghost" onClick={onRetry}>
-          Retry
-        </Button>
+        {/*
+          A blueprint may only be re-run from `failed`. The whole DAG below it
+          was built from the chapters it produced, and that expansion is
+          one-way — so the way back is to reject the outline first.
+        */}
+        {task.kind === 'blueprint' && task.state !== 'failed' ? (
+          <Tooltip label="The pipeline below is built from this outline. Reject it first, or start a new video.">
+            <span className="text-[11px] text-subtle">locked</span>
+          </Tooltip>
+        ) : (
+          <Button size="xs" variant="ghost" onClick={onRetry}>
+            Retry
+          </Button>
+        )}
       </td>
     </tr>
   )

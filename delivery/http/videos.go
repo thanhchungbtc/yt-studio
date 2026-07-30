@@ -131,7 +131,7 @@ func postVideo(
 			return nil, mapError(err)
 		}
 		if in.Body.Start {
-			if _, err := app.StartVideo(ctx, videos, submitter, now(), startOptions(settings), string(v.ID)); err != nil {
+			if _, err := app.StartVideo(ctx, videos, tasks, submitter, now(), startOptions(settings), string(v.ID)); err != nil {
 				return nil, mapError(err)
 			}
 		}
@@ -147,7 +147,16 @@ func startOptions(settings *service.Settings) app.StartVideoOptions {
 	return app.StartVideoOptions{
 		MaxAttempts:   settings.Int(entity.SettingTaskMaxAttempts),
 		BlueprintGate: settings.GateEnabled(entity.GateBlueprint),
-		UploadGate:    settings.GateEnabled(entity.GateUpload),
+	}
+}
+
+// expandOptions are read when a blueprint is accepted rather than when the
+// video was enqueued, because that is when the tail carrying the upload gate is
+// built.
+func expandOptions(settings *service.Settings) app.ExpandOptions {
+	return app.ExpandOptions{
+		MaxAttempts: settings.Int(entity.SettingTaskMaxAttempts),
+		UploadGate:  settings.GateEnabled(entity.GateUpload),
 	}
 }
 
@@ -159,7 +168,7 @@ func postVideoStart(
 	now func() time.Time,
 ) func(context.Context, *VideoKeyInput) (*VideoOutput, error) {
 	return func(ctx context.Context, in *VideoKeyInput) (*VideoOutput, error) {
-		v, err := app.StartVideo(ctx, videos, submitter, now(), startOptions(settings), in.Key)
+		v, err := app.StartVideo(ctx, videos, tasks, submitter, now(), startOptions(settings), in.Key)
 		if err != nil {
 			return nil, mapError(err)
 		}
@@ -193,14 +202,19 @@ func postVideoCancel(
 func postVideoApprove(
 	videos repository.VideoReader,
 	tasks repository.TaskReader,
+	chapters repository.ChapterReader,
+	expander app.GraphExpander,
 	approver app.GateApprover,
+	settings *service.Settings,
+	now func() time.Time,
 ) func(context.Context, *GateInput) (*TaskOutput, error) {
 	return func(ctx context.Context, in *GateInput) (*TaskOutput, error) {
 		v, err := app.GetVideo(ctx, videos, in.Key)
 		if err != nil {
 			return nil, mapError(err)
 		}
-		t, err := app.ApproveGate(ctx, tasks, approver, v.ID, entity.GateKind(in.Body.Gate))
+		t, err := app.ApproveGate(ctx, tasks, videos, chapters, expander, approver,
+			now(), expandOptions(settings), v.ID, entity.GateKind(in.Body.Gate))
 		if err != nil {
 			return nil, mapError(err)
 		}
@@ -250,7 +264,9 @@ func registerVideoRoutes(
 	channels repository.ChannelReader,
 	channelWriter repository.ChannelWriter,
 	taskReader repository.TaskReader,
+	chapters repository.ChapterReader,
 	submitter app.GraphSubmitter,
+	expander app.GraphExpander,
 	canceller app.VideoCanceller,
 	approver app.GateApprover,
 	rejecter app.GateRejecter,
@@ -290,7 +306,7 @@ func registerVideoRoutes(
 	huma.Register(api, huma.Operation{
 		OperationID: "approveGate", Method: "POST", Path: "/api/videos/{key}/approve",
 		Summary: "Approve the open gate", Tags: []string{"videos"},
-	}, postVideoApprove(videos, taskReader, approver))
+	}, postVideoApprove(videos, taskReader, chapters, expander, approver, settings, now))
 
 	huma.Register(api, huma.Operation{
 		OperationID: "rejectGate", Method: "POST", Path: "/api/videos/{key}/reject",

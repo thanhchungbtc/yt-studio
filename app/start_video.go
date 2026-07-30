@@ -12,19 +12,35 @@ import (
 
 // StartVideoOptions are the scheduler-shaped inputs, all sourced from settings
 // rows by the caller.
+//
+// The upload gate is not among them: it is carried by the metadata task, which
+// is part of the tail, so it is read when the graph expands rather than when
+// the video is enqueued. See ExpandOptions.
 type StartVideoOptions struct {
 	MaxAttempts   int
 	BlueprintGate bool
-	UploadGate    bool
 }
 
-// StartVideo builds a video's DAG and hands it to the scheduler.
+// StartVideo enqueues a video by scheduling its blueprint, and hands the
+// resulting graph to the scheduler.
 //
-// It is idempotent: task ids are deterministic and the graph insert is an
-// upsert, so calling it twice for the same video schedules nothing new.
+// Only the blueprint is scheduled. Everything below it is one branch per
+// chapter, and the chapter count is not known yet: it is the blueprint's output
+// rather than its input, fixed when the operator accepts the outline. The rest
+// of the DAG is spliced on then, by ExpandVideoGraph.
+//
+// It is idempotent: a video that already has tasks is already enqueued, so
+// starting it again schedules nothing new.
+//
+// That check reads the task table rather than relying on the scheduler holding
+// the video in memory. A video whose tasks are all cancelled is not resumed at
+// startup, so after a restart the loop knows nothing about it — and submitting
+// a fresh head graph over a DAG that has already expanded would leave the loop
+// believing the video is one node while the database holds hundreds.
 func StartVideo(
 	ctx context.Context,
 	videos repository.VideoReader,
+	tasks repository.TaskReader,
 	submitter GraphSubmitter,
 	now time.Time,
 	opts StartVideoOptions,
@@ -37,15 +53,19 @@ func StartVideo(
 	if v.State == entity.VideoStateCompleted {
 		return entity.Video{}, fmt.Errorf("%w: %s has already completed", ErrConflict, v.Ref)
 	}
+	counts, err := tasks.CountTasksByVideo(ctx, v.ID)
+	if err != nil {
+		return entity.Video{}, err
+	}
+	if counts.Total > 0 {
+		return v, nil
+	}
 
-	g, err := scheduler.BuildGraph(scheduler.BuildSpec{
-		VideoID:          v.ID,
-		ChapterCount:     v.ChapterCount,
-		ImagesPerChapter: v.ImagesPerChapter,
-		MaxAttempts:      opts.MaxAttempts,
-		BlueprintGate:    opts.BlueprintGate,
-		UploadGate:       opts.UploadGate,
-		Now:              now,
+	g, err := scheduler.BuildHeadGraph(scheduler.HeadSpec{
+		VideoID:       v.ID,
+		MaxAttempts:   opts.MaxAttempts,
+		BlueprintGate: opts.BlueprintGate,
+		Now:           now,
 	})
 	if err != nil {
 		return entity.Video{}, fmt.Errorf("%w: %w", ErrValidation, err)

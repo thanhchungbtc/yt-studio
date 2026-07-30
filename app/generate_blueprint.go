@@ -17,6 +17,11 @@ import (
 // the pipeline parks for human review. The scheduler owns that decision; this
 // function just does the work and records the result.
 //
+// The chapter count it returns is the video's real one. The number the video
+// was created with is a target the model was briefed with, and this is where
+// the two are reconciled: anything inside the tolerance band is accepted as
+// written, and the DAG is later built for what came back.
+//
 //nolint:revive // the parameter list is the dependency list
 func GenerateBlueprint(
 	ctx context.Context,
@@ -29,6 +34,7 @@ func GenerateBlueprint(
 	assets repository.AssetWriter,
 	store provider.AssetStore,
 	notifier ChapterNotifier,
+	tolerancePercent int,
 	now time.Time,
 ) entity.TaskOutcome {
 	video, err := videos.VideoByID(ctx, t.VideoID)
@@ -52,11 +58,15 @@ func GenerateBlueprint(
 	if err != nil {
 		return classify(fmt.Errorf("generate blueprint: %w", err))
 	}
-	if len(bp.Chapters) != video.ChapterCount {
+	minChapters, maxChapters := entity.ChapterCountBand(video.ChapterCount, tolerancePercent)
+	if n := len(bp.Chapters); n < minChapters || n > maxChapters {
+		// Retryable: how far a roll lands from the brief is a property of the roll,
+		// not of the video, so another attempt is worth having. MaxAttempts bounds
+		// how many times we ask.
 		return entity.Failed{
-			Err: fmt.Errorf("%w: blueprint returned %d chapters, the DAG was built for %d",
-				ErrValidation, len(bp.Chapters), video.ChapterCount),
-			Retryable: false,
+			Err: fmt.Errorf("%w: blueprint returned %d chapters, want %d..%d for a target of %d",
+				ErrBlueprintOffTarget, n, minChapters, maxChapters, video.ChapterCount),
+			Retryable: true,
 		}
 	}
 
@@ -69,8 +79,13 @@ func GenerateBlueprint(
 	}
 
 	chapters := make([]entity.Chapter, 0, len(bp.Chapters))
-	for _, bc := range bp.Chapters {
-		c, err := entity.NewChapter(video.ID, bc.Ordinal, bc.Title, bc.Summary, now)
+	for i, bc := range bp.Chapters {
+		// Ordinals are renumbered 1..N in the order the model returned them, rather
+		// than taken from the response. They are the chapter's natural key and the
+		// index every task id is derived from, so a gap or a repeat would put the
+		// DAG and the chapter table out of correspondence. Here is the only moment
+		// renumbering is free: no chapter work has run and no asset exists yet.
+		c, err := entity.NewChapter(video.ID, i+1, bc.Title, bc.Summary, now)
 		if err != nil {
 			return classify(err)
 		}

@@ -24,6 +24,12 @@ var ErrValidation = errors.New("validation failed")
 // ErrConflict is returned when an operation is not valid in the current state.
 var ErrConflict = errors.New("conflict")
 
+// ErrBlueprintOffTarget reports an outline whose chapter count fell outside the
+// tolerance band around the video's target. It is deliberately not an
+// ErrValidation: the input was fine, the roll was not, so it is worth another
+// attempt rather than a permanent failure.
+var ErrBlueprintOffTarget = errors.New("blueprint chapter count is off target")
+
 // Invalid builds a validation error for one field.
 func Invalid(field, message string) error {
 	return fmt.Errorf("%w: %s %s", ErrValidation, field, message)

@@ -77,7 +77,8 @@ export function CreateVideoDialog({
       footer={
         <>
           <span className="mr-auto text-[11.5px] text-subtle">
-            Enqueues <span className="tabular font-medium text-muted">{taskEstimate}</span> tasks
+            About <span className="tabular font-medium text-muted">{taskEstimate}</span> tasks,
+            settled when you approve the blueprint
           </span>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
@@ -136,7 +137,7 @@ export function CreateVideoDialog({
         </Field>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Chapters" hint="1–500">
+          <Field label="Chapters" hint="Target, 1–500">
             {(id) => (
               <Input
                 id={id}

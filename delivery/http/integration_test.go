@@ -87,6 +87,10 @@ func newHarness(t *testing.T) *harness {
 			settings.Int(entity.SettingMockFailureRatePercent)
 	})
 	llm := mockprovider.NewLLM(assets, videoContext(store), tuning)
+	// An ungated blueprint expands its own video's DAG, so the runner needs the
+	// scheduler that is built from it. The reference is filled in below, before
+	// the loop starts.
+	expander := &lateExpander{}
 	runner := app.NewTaskRunner(
 		store, store, store, store, store, store, store, assets,
 		llm,
@@ -95,6 +99,14 @@ func newHarness(t *testing.T) *harness {
 		mockprovider.NewComposer(assets, tuning),
 		mockprovider.NewUploader(assets, tuning, func() time.Time { return time.Unix(1_700_000_000, 0).UTC() }),
 		broker,
+		expander,
+		func() app.BlueprintOptions {
+			return app.BlueprintOptions{
+				ChapterTolerancePercent: settings.Int(entity.SettingVideoChapterTolerancePercent),
+				MaxAttempts:             settings.Int(entity.SettingTaskMaxAttempts),
+				UploadGate:              settings.GateEnabled(entity.GateUpload),
+			}
+		},
 		func() bool { return settings.Bool(entity.SettingUploadDryRun) },
 		time.Now, log,
 	)
@@ -105,6 +117,7 @@ func newHarness(t *testing.T) *harness {
 	sched := scheduler.New(pools, store, runner, store, broker, log, scheduler.Config{
 		RetryBase: 5 * time.Millisecond, RetryMax: 20 * time.Millisecond,
 	})
+	expander.sched = sched
 
 	schedDone := make(chan struct{})
 	go func() {
@@ -123,7 +136,7 @@ func newHarness(t *testing.T) *harness {
 		Channels: store, ChannelWriter: store, Videos: store, VideoWriter: store,
 		VideoStates: store, Chapters: store, ChapterFields: store, Assets: store,
 		Tasks: store, Store: assets, Settings: settings,
-		Submitter: sched, Canceller: sched, Approver: sched, Rejecter: sched,
+		Submitter: sched, Expander: sched, Canceller: sched, Approver: sched, Rejecter: sched,
 		Forgetter: sched, TaskRetry: sched, ChapRetry: sched, Pools: sched,
 		Reporter: sched, Prompts: llm, Notifier: broker, Coalescer: broker,
 		Events: broker, SSEClients: broker.Subscribers,
@@ -147,6 +160,16 @@ func newHarness(t *testing.T) *harness {
 		_ = store.Close()
 	})
 	return h
+}
+
+// lateExpander breaks the cycle between the task runner and the scheduler. It
+// mirrors the production wiring in cmd/server.
+type lateExpander struct{ sched *scheduler.Scheduler }
+
+var _ app.GraphExpander = (*lateExpander)(nil)
+
+func (e *lateExpander) Expand(ctx context.Context, videoID entity.VideoID, tail scheduler.Tail) error {
+	return e.sched.Expand(ctx, videoID, tail)
 }
 
 func videoContext(store *sqlite.Store) mockprovider.ContextLookup {
@@ -314,8 +337,10 @@ func TestPipelineEndToEndThroughBothGates(t *testing.T) {
 	if v.Ref != "DSS-1" {
 		t.Fatalf("ref = %q, want DSS-1", v.Ref)
 	}
-	if v.Counts.Total != scheduler.NodeCountFor(6, 2) {
-		t.Fatalf("tasks = %d, want %d", v.Counts.Total, scheduler.NodeCountFor(6, 2))
+	// A video is enqueued as a lone blueprint. How many chapter branches it needs
+	// is the blueprint's output, so the rest of the DAG cannot exist yet.
+	if v.Counts.Total != 1 {
+		t.Fatalf("tasks at enqueue = %d, want 1", v.Counts.Total)
 	}
 
 	// Gate 1: the pipeline parks after the blueprint.
@@ -325,6 +350,10 @@ func TestPipelineEndToEndThroughBothGates(t *testing.T) {
 	}
 	if parked.Counts.Succeeded != 0 {
 		t.Fatalf("%d tasks ran past the blueprint gate", parked.Counts.Succeeded)
+	}
+	if parked.Counts.Total != 1 {
+		t.Fatalf("tasks at the blueprint gate = %d, want 1: the graph expands on approval",
+			parked.Counts.Total)
 	}
 
 	var chapters struct {
@@ -339,6 +368,14 @@ func TestPipelineEndToEndThroughBothGates(t *testing.T) {
 	}
 
 	h.json(http.MethodPost, "/api/videos/DSS-1/approve", map[string]any{"gate": "blueprint"}, http.StatusOK, nil)
+
+	// Approving the outline is what fixes the video's shape: the DAG is built for
+	// the chapters that were just signed off, not for the number briefed.
+	expanded := h.video("DSS-1")
+	if expanded.Counts.Total != scheduler.NodeCountFor(len(chapters.Chapters), 2) {
+		t.Fatalf("tasks after approval = %d, want %d",
+			expanded.Counts.Total, scheduler.NodeCountFor(len(chapters.Chapters), 2))
+	}
 
 	// Gate 2: the pipeline parks again before upload.
 	h.waitForGate("DSS-1", "upload", 30*time.Second)
@@ -1035,5 +1072,69 @@ func TestDeleteChannelReclaimsItsVideosFiles(t *testing.T) {
 		if h.fileExists(a.ID, a.Kind) {
 			t.Errorf("%s artifact %s was left on disk", a.Kind, a.ID[:12])
 		}
+	}
+}
+
+// With the blueprint gate off there is nobody to ask, so acceptance is the task
+// succeeding: the blueprint expands its own video's DAG before reporting, and
+// the pipeline runs straight through.
+//
+// This is the one path that goes through the real TaskRunner rather than a test
+// double, which is what makes it worth an end-to-end run.
+func TestUngatedBlueprintExpandsItsOwnGraph(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+
+	h.json(http.MethodPut, "/api/settings/gate.blueprint.enabled",
+		map[string]any{"value": "false"}, http.StatusOK, nil)
+	h.json(http.MethodPut, "/api/settings/gate.upload.enabled",
+		map[string]any{"value": "false"}, http.StatusOK, nil)
+
+	v := createVideo(h, 4, 1, true)
+	if v.Counts.Total != 1 {
+		t.Fatalf("tasks at enqueue = %d, want 1", v.Counts.Total)
+	}
+
+	done := h.waitForState(v.Ref, "completed", 30*time.Second)
+	if done.Counts.Total != scheduler.NodeCountFor(4, 1) {
+		t.Fatalf("tasks = %d, want %d: the graph did not expand", done.Counts.Total, scheduler.NodeCountFor(4, 1))
+	}
+	if done.Counts.Succeeded != done.Counts.Total {
+		t.Fatalf("succeeded %d of %d", done.Counts.Succeeded, done.Counts.Total)
+	}
+	if done.Upload == nil {
+		t.Fatal("the video completed without an upload receipt")
+	}
+}
+
+// An accepted blueprint cannot be run again: the whole DAG below it is built
+// from the chapters it produced, and expansion is one-way.
+func TestAcceptedBlueprintCannotBeRetried(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+
+	v := createVideo(h, 3, 1, true)
+	h.approve(v.Ref, "blueprint", 15*time.Second)
+
+	var tasks struct {
+		Tasks []struct {
+			ID   string `json:"id"`
+			Kind string `json:"kind"`
+		} `json:"tasks"`
+	}
+	h.json(http.MethodGet, "/api/videos/"+v.Ref+"/tasks", nil, http.StatusOK, &tasks)
+	var blueprintID string
+	for _, task := range tasks.Tasks {
+		if task.Kind == "blueprint" {
+			blueprintID = task.ID
+		}
+	}
+	if blueprintID == "" {
+		t.Fatal("the video has no blueprint task")
+	}
+
+	resp, body := h.do(http.MethodPost, "/api/tasks/"+blueprintID+"/retry", nil)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("retry of an accepted blueprint = %d, want 409: %s", resp.StatusCode, body)
 	}
 }

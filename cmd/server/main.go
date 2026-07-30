@@ -304,10 +304,22 @@ func (c *serveCmd) Run() error {
 	if err != nil {
 		return err
 	}
+	// An ungated blueprint expands its own video's DAG, so the runner needs the
+	// scheduler and the scheduler needs the runner. The reference is filled in
+	// below, before anything can run.
+	expander := &lateExpander{}
 	runner := app.NewTaskRunner(
 		store, store, store, store, store, store, store,
 		assets, providers.LLM(), providers.TTS(), providers.Image(),
 		providers.Composer(), providers.Uploader(), broker,
+		expander,
+		func() app.BlueprintOptions {
+			return app.BlueprintOptions{
+				ChapterTolerancePercent: settings.Int(entity.SettingVideoChapterTolerancePercent),
+				MaxAttempts:             settings.Int(entity.SettingTaskMaxAttempts),
+				UploadGate:              settings.GateEnabled(entity.GateUpload),
+			}
+		},
 		func() bool { return settings.Bool(entity.SettingUploadDryRun) },
 		time.Now, log,
 	)
@@ -316,6 +328,7 @@ func (c *serveCmd) Run() error {
 		RetryMax:       settings.Duration(entity.SettingTaskRetryMaxMillis),
 		SafetyInterval: 30 * time.Second,
 	})
+	expander.sched = sched
 
 	// --- delivery -----------------------------------------------------------
 	dist, err := web.Dist()
@@ -337,6 +350,7 @@ func (c *serveCmd) Run() error {
 		Settings:      settings,
 
 		Submitter:  sched,
+		Expander:   sched,
 		Canceller:  sched,
 		Approver:   sched,
 		Rejecter:   sched,
@@ -448,6 +462,21 @@ func videoContextLookup(store *sqlite.Store) mockprovider.ContextLookup {
 			ImagesPerChapter: v.ImagesPerChapter,
 		}, nil
 	}
+}
+
+// lateExpander breaks the one cycle in the wiring: an ungated blueprint expands
+// its own video's DAG, so the task runner needs the scheduler, and the
+// scheduler is constructed from the task runner.
+//
+// The reference is written once during wiring, strictly before scheduler.Run
+// starts the goroutines that read it, so the assignment happens-before every
+// read without a lock.
+type lateExpander struct{ sched *scheduler.Scheduler }
+
+var _ app.GraphExpander = (*lateExpander)(nil)
+
+func (e *lateExpander) Expand(ctx context.Context, videoID entity.VideoID, tail scheduler.Tail) error {
+	return e.sched.Expand(ctx, videoID, tail)
 }
 
 func newLogger(startupLevel string) (*slog.LevelVar, *slog.Logger) {

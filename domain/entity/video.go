@@ -181,3 +181,27 @@ const (
 	MinImagesPerChapter = 1
 	MaxImagesPerChapter = 20
 )
+
+// ChapterCountBand returns the inclusive range of chapter counts an accepted
+// blueprint may have, for a video briefed with target chapters.
+//
+// A video's chapter count is a target, not a contract. The outline is written
+// by a model, and a 50-chapter brief that comes back as 45 is a good blueprint
+// that happened to find 45 natural breaks — the DAG is built from what the
+// operator approves, so there is nothing for it to contradict. The band exists
+// to separate that from a blueprint that came back with three chapters, which
+// is a model failure and should stop the line.
+//
+// The slack is rounded up, so a small target still has room to move.
+func ChapterCountBand(target, tolerancePercent int) (minCount, maxCount int) {
+	if tolerancePercent < 0 {
+		tolerancePercent = 0
+	}
+	slack := (target*tolerancePercent + 99) / 100
+	minCount = max(target-slack, MinChapterCount)
+	maxCount = min(target+slack, MaxChapterCount)
+	if maxCount < minCount {
+		maxCount = minCount
+	}
+	return minCount, maxCount
+}

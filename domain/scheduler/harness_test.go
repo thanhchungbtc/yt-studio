@@ -37,13 +37,35 @@ func newRecordingStore() *recordingStore {
 	}
 }
 
+// InsertGraph mirrors the real store: rows are inserted, never replaced, and a
+// task id that is already there is skipped. Expansion calls it a second time
+// with only the tail, so a store that overwrote would lose the blueprint and
+// misreport what a restart would see.
 func (s *recordingStore) InsertGraph(_ context.Context, videoID entity.VideoID, tasks []entity.Task, edges []repository.TaskEdge) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	stored := make([]entity.Task, len(tasks))
-	copy(stored, tasks)
-	s.graphs[videoID] = stored
-	s.edges[videoID] = edges
+	seen := make(map[entity.TaskID]struct{}, len(s.graphs[videoID]))
+	for _, t := range s.graphs[videoID] {
+		seen[t.ID] = struct{}{}
+	}
+	for _, t := range tasks {
+		if _, dup := seen[t.ID]; dup {
+			continue
+		}
+		seen[t.ID] = struct{}{}
+		s.graphs[videoID] = append(s.graphs[videoID], t)
+	}
+	arcs := make(map[[2]entity.TaskID]struct{}, len(s.edges[videoID]))
+	for _, e := range s.edges[videoID] {
+		arcs[[2]entity.TaskID{e.From, e.To}] = struct{}{}
+	}
+	for _, e := range edges {
+		if _, dup := arcs[[2]entity.TaskID{e.From, e.To}]; dup {
+			continue
+		}
+		arcs[[2]entity.TaskID{e.From, e.To}] = struct{}{}
+		s.edges[videoID] = append(s.edges[videoID], e)
+	}
 	return nil
 }
 

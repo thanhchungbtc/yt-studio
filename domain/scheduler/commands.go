@@ -17,6 +17,7 @@ type cmdKind uint8
 // The complete set of commands.
 const (
 	cmdSubmit cmdKind = iota
+	cmdExpand
 	cmdResume
 	cmdApprove
 	cmdReject
@@ -35,6 +36,7 @@ type command struct {
 	kind    cmdKind
 	graph   *Graph
 	graphs  []*Graph
+	tail    Tail
 	taskID  entity.TaskID
 	taskIDs []entity.TaskID
 	videoID entity.VideoID
@@ -73,6 +75,8 @@ func (s *Scheduler) handleCommand(ctx context.Context, c command) {
 	switch c.kind {
 	case cmdSubmit:
 		err = s.doSubmit(c.graph)
+	case cmdExpand:
+		err = s.doExpand(c.videoID, c.tail)
 	case cmdResume:
 		err = s.doResume(c.graphs)
 	case cmdApprove:
@@ -119,6 +123,23 @@ func (s *Scheduler) Submit(ctx context.Context, g *Graph) error {
 		return fmt.Errorf("persist graph: %w", err)
 	}
 	return s.send(ctx, command{kind: cmdSubmit, graph: g})
+}
+
+// Expand splices a video's per-chapter body onto the head graph it was
+// enqueued with, now that the blueprint has said how many chapters there are.
+//
+// Rows are written before the loop is told, exactly as Submit does it, and
+// InsertGraph is an idempotent upsert over deterministic ids — so an approval
+// retried after a partial failure recomputes the same tail and writes nothing
+// new.
+func (s *Scheduler) Expand(ctx context.Context, videoID entity.VideoID, tail Tail) error {
+	if len(tail.Tasks) == 0 {
+		return fmt.Errorf("%w: empty tail for %s", ErrInvalidGraph, videoID)
+	}
+	if err := s.store.InsertGraph(ctx, videoID, tail.Tasks, tail.Edges); err != nil {
+		return fmt.Errorf("persist tail: %w", err)
+	}
+	return s.send(ctx, command{kind: cmdExpand, videoID: videoID, tail: tail})
 }
 
 // Resume admits graphs rebuilt from the database at startup. A crash 45 minutes
@@ -229,6 +250,49 @@ func (s *Scheduler) doSubmit(g *Graph) error {
 	return nil
 }
 
+func (s *Scheduler) doExpand(videoID entity.VideoID, tail Tail) error {
+	g, ok := s.graphs[videoID]
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrUnknownVideo, videoID)
+	}
+	if g.Expanded() {
+		// Idempotent. The chapters a tail is derived from cannot change once the
+		// blueprint has left `failed`, so a repeated expansion describes the same
+		// shape; one that does not means the two were computed from different
+		// chapter sets, and continuing would build a video for chapters that are
+		// not there.
+		if got, want := g.NodeCount(), 1+len(tail.Tasks); got != want {
+			return fmt.Errorf("%w: %s is expanded to %d nodes, tail describes %d",
+				ErrAlreadyExpanded, videoID, got, want)
+		}
+		return nil
+	}
+	if err := g.Expand(tail); err != nil {
+		return err
+	}
+	for i := range tail.Tasks {
+		s.taskIndex[tail.Tasks[i].ID] = videoID
+	}
+	s.touch(videoID)
+	s.dirty = true
+	s.log.Info("graph expanded",
+		slog.String("video_id", videoID.String()),
+		slog.Int("chapters", chapterCountOf(g)),
+		slog.Int("tasks", g.NodeCount()))
+	return nil
+}
+
+// chapterCountOf counts the video's chapter branches, for the log line above.
+func chapterCountOf(g *Graph) int {
+	n := 0
+	for i := range g.tasks {
+		if g.tasks[i].Kind == entity.TaskKindClip {
+			n++
+		}
+	}
+	return n
+}
+
 func (s *Scheduler) doResume(graphs []*Graph) error {
 	for _, g := range graphs {
 		if g == nil {
@@ -250,6 +314,7 @@ func (s *Scheduler) install(g *Graph) {
 	s.graphs[g.VideoID] = g
 	g.markInstalled()
 	now := time.Now()
+	s.reclaimCommittedBlueprint(g, now)
 	for i := range g.tasks {
 		t := &g.tasks[i]
 		s.taskIndex[t.ID] = g.VideoID
@@ -283,6 +348,48 @@ func (s *Scheduler) install(g *Graph) {
 	}
 	s.touch(g.VideoID)
 	s.dirty = true
+}
+
+// reclaimCommittedBlueprint settles a blueprint that was caught in flight by a
+// crash after it had already expanded the graph.
+//
+// The ordinary reclaim below re-runs an interrupted task, which is safe because
+// every step is idempotent. The blueprint is the one exception: expansion is
+// its commit point — the outline asset, the chapter rows and the DAG built from
+// them are all durable by the time the graph grew — and re-running it would
+// roll a fresh outline underneath a graph shaped by the old one.
+//
+// It runs before the reclaim pass rather than inside it so that dependents are
+// discharged first and admitted to the ready set exactly once.
+func (s *Scheduler) reclaimCommittedBlueprint(g *Graph, now time.Time) {
+	if !g.Expanded() {
+		return
+	}
+	idx, ok := g.IndexOf(entity.NewTaskID(g.VideoID, entity.TaskKindBlueprint, -1, -1))
+	if !ok {
+		return
+	}
+	t := &g.tasks[idx]
+	if t.State != entity.TaskStateRunning {
+		return
+	}
+	t.State = entity.TaskStateSucceeded
+	t.NotBefore = nil
+	t.FinishedAt = &now
+	t.UpdatedAt = now
+	s.record(t)
+	for _, d := range g.Dependents(idx) {
+		dep := g.Task(int(d))
+		if dep.State != entity.TaskStateBlocked || dep.DepsRemaining == 0 {
+			continue
+		}
+		dep.DepsRemaining--
+		dep.UpdatedAt = now
+		s.record(dep)
+	}
+	s.log.Info("blueprint reclaimed as committed",
+		slog.String("video_id", g.VideoID.String()),
+		slog.String("task", t.ID.String()))
 }
 
 func (s *Scheduler) resolve(taskID entity.TaskID) (*Graph, *entity.Task, error) {
@@ -366,13 +473,43 @@ func (s *Scheduler) doCancel(videoID entity.VideoID) error {
 	return nil
 }
 
+// guardBlueprintReset refuses to re-run a blueprint that is not `failed`.
+//
+// The whole DAG below a blueprint is built from the chapters that blueprint
+// produced, and that expansion is deliberately one-way: there is no reshape
+// path, which is what keeps expansion strictly additive and lets it run at the
+// one instant a video provably has nothing ready, running or retrying. Letting
+// a second roll of the outline land underneath a graph already built for the
+// first would leave tasks pointing at chapters that no longer exist.
+//
+// `failed` is the exception because it is the one state in which no expansion
+// has happened: a blueprint that exhausted its retries, or one an operator
+// rejected at the gate, has produced nothing the graph depends on. Both are
+// worth being able to run again — without them a transient provider error
+// would kill a video permanently.
+func guardBlueprintReset(g *Graph, indices []int32) error {
+	for _, i := range indices {
+		t := &g.tasks[i]
+		if t.Kind != entity.TaskKindBlueprint || t.State == entity.TaskStateFailed {
+			continue
+		}
+		return fmt.Errorf("%w: %s is %s; reject it first, or start a new video",
+			ErrBlueprintLocked, t.ID, t.State)
+	}
+	return nil
+}
+
 func (s *Scheduler) doRetryTask(taskID entity.TaskID) error {
 	g, t, err := s.resolve(taskID)
 	if err != nil {
 		return err
 	}
 	idx, _ := g.IndexOf(t.ID)
-	s.resetFrom(g, []int32{idx})
+	seeds := []int32{idx}
+	if err := guardBlueprintReset(g, seeds); err != nil {
+		return err
+	}
+	s.resetFrom(g, seeds)
 	return nil
 }
 
@@ -389,6 +526,11 @@ func (s *Scheduler) doRetryChapter(videoID entity.VideoID, ordinal int) error {
 	}
 	if len(seeds) == 0 {
 		return fmt.Errorf("%w: video %s has no chapter %d", ErrUnknownTask, videoID, ordinal)
+	}
+	// The video-level tasks all carry ordinal -1, so an ordinal of -1 would sweep
+	// the blueprint in with them.
+	if err := guardBlueprintReset(g, seeds); err != nil {
+		return err
 	}
 	s.resetFrom(g, seeds)
 	return nil
@@ -439,6 +581,9 @@ func (s *Scheduler) doRerun(c command) error {
 	}
 	seeds, err := resolveSeeds(g, c.taskIDs)
 	if err != nil {
+		return err
+	}
+	if err := guardBlueprintReset(g, seeds); err != nil {
 		return err
 	}
 	downstream := strictDownstream(g, seeds)
@@ -541,6 +686,9 @@ func (s *Scheduler) doRunStale(c command) error {
 		return fmt.Errorf("%w: %s", ErrUnknownVideo, c.videoID)
 	}
 	indices := staleIndices(g, c.taskIDs)
+	if err := guardBlueprintReset(g, indices); err != nil {
+		return err
+	}
 	if c.count != nil {
 		*c.count = len(indices)
 	}

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/repository"
@@ -37,10 +38,22 @@ func FindOpenGate(
 // ApproveGate releases a gated task's successors. Waits may last days, so the
 // state lives in the task table and the daemon may have restarted since the
 // gate opened.
+//
+// Approving a blueprint does one thing more: it builds the rest of the video's
+// DAG. Until this moment a video is a single blueprint node, because the number
+// of chapter branches it needs is the number of chapters the operator is
+// approving right now.
+//
+//nolint:revive // the parameter list is the dependency list
 func ApproveGate(
 	ctx context.Context,
 	tasks repository.TaskReader,
+	videos repository.VideoReader,
+	chapters repository.ChapterReader,
+	expander GraphExpander,
 	approver GateApprover,
+	now time.Time,
+	opts ExpandOptions,
 	videoID entity.VideoID,
 	gate entity.GateKind,
 ) (entity.Task, error) {
@@ -50,6 +63,14 @@ func ApproveGate(
 	t, err := FindOpenGate(ctx, tasks, videoID, gate)
 	if err != nil {
 		return entity.Task{}, err
+	}
+	if t.Kind == entity.TaskKindBlueprint {
+		// Expansion precedes approval, not the other way round: releasing the
+		// blueprint's dependents before they exist would leave a video whose whole
+		// DAG had succeeded after one task.
+		if err := ExpandVideoGraph(ctx, videos, chapters, expander, now, opts, videoID); err != nil {
+			return entity.Task{}, err
+		}
 	}
 	if err := approver.Approve(ctx, t.ID); err != nil {
 		return entity.Task{}, err

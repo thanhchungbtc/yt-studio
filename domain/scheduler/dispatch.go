@@ -22,6 +22,9 @@ var (
 	ErrUnknownVideo    = errors.New("unknown video")
 	ErrUnknownTask     = errors.New("unknown task")
 	ErrNotGated        = errors.New("task is not awaiting approval")
+	// ErrBlueprintLocked reports an attempt to re-run a blueprint the video's DAG
+	// has already been built from. See guardBlueprintReset.
+	ErrBlueprintLocked = errors.New("blueprint cannot be re-run")
 )
 
 // Runner executes exactly one task and reports its outcome. Everything the

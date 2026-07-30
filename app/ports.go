@@ -17,6 +17,12 @@ type GraphSubmitter interface {
 	Submit(ctx context.Context, g *scheduler.Graph) error
 }
 
+// GraphExpander splices a video's per-chapter body onto the head graph it was
+// enqueued with, once the blueprint has said how many chapters there are.
+type GraphExpander interface {
+	Expand(ctx context.Context, videoID entity.VideoID, tail scheduler.Tail) error
+}
+
 // GraphResumer admits DAGs rebuilt from the database at startup.
 type GraphResumer interface {
 	Resume(ctx context.Context, graphs []*scheduler.Graph) error

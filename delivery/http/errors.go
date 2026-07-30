@@ -42,7 +42,9 @@ func mapError(err error) error {
 		return huma.Error422UnprocessableEntity(err.Error())
 	case errors.Is(err, app.ErrConflict),
 		errors.Is(err, repository.ErrConflict),
-		errors.Is(err, scheduler.ErrNotGated):
+		errors.Is(err, scheduler.ErrNotGated),
+		errors.Is(err, scheduler.ErrBlueprintLocked),
+		errors.Is(err, scheduler.ErrAlreadyExpanded):
 		return huma.Error409Conflict(err.Error())
 	case errors.Is(err, scheduler.ErrSchedulerClosed):
 		return huma.Error503ServiceUnavailable("scheduler is not running")

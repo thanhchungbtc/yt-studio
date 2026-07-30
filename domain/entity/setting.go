@@ -41,6 +41,9 @@ const (
 
 	SettingVideoDefaultChapters SettingKey = "video.default_chapter_count"
 	SettingVideoDefaultImages   SettingKey = "video.default_images_per_chapter"
+	// SettingVideoChapterTolerancePercent bounds how far an accepted blueprint's
+	// chapter count may fall from the one the video was briefed with.
+	SettingVideoChapterTolerancePercent SettingKey = "video.chapter_tolerance_percent"
 
 	SettingTaskMaxAttempts     SettingKey = "task.max_attempts"
 	SettingTaskRetryBaseMillis SettingKey = "task.retry_base_ms"
@@ -229,6 +232,7 @@ func DefaultSettings() []Setting {
 
 		{Key: SettingVideoDefaultChapters, Value: "50", Type: SettingTypeInt, Group: "video", Min: MinChapterCount, Max: MaxChapterCount, Description: "Chapters created for a new video when unspecified."},
 		{Key: SettingVideoDefaultImages, Value: "2", Type: SettingTypeInt, Group: "video", Min: MinImagesPerChapter, Max: MaxImagesPerChapter, Description: "Stills generated per chapter when unspecified."},
+		{Key: SettingVideoChapterTolerancePercent, Value: "20", Type: SettingTypeInt, Group: "video", Min: 0, Max: 100, Description: "How far an accepted blueprint's chapter count may fall from the target, as a percentage."},
 
 		{Key: SettingTaskMaxAttempts, Value: "3", Type: SettingTypeInt, Group: "scheduler", Min: 1, Max: 20, Description: "Attempts before a task is permanently failed."},
 		{Key: SettingTaskRetryBaseMillis, Value: "250", Type: SettingTypeInt, Group: "scheduler", Min: 1, Max: 60000, Description: "Initial retry backoff."},
