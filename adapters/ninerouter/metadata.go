@@ -6,7 +6,9 @@ import (
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
-func (n NinerRouter) Metadata(ctx context.Context, req provider.MetadataRequest) (provider.Metadata, error) {
-	//TODO implement me
-	panic("implement me")
+// Metadata writes the YouTube-facing listing for a finished video.
+//
+// Not implemented yet. See the note on Script.
+func (c *Client) Metadata(_ context.Context, _ provider.MetadataRequest) (provider.Metadata, error) {
+	panic("ninerouter: Metadata is not implemented yet")
 }

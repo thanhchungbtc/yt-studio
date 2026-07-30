@@ -1,1 +1,22 @@
-package prompts
+Channel: {{ .ChannelSlug }}
+Video: {{ .VideoRef }}
+Title: {{ .Title }}
+{{- with .Topic }}
+Topic: {{ . }}
+{{- end }}
+{{- with .Style }}
+{{- with .Tone }}
+Tone: {{ . }}
+{{- end }}
+{{- with .Language }}
+Language: {{ . }}
+{{- end }}
+{{- if gt .WordsPerChapter 0 }}
+Each chapter is narrated in roughly {{ .WordsPerChapter }} words, so give each
+one about that much material — no more, no less.
+{{- end }}
+{{- end }}
+
+Plan about {{ .ChapterCount }} chapters. That number is a target, not a quota:
+break where the material breaks naturally, and return however many chapters that
+turns out to be rather than padding or compressing to hit it exactly.
