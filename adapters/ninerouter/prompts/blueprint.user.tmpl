@@ -1,22 +1,14 @@
-Channel: {{ .ChannelSlug }}
-Video: {{ .VideoRef }}
+Create a video blueprint for:
 Title: {{ .Title }}
-{{- with .Topic }}
-Topic: {{ . }}
-{{- end }}
-{{- with .Style }}
-{{- with .Tone }}
-Tone: {{ . }}
-{{- end }}
-{{- with .Language }}
-Language: {{ . }}
-{{- end }}
-{{- if gt .WordsPerChapter 0 }}
-Each chapter is narrated in roughly {{ .WordsPerChapter }} words, so give each
-one about that much material — no more, no less.
-{{- end }}
-{{- end }}
+Description: {{ .Topic }}
+Target chapters: {{ .ChapterCount }}
+Target duration: {{ .DurationMinutes }} minutes (~{{ .WordsPerMinute }} words/minute)
+Total spoken-word budget: {{ .TotalWords }} words
 
-Plan about {{ .ChapterCount }} chapters. That number is a target, not a quota:
-break where the material breaks naturally, and return however many chapters that
-turns out to be rather than padding or compressing to hit it exactly.
+Produce {{ .ChapterCount }} chapters, numbered from 1 (landing slightly under
+is acceptable only if required to keep every chapter orthogonal — see the
+NO DUPLICATES rule).
+Write each chapter's core_concept, key_points, and do_not_repeats fully and
+concretely in this single pass — concrete named examples, specific numbers,
+the 'Open:' directive on the first key_points line — so the script writer
+needs nothing more.

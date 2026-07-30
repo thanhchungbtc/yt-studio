@@ -11,9 +11,46 @@ import (
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
+// wordsPerMinute is the narration speed the word budget is derived from. It
+// matches the figure the system prompt states out loud, so the two cannot drift.
+const wordsPerMinute = 130
+
+// defaultWordsPerChapter stands in when a channel has no target, so the budget
+// handed to the model is never zero.
+const defaultWordsPerChapter = 420
+
+// blueprintPrompt is what the templates render against: the request, plus the
+// two figures the model needs and Go has to compute because text/template
+// cannot do arithmetic.
+type blueprintPrompt struct {
+	provider.BlueprintRequest
+	WordsPerMinute  int
+	TotalWords      int
+	DurationMinutes int
+}
+
+func newBlueprintPrompt(req provider.BlueprintRequest) blueprintPrompt {
+	words := req.Style.WordsPerChapter
+	if words <= 0 {
+		words = defaultWordsPerChapter
+	}
+	total := req.ChapterCount * words
+	return blueprintPrompt{
+		BlueprintRequest: req,
+		WordsPerMinute:   wordsPerMinute,
+		TotalWords:       total,
+		DurationMinutes:  total / wordsPerMinute,
+	}
+}
+
 // blueprintDoc is the outline as the model returns it and as the store keeps
-// it. The two are the same shape on purpose: what an operator reads in the
-// asset viewer is what the pipeline was built from.
+// it, in full.
+//
+// It is much richer than provider.Blueprint, deliberately. The brief a script
+// writer needs is a structured thing, and the port carries a title and a
+// sentence — so the whole document is what lands in the asset store, and only
+// the collapse below crosses the boundary. Nothing is lost, and widening the
+// port later is a change to the collapse rather than to the prompt.
 type blueprintDoc struct {
 	Video    entity.VideoID `json:"video"`
 	Ref      entity.Ref     `json:"ref"`
@@ -23,26 +60,36 @@ type blueprintDoc struct {
 }
 
 type chapterDoc struct {
-	// Ordinal is filled in here rather than asked for. Position in the array is
-	// the answer, and a model numbering its own chapters gets it wrong often
-	// enough to be a nuisance.
-	Ordinal int    `json:"ordinal"`
-	Title   string `json:"title"`
-	Summary string `json:"summary"`
+	Order int    `json:"order"`
+	Title string `json:"title"`
+	// Mechanism is the idea the chapter teaches, stripped of its title. It is
+	// the model's own dedup working shown on the page: two chapters sharing a
+	// mechanism are the duplicate the outline was supposed to remove.
+	Mechanism      string   `json:"mechanism"`
+	CoreConcept    string   `json:"core_concept"`
+	KeyPoints      []string `json:"key_points"`
+	DoNotRepeats   []string `json:"do_not_repeats"`
+	ForwardHook    string   `json:"forward_hook"`
+	Tone           string   `json:"tone"`
+	Pacing         string   `json:"pacing"`
+	Role           string   `json:"role"`
+	EstimatedWords int      `json:"estimated_words"`
 }
 
 // Blueprint plans a video's chapters.
 //
-// The chapter count is deliberately not checked here. The request carries a
-// target, and how far an outline may land from it is a policy the use case
-// owns; enforcing it twice would mean two places to change and an adapter that
-// rejects an outline before the policy gets a say.
+// There is almost no validation here on purpose. What the model returns is
+// trusted; the layers that already have an opinion enforce it — the tolerance
+// band in the use case owns the chapter count, and entity.NewChapter owns what
+// makes a chapter well formed. Checking any of it a second time here would only
+// mean two places to change.
 func (c *Client) Blueprint(ctx context.Context, req provider.BlueprintRequest) (provider.Blueprint, error) {
-	system, err := render(blueprintSystemPrompt, req)
+	prompt := newBlueprintPrompt(req)
+	system, err := render(blueprintSystemPrompt, prompt)
 	if err != nil {
 		return provider.Blueprint{}, err
 	}
-	user, err := render(blueprintUserPrompt, req)
+	user, err := render(blueprintUserPrompt, prompt)
 	if err != nil {
 		return provider.Blueprint{}, err
 	}
@@ -52,14 +99,15 @@ func (c *Client) Blueprint(ctx context.Context, req provider.BlueprintRequest) (
 		return provider.Blueprint{}, err
 	}
 
+	// No fence stripping and no seeking for the outermost brace. The output
+	// contract is the last thing the system prompt says, and a response that
+	// ignores it is a bad roll rather than a shape to unwrap.
 	var doc blueprintDoc
 	if err := json.Unmarshal([]byte(content), &doc); err != nil {
 		return provider.Blueprint{}, fmt.Errorf("blueprint response is not JSON: %w (%s)",
 			err, snippet(content))
 	}
-	if err := doc.normalise(req); err != nil {
-		return provider.Blueprint{}, err
-	}
+	doc.normalise(req)
 
 	assetID, err := c.putJSON(ctx, entity.AssetKindBlueprint, doc)
 	if err != nil {
@@ -69,9 +117,9 @@ func (c *Client) Blueprint(ctx context.Context, req provider.BlueprintRequest) (
 	chapters := make([]provider.BlueprintChapter, 0, len(doc.Chapters))
 	for _, ch := range doc.Chapters {
 		chapters = append(chapters, provider.BlueprintChapter{
-			Ordinal: ch.Ordinal,
+			Ordinal: ch.Order,
 			Title:   ch.Title,
-			Summary: ch.Summary,
+			Summary: ch.brief(),
 		})
 	}
 	return provider.Blueprint{
@@ -82,31 +130,94 @@ func (c *Client) Blueprint(ctx context.Context, req provider.BlueprintRequest) (
 	}, nil
 }
 
-// normalise tidies what the model returned and rejects what cannot be used.
+// normalise stamps the facts that are the caller's rather than the model's, and
+// renumbers the chapters from their position.
 //
-// It stamps the identity fields rather than trusting them: they are the
-// caller's facts, not the model's to get wrong.
-func (d *blueprintDoc) normalise(req provider.BlueprintRequest) error {
+// Order is reassigned rather than trusted because it is the key the DAG and the
+// chapter table are addressed by; everything else the model said stands.
+func (d *blueprintDoc) normalise(req provider.BlueprintRequest) {
 	d.Video, d.Ref = req.VideoID, req.VideoRef
-	d.Title = strings.TrimSpace(d.Title)
-	if d.Title == "" {
+	if strings.TrimSpace(d.Title) == "" {
 		d.Title = req.Title
 	}
-	d.Summary = strings.TrimSpace(d.Summary)
-
-	if len(d.Chapters) == 0 {
-		return fmt.Errorf("blueprint for %s has no chapters", req.VideoRef)
-	}
 	for i := range d.Chapters {
-		ch := &d.Chapters[i]
-		ch.Ordinal = i + 1
-		ch.Title = strings.TrimSpace(ch.Title)
-		ch.Summary = strings.TrimSpace(ch.Summary)
-		if ch.Title == "" {
-			return fmt.Errorf("blueprint for %s has an untitled chapter at position %d", req.VideoRef, i+1)
+		d.Chapters[i].Order = i + 1
+	}
+}
+
+// brief renders one chapter's plan as the text the script writer receives.
+//
+// provider.BlueprintChapter carries a Summary, and a summary is not what a
+// writer needs — so the whole brief is folded into that field rather than
+// dropped. It reads as a block of direction rather than a sentence, which is
+// deliberate until the port grows fields of its own.
+func (c chapterDoc) brief() string {
+	var b strings.Builder
+	if concept := strings.TrimSpace(c.CoreConcept); concept != "" {
+		b.WriteString(concept)
+	}
+
+	if points := trimmed(c.KeyPoints); len(points) > 0 {
+		section(&b)
+		// The first beat is the opening directive and reads as a heading; the rest
+		// are beats and read as a tight list beneath it.
+		b.WriteString(points[0])
+		for _, point := range points[1:] {
+			b.WriteString("\n- " + point)
 		}
 	}
-	return nil
+
+	if repeats := trimmed(c.DoNotRepeats); len(repeats) > 0 {
+		section(&b)
+		b.WriteString("Do not re-explain:")
+		for _, entry := range repeats {
+			b.WriteString("\n- " + entry)
+		}
+	}
+	if hook := strings.TrimSpace(c.ForwardHook); hook != "" {
+		section(&b)
+		b.WriteString("Hand-off: " + hook)
+	}
+	if meta := c.meta(); meta != "" {
+		section(&b)
+		b.WriteString(meta)
+	}
+	return b.String()
+}
+
+// meta is the one-line direction footer: how this chapter should feel, how deep
+// it should go, and how long it should run.
+func (c chapterDoc) meta() string {
+	parts := make([]string, 0, 4)
+	for _, field := range []string{c.Role, c.Tone, c.Pacing} {
+		if field = strings.TrimSpace(field); field != "" {
+			parts = append(parts, field)
+		}
+	}
+	if c.EstimatedWords > 0 {
+		parts = append(parts, fmt.Sprintf("~%d words", c.EstimatedWords))
+	}
+	return strings.Join(parts, " · ")
+}
+
+// trimmed drops blank entries and trims what is left, so a model that padded a
+// list with empty strings does not produce a brief full of stray bullets.
+func trimmed(in []string) []string {
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if s = strings.TrimSpace(s); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// section starts a new block, blank-line separated, unless nothing has been
+// written yet.
+func section(b *strings.Builder) {
+	if b.Len() > 0 {
+		b.WriteString("\n\n")
+	}
 }
 
 // putJSON stores a document and returns its content address.

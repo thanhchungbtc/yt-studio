@@ -234,7 +234,8 @@ func DefaultSettings() []Setting {
 		{Key: SettingVideoDefaultImages, Value: "2", Type: SettingTypeInt, Group: "video", Min: MinImagesPerChapter, Max: MaxImagesPerChapter, Description: "Stills generated per chapter when unspecified."},
 		{Key: SettingVideoChapterTolerancePercent, Value: "20", Type: SettingTypeInt, Group: "video", Min: 0, Max: 100, Description: "How far an accepted blueprint's chapter count may fall from the target, as a percentage."},
 
-		{Key: SettingTaskMaxAttempts, Value: "3", Type: SettingTypeInt, Group: "scheduler", Min: 1, Max: 20, Description: "Attempts before a task is permanently failed."},
+		//nolint:lll // one row, one line
+		{Key: SettingTaskMaxAttempts, Value: "1", Type: SettingTypeInt, Group: "scheduler", Min: 1, Max: 20, Description: "Attempts before a task is permanently failed. One means a failure surfaces immediately rather than costing a second generation; raise it once the prompts are settled."},
 		{Key: SettingTaskRetryBaseMillis, Value: "250", Type: SettingTypeInt, Group: "scheduler", Min: 1, Max: 60000, Description: "Initial retry backoff."},
 		{Key: SettingTaskRetryMaxMillis, Value: "30000", Type: SettingTypeInt, Group: "scheduler", Min: 1, Max: 3600000, Description: "Maximum retry backoff."},
 
