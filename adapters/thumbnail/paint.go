@@ -22,8 +22,6 @@ var (
 	// The headline, and the captions under each tile.
 	inkHeadline = image.NewUniform(color.RGBA{R: 246, G: 246, B: 244, A: 255})
 	inkCaption  = image.NewUniform(color.RGBA{R: 226, G: 226, B: 222, A: 255})
-	// The rule under the headline: the design's one piece of colour.
-	ruleRed = color.RGBA{R: 219, G: 36, B: 36, A: 255}
 	// The plate behind each icon, and the border around it.
 	tileFill        = color.RGBA{R: 6, G: 6, B: 8, A: 235}
 	tileBorderColor = color.RGBA{R: 255, G: 255, B: 255, A: 255}
@@ -80,7 +78,7 @@ func scrim(img *image.RGBA) {
 	}
 }
 
-// drawHeadline centres each line and lays the red rule under the block.
+// drawHeadline centres each line of the fitted headline.
 func drawHeadline(canvas *image.RGBA, h headlineLayout) {
 	if len(h.lines) == 0 {
 		return
@@ -88,43 +86,10 @@ func drawHeadline(canvas *image.RGBA, h headlineLayout) {
 	for i, line := range h.lines {
 		w := measure(h.face, line, h.tracking).Ceil()
 		x := (width - w) / 2
-		// The baseline sits a little above the bottom of the line box, which is
-		// what keeps descenders inside the block rather than into the rule.
+		// The baseline sits above the bottom of the line box, which is what keeps
+		// descenders inside the block rather than in the gap below it.
 		baseline := h.top + i*h.lineH + h.size
 		drawString(canvas, h.face, line, x, baseline, h.tracking, inkHeadline)
-	}
-
-	// The rule runs to the right margin, under the back half of the headline —
-	// the one piece of colour in the design.
-	y := h.top + len(h.lines)*h.lineH + ruleGap
-	drawRule(canvas, width-headlineMarginX-ruleWidth, y, ruleWidth, ruleHeight)
-}
-
-// drawRule paints the underline as a slight rightward taper ending in a point,
-// which is nearer the hand-drawn sweep of the reference than a flat bar and
-// costs no asset to ship.
-func drawRule(canvas *image.RGBA, x, y, w, h int) {
-	for i := range w {
-		// The stroke thins over the last fifth, so it reads as a stroke that was
-		// drawn rather than a rectangle that was placed.
-		thickness := h
-		if tail := w * 4 / 5; i > tail && w > tail {
-			remaining := float64(w-i) / float64(w-tail)
-			thickness = max(int(float64(h)*remaining), 1)
-		}
-		// A gentle arc: the middle rides a pixel or two higher than the ends.
-		lift := 0
-		if w > 0 {
-			t := float64(i) / float64(w)
-			lift = int(4 * (t - t*t) * 4)
-		}
-		top := y - lift
-		for dy := range thickness {
-			py := top + dy
-			if py >= 0 && py < height && x+i >= 0 && x+i < width {
-				canvas.SetRGBA(x+i, py, ruleRed)
-			}
-		}
 	}
 }
 

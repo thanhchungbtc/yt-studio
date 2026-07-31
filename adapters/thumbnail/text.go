@@ -125,12 +125,12 @@ type headlineLayout struct {
 	lineH    int
 }
 
-// height is what the headline and its rule occupy.
+// height is what the headline occupies.
 func (h headlineLayout) height() int {
 	if len(h.lines) == 0 {
 		return 0
 	}
-	return len(h.lines)*h.lineH + ruleGap + ruleHeight
+	return len(h.lines) * h.lineH
 }
 
 // layOutHeadline fits the hook into the band the grid left above it: as large

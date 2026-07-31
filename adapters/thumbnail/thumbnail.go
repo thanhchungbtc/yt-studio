@@ -1,5 +1,5 @@
-// Package thumbnail renders a video's thumbnail in Go: the headline, the rule
-// under it, and the grid of generated icons over the channel's background.
+// Package thumbnail renders a video's thumbnail in Go: the headline and the
+// grid of generated icons, over the channel's background.
 //
 // It is pure Go rather than a filter graph or a browser. Text is the whole
 // problem here — fitting a headline to the frame, tracking it, centring

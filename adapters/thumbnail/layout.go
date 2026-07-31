@@ -22,12 +22,12 @@ const (
 	// The grid is sized from the frame width first and the headline takes what
 	// is left over, which is what keeps the tiles running edge to edge. Lower
 	// gridMarginX for a wider grid — it is the gutter on each side.
-	gridMarginX = 18
+	gridMarginX = 30
 	// Gap between tiles, horizontally and between rows.
-	tileGap = 14
+	tileGap = 30
 	// The border drawn around each tile, and the inset from that border to the
 	// icon inside it. Raise tilePad to give the icon more air.
-	tileBorder = 4
+	tileBorder = 3
 	tilePad    = 12
 	// Room under the last row of captions.
 	gridBottom = 14
@@ -69,11 +69,6 @@ const (
 	headlineLines   = 2
 	// Letter-spacing is size/headlineTrack. Lower is looser.
 	headlineTrack = 22
-
-	// --- the rule under the headline --------------------------------------
-	ruleGap    = 12
-	ruleHeight = 8
-	ruleWidth  = width / 3
 
 	// --- resources --------------------------------------------------------
 	backgroundFile = "background.jpg"
@@ -140,8 +135,7 @@ func layOutGrid(cells, rows int) grid {
 	return g
 }
 
-// headlineBudget is how much height is left above the grid for the headline and
-// its rule.
+// headlineBudget is how much height is left above the grid for the headline.
 func (g grid) headlineBudget() int {
 	return height - gridBottom - blockHeight(g.rows, g.tileSize) - gridGap - headlineTop
 }

@@ -240,24 +240,51 @@ func TestRowsChangeTheLayout(t *testing.T) {
 	}
 }
 
-// The design's one piece of colour: if the rule is missing, the thumbnail is
-// not the design.
-func TestHeadlineRuleIsDrawn(t *testing.T) {
-	t.Parallel()
-	img := decode(t, sharedStore(t), baselineID(t))
-
-	var red int
+// brightPixels counts the near-white pixels in a band of the image. The
+// background is a photograph behind a scrim, so nothing in it reaches this;
+// only ink does.
+func brightPixels(img image.Image, fromY, toY int) int {
+	var n int
 	bounds := img.Bounds()
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+	for y := max(fromY, bounds.Min.Y); y < min(toY, bounds.Max.Y); y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
 			c := color.RGBAModel.Convert(img.At(x, y)).(color.RGBA)
-			if c.R > 180 && c.G < 90 && c.B < 90 {
-				red++
+			if c.R > 200 && c.G > 200 && c.B > 200 {
+				n++
 			}
 		}
 	}
-	if red < 500 {
-		t.Fatalf("found %d red pixels, expected the rule under the headline", red)
+	return n
+}
+
+// The headline is drawn, in the band above the grid.
+//
+// Asserted against a render of the same request with no headline rather than
+// against a bare threshold: the background is a photograph, and a test that
+// only counted light pixels would pass on a frame where the headline was drawn
+// in the wrong colour, off the top, or not at all.
+func TestHeadlineIsDrawnAboveTheGrid(t *testing.T) {
+	t.Parallel()
+	b, store := newBuilder(t, thumbnail.Options{Rows: 2})
+
+	bare := baselineRequest(t)
+	bare.Headline = ""
+	id, err := b.Build(context.Background(), bare)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A hook nobody wrote is not a reason to fail: the grid is still the
+	// artifact, and a missing headline should be visibly missing.
+	if got := decode(t, store, id).Bounds(); got.Dx() != 1280 || got.Dy() != 720 {
+		t.Fatalf("thumbnail is %dx%d, want 1280x720", got.Dx(), got.Dy())
+	}
+
+	const band = 150
+	withHeadline := brightPixels(decode(t, store, baselineID(t)), 0, band)
+	without := brightPixels(decode(t, store, id), 0, band)
+	if withHeadline <= without*2 {
+		t.Fatalf("the top band has %d bright pixels with a headline and %d without; "+
+			"the headline is not reaching the frame", withHeadline, without)
 	}
 }
 
@@ -297,23 +324,6 @@ func TestCellWithNoIconIsRejected(t *testing.T) {
 		Cells: []provider.ThumbnailIconCell{{Caption: "Mind Control"}},
 	}); err == nil {
 		t.Fatal("Build with an iconless cell returned no error")
-	}
-}
-
-// A headline nobody wrote is not a reason to fail: the grid is still the
-// artifact, and a missing hook should be visibly missing.
-func TestEmptyHeadlineStillRenders(t *testing.T) {
-	t.Parallel()
-	b, store := newBuilder(t, thumbnail.Options{Rows: 2})
-
-	id, err := b.Build(context.Background(), provider.ThumbnailRequest{
-		VideoID: "v1", Cells: tenCells(t, store),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := decode(t, store, id).Bounds(); got.Dx() != 1280 {
-		t.Fatalf("thumbnail is %d wide", got.Dx())
 	}
 }
 
