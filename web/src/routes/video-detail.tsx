@@ -56,6 +56,7 @@ import {
   kindMime,
   kindTitle,
   mediaTypeOf,
+  producingTaskId,
   shortId,
   videoAssetItems,
 } from '@/lib/assets'
@@ -143,7 +144,7 @@ export function VideoDetailRoute() {
   const openGate = tasks.data?.find((t) => t.state === 'awaiting_approval')
 
   return (
-    <AssetViewerProvider>
+    <AssetViewerProvider videoRef={v.ref} videoId={v.id}>
       <Toolbar className="gap-3">
         <Ring
           value={v.counts.succeeded}
@@ -227,8 +228,17 @@ export function VideoDetailRoute() {
             loading={chapters.isPending}
           />
         )}
-        {tab === 'tasks' && <TaskList tasks={tasks.data ?? []} loading={tasks.isPending} />}
-        {tab === 'artifacts' && <ArtifactGallery video={v} chapters={chapters.data ?? []} />}
+        {tab === 'tasks' && (
+          <TaskList
+            tasks={tasks.data ?? []}
+            loading={tasks.isPending}
+            videoRef={v.ref}
+            videoId={v.id}
+          />
+        )}
+        {tab === 'artifacts' && (
+          <ArtifactGallery video={v} chapters={chapters.data ?? []} tasks={tasks.data ?? []} />
+        )}
       </div>
     </AssetViewerProvider>
   )
@@ -360,7 +370,7 @@ function VideoActions({ video, openGate }: { video: Video; openGate: Task | unde
  * from the assets endpoint so the gate banner and the overview can offer a
  * preview before that list has been fetched.
  */
-function videoLevelItems(video: Video): ViewerItem[] {
+function videoLevelItems(video: Video, tasks: Task[] = []): ViewerItem[] {
   const items: ViewerItem[] = []
   if (video.blueprintAssetId) {
     items.push({
@@ -369,6 +379,7 @@ function videoLevelItems(video: Video): ViewerItem[] {
       mime: kindMime('blueprint'),
       title: kindTitle('blueprint'),
       subtitle: video.ref,
+      taskId: producingTaskId(tasks, 'blueprint', -1, -1),
     })
   }
   if (video.finalAssetId) {
@@ -378,6 +389,7 @@ function videoLevelItems(video: Video): ViewerItem[] {
       mime: kindMime('final'),
       title: kindTitle('final'),
       subtitle: `${video.ref} · ${video.title}`,
+      taskId: producingTaskId(tasks, 'final', -1, -1),
     })
   }
   if (video.thumbnailAssetId) {
@@ -387,6 +399,7 @@ function videoLevelItems(video: Video): ViewerItem[] {
       mime: kindMime('thumbnail'),
       title: kindTitle('thumbnail'),
       subtitle: video.metadata?.thumbnailText ?? video.ref,
+      taskId: producingTaskId(tasks, 'thumbnail', -1, -1),
     })
   }
   return items
@@ -479,7 +492,7 @@ function Overview({
   loading: boolean
 }) {
   const openViewer = useAssetViewer()
-  const items = videoLevelItems(video)
+  const items = videoLevelItems(video, tasks)
   const openAt = (id: string) =>
     openViewer(
       items,
@@ -808,7 +821,10 @@ const ChapterCard = memo(function ChapterCard({
 
   // The whole chapter, viewable as one set: opening a still and pressing → walks
   // its siblings, then the narration, then the clip.
-  const items = useMemo(() => chapterStillItems(chapter, videoRef), [chapter, videoRef])
+  const items = useMemo(
+    () => chapterStillItems(chapter, videoRef, tasks),
+    [chapter, videoRef, tasks],
+  )
   const openAt = useCallback(
     (id: string) =>
       openViewer(
@@ -827,22 +843,23 @@ const ChapterCard = memo(function ChapterCard({
       setEditing(false)
     },
   })
+  // The cascade: every task of this chapter and everything downstream of them,
+  // reset and run. Reachable only from inside the dialog, once it has said what
+  // that sweeps up.
   const retry = useMutation({
     mutationFn: () => api.retryChapter(videoRef, chapter.ordinal),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: qk.videoTasks(videoId) })
       void queryClient.invalidateQueries({ queryKey: qk.video(videoRef) })
+      setRerunning(false)
     },
   })
 
-  // The two meanings of "run this again": a failure cascades freely, since
-  // nothing below it ever ran; a success goes through the confirmation.
-  const failed = tasks.some((t) => t.state === 'failed')
+  // One verb for "run this again", whatever state the chapter is in: re-run its
+  // own tasks and flag what is below. Rebuilding the rest of the video is the
+  // explicit choice inside the dialog.
   const chapterStale = tasks.some((t) => t.stale)
-  const rerunSeeds = useMemo(
-    () => tasks.filter((t) => t.state === 'succeeded').map((t) => t.id),
-    [tasks],
-  )
+  const rerunSeeds = useMemo(() => tasks.map((t) => t.id), [tasks])
 
   const startEdit = useCallback(() => {
     setDraft(chapter.script)
@@ -880,18 +897,12 @@ const ChapterCard = memo(function ChapterCard({
               <p className="mt-0.5 line-clamp-1 text-[11.5px] text-subtle">{chapter.summary}</p>
             </div>
             <div className="flex shrink-0 items-center gap-1">
-              <Tooltip
-                label={
-                  failed
-                    ? 'Retry the failed work in this chapter'
-                    : 'Run this chapter again — you will be shown what else it affects'
-                }
-              >
+              <Tooltip label="Run this chapter again — you will be shown what else it affects">
                 <Button
                   size="icon"
                   variant="ghost"
-                  onClick={() => (failed ? retry.mutate() : setRerunning(true))}
-                  disabled={retry.isPending || (!failed && rerunSeeds.length === 0)}
+                  onClick={() => setRerunning(true)}
+                  disabled={retry.isPending || rerunSeeds.length === 0}
                   aria-label={`Re-run chapter ${chapter.ordinal}`}
                 >
                   <RefreshCw className={cn('h-3.5 w-3.5', retry.isPending && 'animate-spin')} />
@@ -964,6 +975,8 @@ const ChapterCard = memo(function ChapterCard({
         videoId={videoId}
         taskIds={rerunSeeds}
         what={`chapter ${chapter.ordinal}`}
+        onCascade={() => retry.mutate()}
+        cascadePending={retry.isPending}
       />
 
       {expanded && (
@@ -1109,12 +1122,29 @@ const ChapterTaskChip = memo(function ChapterTaskChip({ task }: { task: Task }) 
 
 /* ----------------------------------------------------------------- task list */
 
-function TaskList({ tasks, loading }: { tasks: Task[]; loading: boolean }) {
+function TaskList({
+  tasks,
+  loading,
+  videoRef,
+  videoId,
+}: {
+  tasks: Task[]
+  loading: boolean
+  videoRef: string
+  videoId: string
+}) {
   const queryClient = useQueryClient()
+  // The cascade. It lives behind the dialog, which only offers it once the dry
+  // run has said what "everything below" is.
   const retry = useMutation({
     mutationFn: (id: string) => api.retryTask(id),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['video'] }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.videoTasks(videoId) })
+      void queryClient.invalidateQueries({ queryKey: qk.video(videoRef) })
+      setRerunning(null)
+    },
   })
+  const [rerunning, setRerunning] = useState<Task | null>(null)
 
   if (loading) return <Skeleton className="m-4 h-64" />
   if (tasks.length === 0)
@@ -1136,15 +1166,28 @@ function TaskList({ tasks, loading }: { tasks: Task[]; loading: boolean }) {
         </thead>
         <tbody>
           {tasks.map((task) => (
-            <TaskRow key={task.id} task={task} onRetry={() => retry.mutate(task.id)} />
+            <TaskRow key={task.id} task={task} onRerun={() => setRerunning(task)} />
           ))}
         </tbody>
       </table>
+
+      {rerunning && (
+        <RerunDialog
+          open
+          onOpenChange={(open) => !open && setRerunning(null)}
+          videoRef={videoRef}
+          videoId={videoId}
+          taskIds={[rerunning.id]}
+          what={taskLabel(rerunning.kind) + (rerunning.ordinal > 0 ? ` ${rerunning.ordinal}` : '')}
+          onCascade={() => retry.mutate(rerunning.id)}
+          cascadePending={retry.isPending}
+        />
+      )}
     </div>
   )
 }
 
-const TaskRow = memo(function TaskRow({ task, onRetry }: { task: Task; onRetry: () => void }) {
+const TaskRow = memo(function TaskRow({ task, onRerun }: { task: Task; onRerun: () => void }) {
   return (
     <tr className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--bg-hover))]">
       <td className="px-4 py-1.5">
@@ -1184,9 +1227,18 @@ const TaskRow = memo(function TaskRow({ task, onRetry }: { task: Task; onRetry: 
             <span className="text-[11px] text-subtle">locked</span>
           </Tooltip>
         ) : (
-          <Button size="xs" variant="ghost" onClick={onRetry}>
-            Retry
-          </Button>
+          /*
+            One verb, whatever state the task is in. Re-run resets this task and
+            nothing else: below a failed task there is nothing to protect and its
+            dependents run as soon as it succeeds, and below a succeeded one the
+            artifacts are flagged rather than discarded. Rebuilding downstream is
+            offered inside the dialog, after it has said what that means.
+          */
+          <Tooltip label="Run this step again. Anything below it is flagged, not re-run.">
+            <Button size="xs" variant="ghost" onClick={onRerun}>
+              Re-run
+            </Button>
+          </Tooltip>
         )}
       </td>
     </tr>
@@ -1203,7 +1255,15 @@ type GalleryView = 'grid' | 'list'
  * wrong thing to show an operator who is asking whether the images came out
  * well — so the image leads, and the address moves into the viewer.
  */
-function ArtifactGallery({ video, chapters }: { video: Video; chapters: Chapter[] }) {
+function ArtifactGallery({
+  video,
+  chapters,
+  tasks,
+}: {
+  video: Video
+  chapters: Chapter[]
+  tasks: Task[]
+}) {
   const openViewer = useAssetViewer()
   const [kind, setKind] = useState<string>('all')
   const [view, setView] = useState<GalleryView>('grid')
@@ -1214,8 +1274,8 @@ function ArtifactGallery({ video, chapters }: { video: Video; chapters: Chapter[
   })
 
   const items = useMemo(
-    () => videoAssetItems(assets.data ?? [], chapters, video.ref),
-    [assets.data, chapters, video.ref],
+    () => videoAssetItems(assets.data ?? [], chapters, video.ref, tasks),
+    [assets.data, chapters, video.ref, tasks],
   )
 
   const kinds = useMemo(() => {

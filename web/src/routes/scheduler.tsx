@@ -5,6 +5,7 @@ import { memo, useMemo, useRef, useState } from 'react'
 
 import { PageHeader } from '@/components/app-shell'
 import { PoolMeter } from '@/components/pool-meter'
+import { RerunDialog } from '@/components/stale'
 import { TaskStateBadge } from '@/components/state-badges'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/field'
@@ -227,11 +228,17 @@ function TaskTableHeader() {
 function TaskTable({ tasks, refById }: { tasks: Task[]; refById: Map<string, string> }) {
   const parentRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
+  const [rerunning, setRerunning] = useState<Task | null>(null)
+
+  // The cascade, offered only from inside the dialog: this resets everything
+  // downstream too, which is never what an operator scanning a task table
+  // meant by "run it again".
   const retry = useMutation({
     mutationFn: (id: string) => api.retryTask(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: qk.recentTasks })
       void queryClient.invalidateQueries({ queryKey: qk.scheduler })
+      setRerunning(null)
     },
   })
 
@@ -257,12 +264,25 @@ function TaskTable({ tasks, refById }: { tasks: Task[]; refById: Map<string, str
               <SchedulerTaskRow
                 task={task}
                 videoRef={refById.get(task.videoId)}
-                onRetry={retry.mutate}
+                onRerun={setRerunning}
               />
             </div>
           )
         })}
       </div>
+
+      {rerunning && (
+        <RerunDialog
+          open
+          onOpenChange={(open) => !open && setRerunning(null)}
+          videoRef={refById.get(rerunning.videoId) ?? rerunning.videoId}
+          videoId={rerunning.videoId}
+          taskIds={[rerunning.id]}
+          what={taskLabel(rerunning.kind) + (rerunning.ordinal > 0 ? ` ${rerunning.ordinal}` : '')}
+          onCascade={() => retry.mutate(rerunning.id)}
+          cascadePending={retry.isPending}
+        />
+      )}
     </div>
   )
 }
@@ -271,11 +291,11 @@ function TaskTable({ tasks, refById }: { tasks: Task[]; refById: Map<string, str
 const SchedulerTaskRow = memo(function SchedulerTaskRow({
   task,
   videoRef,
-  onRetry,
+  onRerun,
 }: {
   task: Task
   videoRef: string | undefined
-  onRetry: (id: string) => void
+  onRerun: (task: Task) => void
 }) {
   return (
     <div
@@ -306,9 +326,9 @@ const SchedulerTaskRow = memo(function SchedulerTaskRow({
       </span>
       <span className="text-right text-subtle">{formatRelative(task.updatedAt)}</span>
       <span className="text-right">
-        {(task.state === 'failed' || task.state === 'cancelled') && (
-          <Button size="xs" variant="ghost" onClick={() => onRetry(task.id)}>
-            Retry
+        {task.state !== 'running' && task.state !== 'blocked' && (
+          <Button size="xs" variant="ghost" onClick={() => onRerun(task)}>
+            Re-run
           </Button>
         )}
       </span>

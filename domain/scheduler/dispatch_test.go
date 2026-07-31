@@ -429,6 +429,78 @@ func TestRerunMarksDownstreamStaleWithoutRunningIt(t *testing.T) {
 	}
 }
 
+// Re-run is safe to offer on a task in any state, which is what lets the UI
+// make it the one default action.
+//
+// On a failed task there is nothing downstream to protect — its dependents
+// never ran — so they are not flagged, and they run of their own accord when
+// the seed finally succeeds. The operator gets the cascade they wanted from a
+// retry without having had to ask for a cascade.
+func TestRerunOfAFailedTaskReleasesItsWaitingDependents(t *testing.T) {
+	t.Parallel()
+	g := testGraph(t, "v1", 1, 1, false)
+
+	var mu sync.Mutex
+	runs := make(map[entity.TaskID]int)
+	failScript := true
+	r := newRig(t, nil, g, func(task entity.Task) entity.TaskOutcome {
+		mu.Lock()
+		runs[task.ID]++
+		fail := failScript && task.Kind == entity.TaskKindScript
+		mu.Unlock()
+		if fail {
+			return entity.Failed{Err: errors.New("synthetic"), Retryable: false}
+		}
+		return entity.Success{}
+	})
+	ctx := startScheduler(t, r.sched)
+	if err := r.sched.Submit(ctx, g); err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
+
+	script := taskOfKind(t, g, entity.TaskKindScript, 1)
+	tts := taskOfKind(t, g, entity.TaskKindTTS, 1)
+	waitFor(t, 10*time.Second, "the script to fail", func() bool {
+		return r.store.state(script.ID) == entity.TaskStateFailed
+	})
+
+	countOf := func(id entity.TaskID) int {
+		mu.Lock()
+		defer mu.Unlock()
+		return runs[id]
+	}
+	if got := countOf(tts.ID); got != 0 {
+		t.Fatalf("the narration ran %d times behind a failed script", got)
+	}
+
+	// The preview says nothing is at risk, because nothing below produced
+	// anything to be at risk.
+	preview, err := r.sched.Rerun(ctx, "v1", []entity.TaskID{script.ID}, true)
+	if err != nil {
+		t.Fatalf("Rerun dry run: %v", err)
+	}
+	if len(preview) != 0 {
+		t.Fatalf("dry run flagged %d tasks below a failed one, want none", len(preview))
+	}
+
+	mu.Lock()
+	failScript = false
+	mu.Unlock()
+	if _, err := r.sched.Rerun(ctx, "v1", []entity.TaskID{script.ID}, false); err != nil {
+		t.Fatalf("Rerun: %v", err)
+	}
+
+	waitFor(t, 10*time.Second, "the whole graph to finish", func() bool {
+		return r.sched.Snapshot().Succeeded == g.NodeCount()
+	})
+	if got := countOf(tts.ID); got == 0 {
+		t.Fatal("the narration never ran after its input was re-run")
+	}
+	if r.store.stale(tts.ID) {
+		t.Fatal("a task that had never produced anything was flagged stale")
+	}
+}
+
 // The other exit from stale: run it.
 func TestRunStaleReRunsTheFlaggedTasks(t *testing.T) {
 	t.Parallel()

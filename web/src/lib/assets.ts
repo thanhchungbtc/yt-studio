@@ -6,7 +6,7 @@
  */
 
 import { chapterKey } from './format'
-import type { Asset, Chapter } from './types'
+import type { Asset, Chapter, Task, TaskKind } from './types'
 
 export type MediaType = 'image' | 'video' | 'audio' | 'text' | 'binary'
 
@@ -41,6 +41,51 @@ export interface ViewerItem {
   size?: number
   createdAt?: string
   notes?: ViewerNote[]
+  /**
+   * The task that produced this artifact, when it is known. It is what lets the
+   * viewer offer "run this step again" on the thing the operator is looking at,
+   * rather than making them find the row in a table.
+   */
+  taskId?: string
+}
+
+/**
+ * Which task kind produces which artifact kind. Both vocabularies are closed
+ * sets, and this is the only place they meet.
+ */
+const KIND_TASKS: Record<string, TaskKind> = {
+  blueprint: 'blueprint',
+  script: 'script',
+  prompt: 'image_prompts',
+  audio: 'tts',
+  image: 'image',
+  clip: 'clip',
+  final: 'concat',
+  metadata: 'metadata',
+  thumbnail_plan: 'thumbnail_plan',
+  thumbnail_icon: 'thumbnail_icon',
+  thumbnail: 'thumbnail',
+}
+
+/**
+ * Finds the task that produced an artifact, by the coordinates the DAG
+ * addresses it with: kind, chapter ordinal, and the index within that chapter.
+ *
+ * Chapter-level artifacts carry an ordinal; video-level ones are -1. An index
+ * of -1 matches whatever the task carries, which is what lets a caller that
+ * does not know the slot still find the single task of its kind.
+ */
+export function producingTaskId(
+  tasks: Task[],
+  kind: string,
+  ordinal: number,
+  index: number,
+): string | undefined {
+  const taskKind = KIND_TASKS[kind]
+  if (!taskKind) return undefined
+  return tasks.find(
+    (t) => t.kind === taskKind && t.ordinal === ordinal && (index < 0 || t.index === index),
+  )?.id
 }
 
 const KIND_TITLES: Record<string, string> = {
@@ -139,7 +184,11 @@ function notesFor(kind: string, chapter: Chapter | undefined, slot: number): Vie
  * slot order, then the narration, then the rendered clip. Walking the viewer
  * with the arrow keys therefore walks a chapter end to end.
  */
-export function chapterStillItems(chapter: Chapter, videoRef: string): ViewerItem[] {
+export function chapterStillItems(
+  chapter: Chapter,
+  videoRef: string,
+  tasks: Task[] = [],
+): ViewerItem[] {
   const subtitle = `${chapterKey(videoRef, chapter.ordinal)} · ${chapter.title}`
 
   const items: ViewerItem[] = chapter.imageAssetIds.flatMap((id, slot) =>
@@ -152,6 +201,7 @@ export function chapterStillItems(chapter: Chapter, videoRef: string): ViewerIte
             title: `Still ${slot + 1}`,
             subtitle,
             notes: notesFor('image', chapter, slot),
+            taskId: producingTaskId(tasks, 'image', chapter.ordinal, slot),
           },
         ]
       : [],
@@ -165,6 +215,7 @@ export function chapterStillItems(chapter: Chapter, videoRef: string): ViewerIte
       title: kindTitle('audio'),
       subtitle,
       notes: notesFor('audio', chapter, 0),
+      taskId: producingTaskId(tasks, 'audio', chapter.ordinal, -1),
     })
   }
   if (chapter.clipAssetId) {
@@ -175,6 +226,7 @@ export function chapterStillItems(chapter: Chapter, videoRef: string): ViewerIte
       title: kindTitle('clip'),
       subtitle,
       notes: notesFor('clip', chapter, 0),
+      taskId: producingTaskId(tasks, 'clip', chapter.ordinal, -1),
     })
   }
 
@@ -189,6 +241,7 @@ export function videoAssetItems(
   assets: Asset[],
   chapters: Chapter[],
   videoRef: string,
+  tasks: Task[] = [],
 ): ViewerItem[] {
   const byId = new Map(chapters.map((chapter) => [chapter.id, chapter]))
 
@@ -209,6 +262,7 @@ export function videoAssetItems(
           ? `${chapterKey(videoRef, chapter.ordinal)} · ${chapter.title}`
           : videoRef,
         notes: notesFor(asset.kind, chapter, Math.max(0, slot)),
+        taskId: producingTaskId(tasks, asset.kind, chapter?.ordinal ?? -1, slot),
       } satisfies ViewerItem,
       ordinal: chapter?.ordinal ?? 0,
       slot: slot < 0 ? 0 : slot,

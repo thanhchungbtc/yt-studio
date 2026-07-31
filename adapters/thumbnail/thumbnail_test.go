@@ -113,18 +113,64 @@ func decode(t *testing.T, store *assetstore.FS, id entity.AssetID) image.Image {
 	return img
 }
 
-func TestRendersAtYouTubeSize(t *testing.T) {
-	t.Parallel()
-	b, store := newBuilder(t, thumbnail.Options{Rows: 2})
-
-	id, err := b.Build(context.Background(), provider.ThumbnailRequest{
+// baselineRequest is the reference thumbnail the assertions below share. A
+// render is a second of CPU at this frame size, so the tests that only inspect
+// one build it once between them rather than each paying for its own.
+func baselineRequest(t *testing.T) provider.ThumbnailRequest {
+	t.Helper()
+	return provider.ThumbnailRequest{
 		VideoID: "v1", VideoRef: "DSS-1", Title: "The Long Winter",
-		Headline: "BIGGEST PSYCHOLOGY IDEAS", Cells: tenCells(t, store),
+		Headline: "BIGGEST PSYCHOLOGY IDEAS", Cells: tenCells(t, sharedStore(t)),
+	}
+}
+
+var baseline = sync.OnceValues(func() (entity.AssetID, error) {
+	store, err := shared()
+	if err != nil {
+		return "", err
+	}
+	dir, err := filepath.Abs(filepath.Join("..", "..", "var", "resources"))
+	if err != nil {
+		return "", err
+	}
+	icons := mockprovider.NewIcon(store, nil)
+	cells := make([]provider.ThumbnailIconCell, 0, len(baselineCaptions))
+	for i, caption := range baselineCaptions {
+		id, iconErr := icons.Icon(context.Background(), provider.ThumbnailIconRequest{
+			VideoID: "v1", Index: i, Prompt: "a stone archway — " + caption, Size: 96,
+		})
+		if iconErr != nil {
+			return "", iconErr
+		}
+		cells = append(cells, provider.ThumbnailIconCell{Caption: caption, IconAssetID: id})
+	}
+	b := thumbnail.New(store, dir,
+		func() thumbnail.Options { return thumbnail.Options{Rows: 2} },
+		slog.New(slog.NewTextHandler(io.Discard, nil)))
+	return b.Build(context.Background(), provider.ThumbnailRequest{
+		VideoID: "v1", VideoRef: "DSS-1", Title: "The Long Winter",
+		Headline: "BIGGEST PSYCHOLOGY IDEAS", Cells: cells,
 	})
+})
+
+var baselineCaptions = []string{
+	"Unconscious Rules", "Mind Control", "Self Birth", "Trauma Embodied", "Self Needs",
+	"Insight Blindness", "Split Personality", "Inner Critic", "Shadow Work", "False Memory",
+}
+
+func baselineID(t *testing.T) entity.AssetID {
+	t.Helper()
+	repoResources(t)
+	id, err := baseline()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := decode(t, store, id).Bounds(); got.Dx() != 1280 || got.Dy() != 720 {
+	return id
+}
+
+func TestRendersAtYouTubeSize(t *testing.T) {
+	t.Parallel()
+	if got := decode(t, sharedStore(t), baselineID(t)).Bounds(); got.Dx() != 1280 || got.Dy() != 720 {
 		t.Fatalf("thumbnail is %dx%d, want 1280x720", got.Dx(), got.Dy())
 	}
 }
@@ -133,21 +179,13 @@ func TestRendersAtYouTubeSize(t *testing.T) {
 // changed nothing must not produce a second file.
 func TestRenderIsDeterministic(t *testing.T) {
 	t.Parallel()
-	b, store := newBuilder(t, thumbnail.Options{Rows: 2})
-	req := provider.ThumbnailRequest{
-		VideoID: "v1", VideoRef: "DSS-1", Headline: "REAL CHEAT CODES",
-		Cells: tenCells(t, store),
-	}
-	first, err := b.Build(context.Background(), req)
+	b, _ := newBuilder(t, thumbnail.Options{Rows: 2})
+	again, err := b.Build(context.Background(), baselineRequest(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := b.Build(context.Background(), req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if first != second {
-		t.Fatalf("identical requests produced %s and %s", first.Short(), second.Short())
+	if again != baselineID(t) {
+		t.Fatalf("identical requests produced %s and %s", baselineID(t).Short(), again.Short())
 	}
 }
 
@@ -155,15 +193,10 @@ func TestRenderIsDeterministic(t *testing.T) {
 // could be drawing a fixed frame and nobody would notice until upload.
 func TestEveryInputReachesTheImage(t *testing.T) {
 	t.Parallel()
-	b, store := newBuilder(t, thumbnail.Options{Rows: 2})
-	cells := tenCells(t, store)
-	base := provider.ThumbnailRequest{
-		VideoID: "v1", VideoRef: "DSS-1", Headline: "REAL CHEAT CODES", Cells: cells,
-	}
-	baseline, err := b.Build(context.Background(), base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	b, _ := newBuilder(t, thumbnail.Options{Rows: 2})
+	base := baselineRequest(t)
+	cells := base.Cells
+	want := baselineID(t)
 
 	changedHeadline := base
 	changedHeadline.Headline = "REAL CHEAT CODEX"
@@ -184,7 +217,7 @@ func TestEveryInputReachesTheImage(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
-		if id == baseline {
+		if id == want {
 			t.Errorf("a changed %s did not reach the image", name)
 		}
 	}
@@ -194,22 +227,15 @@ func TestEveryInputReachesTheImage(t *testing.T) {
 // layout rather than being read and ignored.
 func TestRowsChangeTheLayout(t *testing.T) {
 	t.Parallel()
-	two, store := newBuilder(t, thumbnail.Options{Rows: 2})
-	cells := tenCells(t, store)
-	req := provider.ThumbnailRequest{VideoID: "v1", Headline: "TEN IDEAS", Cells: cells}
-
-	first, err := two.Build(context.Background(), req)
-	if err != nil {
-		t.Fatal(err)
-	}
+	store := sharedStore(t)
 	one := thumbnail.New(store, repoResources(t),
 		func() thumbnail.Options { return thumbnail.Options{Rows: 1} },
 		slog.New(slog.NewTextHandler(io.Discard, nil)))
-	second, err := one.Build(context.Background(), req)
+	single, err := one.Build(context.Background(), baselineRequest(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first == second {
+	if single == baselineID(t) {
 		t.Fatal("one row and two rows rendered identically")
 	}
 }
@@ -218,15 +244,7 @@ func TestRowsChangeTheLayout(t *testing.T) {
 // not the design.
 func TestHeadlineRuleIsDrawn(t *testing.T) {
 	t.Parallel()
-	b, store := newBuilder(t, thumbnail.Options{Rows: 2})
-
-	id, err := b.Build(context.Background(), provider.ThumbnailRequest{
-		VideoID: "v1", Headline: "BIGGEST PSYCHOLOGY IDEAS", Cells: tenCells(t, store),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	img := decode(t, store, id)
+	img := decode(t, sharedStore(t), baselineID(t))
 
 	var red int
 	bounds := img.Bounds()
@@ -302,22 +320,15 @@ func TestEmptyHeadlineStillRenders(t *testing.T) {
 // A long hook wraps rather than overflowing the frame or failing.
 func TestLongHeadlineWraps(t *testing.T) {
 	t.Parallel()
-	b, store := newBuilder(t, thumbnail.Options{Rows: 2})
+	b, _ := newBuilder(t, thumbnail.Options{Rows: 2})
 
-	id, err := b.Build(context.Background(), provider.ThumbnailRequest{
-		VideoID: "v1", Cells: tenCells(t, store),
-		Headline: "FIFTY BROKEN BELIEFS ABOUT THE MIND AND EVERYTHING ELSE",
-	})
+	long := baselineRequest(t)
+	long.Headline = "FIFTY BROKEN BELIEFS ABOUT THE MIND AND EVERYTHING ELSE"
+	id, err := b.Build(context.Background(), long)
 	if err != nil {
 		t.Fatal(err)
 	}
-	short, err := b.Build(context.Background(), provider.ThumbnailRequest{
-		VideoID: "v1", Cells: tenCells(t, store), Headline: "FIFTY",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if id == short {
+	if id == baselineID(t) {
 		t.Fatal("headline length made no difference")
 	}
 }

@@ -13,6 +13,7 @@ import {
   Minimize2,
   Music,
   PanelRight,
+  RefreshCw,
   Sparkles,
   Tag,
   X,
@@ -26,6 +27,7 @@ import { Badge } from '@/components/ui/badge'
 import type { Tone } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { CopyButton, Kbd, Skeleton, Tooltip } from '@/components/ui/primitives'
+import { RerunDialog } from '@/components/stale'
 import { assetUrl } from '@/lib/api'
 import { downloadName, mediaTypeOf, shortId } from '@/lib/assets'
 import type { MediaType, ViewerItem } from '@/lib/assets'
@@ -138,9 +140,22 @@ export function useAssetViewer(): OpenViewer {
  * One viewer for the whole pane. Every still, clip and blueprint opens into the
  * same surface, so the operator learns its keys once — and a chapter card does
  * not have to carry modal state per row.
+ *
+ * The video is passed in so the viewer can offer to re-run the step that
+ * produced whatever is on screen: reviewing an artifact and deciding to redo it
+ * is one thought, and it should not need a trip to the task table.
  */
-export function AssetViewerProvider({ children }: { children: ReactNode }) {
+export function AssetViewerProvider({
+  children,
+  videoRef,
+  videoId,
+}: {
+  children: ReactNode
+  videoRef?: string
+  videoId?: string
+}) {
   const [state, setState] = useState<{ items: ViewerItem[]; index: number } | null>(null)
+  const [rerunning, setRerunning] = useState<ViewerItem | null>(null)
 
   const open = useCallback<OpenViewer>((items, index = 0) => {
     if (items.length === 0) return
@@ -156,6 +171,17 @@ export function AssetViewerProvider({ children }: { children: ReactNode }) {
           index={state.index}
           onIndex={(index) => setState((prev) => (prev ? { ...prev, index } : prev))}
           onClose={() => setState(null)}
+          onRerun={videoRef && videoId ? setRerunning : undefined}
+        />
+      )}
+      {rerunning?.taskId && videoRef && videoId && (
+        <RerunDialog
+          open
+          onOpenChange={(open) => !open && setRerunning(null)}
+          videoRef={videoRef}
+          videoId={videoId}
+          taskIds={[rerunning.taskId]}
+          what={rerunning.title.toLowerCase()}
         />
       )}
     </ViewerContext.Provider>
@@ -169,11 +195,14 @@ function AssetLightbox({
   index,
   onIndex,
   onClose,
+  onRerun,
 }: {
   items: ViewerItem[]
   index: number
   onIndex: (index: number) => void
   onClose: () => void
+  /** Offered only where the viewer knows which video it is inside. */
+  onRerun?: (item: ViewerItem) => void
 }) {
   const item = items[index]
   const [actualSize, setActualSize] = useState(false)
@@ -343,6 +372,20 @@ function AssetLightbox({
                   <Download className="h-4 w-4" />
                 </Button>
               </Tooltip>
+              {/* Re-runs the step that made this artifact and nothing else.
+                  Absent when the viewer cannot tell which task that was. */}
+              {onRerun && item?.taskId && (
+                <Tooltip label="Re-run the step that made this">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => onRerun(item)}
+                    aria-label="Re-run the step that made this artifact"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </Tooltip>
+              )}
               <Tooltip label={inspector ? 'Hide details' : 'Show details'} keys="i">
                 <Button
                   size="icon"

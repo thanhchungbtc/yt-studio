@@ -196,10 +196,15 @@ function StaleReviewDialog({
 /* -------------------------------------------------------- the re-run gate */
 
 /**
- * The confirmation in front of re-running something that already worked. It
- * answers one question first: what else does this touch? Re-running one
- * chapter's script also invalidates the concat, the metadata, the thumbnail and
- * the upload.
+ * The confirmation in front of re-running a step. It answers one question
+ * first: what else does this touch? Re-running one chapter's script also
+ * invalidates the concat, the metadata, the thumbnail and the upload.
+ *
+ * Re-running the step alone is the default and the only thing the primary
+ * button does. Rebuilding everything below it is a second, separately-worded
+ * choice, offered only once the preview has said what "everything below"
+ * actually is — a cascade nobody asked for is how a reviewed artifact gets
+ * thrown away without anyone noticing.
  */
 export function RerunDialog({
   open,
@@ -208,6 +213,8 @@ export function RerunDialog({
   videoId,
   taskIds,
   what,
+  onCascade,
+  cascadePending,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -216,6 +223,12 @@ export function RerunDialog({
   taskIds: string[]
   /** What the operator asked to redo, in their words. */
   what: string
+  /**
+   * Rebuilds everything downstream as well. Omitted where there is no single
+   * command for it; the dialog then offers the safe path alone.
+   */
+  onCascade?: () => void
+  cascadePending?: boolean
 }) {
   const queryClient = useQueryClient()
 
@@ -249,14 +262,24 @@ export function RerunDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={`Re-run ${what}`}
-      description="This already succeeded, so everything below it is flagged rather than thrown away."
+      description="Only this step runs. Anything below it keeps its artifact and is flagged for you to decide on."
       footer={
         <>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
+          {onCascade && stale.length > 0 && (
+            <Button
+              variant="ghost"
+              disabled={commit.isPending || cascadePending}
+              onClick={onCascade}
+              className="text-[hsl(var(--danger))]"
+            >
+              {cascadePending ? 'Starting…' : `Rebuild all ${stale.length} below`}
+            </Button>
+          )}
           <Button variant="primary" disabled={commit.isPending} onClick={() => commit.mutate()}>
-            {commit.isPending ? 'Starting…' : 'Re-run'}
+            {commit.isPending ? 'Starting…' : 'Re-run this step'}
           </Button>
         </>
       }
@@ -279,7 +302,7 @@ export function RerunDialog({
               <strong>{stale.length}</strong>{' '}
               {stale.length === 1 ? 'task keeps its artifact' : 'tasks keep their artifacts'} and
               {stale.length === 1 ? ' is' : ' are'} flagged stale. Nothing below re-runs until you
-              ask it to.
+              ask it to{onCascade ? ', here or from the banner' : ''}.
             </p>
             <ul className="flex flex-wrap gap-1.5">
               {stale.map((task) => (
