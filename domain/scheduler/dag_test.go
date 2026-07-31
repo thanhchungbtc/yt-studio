@@ -31,6 +31,7 @@ func TestBuildGraphShape(t *testing.T) {
 		entity.TaskKindClip:              chapters,
 		entity.TaskKindConcat:            1,
 		entity.TaskKindMetadata:          1,
+		entity.TaskKindThumbnail:         1,
 		entity.TaskKindUpload:            1,
 	}
 	for kind, n := range want {
@@ -87,9 +88,11 @@ func TestGatesAreAttachedToTheRightTasks(t *testing.T) {
 	if gates[entity.TaskKindBlueprint] != entity.GateBlueprint {
 		t.Errorf("blueprint gate = %q, want blueprint", gates[entity.TaskKindBlueprint])
 	}
-	// The upload gate hangs off metadata: approving it is what releases upload.
-	if gates[entity.TaskKindMetadata] != entity.GateUpload {
-		t.Errorf("metadata gate = %q, want upload", gates[entity.TaskKindMetadata])
+	// The upload gate hangs off the thumbnail, the last node before the upload:
+	// approving it is what releases the upload, and by then the operator has seen
+	// the whole listing.
+	if gates[entity.TaskKindThumbnail] != entity.GateUpload {
+		t.Errorf("thumbnail gate = %q, want upload", gates[entity.TaskKindThumbnail])
 	}
 	if len(gates) != 2 {
 		t.Errorf("gates = %v, want exactly two", gates)

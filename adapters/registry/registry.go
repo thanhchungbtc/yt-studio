@@ -1,7 +1,7 @@
 // Package registry routes each provider port to the backend named by its
 // settings row.
 //
-// Selection is one mechanism used five times rather than a bespoke wrapper per
+// Selection is one mechanism used once per port rather than a bespoke wrapper per
 // port: a backend is registered under a name, the settings row names one, and
 // the router resolves it per call so an edit on the settings screen applies to
 // the next task instead of the next restart.
@@ -68,21 +68,23 @@ func (p *port[T]) names() []string {
 
 // Registry owns every provider port's backends.
 type Registry struct {
-	llm      *port[provider.LLMProvider]
-	tts      *port[provider.TTSProvider]
-	image    *port[provider.ImageProvider]
-	composer *port[provider.VideoComposer]
-	uploader *port[provider.Uploader]
+	llm       *port[provider.LLMProvider]
+	tts       *port[provider.TTSProvider]
+	image     *port[provider.ImageProvider]
+	composer  *port[provider.VideoComposer]
+	thumbnail *port[provider.ThumbnailBuilder]
+	uploader  *port[provider.Uploader]
 }
 
 // New creates an empty registry bound to a settings reader.
 func New(selected Selected) *Registry {
 	return &Registry{
-		llm:      newPort[provider.LLMProvider](entity.SettingProviderLLM, selected),
-		tts:      newPort[provider.TTSProvider](entity.SettingProviderTTS, selected),
-		image:    newPort[provider.ImageProvider](entity.SettingProviderImage, selected),
-		composer: newPort[provider.VideoComposer](entity.SettingProviderComposer, selected),
-		uploader: newPort[provider.Uploader](entity.SettingProviderUploader, selected),
+		llm:       newPort[provider.LLMProvider](entity.SettingProviderLLM, selected),
+		tts:       newPort[provider.TTSProvider](entity.SettingProviderTTS, selected),
+		image:     newPort[provider.ImageProvider](entity.SettingProviderImage, selected),
+		composer:  newPort[provider.VideoComposer](entity.SettingProviderComposer, selected),
+		thumbnail: newPort[provider.ThumbnailBuilder](entity.SettingProviderThumbnail, selected),
+		uploader:  newPort[provider.Uploader](entity.SettingProviderUploader, selected),
 	}
 }
 
@@ -102,6 +104,11 @@ func (r *Registry) RegisterComposer(name string, impl provider.VideoComposer) {
 	r.composer.register(name, impl)
 }
 
+// RegisterThumbnail adds a named thumbnail backend.
+func (r *Registry) RegisterThumbnail(name string, impl provider.ThumbnailBuilder) {
+	r.thumbnail.register(name, impl)
+}
+
 // RegisterUploader adds a named publishing backend.
 func (r *Registry) RegisterUploader(name string, impl provider.Uploader) {
 	r.uploader.register(name, impl)
@@ -112,11 +119,12 @@ func (r *Registry) RegisterUploader(name string, impl provider.Uploader) {
 // of backends that genuinely exist in this binary.
 func (r *Registry) Options() map[entity.SettingKey][]string {
 	return map[entity.SettingKey][]string{
-		entity.SettingProviderLLM:      r.llm.names(),
-		entity.SettingProviderTTS:      r.tts.names(),
-		entity.SettingProviderImage:    r.image.names(),
-		entity.SettingProviderComposer: r.composer.names(),
-		entity.SettingProviderUploader: r.uploader.names(),
+		entity.SettingProviderLLM:       r.llm.names(),
+		entity.SettingProviderTTS:       r.tts.names(),
+		entity.SettingProviderImage:     r.image.names(),
+		entity.SettingProviderComposer:  r.composer.names(),
+		entity.SettingProviderThumbnail: r.thumbnail.names(),
+		entity.SettingProviderUploader:  r.uploader.names(),
 	}
 }
 
@@ -141,6 +149,9 @@ func (r *Registry) Image() provider.ImageProvider { return imageRouter{r.image} 
 
 // Composer returns the router for the composition port.
 func (r *Registry) Composer() provider.VideoComposer { return composerRouter{r.composer} }
+
+// Thumbnail returns the router for the thumbnail port.
+func (r *Registry) Thumbnail() provider.ThumbnailBuilder { return thumbnailRouter{r.thumbnail} }
 
 // Uploader returns the router for the publishing port.
 func (r *Registry) Uploader() provider.Uploader { return uploaderRouter{r.uploader} }
@@ -239,6 +250,20 @@ func (r composerRouter) Concat(ctx context.Context, req provider.ConcatRequest) 
 		return "", err
 	}
 	return impl.Concat(ctx, req)
+}
+
+type thumbnailRouter struct {
+	p *port[provider.ThumbnailBuilder]
+}
+
+var _ provider.ThumbnailBuilder = thumbnailRouter{}
+
+func (r thumbnailRouter) Build(ctx context.Context, req provider.ThumbnailRequest) (entity.AssetID, error) {
+	impl, err := r.p.pick()
+	if err != nil {
+		return "", err
+	}
+	return impl.Build(ctx, req)
 }
 
 type uploaderRouter struct{ p *port[provider.Uploader] }

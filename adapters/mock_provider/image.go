@@ -41,7 +41,7 @@ func (i *Image) Generate(ctx context.Context, req provider.ImageRequest) (entity
 		return "", err
 	}
 	seed := seedOf(string(req.VideoID), strconv.Itoa(req.Ordinal), strconv.Itoa(req.Index), req.Prompt)
-	img := renderStill(seed)
+	img := renderStill(seed, imageWidth, imageHeight)
 
 	var buf bytes.Buffer
 	buf.Grow(imageWidth * imageHeight / 4)
@@ -59,9 +59,12 @@ func (i *Image) Generate(ctx context.Context, req provider.ImageRequest) (entity
 // renderStill paints a deterministic landscape: a two-stop sky gradient, a
 // horizon, a ridge line and a light source. It is recognisably an image rather
 // than noise, which makes the chapter grid in the UI genuinely reviewable.
-func renderStill(seed uint64) *image.RGBA {
+//
+// The size is a parameter because a thumbnail is the same picture at YouTube's
+// dimensions rather than a second painter.
+func renderStill(seed uint64, width, height int) *image.RGBA {
 	r := deterministic(seed)
-	img := image.NewRGBA(image.Rect(0, 0, imageWidth, imageHeight))
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
 
 	skyTop := color.RGBA{
 		R: uint8(20 + r.IntN(60)),  //nolint:gosec // bounded
@@ -82,20 +85,21 @@ func renderStill(seed uint64) *image.RGBA {
 		A: 255,
 	}
 
-	horizon := imageHeight/2 + r.IntN(imageHeight/5)
-	ridgeAmp := 6 + r.IntN(14)
+	scaleTo := func(v int) int { return max(v*height/imageHeight, 1) }
+	horizon := height/2 + r.IntN(height/5)
+	ridgeAmp := scaleTo(6 + r.IntN(14))
 	ridgeFreq := 1.0 + float64(r.IntN(4))
 	ridgePhase := r.Float64() * math.Pi * 2
-	sunX := r.IntN(imageWidth)
+	sunX := r.IntN(width)
 	sunY := r.IntN(horizon)
-	sunR := 8 + r.IntN(14)
+	sunR := scaleTo(8 + r.IntN(14))
 
-	for y := range imageHeight {
-		for x := range imageWidth {
-			ridge := horizon - int(float64(ridgeAmp)*math.Sin(ridgeFreq*float64(x)/imageWidth*math.Pi*2+ridgePhase))
+	for y := range height {
+		for x := range width {
+			ridge := horizon - int(float64(ridgeAmp)*math.Sin(ridgeFreq*float64(x)/float64(width)*math.Pi*2+ridgePhase))
 			var c color.RGBA
 			if y >= ridge {
-				shade := 1 - float64(y-ridge)/float64(imageHeight)*0.5
+				shade := 1 - float64(y-ridge)/float64(height)*0.5
 				c = scale(ground, shade)
 			} else {
 				t := float64(y) / float64(ridge)

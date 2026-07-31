@@ -11,9 +11,8 @@ import (
 )
 
 // GenerateMetadata writes the YouTube-facing listing for a finished render.
-//
-// When the upload gate is enabled this task carries it: on success the
-// scheduler parks in awaiting_approval and does not release the upload.
+// The thumbnail hook is part of that listing; the image it goes on is rendered
+// by the task after this one.
 //
 //nolint:revive // the parameter list is the dependency list
 func GenerateMetadata(

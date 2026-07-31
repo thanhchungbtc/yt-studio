@@ -226,6 +226,68 @@ func TestGeneratedStillIsAValidPNG(t *testing.T) {
 	}
 }
 
+// The thumbnail is the one asset whose dimensions are fixed by YouTube rather
+// than by us, so the mock is held to them.
+func TestThumbnailIsAValidPNGAtYouTubeSize(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store := newStore(t)
+	images := mockprovider.NewImage(store, nil)
+	thumbnails := mockprovider.NewThumbnail(store, nil)
+
+	still, err := images.Generate(ctx, provider.ImageRequest{
+		VideoID: "v1", ChapterID: "v1:ch:1", Ordinal: 1, Index: 0, Prompt: "a stone bridge in thin fog",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := thumbnails.Build(ctx, provider.ThumbnailRequest{
+		VideoID: "v1", VideoRef: "DSS-1", Title: "The Long Winter",
+		Text: "50 BROKEN BELIEFS", ImageAssetIDs: []entity.AssetID{still},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rc, err := store.Open(ctx, id, entity.AssetKindThumbnail)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = rc.Close() }()
+
+	img, err := png.Decode(rc)
+	if err != nil {
+		t.Fatalf("output is not a valid PNG: %v", err)
+	}
+	if got := img.Bounds(); got.Dx() != 1280 || got.Dy() != 720 {
+		t.Fatalf("thumbnail is %dx%d, want 1280x720", got.Dx(), got.Dy())
+	}
+
+	// The hook is the reason the task exists: a thumbnail built without it must
+	// not land on the same content address as one built with it.
+	plain, err := thumbnails.Build(ctx, provider.ThumbnailRequest{
+		VideoID: "v1", VideoRef: "DSS-1", Title: "The Long Winter",
+		ImageAssetIDs: []entity.AssetID{still},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain == id {
+		t.Fatal("the hook made no difference to the rendered bytes")
+	}
+}
+
+// A thumbnail with no still to sit on is a caller error, not an empty image.
+func TestThumbnailRequiresABackground(t *testing.T) {
+	t.Parallel()
+	thumbnails := mockprovider.NewThumbnail(newStore(t), nil)
+
+	if _, err := thumbnails.Build(context.Background(), provider.ThumbnailRequest{
+		VideoID: "v1", VideoRef: "DSS-1", Text: "50 BROKEN BELIEFS",
+	}); err == nil {
+		t.Fatal("Build with no candidate stills returned no error")
+	}
+}
+
 func TestGeneratedAudioIsAValidWAV(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

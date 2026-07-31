@@ -198,7 +198,8 @@ function StaleReviewDialog({
 /**
  * The confirmation in front of re-running something that already worked. It
  * answers one question first: what else does this touch? Re-running one
- * chapter's script also invalidates the concat, the metadata and the upload.
+ * chapter's script also invalidates the concat, the metadata, the thumbnail and
+ * the upload.
  */
 export function RerunDialog({
   open,

@@ -139,8 +139,8 @@ func TestBlueprintGateParksAndApprovalReleases(t *testing.T) {
 		return s.AwaitingApproval == 1 && s.Succeeded == g.NodeCount()-2
 	})
 
-	metadataID := entity.NewTaskID("v1", entity.TaskKindMetadata, -1, -1)
-	if err := r.sched.Approve(ctx, metadataID); err != nil {
+	thumbnailID := entity.NewTaskID("v1", entity.TaskKindThumbnail, -1, -1)
+	if err := r.sched.Approve(ctx, thumbnailID); err != nil {
 		t.Fatalf("Approve upload gate: %v", err)
 	}
 	waitFor(t, 5*time.Second, "the pipeline to finish", func() bool {

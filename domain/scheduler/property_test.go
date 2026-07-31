@@ -80,7 +80,7 @@ func TestSchedulerInvariants(t *testing.T) {
 		}
 		if gates {
 			approve(entity.TaskKindBlueprint)
-			approve(entity.TaskKindMetadata)
+			approve(entity.TaskKindThumbnail)
 		}
 
 		// Never deadlocks: the whole graph reaches a terminal state.

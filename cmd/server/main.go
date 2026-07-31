@@ -298,6 +298,7 @@ func (c *serveCmd) Run() error {
 	providers.RegisterImage("sample", sampleprovider.NewImage(samples, assets))
 	providers.RegisterComposer("mock", mockprovider.NewComposer(assets, tuning))
 	providers.RegisterComposer("ffmpeg", ffmpegComposer)
+	providers.RegisterThumbnail("mock", mockprovider.NewThumbnail(assets, tuning))
 	providers.RegisterUploader("mock", mockprovider.NewUploader(assets, tuning, time.Now))
 
 	settings.Constrain(providers.Options())
@@ -343,7 +344,7 @@ func (c *serveCmd) Run() error {
 	runner := app.NewTaskRunner(
 		store, store, store, store, store, store, store,
 		assets, providers.LLM(), providers.TTS(), providers.Image(),
-		providers.Composer(), providers.Uploader(), broker,
+		providers.Composer(), providers.Thumbnail(), providers.Uploader(), broker,
 		expander,
 		func() app.BlueprintOptions {
 			return app.BlueprintOptions{

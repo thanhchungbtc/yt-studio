@@ -146,10 +146,10 @@ func (g *Graph) Edges() []repository.TaskEdge {
 }
 
 // NodeCountFor returns the exact number of tasks a spec produces: blueprint +
-// prime + concat + metadata + upload, plus four per-chapter tasks and one per
-// still. It is exported so callers can preallocate too.
+// prime + concat + metadata + thumbnail + upload, plus four per-chapter tasks
+// and one per still. It is exported so callers can preallocate too.
 func NodeCountFor(chapters, imagesPerChapter int) int {
-	return 5 + 4*chapters + chapters*imagesPerChapter
+	return 6 + 4*chapters + chapters*imagesPerChapter
 }
 
 // newGraph allocates an empty graph sized for total nodes.
@@ -390,9 +390,15 @@ func BuildGraph(spec BuildSpec) (*Graph, error) {
 		clips[i] = add(entity.TaskKindClip, i+1, -1, entity.GateNone)
 	}
 	concat := add(entity.TaskKindConcat, -1, -1, entity.GateNone)
-	// The metadata task carries the upload gate: on success it parks in
+	metadata := add(entity.TaskKindMetadata, -1, -1, entity.GateNone)
+	// The thumbnail task carries the upload gate: on success it parks in
 	// awaiting_approval and does not release the upload task.
-	metadata := add(entity.TaskKindMetadata, -1, -1, uploadGate)
+	//
+	// The gate sits on the last node before the upload rather than on the
+	// metadata that opens the listing, because what the operator is approving is
+	// publication — and the thumbnail is the part of the listing they most need
+	// to have seen before it goes out.
+	thumbnail := add(entity.TaskKindThumbnail, -1, -1, uploadGate)
 	upload := add(entity.TaskKindUpload, -1, -1, entity.GateNone)
 
 	link(blueprint, prime)
@@ -408,7 +414,11 @@ func BuildGraph(spec BuildSpec) (*Graph, error) {
 		link(clips[i], concat)
 	}
 	link(concat, metadata)
-	link(metadata, upload)
+	// The thumbnail needs the hook the metadata wrote and a still to put it on.
+	// Every still is already an ancestor of the concat, so depending on the
+	// metadata alone reaches all of them.
+	link(metadata, thumbnail)
+	link(thumbnail, upload)
 
 	if err := g.assertAcyclic(); err != nil {
 		return nil, err

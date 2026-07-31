@@ -97,6 +97,7 @@ func newHarness(t *testing.T) *harness {
 		mockprovider.NewTTS(assets, tuning),
 		mockprovider.NewImage(assets, tuning),
 		mockprovider.NewComposer(assets, tuning),
+		mockprovider.NewThumbnail(assets, tuning),
 		mockprovider.NewUploader(assets, tuning, func() time.Time { return time.Unix(1_700_000_000, 0).UTC() }),
 		broker,
 		expander,
@@ -381,6 +382,23 @@ func TestPipelineEndToEndThroughBothGates(t *testing.T) {
 	}
 	if beforeUpload.Metadata == nil || beforeUpload.Metadata.Title == "" {
 		t.Fatal("metadata was not produced before the upload gate")
+	}
+	// The gate is worth nothing if it opens on a listing the operator cannot see
+	// in full: the thumbnail is rendered before it, not after.
+	var gateAssets struct {
+		Assets []struct {
+			Kind string `json:"kind"`
+		} `json:"assets"`
+	}
+	h.json(http.MethodGet, "/api/videos/DSS-1/assets", nil, http.StatusOK, &gateAssets)
+	var hasThumbnail bool
+	for _, a := range gateAssets.Assets {
+		if a.Kind == "thumbnail" {
+			hasThumbnail = true
+		}
+	}
+	if !hasThumbnail {
+		t.Fatal("the thumbnail was not produced before the upload gate")
 	}
 	if beforeUpload.Upload != nil {
 		t.Fatal("the upload ran before its gate was approved")

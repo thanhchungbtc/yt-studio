@@ -230,7 +230,7 @@ type TaskDTO struct {
 	ID            string     `json:"id"`
 	VideoID       string     `json:"videoId"`
 	ChapterID     string     `json:"chapterId,omitempty"`
-	Kind          string     `json:"kind" enum:"blueprint,prime_image_prompts,image_prompts,script,tts,image,clip,concat,metadata,upload"`
+	Kind          string     `json:"kind" enum:"blueprint,prime_image_prompts,image_prompts,script,tts,image,clip,concat,metadata,thumbnail,upload"`
 	Ordinal       int        `json:"ordinal"`
 	Index         int        `json:"index"`
 	State         string     `json:"state" enum:"blocked,ready,running,awaiting_approval,succeeded,failed,cancelled"`

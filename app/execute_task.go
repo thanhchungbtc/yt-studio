@@ -45,6 +45,7 @@ type TaskRunner struct {
 	tts           provider.TTSProvider
 	images        provider.ImageProvider
 	composer      provider.VideoComposer
+	thumbnails    provider.ThumbnailBuilder
 	uploader      provider.Uploader
 	notifier      ChapterNotifier
 	expander      GraphExpander
@@ -72,6 +73,7 @@ func NewTaskRunner(
 	tts provider.TTSProvider,
 	images provider.ImageProvider,
 	composer provider.VideoComposer,
+	thumbnails provider.ThumbnailBuilder,
 	uploader provider.Uploader,
 	notifier ChapterNotifier,
 	expander GraphExpander,
@@ -87,7 +89,7 @@ func NewTaskRunner(
 		videos: videos, videoFields: videoFields, channels: channels,
 		chapters: chapters, chapterWriter: chapterWriter, chapterFields: chapterFields,
 		assets: assets, store: store, llm: llm, tts: tts, images: images,
-		composer: composer, uploader: uploader, notifier: notifier,
+		composer: composer, thumbnails: thumbnails, uploader: uploader, notifier: notifier,
 		expander: expander, blueprintOpts: blueprintOpts,
 		dryRun: dryRun, now: now, log: log,
 	}
@@ -151,6 +153,9 @@ func (r *TaskRunner) dispatch(ctx context.Context, t entity.Task) entity.TaskOut
 	case entity.TaskKindMetadata:
 		return GenerateMetadata(ctx, t, r.videos, r.chapters, r.llm,
 			r.videoFields, r.assets, r.store, r.now())
+	case entity.TaskKindThumbnail:
+		return BuildThumbnail(ctx, t, r.videos, r.chapters, r.thumbnails,
+			r.assets, r.store, r.now())
 	case entity.TaskKindUpload:
 		return PublishVideo(ctx, t, r.videos, r.channels, r.uploader, r.videoFields, r.dryRun)
 	default:

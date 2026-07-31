@@ -32,6 +32,9 @@ const (
 	TaskKindConcat TaskKind = "concat"
 	// TaskKindMetadata writes the YouTube title, description and tags.
 	TaskKindMetadata TaskKind = "metadata"
+	// TaskKindThumbnail renders the image that fronts the video, from the hook
+	// the metadata task wrote.
+	TaskKindThumbnail TaskKind = "thumbnail"
 	// TaskKindUpload publishes the final render.
 	TaskKindUpload TaskKind = "upload"
 )
@@ -47,6 +50,7 @@ var AllTaskKinds = []TaskKind{
 	TaskKindClip,
 	TaskKindConcat,
 	TaskKindMetadata,
+	TaskKindThumbnail,
 	TaskKindUpload,
 }
 
@@ -55,7 +59,7 @@ func (k TaskKind) Valid() bool {
 	switch k {
 	case TaskKindBlueprint, TaskKindPrimeImagePrompts, TaskKindImagePrompts,
 		TaskKindScript, TaskKindTTS, TaskKindImage, TaskKindClip,
-		TaskKindConcat, TaskKindMetadata, TaskKindUpload:
+		TaskKindConcat, TaskKindMetadata, TaskKindThumbnail, TaskKindUpload:
 		return true
 	default:
 		return false
@@ -73,7 +77,7 @@ func (k TaskKind) Pool() Pool {
 		return PoolTTS
 	case TaskKindImage:
 		return PoolImage
-	case TaskKindClip, TaskKindConcat:
+	case TaskKindClip, TaskKindConcat, TaskKindThumbnail:
 		return PoolCompose
 	case TaskKindUpload:
 		return PoolUpload
@@ -88,7 +92,8 @@ func (k TaskKind) PerChapter() bool {
 	switch k {
 	case TaskKindScript, TaskKindTTS, TaskKindImagePrompts, TaskKindImage, TaskKindClip:
 		return true
-	case TaskKindBlueprint, TaskKindPrimeImagePrompts, TaskKindConcat, TaskKindMetadata, TaskKindUpload:
+	case TaskKindBlueprint, TaskKindPrimeImagePrompts, TaskKindConcat,
+		TaskKindMetadata, TaskKindThumbnail, TaskKindUpload:
 		return false
 	default:
 		return false

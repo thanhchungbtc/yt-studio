@@ -33,11 +33,12 @@ const (
 	SettingGateBlueprintEnabled SettingKey = "gate.blueprint.enabled"
 	SettingGateUploadEnabled    SettingKey = "gate.upload.enabled"
 
-	SettingProviderLLM      SettingKey = "provider.llm"
-	SettingProviderTTS      SettingKey = "provider.tts"
-	SettingProviderImage    SettingKey = "provider.image"
-	SettingProviderComposer SettingKey = "provider.composer"
-	SettingProviderUploader SettingKey = "provider.uploader"
+	SettingProviderLLM       SettingKey = "provider.llm"
+	SettingProviderTTS       SettingKey = "provider.tts"
+	SettingProviderImage     SettingKey = "provider.image"
+	SettingProviderComposer  SettingKey = "provider.composer"
+	SettingProviderThumbnail SettingKey = "provider.thumbnail"
+	SettingProviderUploader  SettingKey = "provider.uploader"
 	// SettingNineRouterModel picks which upstream the 9router backend routes to.
 	// It is a settings row rather than a flag because it is the knob that gets
 	// turned most while prompts are being tuned.
@@ -232,6 +233,7 @@ func DefaultSettings() []Setting {
 		{Key: SettingProviderTTS, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for narration."},
 		{Key: SettingProviderImage, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for stills."},
 		{Key: SettingProviderComposer, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for clip and concat composition."},
+		{Key: SettingProviderThumbnail, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for the thumbnail image."},
 		{Key: SettingProviderUploader, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for publishing."},
 		//nolint:lll // one row, one line
 		{Key: SettingNineRouterModel, Value: "ag/gemini-3-flash", Type: SettingTypeString, Group: "providers", Description: "Which upstream the 9router backend routes to, e.g. ag/gemini-3-flash. See GET /v1/models on the gateway."},

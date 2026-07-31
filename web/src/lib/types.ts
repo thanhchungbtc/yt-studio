@@ -23,6 +23,7 @@ export type TaskKind =
   | 'clip'
   | 'concat'
   | 'metadata'
+  | 'thumbnail'
   | 'upload'
 
 export type PoolName = 'llm' | 'tts' | 'image' | 'compose' | 'cache' | 'upload'

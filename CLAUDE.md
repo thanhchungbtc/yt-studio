@@ -58,7 +58,7 @@ Hand-written and owned outright: an off-the-shelf engine would cost a second pro
 - **`Stale` is a flag, not a state.** The useful combination is `succeeded` *and* stale: the artifact exists and may still be correct, so it waits for the operator to re-run or accept it.
 - Cycle rejection (`ErrCycle`) is checked, not assumed.
 
-DAG shape per video: `blueprint` → `prime_image_prompts` and each chapter's `script`; `prime → image_prompts[i]`; `script[i] → tts[i]`; `image_prompts[i] → image[i][j]`; `tts[i]` and every `image[i][j]` → `clip[i]`; all clips → `concat` → `metadata` → `upload`. Pools: LLM (blueprint, prime, script, metadata), cache (image_prompts), tts, image, compose (clip, concat), upload.
+DAG shape per video: `blueprint` → `prime_image_prompts` and each chapter's `script`; `prime → image_prompts[i]`; `script[i] → tts[i]`; `image_prompts[i] → image[i][j]`; `tts[i]` and every `image[i][j]` → `clip[i]`; all clips → `concat` → `metadata` → `thumbnail` → `upload`. Pools: LLM (blueprint, prime, script, metadata), cache (image_prompts), tts, image, compose (clip, concat, thumbnail), upload. The upload gate rides on `thumbnail`, the last node before the upload, so what the operator approves is the whole listing rather than its text alone.
 
 ## Persistence (adapters/sqlite)
 
@@ -74,9 +74,9 @@ One `Store` type over two pools: a multi-connection read pool and a **single-con
 
 ## Providers
 
-`domain/provider` declares five ports (LLM, TTS, image, composer, uploader). **A provider call never spans more than one unit of work** — no multi-chapter calls, no fan-out inside a provider; orchestration belongs to the daemon. The one deliberate exception is image prompting: `prime_image_prompts` produces one batch behind the interface, and the N per-chapter `image_prompts` tasks stay individually retryable cache reads.
+`domain/provider` declares six ports (LLM, TTS, image, composer, thumbnail, uploader). The thumbnail is its own port rather than a third composer method: what it renders is a listing artifact, and the backend that draws it is the one most likely to be swapped independently of the video encoder. **A provider call never spans more than one unit of work** — no multi-chapter calls, no fan-out inside a provider; orchestration belongs to the daemon. The one deliberate exception is image prompting: `prime_image_prompts` produces one batch behind the interface, and the N per-chapter `image_prompts` tasks stay individually retryable cache reads.
 
-`adapters/registry` resolves the backend named by the settings row **per call**. An unregistered name is an error, never a silent fallback. Backends are registered in `main.go` before settings load, so a bad row fails at startup. Currently wired: `mock` (all ports), `sample` (tts, image), `ffmpeg` (composer). `provider.ErrUnavailable` means "cannot run until someone changes something" — `app.classify` maps it to a non-retryable failure.
+`adapters/registry` resolves the backend named by the settings row **per call**. An unregistered name is an error, never a silent fallback. Backends are registered in `main.go` before settings load, so a bad row fails at startup. Currently wired: `mock` (all ports), `sample` (tts, image), `ffmpeg` (composer). The thumbnail port has only the mock so far: the real renderer, and the rule for which still it draws on, are still open. `provider.ErrUnavailable` means "cannot run until someone changes something" — `app.classify` maps it to a non-retryable failure.
 
 `adapters/ninerouter` is an in-progress LLM backend for a 9router gateway; it is **not yet registered in `main.go`**. Its prompts are `text/template` files embedded from `prompts/*.tmpl` so behaviour is reproducible from the binary. Two gateway quirks are load-bearing and documented in its package comment: `stream` must be explicitly `false`, and `response_format` is silently ignored so the output contract goes in the prompt.
 

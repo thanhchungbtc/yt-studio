@@ -285,7 +285,7 @@ func TestExpandWithoutChaptersIsRejected(t *testing.T) {
 	}
 }
 
-// The upload gate travels on the metadata node, which is part of the tail, so
+// The upload gate travels on the thumbnail node, which is part of the tail, so
 // it is read when the graph expands rather than when the video was enqueued.
 func TestExpandCarriesTheUploadGate(t *testing.T) {
 	t.Parallel()
@@ -312,16 +312,16 @@ func TestExpandCarriesTheUploadGate(t *testing.T) {
 		}
 		var found bool
 		for _, task := range expander.tail.Tasks {
-			if task.Kind != entity.TaskKindMetadata {
+			if task.Kind != entity.TaskKindThumbnail {
 				continue
 			}
 			found = true
 			if task.Gate != want {
-				t.Fatalf("uploadGate=%v: metadata gate = %q, want %q", gateOn, task.Gate, want)
+				t.Fatalf("uploadGate=%v: thumbnail gate = %q, want %q", gateOn, task.Gate, want)
 			}
 		}
 		if !found {
-			t.Fatal("the tail has no metadata node to carry the gate")
+			t.Fatal("the tail has no thumbnail node to carry the gate")
 		}
 	}
 }

@@ -802,6 +802,7 @@ export interface components {
         | 'clip'
         | 'concat'
         | 'metadata'
+        | 'thumbnail'
         | 'upload'
       /** Format: int64 */
       maxAttempts: number
