@@ -1,4 +1,31 @@
-import type { PoolName, TaskKind, TaskState, VideoState } from './types'
+import type { PoolName, Task, TaskKind, TaskState, VideoState } from './types'
+
+/**
+ * The pipeline in the order the DAG runs it. The scheduler has no stage
+ * barriers, so this is a reading order rather than a schedule — but it is the
+ * order an operator thinks in, and every list that groups by kind sorts by it.
+ */
+export const TASK_KIND_ORDER: TaskKind[] = [
+  'blueprint',
+  'prime_image_prompts',
+  'image_prompts',
+  'script',
+  'tts',
+  'image',
+  'clip',
+  'concat',
+  'metadata',
+  'thumbnail_plan',
+  'thumbnail_icon',
+  'thumbnail',
+  'upload',
+]
+
+const KIND_RANK = new Map(TASK_KIND_ORDER.map((kind, i) => [kind, i]))
+
+export function taskKindRank(kind: TaskKind): number {
+  return KIND_RANK.get(kind) ?? TASK_KIND_ORDER.length
+}
 
 export function formatDuration(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return '0s'
@@ -125,4 +152,29 @@ export function chapterKey(ref: string, ordinal: number): string {
 export function percent(done: number, total: number): number {
   if (total <= 0) return 0
   return Math.min(100, Math.round((done / total) * 100))
+}
+
+/**
+ * How long a task took, in seconds — or how long it has been going, when it is
+ * still running. `now` is passed in rather than read here so a table of two
+ * hundred rows shares one clock and re-renders on one tick.
+ */
+export function taskSeconds(task: Task, now: number): number | undefined {
+  if (!task.startedAt) return undefined
+  const started = new Date(task.startedAt).getTime()
+  if (Number.isNaN(started)) return undefined
+  const ended = task.finishedAt ? new Date(task.finishedAt).getTime() : now
+  if (Number.isNaN(ended)) return undefined
+  return Math.max(0, (ended - started) / 1000)
+}
+
+/** A duration at column width: 940ms, 12s, 4m 20s, 1h 06m. */
+export function formatCompactDuration(seconds: number | undefined): string {
+  if (seconds === undefined) return '—'
+  if (seconds < 1) return `${Math.round(seconds * 1000)}ms`
+  if (seconds < 60) return `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)}s`
+  const m = Math.floor(seconds / 60)
+  const s = Math.round(seconds % 60)
+  if (m < 60) return `${m}m ${String(s).padStart(2, '0')}s`
+  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`
 }

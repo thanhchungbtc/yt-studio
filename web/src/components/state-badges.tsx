@@ -1,6 +1,6 @@
 import { memo } from 'react'
 
-import { Badge, type Tone } from '@/components/ui/badge'
+import { Badge, TONE_FILL, type Tone } from '@/components/ui/badge'
 import { taskStateLabel, videoStateLabel } from '@/lib/format'
 import type { TaskState, VideoState } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -29,7 +29,7 @@ export const VideoStateBadge = memo(function VideoStateBadge({
   )
 })
 
-const TASK_TONES: Record<TaskState, Tone> = {
+export const TASK_TONES: Record<TaskState, Tone> = {
   blocked: 'neutral',
   ready: 'info',
   running: 'accent',
@@ -39,22 +39,50 @@ const TASK_TONES: Record<TaskState, Tone> = {
   cancelled: 'neutral',
 }
 
-export const TaskStateBadge = memo(function TaskStateBadge({ state }: { state: TaskState }) {
+export const TaskStateBadge = memo(function TaskStateBadge({
+  state,
+  className,
+}: {
+  state: TaskState
+  className?: string
+}) {
   return (
-    <Badge tone={TASK_TONES[state]} dot pulse={state === 'running'}>
+    <Badge tone={TASK_TONES[state]} dot pulse={state === 'running'} className={className}>
       {taskStateLabel(state)}
     </Badge>
   )
 })
 
-const TONE_FILL: Record<Tone, string> = {
-  neutral: 'bg-[hsl(var(--fg-subtle))]',
-  accent: 'bg-[hsl(var(--accent))]',
-  success: 'bg-[hsl(var(--success))]',
-  warning: 'bg-[hsl(var(--warning))]',
-  danger: 'bg-[hsl(var(--danger))]',
-  info: 'bg-[hsl(var(--info))]',
-  violet: 'bg-[hsl(var(--violet))]',
+/**
+ * The task badge reduced to its dot. A table row already names the task in the
+ * column beside it, so the colour is all the badge was adding.
+ */
+export const TaskStateDot = memo(function TaskStateDot({
+  state,
+  stale,
+  className,
+}: {
+  state: TaskState
+  /** Outranks the state colour: a succeeded-but-stale row must not read green. */
+  stale?: boolean
+  className?: string
+}) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'h-[7px] w-[7px] shrink-0 rounded-full',
+        stale ? TONE_FILL.warning : TONE_FILL[TASK_TONES[state]],
+        state === 'running' && 'pulse-live',
+        state === 'blocked' && !stale && 'opacity-60',
+        className,
+      )}
+    />
+  )
+})
+
+export function taskStateFill(state: TaskState): string {
+  return TONE_FILL[TASK_TONES[state]]
 }
 
 /**

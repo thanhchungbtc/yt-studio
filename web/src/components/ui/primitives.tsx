@@ -1,9 +1,10 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as TooltipPrimitive from '@radix-ui/react-tooltip'
-import { Check, Copy, X } from 'lucide-react'
-import type { HTMLAttributes, ReactNode } from 'react'
+import { Check, Copy, Minus, Search, X } from 'lucide-react'
+import type { HTMLAttributes, MouseEvent, ReactNode, RefObject } from 'react'
 import { useEffect, useRef, useState } from 'react'
 
+import { TONE_FILL, type Tone } from '@/components/ui/badge'
 import { keycaps } from '@/lib/hotkeys'
 import { cn } from '@/lib/utils'
 
@@ -234,6 +235,166 @@ export function Segmented<T extends string>({
         </button>
       ))}
     </div>
+  )
+}
+
+/**
+ * The filter box above a list. Deliberately transient — a reload should never
+ * leave a pane quietly hiding rows — so it holds no persisted state of its own,
+ * and Escape empties it rather than only blurring.
+ */
+export function SearchField({
+  value,
+  onChange,
+  placeholder,
+  inputRef,
+  className,
+  keys,
+}: {
+  value: string
+  onChange: (value: string) => void
+  placeholder: string
+  inputRef?: RefObject<HTMLInputElement | null>
+  className?: string
+  /** The shortcut that focuses this field, drawn inside it while it is empty. */
+  keys?: string
+}) {
+  return (
+    <div className={cn('relative flex min-w-0 items-center', className)}>
+      <Search className="pointer-events-none absolute left-2 h-3.5 w-3.5 text-subtle" aria-hidden />
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key !== 'Escape') return
+          event.stopPropagation()
+          if (value) onChange('')
+          else event.currentTarget.blur()
+        }}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        spellCheck={false}
+        autoComplete="off"
+        className={cn(
+          'h-7 w-full rounded-[var(--radius-sm)] border border-[hsl(var(--border))] bg-[hsl(var(--bg))]',
+          'pl-7 pr-7 text-[12px] text-fg transition-colors placeholder:text-subtle',
+          'hover:border-[hsl(var(--border-strong))] focus:border-[hsl(var(--accent))]',
+        )}
+      />
+      {value ? (
+        <button
+          type="button"
+          onClick={() => onChange('')}
+          aria-label="Clear the filter"
+          className="absolute right-1 flex h-5 w-5 items-center justify-center rounded-[var(--radius-xs)] text-subtle hover:bg-[hsl(var(--bg-hover))] hover:text-fg"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      ) : (
+        keys && <Kbd keys={keys} className="pointer-events-none absolute right-1.5 opacity-70" />
+      )}
+    </div>
+  )
+}
+
+/**
+ * A filter as a pill with its own count. The count is what makes a filter bar
+ * worth having: it says how much is behind each one before it is clicked, so a
+ * dead end is visible rather than discovered.
+ */
+export function FilterChip({
+  label,
+  count,
+  tone = 'neutral',
+  selected,
+  onClick,
+  title,
+}: {
+  label: ReactNode
+  count?: number
+  tone?: Tone
+  selected: boolean
+  onClick: () => void
+  title?: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      title={title}
+      className={cn(
+        'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-[1px] text-[11px] font-medium leading-[18px] transition-colors',
+        selected
+          ? 'border-[hsl(var(--accent))] bg-[hsl(var(--accent))] text-[hsl(var(--accent-fg))]'
+          : 'border-[hsl(var(--border))] bg-[hsl(var(--bg-elevated))] text-muted hover:border-[hsl(var(--border-strong))] hover:text-fg',
+      )}
+    >
+      {!selected && tone !== 'neutral' && (
+        <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', TONE_FILL[tone])} aria-hidden />
+      )}
+      {label}
+      {count !== undefined && (
+        <span className={cn('tabular', selected ? 'opacity-80' : 'text-subtle')}>{count}</span>
+      )}
+    </button>
+  )
+}
+
+/**
+ * A checkbox that still is one: the native control does the keyboard, the form
+ * semantics and the indeterminate state, and only its skin is ours.
+ */
+export function Checkbox({
+  checked,
+  indeterminate,
+  onChange,
+  label,
+  disabled,
+  className,
+}: {
+  checked: boolean
+  indeterminate?: boolean
+  onChange: (checked: boolean, event: MouseEvent<HTMLInputElement>) => void
+  label: string
+  disabled?: boolean
+  className?: string
+}) {
+  return (
+    <span className={cn('relative inline-flex h-4 w-4 items-center justify-center', className)}>
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        aria-label={label}
+        ref={(node) => {
+          if (node) node.indeterminate = Boolean(indeterminate) && !checked
+        }}
+        // The click carries the modifier keys a range selection needs, which the
+        // change event does not.
+        onClick={(event) => onChange(!checked, event)}
+        onChange={() => {}}
+        className={cn(
+          'peer h-[13px] w-[13px] shrink-0 cursor-pointer appearance-none rounded-[3px] border transition-colors',
+          'border-[hsl(var(--border-strong))] bg-[hsl(var(--bg))]',
+          'checked:border-[hsl(var(--accent))] checked:bg-[hsl(var(--accent))]',
+          'indeterminate:border-[hsl(var(--accent))] indeterminate:bg-[hsl(var(--accent))]',
+          'hover:border-[hsl(var(--accent))] disabled:cursor-not-allowed disabled:opacity-40',
+        )}
+      />
+      <Check
+        className="pointer-events-none absolute h-2.5 w-2.5 text-[hsl(var(--accent-fg))] opacity-0 peer-checked:opacity-100"
+        strokeWidth={3.5}
+        aria-hidden
+      />
+      <Minus
+        className="pointer-events-none absolute h-2.5 w-2.5 text-[hsl(var(--accent-fg))] opacity-0 peer-indeterminate:opacity-100"
+        strokeWidth={3.5}
+        aria-hidden
+      />
+    </span>
   )
 }
 

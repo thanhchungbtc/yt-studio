@@ -42,6 +42,12 @@ export interface ViewerItem {
   createdAt?: string
   notes?: ViewerNote[]
   /**
+   * The chapter this belongs to, or 0 for the artifacts the whole video owns.
+   * Carried on the item rather than parsed back out of the subtitle, because the
+   * gallery groups by it and a label is not an identifier.
+   */
+  ordinal?: number
+  /**
    * The task that produced this artifact, when it is known. It is what lets the
    * viewer offer "run this step again" on the thing the operator is looking at,
    * rather than making them find the row in a table.
@@ -277,6 +283,7 @@ export function videoAssetItems(
         subtitle: chapter
           ? `${chapterKey(videoRef, chapter.ordinal)} · ${chapter.title}`
           : videoRef,
+        ordinal: chapter?.ordinal ?? 0,
         notes: notesFor(asset.kind, chapter, Math.max(0, slot)),
         taskId: producingTaskId(tasks, asset.kind, chapter?.ordinal ?? -1, slot),
       } satisfies ViewerItem,

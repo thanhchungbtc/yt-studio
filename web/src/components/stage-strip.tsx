@@ -6,7 +6,7 @@ import { RerunDialog } from '@/components/stale'
 import { ContextMenu, ContextMenuItem, ContextMenuLabel } from '@/components/ui/menu'
 import { Tooltip } from '@/components/ui/primitives'
 import type { ViewerItem } from '@/lib/assets'
-import { taskLabel } from '@/lib/format'
+import { TASK_KIND_ORDER, taskLabel } from '@/lib/format'
 import type { Task, TaskKind } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -16,22 +16,6 @@ import { cn } from '@/lib/utils'
  * a census rather than a wizard: per kind of work, how much is done, running or
  * failed.
  */
-const ORDER: TaskKind[] = [
-  'blueprint',
-  'prime_image_prompts',
-  'image_prompts',
-  'script',
-  'tts',
-  'image',
-  'clip',
-  'concat',
-  'metadata',
-  'thumbnail_plan',
-  'thumbnail_icon',
-  'thumbnail',
-  'upload',
-]
-
 interface Stage {
   kind: TaskKind
   total: number
@@ -117,6 +101,13 @@ export const StageStrip = memo(function StageStrip({
                           <RefreshCw className="h-3.5 w-3.5" />
                           Re-run this step
                         </ContextMenuItem>
+                      )}
+                      {/* A menu with nothing in it reads as broken; say why
+                          instead. Upload leaves a receipt on the video rather
+                          than a file, and a stage nobody has reached has yet to
+                          leave anything at all. */}
+                      {produced.length === 0 && !runnable && (
+                        <ContextMenuLabel>Nothing to show yet</ContextMenuLabel>
                       )}
                     </>
                   }
@@ -242,5 +233,5 @@ function summarise(tasks: Task[]): Stage[] {
     if (task.state !== 'blocked' && task.state !== 'running') stage.pending = false
     byKind.set(task.kind, stage)
   }
-  return ORDER.filter((kind) => byKind.has(kind)).map((kind) => byKind.get(kind) as Stage)
+  return TASK_KIND_ORDER.filter((kind) => byKind.has(kind)).map((kind) => byKind.get(kind) as Stage)
 }

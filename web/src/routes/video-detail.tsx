@@ -8,27 +8,21 @@ import {
   ChevronRight,
   Download,
   FileJson,
-  LayoutGrid,
   Maximize2,
   Pencil,
   Play,
   RefreshCw,
-  Rows3,
   X,
 } from 'lucide-react'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 
-import {
-  assetKindTone,
-  AssetPreview,
-  AssetViewerProvider,
-  useAssetViewer,
-} from '@/components/asset-viewer'
+import { ArtifactGallery } from '@/components/artifact-gallery'
+import { AssetPreview, AssetViewerProvider, useAssetViewer } from '@/components/asset-viewer'
 import { StageStrip } from '@/components/stage-strip'
-import { RerunDialog, StaleBadge, StaleBanner, StaleDot } from '@/components/stale'
-import { TaskStateBadge, VideoStateBadge } from '@/components/state-badges'
+import { RerunDialog, StaleBanner, StaleDot } from '@/components/stale'
+import { VideoStateBadge } from '@/components/state-badges'
+import { TaskTable } from '@/components/task-table'
 import { Badge } from '@/components/ui/badge'
-import type { Tone } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/field'
 import {
@@ -53,19 +47,15 @@ import { api, assetUrl, qk } from '@/lib/api'
 import {
   artifactKindFor,
   chapterStillItems,
-  downloadName,
   kindMime,
   kindTitle,
-  mediaTypeOf,
   producingTaskId,
-  shortId,
   videoAssetItems,
 } from '@/lib/assets'
 import type { ViewerItem } from '@/lib/assets'
 import {
   chapterKey,
   formatAbsolute,
-  formatBytes,
   formatClock,
   formatRelative,
   percent,
@@ -100,6 +90,25 @@ export function VideoDetailRoute() {
     queryFn: () => api.listVideoTasks(ref),
     enabled: Boolean(videoId),
   })
+  // Fetched once here rather than by each tab that wants it: the overview, the
+  // task inspector and the gallery all ask the same question, and the count in
+  // the tab strip has to be answered before any of them is opened.
+  const assets = useQuery({
+    queryKey: qk.assets(videoId ?? ''),
+    queryFn: () => api.listAssets(ref),
+    enabled: Boolean(videoId),
+  })
+
+  const artifacts = useMemo(
+    () =>
+      videoAssetItems(
+        assets.data ?? [],
+        chapters.data ?? [],
+        video.data?.ref ?? '',
+        tasks.data ?? [],
+      ),
+    [assets.data, chapters.data, video.data?.ref, tasks.data],
+  )
 
   // Tabs move under the same modifier the rest of the shell uses, so a whole
   // review pass — open video, scan stages, read chapters — never needs a mouse.
@@ -197,9 +206,9 @@ export function VideoDetailRoute() {
             { value: 'overview', label: 'Overview' },
             { value: 'chapters', label: 'Chapters', count: chapters.data?.length },
             { value: 'tasks', label: 'Tasks', count: tasks.data?.length },
-            { value: 'artifacts', label: 'Artifacts' },
+            { value: 'artifacts', label: 'Artifacts', count: artifacts.length },
           ]}
-          className="w-[380px]"
+          className="w-[400px]"
         />
         <Divider className="hidden sm:block" />
         <span className="hidden items-center gap-1.5 text-[11px] text-subtle sm:flex">
@@ -218,6 +227,7 @@ export function VideoDetailRoute() {
             video={v}
             tasks={tasks.data ?? []}
             chapters={chapters.data ?? []}
+            artifacts={artifacts}
             loading={tasks.isPending}
           />
         )}
@@ -229,16 +239,21 @@ export function VideoDetailRoute() {
             loading={chapters.isPending}
           />
         )}
+        {/* Keyed on the video: a selection, a cursor and a folded group belong to
+            the video they were made in, and the route component itself is reused
+            when the sidebar moves to the next one. */}
         {tab === 'tasks' && (
-          <TaskList
+          <TaskTable
+            key={v.id}
+            video={v}
             tasks={tasks.data ?? []}
+            chapters={chapters.data ?? []}
+            artifacts={artifacts}
             loading={tasks.isPending}
-            videoRef={v.ref}
-            videoId={v.id}
           />
         )}
         {tab === 'artifacts' && (
-          <ArtifactGallery video={v} chapters={chapters.data ?? []} tasks={tasks.data ?? []} />
+          <ArtifactGallery key={v.id} video={v} items={artifacts} loading={assets.isPending} />
         )}
       </div>
     </AssetViewerProvider>
@@ -485,11 +500,13 @@ function Overview({
   video,
   tasks,
   chapters,
+  artifacts,
   loading,
 }: {
   video: Video
   tasks: Task[]
   chapters: Chapter[]
+  artifacts: ViewerItem[]
   loading: boolean
 }) {
   const openViewer = useAssetViewer()
@@ -500,28 +517,21 @@ function Overview({
       items.findIndex((item) => item.id === id),
     )
 
-  // The same query the artifacts tab runs, so opening one warms the other.
-  const assets = useQuery({
-    queryKey: qk.assets(video.id),
-    queryFn: () => api.listAssets(video.ref),
-  })
-
   // What each stage of the pipeline left behind, so a stage tile can offer to
   // show it. Grouped once here rather than filtered per tile: thirteen tiles
   // scanning the whole asset list on every render is thirteen passes for one
   // answer.
   const artifactsByStage = useMemo(() => {
     const byKind = new Map<TaskKind, ViewerItem[]>()
-    const all = videoAssetItems(assets.data ?? [], chapters, video.ref, tasks)
     for (const task of tasks) {
       if (byKind.has(task.kind)) continue
       const artifact = artifactKindFor(task.kind)
       if (!artifact) continue
-      const produced = all.filter((item) => item.kind === artifact)
+      const produced = artifacts.filter((item) => item.kind === artifact)
       if (produced.length > 0) byKind.set(task.kind, produced)
     }
     return byKind
-  }, [assets.data, chapters, video.ref, tasks])
+  }, [artifacts, tasks])
 
   return (
     <div className="h-full overflow-y-auto p-4">
@@ -1150,411 +1160,5 @@ const ChapterTaskChip = memo(function ChapterTaskChip({ task }: { task: Task }) 
         </Badge>
       </span>
     </Tooltip>
-  )
-})
-
-/* ----------------------------------------------------------------- task list */
-
-function TaskList({
-  tasks,
-  loading,
-  videoRef,
-  videoId,
-}: {
-  tasks: Task[]
-  loading: boolean
-  videoRef: string
-  videoId: string
-}) {
-  const queryClient = useQueryClient()
-  // The cascade. It lives behind the dialog, which only offers it once the dry
-  // run has said what "everything below" is.
-  const retry = useMutation({
-    mutationFn: (id: string) => api.retryTask(id),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: qk.videoTasks(videoId) })
-      void queryClient.invalidateQueries({ queryKey: qk.video(videoRef) })
-      setRerunning(null)
-    },
-  })
-  const [rerunning, setRerunning] = useState<Task | null>(null)
-
-  if (loading) return <Skeleton className="m-4 h-64" />
-  if (tasks.length === 0)
-    return <EmptyState title="No tasks" description="Start the video first." />
-
-  return (
-    <div className="h-full overflow-y-auto">
-      <table className="w-full border-collapse text-[12px]">
-        <thead className="sticky top-0 z-10 bg-subtle text-[11px] uppercase tracking-wide text-subtle">
-          <tr className="border-b border-[hsl(var(--border))]">
-            <th className="px-4 py-1.5 text-left font-semibold">Task</th>
-            <th className="px-2 py-1.5 text-left font-semibold">Chapter</th>
-            <th className="px-2 py-1.5 text-left font-semibold">Pool</th>
-            <th className="px-2 py-1.5 text-left font-semibold">State</th>
-            <th className="px-2 py-1.5 text-right font-semibold">Attempt</th>
-            <th className="px-2 py-1.5 text-left font-semibold">Error</th>
-            <th className="px-4 py-1.5" />
-          </tr>
-        </thead>
-        <tbody>
-          {tasks.map((task) => (
-            <TaskRow key={task.id} task={task} onRerun={() => setRerunning(task)} />
-          ))}
-        </tbody>
-      </table>
-
-      {rerunning && (
-        <RerunDialog
-          open
-          onOpenChange={(open) => !open && setRerunning(null)}
-          videoRef={videoRef}
-          videoId={videoId}
-          taskIds={[rerunning.id]}
-          what={taskLabel(rerunning.kind) + (rerunning.ordinal > 0 ? ` ${rerunning.ordinal}` : '')}
-          onCascade={() => retry.mutate(rerunning.id)}
-          cascadePending={retry.isPending}
-        />
-      )}
-    </div>
-  )
-}
-
-const TaskRow = memo(function TaskRow({ task, onRerun }: { task: Task; onRerun: () => void }) {
-  return (
-    <tr className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--bg-hover))]">
-      <td className="px-4 py-1.5">
-        {taskLabel(task.kind)}
-        {task.index >= 0 && <span className="text-subtle"> #{task.index + 1}</span>}
-        {task.gate && (
-          <Badge tone="warning" className="ml-2">
-            gate
-          </Badge>
-        )}
-        {task.stale && <StaleBadge className="ml-2" />}
-      </td>
-      <td className="px-2 py-1.5 tabular text-muted">{task.ordinal > 0 ? task.ordinal : '—'}</td>
-      <td className="px-2 py-1.5 text-muted">{task.pool}</td>
-      <td className="px-2 py-1.5">
-        <TaskStateBadge state={task.state} />
-      </td>
-      <td className="px-2 py-1.5 text-right tabular text-muted">
-        {task.attempt}/{task.maxAttempts}
-      </td>
-      {/* Truncated to keep the row height honest, but the whole message is what
-          an operator needs when a task fails, so it is on the title. */}
-      <td
-        className="max-w-[280px] truncate px-2 py-1.5 text-[hsl(var(--danger))]"
-        title={task.error ?? ''}
-      >
-        {task.error ?? ''}
-      </td>
-      <td className="px-4 py-1.5 text-right">
-        {/*
-          A blueprint may only be re-run from `failed` or `cancelled`. The whole
-          DAG below it was built from the chapters it produced, and that
-          expansion is one-way — so the way back is to reject the outline first.
-        */}
-        {task.kind === 'blueprint' && task.state !== 'failed' && task.state !== 'cancelled' ? (
-          <Tooltip label="The pipeline below is built from this outline. Reject it first, or start a new video.">
-            <span className="text-[11px] text-subtle">locked</span>
-          </Tooltip>
-        ) : (
-          /*
-            One verb, whatever state the task is in. Re-run resets this task and
-            nothing else: below a failed task there is nothing to protect and its
-            dependents run as soon as it succeeds, and below a succeeded one the
-            artifacts are flagged rather than discarded. Rebuilding downstream is
-            offered inside the dialog, after it has said what that means.
-          */
-          <Tooltip label="Run this step again. Anything below it is flagged, not re-run.">
-            <Button size="xs" variant="ghost" onClick={onRerun}>
-              Re-run
-            </Button>
-          </Tooltip>
-        )}
-      </td>
-    </tr>
-  )
-})
-
-/* ------------------------------------------------------------------ artifacts */
-
-type GalleryView = 'grid' | 'list'
-
-/**
- * Every artifact a video has produced, as a gallery rather than a list of
- * hashes. A hash is the right *identity* for a content-addressed store and the
- * wrong thing to show an operator who is asking whether the images came out
- * well — so the image leads, and the address moves into the viewer.
- */
-function ArtifactGallery({
-  video,
-  chapters,
-  tasks,
-}: {
-  video: Video
-  chapters: Chapter[]
-  tasks: Task[]
-}) {
-  const openViewer = useAssetViewer()
-  const [kind, setKind] = useState<string>('all')
-  const [view, setView] = useState<GalleryView>('grid')
-
-  const assets = useQuery({
-    queryKey: qk.assets(video.id),
-    queryFn: () => api.listAssets(video.ref),
-  })
-
-  const items = useMemo(
-    () => videoAssetItems(assets.data ?? [], chapters, video.ref, tasks),
-    [assets.data, chapters, video.ref, tasks],
-  )
-
-  const kinds = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const item of items) counts.set(item.kind, (counts.get(item.kind) ?? 0) + 1)
-    return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-  }, [items])
-
-  // A filter that outlives the artifact it matched leaves an empty pane with no
-  // explanation, so it collapses back to "all" the moment its kind disappears.
-  const active = kind !== 'all' && kinds.some(([name]) => name === kind) ? kind : 'all'
-  const shown = useMemo(
-    () => (active === 'all' ? items : items.filter((item) => item.kind === active)),
-    [items, active],
-  )
-  const shownBytes = shown.reduce((sum, item) => sum + (item.size ?? 0), 0)
-
-  // Stable across renders of the same filtered set, so the memoised cards below
-  // are not thrown away every time the gallery re-renders behind an SSE delta.
-  const openAt = useCallback((index: number) => openViewer(shown, index), [openViewer, shown])
-
-  if (assets.isPending) {
-    return (
-      <div className="grid gap-3 p-4 [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]">
-        {Array.from({ length: 8 }, (_, i) => (
-          <Skeleton key={i} className="h-[168px]" />
-        ))}
-      </div>
-    )
-  }
-
-  if (items.length === 0) {
-    return (
-      <EmptyState
-        title="No artifacts yet"
-        description={`Artifacts appear as tasks complete. ${video.ref} has produced none so far.`}
-      />
-    )
-  }
-
-  return (
-    <div className="flex h-full flex-col">
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[hsl(var(--border))] bg-subtle px-3 py-2 no-select">
-        <FilterChip
-          label="All"
-          count={items.length}
-          selected={active === 'all'}
-          onClick={() => setKind('all')}
-        />
-        {kinds.map(([name, count]) => (
-          <FilterChip
-            key={name}
-            label={kindTitle(name)}
-            count={count}
-            tone={assetKindTone(name)}
-            selected={active === name}
-            onClick={() => setKind(name)}
-          />
-        ))}
-
-        <span className="tabular ml-auto text-[11px] text-subtle">
-          {shown.length} shown · {formatBytes(shownBytes)}
-        </span>
-        <Segmented
-          aria-label="Artifact layout"
-          value={view}
-          onChange={setView}
-          options={[
-            {
-              value: 'grid',
-              label: (
-                <>
-                  <LayoutGrid className="h-3.5 w-3.5" />
-                  <span className="sr-only">Grid</span>
-                </>
-              ),
-            },
-            {
-              value: 'list',
-              label: (
-                <>
-                  <Rows3 className="h-3.5 w-3.5" />
-                  <span className="sr-only">List</span>
-                </>
-              ),
-            },
-          ]}
-          className="w-[72px]"
-        />
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        {view === 'grid' ? (
-          <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]">
-            {shown.map((item, index) => (
-              <ArtifactCard key={item.id + index} item={item} index={index} onOpen={openAt} />
-            ))}
-          </div>
-        ) : (
-          <Panel className="overflow-hidden">
-            <ul className="divide-y divide-[hsl(var(--border))]">
-              {shown.map((item, index) => (
-                <ArtifactRow key={item.id + index} item={item} index={index} onOpen={openAt} />
-              ))}
-            </ul>
-          </Panel>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function FilterChip({
-  label,
-  count,
-  tone = 'neutral',
-  selected,
-  onClick,
-}: {
-  label: string
-  count: number
-  tone?: Tone
-  selected: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={selected}
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-2 py-[1px] text-[11px] font-medium leading-[18px] transition-colors',
-        selected
-          ? 'border-[hsl(var(--accent))] bg-[hsl(var(--accent))] text-[hsl(var(--accent-fg))]'
-          : 'border-[hsl(var(--border))] bg-[hsl(var(--bg-elevated))] text-muted hover:border-[hsl(var(--border-strong))] hover:text-fg',
-      )}
-    >
-      {!selected && tone !== 'neutral' && (
-        <span className={cn('h-1.5 w-1.5 rounded-full', TONE_DOT[tone])} aria-hidden />
-      )}
-      {label}
-      <span className={cn('tabular', selected ? 'opacity-80' : 'text-subtle')}>{count}</span>
-    </button>
-  )
-}
-
-const TONE_DOT: Record<Tone, string> = {
-  neutral: 'bg-[hsl(var(--fg-subtle))]',
-  accent: 'bg-[hsl(var(--accent))]',
-  success: 'bg-[hsl(var(--success))]',
-  warning: 'bg-[hsl(var(--warning))]',
-  danger: 'bg-[hsl(var(--danger))]',
-  info: 'bg-[hsl(var(--info))]',
-  violet: 'bg-[hsl(var(--violet))]',
-}
-
-const ArtifactCard = memo(function ArtifactCard({
-  item,
-  index,
-  onOpen,
-}: {
-  item: ViewerItem
-  index: number
-  onOpen: (index: number) => void
-}) {
-  const media = mediaTypeOf(item.mime)
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen(index)}
-      aria-label={`Preview ${item.title}`}
-      className="group surface overflow-hidden text-left transition-[border-color,box-shadow] hover:border-[hsl(var(--accent))] hover:elev-2"
-    >
-      <div className="relative aspect-[16/10] overflow-hidden border-b border-[hsl(var(--border))]">
-        <AssetPreview item={item} />
-        <span
-          className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100"
-          aria-hidden
-        >
-          <Maximize2 className="h-4 w-4 text-white" />
-        </span>
-        {media !== 'image' && (
-          <span className="absolute bottom-1 right-1 rounded-[var(--radius-xs)] bg-black/55 px-1 text-[10px] font-medium leading-[15px] text-white">
-            {media}
-          </span>
-        )}
-      </div>
-      <div className="px-2.5 py-2">
-        <p className="truncate text-[12px] font-medium text-fg">{item.title}</p>
-        <p className="truncate text-[11px] text-subtle">{item.subtitle}</p>
-        <div className="mt-1 flex items-center justify-between gap-2 text-[10.5px] text-subtle">
-          <Mono className="truncate text-[10.5px]">{shortId(item.id)}</Mono>
-          <span className="tabular shrink-0">{formatBytes(item.size ?? 0)}</span>
-        </div>
-      </div>
-    </button>
-  )
-})
-
-const ArtifactRow = memo(function ArtifactRow({
-  item,
-  index,
-  onOpen,
-}: {
-  item: ViewerItem
-  index: number
-  onOpen: (index: number) => void
-}) {
-  return (
-    <li className="flex items-center gap-3 px-2.5 py-1.5 text-[12px] hover:bg-[hsl(var(--bg-hover))]">
-      <button
-        type="button"
-        onClick={() => onOpen(index)}
-        aria-label={`Preview ${item.title}`}
-        className="flex min-w-0 flex-1 items-center gap-3 text-left"
-      >
-        <span className="h-8 w-14 shrink-0 overflow-hidden rounded-[var(--radius-xs)] border border-[hsl(var(--border))]">
-          <AssetPreview item={item} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium text-fg">{item.title}</span>
-          <span className="block truncate text-[11px] text-subtle">{item.subtitle}</span>
-        </span>
-        <Badge tone={assetKindTone(item.kind)} className="shrink-0">
-          {item.kind}
-        </Badge>
-        <span className="hidden w-28 shrink-0 truncate text-[11px] text-subtle md:block">
-          {item.mime}
-        </span>
-        <span className="tabular w-16 shrink-0 text-right text-muted">
-          {formatBytes(item.size ?? 0)}
-        </span>
-        <span className="tabular hidden w-20 shrink-0 text-right text-[11px] text-subtle lg:block">
-          {formatRelative(item.createdAt)}
-        </span>
-      </button>
-      <Tooltip label="Download">
-        <a
-          href={assetUrl(item.id)}
-          download={downloadName(item)}
-          className="shrink-0 rounded-[var(--radius-xs)] p-1 text-subtle hover:bg-[hsl(var(--bg-hover))] hover:text-fg"
-          aria-label={`Download ${item.title}`}
-        >
-          <Download className="h-3.5 w-3.5" />
-        </a>
-      </Tooltip>
-    </li>
   )
 })

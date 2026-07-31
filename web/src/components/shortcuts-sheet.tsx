@@ -43,6 +43,18 @@ const SECTIONS: { group: string; items: { keys: string; label: string }[] }[] = 
       { keys: 'mod+enter', label: 'Approve the open gate' },
       { keys: 'mod+arrowleft', label: 'Previous tab' },
       { keys: 'mod+arrowright', label: 'Next tab' },
+      { keys: '/', label: 'Filter the tasks or the artifacts' },
+    ],
+  },
+  {
+    group: 'Task list',
+    items: [
+      { keys: 'arrowup', label: 'Move the cursor up (while the table has focus)' },
+      { keys: 'arrowdown', label: 'Move the cursor down' },
+      { keys: 'enter', label: 'Show the details of the task under the cursor' },
+      { keys: 'space', label: 'Select or deselect it' },
+      { keys: 'r', label: 'Re-run it' },
+      { keys: 'escape', label: 'Clear the selection, then the details' },
     ],
   },
   {

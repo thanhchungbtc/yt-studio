@@ -104,6 +104,13 @@ function applyTaskDeltas(client: QueryClient, deltas: TaskDelta[]): void {
     client.setQueryData<Task[]>(qk.videoTasks(videoId), (prev) =>
       prev ? mergeTasks(prev, videoDeltas) : prev,
     )
+    // A task that has just succeeded has usually written a file, and the asset
+    // list is the one thing on the detail pane no delta carries. Refetched only
+    // while a pane is actually showing it, and the bus already coalesces per
+    // video, so a fifty-chapter render is not fifty list queries a second.
+    if (videoDeltas.some((delta) => delta.state === 'succeeded')) {
+      void client.invalidateQueries({ queryKey: qk.assets(videoId), refetchType: 'active' })
+    }
   }
   client.setQueryData<Task[]>(qk.recentTasks, (prev) => (prev ? mergeTasks(prev, deltas) : prev))
 }
