@@ -29,6 +29,7 @@ import (
 	"github.com/tbui/yt-studio/adapters/registry"
 	sampleprovider "github.com/tbui/yt-studio/adapters/sample_provider"
 	"github.com/tbui/yt-studio/adapters/sqlite"
+	"github.com/tbui/yt-studio/adapters/thumbnail"
 	"github.com/tbui/yt-studio/app"
 	deliveryhttp "github.com/tbui/yt-studio/delivery/http"
 	"github.com/tbui/yt-studio/domain/entity"
@@ -273,6 +274,12 @@ func (c *serveCmd) Run() error {
 			settings.Int(entity.SettingMockFailureRatePercent)
 	})
 	ffmpegComposer := ffmpeg.New(assets, c.Resources, log)
+	thumbnails := thumbnail.New(assets, c.Resources, func() thumbnail.Options {
+		return thumbnail.Options{
+			Font: settings.String(entity.SettingThumbnailFont),
+			Rows: settings.Int(entity.SettingThumbnailGridRows),
+		}
+	}, log)
 	samples := sampleprovider.NewLibrary(c.Resources)
 
 	// The model is read through a closure rather than captured: settings are not
@@ -299,6 +306,7 @@ func (c *serveCmd) Run() error {
 	providers.RegisterComposer("mock", mockprovider.NewComposer(assets, tuning))
 	providers.RegisterComposer("ffmpeg", ffmpegComposer)
 	providers.RegisterThumbnail("mock", mockprovider.NewThumbnail(assets, tuning))
+	providers.RegisterThumbnail("builtin", thumbnails)
 	providers.RegisterThumbnailIcon("mock", mockprovider.NewIcon(assets, tuning))
 	providers.RegisterUploader("mock", mockprovider.NewUploader(assets, tuning, time.Now))
 
@@ -314,6 +322,11 @@ func (c *serveCmd) Run() error {
 
 	if err := ffmpegComposer.Check(); err != nil {
 		log.Info("ffmpeg composer is not available",
+			slog.String("reason", err.Error()),
+			slog.String("resources", c.Resources))
+	}
+	if err := thumbnails.Check(); err != nil {
+		log.Info("the built-in thumbnail renderer is not available",
 			slog.String("reason", err.Error()),
 			slog.String("resources", c.Resources))
 	}

@@ -58,6 +58,14 @@ const (
 	SettingThumbnailIconStyle SettingKey = "thumbnail.icon.style"
 	// SettingThumbnailIconSize is the square edge each icon is generated at.
 	SettingThumbnailIconSize SettingKey = "thumbnail.icon.size"
+	// SettingThumbnailFont names the typeface the built-in renderer sets the
+	// headline and captions in, as a filename under the resources fonts
+	// directory. A row rather than a constant because the face is the loudest
+	// thing about a thumbnail and the one worth trying alternatives for.
+	SettingThumbnailFont SettingKey = "thumbnail.font"
+	// SettingThumbnailGridRows is how many rows the icons are laid out in;
+	// columns follow from the cell count.
+	SettingThumbnailGridRows SettingKey = "thumbnail.grid.rows"
 
 	// SettingVideoChapterTolerancePercent bounds how far an accepted blueprint's
 	// chapter count may fall from the one the video was briefed with.
@@ -256,6 +264,8 @@ func DefaultSettings() []Setting {
 		{Key: SettingVideoDefaultImages, Value: "2", Type: SettingTypeInt, Group: "video", Min: MinImagesPerChapter, Max: MaxImagesPerChapter, Description: "Stills generated per chapter when unspecified."},
 		{Key: SettingThumbnailIconStyle, Value: "thick-stroke white line art on a pure black background, flat, no shading, no text, centred with a generous margin", Type: SettingTypeString, Group: "video", Description: "Appended to every thumbnail icon prompt; what makes ten icons look like one set."},
 		{Key: SettingThumbnailIconSize, Value: "512", Type: SettingTypeInt, Group: "video", Min: 64, Max: 2048, Description: "Square edge, in pixels, each thumbnail icon is generated at."},
+		{Key: SettingThumbnailFont, Value: "CabinSketch-Bold.ttf", Type: SettingTypeString, Group: "video", Description: "Typeface for the thumbnail headline and captions, from the resources fonts directory."},
+		{Key: SettingThumbnailGridRows, Value: "2", Type: SettingTypeInt, Group: "video", Min: 1, Max: 4, Description: "Rows the thumbnail's icon grid is laid out in; the columns follow from the tile count."},
 		{Key: SettingVideoDefaultThumbnailCells, Value: "10", Type: SettingTypeInt, Group: "video", Min: MinThumbnailCells, Max: MaxThumbnailCells, Description: "Tiles in a new video's thumbnail grid; one icon is generated per tile."},
 		{Key: SettingVideoChapterTolerancePercent, Value: "20", Type: SettingTypeInt, Group: "video", Min: 0, Max: 100, Description: "How far an accepted blueprint's chapter count may fall from the target, as a percentage."},
 
