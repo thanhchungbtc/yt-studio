@@ -227,7 +227,7 @@ func (l *LLM) Metadata(ctx context.Context, req provider.MetadataRequest) (provi
 		Title:       truncate(req.Title, 100),
 		Description: desc.String(),
 		Tags:        tagsFor(r, req.Topic),
-		CategoryID:  "22",
+		CategoryID:  "24", // Entertainment, matching the real backend
 		Privacy:     "private",
 	}
 	id, err := l.putJSON(ctx, entity.AssetKindMetadata, md)

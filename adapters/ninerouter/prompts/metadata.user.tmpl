@@ -1,0 +1,21 @@
+## The video
+
+Working title: {{ .Title }}
+{{- with .Topic }}
+Topic: {{ . }}
+{{- end }}
+Chapters: {{ len .Chapters }}
+
+Chapter structure (in order):
+{{ range .Chapters }}
+{{ .Ordinal }}. {{ .Title }}
+{{- end }}
+
+---
+
+Write the metadata for this video: the title, the one-paragraph description, the
+comma-separated keywords, and the thumbnail hook.
+
+The chapter titles above are what the video actually covers — draw the niche
+keywords and the thumbnail hook from them rather than from the working title
+alone.

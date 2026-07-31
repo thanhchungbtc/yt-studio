@@ -95,12 +95,19 @@ func (s VideoState) CanTransitionTo(to VideoState) bool {
 }
 
 // Metadata is the YouTube-facing description of a finished video.
+//
+// It is stored as JSON on the video row, so a field added here needs no
+// migration.
 type Metadata struct {
 	Title       string
 	Description string
 	Tags        []string
-	CategoryID  string
-	Privacy     string
+	// ThumbnailText is the all-caps hook overlaid on the thumbnail. It is
+	// written with the rest of the listing because it competes for the same
+	// glance the title does.
+	ThumbnailText string
+	CategoryID    string
+	Privacy       string
 }
 
 // UploadRecord is the durable receipt of an upload attempt.

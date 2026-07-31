@@ -63,6 +63,7 @@ export interface Metadata {
   title: string
   description: string
   tags: string[]
+  thumbnailText: string
   categoryId: string
   privacy: string
 }

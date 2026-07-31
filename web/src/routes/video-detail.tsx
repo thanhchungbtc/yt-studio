@@ -535,6 +535,13 @@ function Overview({
                 </PanelHeader>
                 <div className="space-y-2 px-3 py-2.5 text-[12px]">
                   <p className="font-medium text-fg">{video.metadata.title}</p>
+                  {/* The hook competes for the same glance the title does, so it
+                      reads next to it rather than buried under the tags. */}
+                  {video.metadata.thumbnailText && (
+                    <p className="font-semibold tracking-wide text-[hsl(var(--accent))]">
+                      {video.metadata.thumbnailText}
+                    </p>
+                  )}
                   <p className="whitespace-pre-wrap text-[11.5px] leading-relaxed text-muted">
                     {video.metadata.description}
                   </p>

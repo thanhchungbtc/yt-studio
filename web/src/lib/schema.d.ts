@@ -630,6 +630,8 @@ export interface components {
       description: string
       privacy: string
       tags: string[]
+      /** @description All-caps hook for the thumbnail overlay */
+      thumbnailText: string
       title: string
     }
     PoolStatDTO: {

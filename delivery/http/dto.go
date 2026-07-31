@@ -88,11 +88,12 @@ func countsFrom(c repository.TaskCounts) TaskCountsDTO {
 
 // MetadataDTO is the YouTube-facing listing.
 type MetadataDTO struct {
-	Title       string   `json:"title"`
-	Description string   `json:"description"`
-	Tags        []string `json:"tags"`
-	CategoryID  string   `json:"categoryId"`
-	Privacy     string   `json:"privacy"`
+	Title         string   `json:"title"`
+	Description   string   `json:"description"`
+	Tags          []string `json:"tags"`
+	ThumbnailText string   `json:"thumbnailText" doc:"All-caps hook for the thumbnail overlay"`
+	CategoryID    string   `json:"categoryId"`
+	Privacy       string   `json:"privacy"`
 }
 
 // UploadDTO is the upload receipt.
@@ -157,11 +158,12 @@ func videoFrom(v entity.Video, counts repository.TaskCounts) VideoDTO {
 			tags = []string{}
 		}
 		dto.Metadata = &MetadataDTO{
-			Title:       v.Metadata.Title,
-			Description: v.Metadata.Description,
-			Tags:        tags,
-			CategoryID:  v.Metadata.CategoryID,
-			Privacy:     v.Metadata.Privacy,
+			Title:         v.Metadata.Title,
+			Description:   v.Metadata.Description,
+			Tags:          tags,
+			ThumbnailText: v.Metadata.ThumbnailText,
+			CategoryID:    v.Metadata.CategoryID,
+			Privacy:       v.Metadata.Privacy,
 		}
 	}
 	if v.Upload != nil {

@@ -28,6 +28,9 @@ const (
 
 	imagePromptsSystemPrompt = "imageprompts.system.tmpl"
 	imagePromptsUserPrompt   = "imageprompts.user.tmpl"
+
+	metadataSystemPrompt = "metadata.system.tmpl"
+	metadataUserPrompt   = "metadata.user.tmpl"
 )
 
 // render executes one template against its request.
