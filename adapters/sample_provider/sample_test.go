@@ -142,6 +142,107 @@ func TestStillsRotateAndDifferWithinAChapter(t *testing.T) {
 	}
 }
 
+// An icon is square by the port's definition, and these samples are 16:9 on
+// disk. Serving one untouched would reach the renderer stretched, because it
+// scales whatever it is given into a square tile.
+func TestIconIsStoredSquareAtTheRequestedSize(t *testing.T) {
+	t.Parallel()
+	lib := sampleprovider.NewLibrary(resourcesDir(t))
+	store := newStore(t)
+	icons := sampleprovider.NewIcon(lib, store)
+
+	id, err := icons.Icon(context.Background(), provider.ThumbnailIconRequest{
+		VideoID: "v1", Index: 0, Prompt: "a pocket watch", Size: 256,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path, err := store.Path(id, entity.AssetKindThumbnailIcon)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(path) //nolint:gosec // path is the test's own store
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := png.Decode(bytes.NewReader(raw))
+	if err != nil {
+		t.Fatalf("stored icon is not a PNG: %v", err)
+	}
+	if got := decoded.Bounds().Size(); got != (image.Point{X: 256, Y: 256}) {
+		t.Fatalf("icon is %v, want a 256x256 square", got)
+	}
+
+	// The size is part of what was asked for, so it is part of the address.
+	larger, err := icons.Icon(context.Background(), provider.ThumbnailIconRequest{
+		VideoID: "v1", Index: 0, Prompt: "a pocket watch", Size: 512,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if larger == id {
+		t.Fatal("two sizes of the same sample landed on one address")
+	}
+}
+
+// A grid of ten copies of one picture says nothing about whether the layout
+// works, which is the only reason to run the pipeline on samples.
+func TestIconsDifferAcrossTheGrid(t *testing.T) {
+	t.Parallel()
+	lib := sampleprovider.NewLibrary(resourcesDir(t))
+	icons := sampleprovider.NewIcon(lib, newStore(t))
+
+	seen := make(map[entity.AssetID]int, 4)
+	for index := range 4 {
+		id, err := icons.Icon(context.Background(), provider.ThumbnailIconRequest{
+			VideoID: "v1", Index: index, Prompt: "anything", Size: 128,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		seen[id]++
+	}
+	if len(seen) != 4 {
+		t.Fatalf("four cells produced %d distinct icons", len(seen))
+	}
+}
+
+// The icons arrived after the narration and the stills, so a library without
+// them still serves those. Only asking for one reports the absence.
+func TestLibraryWithoutIconsStillServesStills(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	sample := filepath.Join(dir, "sample")
+	if err := os.MkdirAll(sample, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	copyFile(t, filepath.Join(resourcesDir(t), "sample", "audio.wav"), filepath.Join(sample, "audio.wav"))
+	copyFile(t, filepath.Join(resourcesDir(t), "sample", "img0.jpg"), filepath.Join(sample, "img0.jpg"))
+
+	lib := sampleprovider.NewLibrary(dir)
+	if err := lib.Check(); err != nil {
+		t.Fatalf("Check() = %v, want a usable library", err)
+	}
+	if _, err := lib.Icons(); !errors.Is(err, provider.ErrUnavailable) {
+		t.Fatalf("Icons() = %v, want ErrUnavailable", err)
+	}
+	if _, err := sampleprovider.NewImage(lib, newStore(t)).Generate(context.Background(),
+		provider.ImageRequest{Ordinal: 1}); err != nil {
+		t.Fatalf("stills stopped working without icons: %v", err)
+	}
+}
+
+func copyFile(t *testing.T, from, to string) {
+	t.Helper()
+	raw, err := os.ReadFile(from) //nolint:gosec // both paths are the test's own
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(to, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestMissingMediaIsUnavailableAndNotRetryable(t *testing.T) {
 	t.Parallel()
 	lib := sampleprovider.NewLibrary(t.TempDir())
@@ -162,6 +263,9 @@ func TestMissingMediaIsUnavailableAndNotRetryable(t *testing.T) {
 	}
 	if _, err := sampleprovider.NewImage(lib, store).Generate(context.Background(), provider.ImageRequest{}); !errors.Is(err, provider.ErrUnavailable) {
 		t.Fatalf("Generate() = %v, want ErrUnavailable", err)
+	}
+	if _, err := sampleprovider.NewIcon(lib, store).Icon(context.Background(), provider.ThumbnailIconRequest{}); !errors.Is(err, provider.ErrUnavailable) {
+		t.Fatalf("Icon() = %v, want ErrUnavailable", err)
 	}
 }
 

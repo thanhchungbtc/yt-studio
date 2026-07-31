@@ -12,6 +12,12 @@
 //
 //	<resources>/sample/*.wav       narration, reused by every chapter
 //	<resources>/sample/img*.jpg    stills, rotated across chapters
+//	<resources>/sample/icon*.jpg   thumbnail tiles, one per grid cell
+//
+// The icons are optional: they arrived after the other two, and a library
+// without them still serves narration and stills. Selecting this backend for
+// the icon port without them is what reports the absence, rather than a
+// startup check failing over a file an operator may never have wanted.
 package sampleprovider
 
 import (
@@ -43,6 +49,7 @@ type Library struct {
 	err    error
 	audio  string
 	images []string
+	icons  []string
 }
 
 // NewLibrary points at the sample directory inside a resources root. Sharing
@@ -82,9 +89,23 @@ func (l *Library) scan() error {
 	if err != nil {
 		return err
 	}
+	// Optional, so a missing set is not an error here — Icons is where it is
+	// reported, to whoever actually asked for one.
+	icons, _ := l.glob("icon*.jpg")
 
-	l.audio, l.images = audio[0], images
+	l.audio, l.images, l.icons = audio[0], images, icons
 	return nil
+}
+
+// Icons returns the thumbnail tile set, or says why there is none.
+func (l *Library) Icons() ([]string, error) {
+	if err := l.Check(); err != nil {
+		return nil, err
+	}
+	if len(l.icons) == 0 {
+		return nil, fmt.Errorf("%w: no icon*.jpg in %s", ErrUnavailable, l.dir)
+	}
+	return l.icons, nil
 }
 
 // glob returns the matching files, sorted so the rotation follows the order the

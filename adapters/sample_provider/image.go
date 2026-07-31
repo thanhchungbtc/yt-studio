@@ -4,14 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"image"
-	"image/png"
-	"os"
-	"sync"
-
-	// Registered for its decoder: the samples are JPEG on disk and PNG in the
-	// store.
-	_ "image/jpeg"
 
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
@@ -21,19 +13,14 @@ import (
 type Image struct {
 	lib   *Library
 	store provider.AssetStore
-
-	// encoded caches the PNG bytes per source file. A video asks for a hundred
-	// stills and there are only a handful of files behind them, so the decode and
-	// re-encode happen once each rather than once per chapter.
-	mu      sync.Mutex
-	encoded map[string][]byte
+	png   pngCache
 }
 
 var _ provider.ImageProvider = (*Image)(nil)
 
 // NewImage wires the backend to the shared library.
 func NewImage(lib *Library, store provider.AssetStore) *Image {
-	return &Image{lib: lib, store: store, encoded: make(map[string][]byte, 4)}
+	return &Image{lib: lib, store: store}
 }
 
 // Generate stores one still and returns its content address.
@@ -48,7 +35,9 @@ func (i *Image) Generate(ctx context.Context, req provider.ImageRequest) (entity
 	}
 	path := i.lib.images[(req.Ordinal+req.Index)%len(i.lib.images)]
 
-	encoded, err := i.pngFor(path)
+	// Stills go in at their native size: the composer builds the slideshow from
+	// them and is the one that decides how they are framed.
+	encoded, err := i.png.bytes(path, path, nil)
 	if err != nil {
 		return "", err
 	}
@@ -57,37 +46,4 @@ func (i *Image) Generate(ctx context.Context, req provider.ImageRequest) (entity
 		return "", fmt.Errorf("store still: %w", err)
 	}
 	return stored.ID, nil
-}
-
-// pngFor decodes a sample and re-encodes it as PNG.
-//
-// The stills are JPEG on disk but an image asset is a .png with an image/png
-// MIME, and the store addresses content rather than sniffing it. Normalising
-// here keeps every consumer downstream — the browser, the composer, anything
-// added later — able to trust what the asset row says it is.
-func (i *Image) pngFor(path string) ([]byte, error) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	if cached, ok := i.encoded[path]; ok {
-		return cached, nil
-	}
-
-	file, err := os.Open(path) //nolint:gosec // path comes from the resources directory
-	if err != nil {
-		return nil, fmt.Errorf("%w: %s: %w", ErrUnavailable, path, err)
-	}
-	defer func() { _ = file.Close() }()
-
-	src, _, err := image.Decode(file)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %s: %w", ErrUnavailable, path, err)
-	}
-	var buf bytes.Buffer
-	enc := png.Encoder{CompressionLevel: png.BestCompression}
-	if err := enc.Encode(&buf, src); err != nil {
-		return nil, fmt.Errorf("encode still %s: %w", path, err)
-	}
-
-	i.encoded[path] = buf.Bytes()
-	return buf.Bytes(), nil
 }

@@ -308,6 +308,7 @@ func (c *serveCmd) Run() error {
 	providers.RegisterThumbnail("mock", mockprovider.NewThumbnail(assets, tuning))
 	providers.RegisterThumbnail("builtin", thumbnails)
 	providers.RegisterThumbnailIcon("mock", mockprovider.NewIcon(assets, tuning))
+	providers.RegisterThumbnailIcon("sample", sampleprovider.NewIcon(samples, assets))
 	providers.RegisterUploader("mock", mockprovider.NewUploader(assets, tuning, time.Now))
 
 	settings.Constrain(providers.Options())
