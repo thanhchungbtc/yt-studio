@@ -2,80 +2,6 @@ package thumbnail
 
 import "image"
 
-// ---------------------------------------------------------------- tuning ----
-//
-// Everything about how the thumbnail is proportioned lives in this one block,
-// so it can be tuned by editing numbers rather than by reading the drawing
-// code. Each comment says what raising the number does.
-//
-// They are constants rather than settings rows on purpose: the backend that
-// exists to be re-styled without a rebuild is the browser one, and a settings
-// table full of pixel values would be a second place to change a layout and a
-// first place to get it wrong.
-const (
-	// The frame: YouTube's thumbnail size.
-	width  = 1280
-	height = 720
-
-	// --- the grid ---------------------------------------------------------
-	//
-	// The grid is sized from the frame width first and the headline takes what
-	// is left over, which is what keeps the tiles running edge to edge. Lower
-	// gridMarginX for a wider grid — it is the gutter on each side.
-	gridMarginX = 30
-	// Gap between tiles, horizontally and between rows.
-	tileGap = 30
-	// The border drawn around each tile, and the inset from that border to the
-	// icon inside it. Raise tilePad to give the icon more air.
-	tileBorder = 3
-	tilePad    = 12
-	// Room under the last row of captions.
-	gridBottom = 14
-	// Gap between the headline block and the first row of tiles.
-	gridGap = 18
-
-	// --- captions ---------------------------------------------------------
-	//
-	// captionGap is the space between a tile and the caption under it.
-	//
-	// The type size is chosen once for the whole grid — the largest between
-	// captionMax and captionMin at which every caption fits its tile. Set the two
-	// equal to pin the size and let long captions be cut instead.
-	//
-	// captionBand is the height reserved under every tile whatever size the
-	// captions settle at; reserving the same band for all of them is what keeps
-	// the rows aligned, so it wants to be a little over captionMax.
-	captionGap  = 6
-	captionMax  = 26
-	captionMin  = 12
-	captionStep = 1
-	captionBand = captionMax + 2
-
-	// --- the headline -----------------------------------------------------
-	//
-	// The headline is fitted into whatever height the grid left it, at the
-	// largest size between headlineMax and headlineMin that fits on one line.
-	// It wraps only when even the floor will not hold it.
-	//
-	// A fuller grid leaves the headline less room: the default twelve in two
-	// rows of six sits near the middle of this range, where six in two rows of
-	// three would be large enough to push the headline towards its floor.
-	headlineMarginX = 40
-	headlineTop     = 22
-	headlineMax     = 120
-	headlineMin     = 44
-	headlineStep    = 4
-	headlineLead    = 6
-	headlineLines   = 2
-	// Letter-spacing is size/headlineTrack. Lower is looser.
-	headlineTrack = 22
-
-	// --- resources --------------------------------------------------------
-	backgroundFile = "background.jpg"
-	defaultFont    = "CabinSketch-Bold.ttf"
-	defaultRows    = 2
-)
-
 // ------------------------------------------------------------------ grid ----
 
 // grid is the resolved geometry of one thumbnail's tiles.
@@ -108,10 +34,10 @@ func layOutGrid(cells, rows int) grid {
 	}
 	cols := (cells + rows - 1) / rows
 
-	tile := (width - 2*gridMarginX - (cols-1)*tileGap) / cols
+	tile := (frameWidth - 2*gridSideMargin - (cols-1)*tileSpacing) / cols
 	// The one case where the tiles give way instead: a grid so tall that the
 	// headline would not get its floor.
-	for tile > 1 && height-blockHeight(rows, tile)-gridBottom-gridGap < headlineTop+headlineMin {
+	for tile > 1 && frameHeight-blockHeight(rows, tile)-gridBottomMargin-headlineToGridGap < headlineTopMargin+headlineFontMin {
 		tile -= 2
 	}
 	if tile < 1 {
@@ -128,8 +54,8 @@ func layOutGrid(cells, rows int) grid {
 		n := min(cols, remaining)
 		remaining -= n
 		g.counts[r] = n
-		rowWidth := n*tile + (n-1)*tileGap
-		g.rowX[r] = (width - rowWidth) / 2
+		rowWidth := n*tile + (n-1)*tileSpacing
+		g.rowX[r] = (frameWidth - rowWidth) / 2
 	}
 	g.place(0)
 	return g
@@ -137,7 +63,7 @@ func layOutGrid(cells, rows int) grid {
 
 // headlineBudget is how much height is left above the grid for the headline.
 func (g grid) headlineBudget() int {
-	return height - gridBottom - blockHeight(g.rows, g.tileSize) - gridGap - headlineTop
+	return frameHeight - gridBottomMargin - blockHeight(g.rows, g.tileSize) - headlineToGridGap - headlineTopMargin
 }
 
 // place centres the block in what the headline left, rather than pinning it to
@@ -148,25 +74,25 @@ func (g grid) headlineBudget() int {
 // space is split above and below and a fourteen-tile grid sits as comfortably
 // as a ten-tile one.
 func (g *grid) place(headlineBottom int) {
-	bandTop := max(headlineBottom+gridGap, headlineTop)
-	bandBottom := height - gridBottom
+	bandTop := max(headlineBottom+headlineToGridGap, headlineTopMargin)
+	bandBottom := frameHeight - gridBottomMargin
 	block := blockHeight(g.rows, g.tileSize)
 
 	top := bandTop + max(bandBottom-bandTop-block, 0)/2
 	for r := range g.rows {
-		g.rowY[r] = top + r*(g.tileSize+captionGap+captionBand+tileGap)
+		g.rowY[r] = top + r*(g.tileSize+tileToCaptionGap+captionRowHeight+tileSpacing)
 	}
 }
 
 // blockHeight is how tall rows of tiles plus their captions come to.
 func blockHeight(rows, tile int) int {
-	return rows*(tile+captionGap+captionBand) + (rows-1)*tileGap
+	return rows*(tile+tileToCaptionGap+captionRowHeight) + (rows-1)*tileSpacing
 }
 
 // tile returns the box the i-th icon is drawn in.
 func (g grid) tile(i int) image.Rectangle {
 	r, c := g.rowOf(i)
-	x := g.rowX[r] + c*(g.tileSize+tileGap)
+	x := g.rowX[r] + c*(g.tileSize+tileSpacing)
 	y := g.rowY[r]
 	return image.Rect(x, y, x+g.tileSize, y+g.tileSize)
 }
@@ -174,7 +100,7 @@ func (g grid) tile(i int) image.Rectangle {
 // captionTop returns the top of the box the i-th caption is drawn in.
 func (g grid) captionTop(i int) int {
 	r, _ := g.rowOf(i)
-	return g.rowY[r] + g.tileSize + captionGap
+	return g.rowY[r] + g.tileSize + tileToCaptionGap
 }
 
 func (g grid) rowOf(i int) (row, col int) {

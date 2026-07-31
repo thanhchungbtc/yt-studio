@@ -5,43 +5,11 @@ import (
 	"image/color"
 	"image/draw"
 	_ "image/jpeg" // the background is a JPEG; decoding it is why this is here
+	"math"
 
 	xdraw "golang.org/x/image/draw"
 	"golang.org/x/image/font"
 	"golang.org/x/image/math/fixed"
-)
-
-// ---------------------------------------------------------------- palette ---
-//
-// The other half of the tuning block in layout.go. Colours are vars rather than
-// consts only because Go has no constant structs; treat them the same way.
-//
-// Alpha is honoured everywhere: a tileFill of A: 0 lets the background photo
-// show through the tiles entirely, and A: 255 makes them solid plates.
-var (
-	// The headline, and the captions under each tile.
-	inkHeadline = image.NewUniform(color.RGBA{R: 246, G: 246, B: 244, A: 255})
-	inkCaption  = image.NewUniform(color.RGBA{R: 226, G: 226, B: 222, A: 255})
-	// The plate behind each icon, and the border around it. The border is a hair
-	// off pure white: at 255 it out-shouts the artwork it is framing.
-	tileFill        = color.RGBA{R: 6, G: 6, B: 8, A: 235}
-	tileBorderColor = color.RGBA{R: 228, G: 228, B: 224, A: 255}
-)
-
-// How the icon's own background is keyed out.
-//
-// The icons arrive as artwork on a solid dark field — that is what an image
-// model returns when asked for line art, and what the samples are. Drawn as-is
-// they would stamp that field over the tile, so the darkness is turned into
-// transparency instead: everything at or below iconKeyLow disappears, everything
-// at or above iconKeyHigh is kept, and the ramp between the two is what stops
-// the artwork's anti-aliased edges from turning into a hard jagged cut.
-//
-// Raise iconKeyLow to eat more of a background that is not quite black. Lower
-// iconKeyHigh to keep more of the artwork's darker shading.
-const (
-	iconKeyLow  = 48
-	iconKeyHigh = 105
 )
 
 // cover scales an image to fill the frame and centre-crops the overflow, so a
@@ -68,13 +36,10 @@ func cover(src image.Image, w, h int) *image.RGBA {
 // thumbnails are nearly black behind their headline; this is what gets a
 // photograph there without losing its texture entirely.
 func scrim(img *image.RGBA) {
-	// Enough of the photograph to be a photograph, dark enough for white type to
-	// sit on it without an outline.
-	const keep = 150 // of 255
 	for i := 0; i < len(img.Pix); i += 4 {
-		img.Pix[i] = uint8(int(img.Pix[i]) * keep / 255)
-		img.Pix[i+1] = uint8(int(img.Pix[i+1]) * keep / 255)
-		img.Pix[i+2] = uint8(int(img.Pix[i+2]) * keep / 255)
+		img.Pix[i] = uint8(int(img.Pix[i]) * backgroundBrightness / 255)     //nolint:gosec // 0..255
+		img.Pix[i+1] = uint8(int(img.Pix[i+1]) * backgroundBrightness / 255) //nolint:gosec // 0..255
+		img.Pix[i+2] = uint8(int(img.Pix[i+2]) * backgroundBrightness / 255) //nolint:gosec // 0..255
 		img.Pix[i+3] = 255
 	}
 }
@@ -86,25 +51,22 @@ func drawHeadline(canvas *image.RGBA, h headlineLayout) {
 	}
 	for i, line := range h.lines {
 		w := measure(h.face, line, h.tracking).Ceil()
-		x := (width - w) / 2
+		x := (frameWidth - w) / 2
 		// The baseline sits above the bottom of the line box, which is what keeps
 		// descenders inside the block rather than in the gap below it.
 		baseline := h.top + i*h.lineH + h.size
-		drawString(canvas, h.face, line, x, baseline, h.tracking, inkHeadline)
+		drawString(canvas, h.face, line, x, baseline, h.tracking, headlineColor)
 	}
 }
 
-// drawTile paints one cell: a plate, a border, and the icon over them with its
-// own background keyed away.
+// drawTile paints one cell: a rounded plate, its border, and the icon over
+// them with its own background keyed away.
 func drawTile(canvas *image.RGBA, box image.Rectangle, icon image.Image) {
-	draw.Draw(canvas, box, image.NewUniform(tileFill), image.Point{}, draw.Over)
+	radius := min(tileCornerRadius, min(box.Dx(), box.Dy())/2)
+	paintPlate(canvas, box, radius)
 
-	// The border is what separates one tile from the next over a photograph.
-	for i := range tileBorder {
-		outline(canvas, box.Inset(i), tileBorderColor)
-	}
-
-	inner := box.Inset(tileBorder + tilePad)
+	inset := tileBorderWidth + tileIconPadding
+	inner := box.Inset(inset)
 	if inner.Dx() <= 0 || inner.Dy() <= 0 {
 		return
 	}
@@ -116,7 +78,90 @@ func drawTile(canvas *image.RGBA, box image.Rectangle, icon image.Image) {
 	scaled := image.NewRGBA(image.Rect(0, 0, inner.Dx(), inner.Dy()))
 	xdraw.CatmullRom.Scale(scaled, scaled.Bounds(), icon, icon.Bounds(), draw.Src, nil)
 	keyOutBackground(scaled)
-	draw.Draw(canvas, inner, scaled, image.Point{}, draw.Over)
+
+	// Masked to the same rounding, inset with everything else. Without it a
+	// square icon would poke out through the tile's corners at any radius wider
+	// than its padding.
+	mask := roundedMask(scaled.Bounds(), max(radius-inset, 0))
+	draw.DrawMask(canvas, inner, scaled, image.Point{}, mask, image.Point{}, draw.Over)
+}
+
+// paintPlate fills the tile and strokes its border, both rounded, in one pass
+// over the box.
+//
+// One pass rather than a fill followed by a stroke: the border colour is opaque
+// and the plate is not, so painting the whole shape in the border colour first
+// would tint the plate with whatever showed through.
+func paintPlate(canvas *image.RGBA, box image.Rectangle, radius int) {
+	inner := box.Inset(tileBorderWidth)
+	innerRadius := max(radius-tileBorderWidth, 0)
+
+	for y := box.Min.Y; y < box.Max.Y; y++ {
+		for x := box.Min.X; x < box.Max.X; x++ {
+			outside := coverage(x, y, box, radius)
+			if outside <= 0 {
+				continue
+			}
+			within := coverage(x, y, inner, innerRadius)
+			if ring := outside - within; ring > 0 {
+				blend(canvas, x, y, tileBorderColor, ring)
+			}
+			if within > 0 {
+				blend(canvas, x, y, tileFillColor, within)
+			}
+		}
+	}
+}
+
+// coverage is how much of the pixel at (x, y) falls inside a rounded rectangle,
+// from 0 to 1.
+//
+// It is the signed distance to the shape's edge, read as coverage across the
+// half pixel either side of it — which is what gives the corners a smooth arc
+// rather than a staircase.
+func coverage(x, y int, box image.Rectangle, radius int) float64 {
+	px, py := float64(x)+0.5, float64(y)+0.5
+	cx := float64(box.Min.X+box.Max.X) / 2
+	cy := float64(box.Min.Y+box.Max.Y) / 2
+
+	// Distance from the centre, measured to the box inset by its own corner
+	// radius: inside that inset rectangle the corners play no part.
+	qx := math.Abs(px-cx) - (float64(box.Dx())/2 - float64(radius))
+	qy := math.Abs(py-cy) - (float64(box.Dy())/2 - float64(radius))
+	d := math.Hypot(math.Max(qx, 0), math.Max(qy, 0)) +
+		math.Min(math.Max(qx, qy), 0) - float64(radius)
+
+	return math.Min(math.Max(0.5-d, 0), 1)
+}
+
+// roundedMask is the same shape as an alpha channel, for compositing something
+// else through it.
+func roundedMask(bounds image.Rectangle, radius int) *image.Alpha {
+	m := image.NewAlpha(bounds)
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			a := coverage(x, y, bounds, radius) * 255
+			m.SetAlpha(x, y, color.Alpha{A: uint8(a)}) //nolint:gosec // 0..255
+		}
+	}
+	return m
+}
+
+// blend lays a colour over one pixel at a coverage, honouring the colour's own
+// alpha. The canvas is opaque throughout, so there is no destination alpha to
+// carry.
+func blend(canvas *image.RGBA, x, y int, c color.RGBA, cov float64) {
+	a := cov * float64(c.A) / 255
+	if a <= 0 {
+		return
+	}
+	was := canvas.RGBAAt(x, y)
+	canvas.SetRGBA(x, y, color.RGBA{
+		R: uint8(float64(c.R)*a + float64(was.R)*(1-a)), //nolint:gosec // 0..255
+		G: uint8(float64(c.G)*a + float64(was.G)*(1-a)), //nolint:gosec // 0..255
+		B: uint8(float64(c.B)*a + float64(was.B)*(1-a)), //nolint:gosec // 0..255
+		A: 255,
+	})
 }
 
 // keyOutBackground turns an icon's dark field into transparency, in place.
@@ -134,35 +179,18 @@ func keyOutBackground(img *image.RGBA) {
 
 		var alpha int
 		switch {
-		case lum <= iconKeyLow:
+		case lum <= iconTransparentBelow:
 			alpha = 0
-		case lum >= iconKeyHigh:
+		case lum >= iconOpaqueAbove:
 			alpha = 255
 		default:
-			alpha = (lum - iconKeyLow) * 255 / (iconKeyHigh - iconKeyLow)
+			alpha = (lum - iconTransparentBelow) * 255 / (iconOpaqueAbove - iconTransparentBelow)
 		}
 
 		img.Pix[i] = uint8(r * alpha / 255)   //nolint:gosec // alpha is 0..255
 		img.Pix[i+1] = uint8(g * alpha / 255) //nolint:gosec // alpha is 0..255
 		img.Pix[i+2] = uint8(b * alpha / 255) //nolint:gosec // alpha is 0..255
 		img.Pix[i+3] = uint8(alpha)           //nolint:gosec // alpha is 0..255
-	}
-}
-
-func outline(canvas *image.RGBA, box image.Rectangle, c color.RGBA) {
-	for x := box.Min.X; x < box.Max.X; x++ {
-		set(canvas, x, box.Min.Y, c)
-		set(canvas, x, box.Max.Y-1, c)
-	}
-	for y := box.Min.Y; y < box.Max.Y; y++ {
-		set(canvas, box.Min.X, y, c)
-		set(canvas, box.Max.X-1, y, c)
-	}
-}
-
-func set(canvas *image.RGBA, x, y int, c color.RGBA) {
-	if x >= 0 && y >= 0 && x < width && y < height {
-		canvas.SetRGBA(x, y, c)
 	}
 }
 
@@ -177,5 +205,5 @@ func drawCaption(canvas *image.RGBA, face font.Face, caption string, box image.R
 	x := box.Min.X + (box.Dx()-w)/2
 	metrics := face.Metrics()
 	baseline := top + metrics.Ascent.Ceil()
-	drawString(canvas, face, text, x, baseline, fixed.Int26_6(0), inkCaption)
+	drawString(canvas, face, text, x, baseline, fixed.Int26_6(0), captionColor)
 }

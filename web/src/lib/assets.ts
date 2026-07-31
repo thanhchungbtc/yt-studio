@@ -5,7 +5,7 @@
  * produced it, so a preview needs no second request.
  */
 
-import { chapterKey } from './format'
+import { chapterKey, taskKindRank } from './format'
 import type { Asset, Chapter, Task, TaskKind } from './types'
 
 export type MediaType = 'image' | 'video' | 'audio' | 'text' | 'binary'
@@ -87,6 +87,17 @@ export function artifactKindFor(kind: TaskKind): string | undefined {
     if (task === kind) return artifact
   }
   return undefined
+}
+
+/**
+ * Where an artifact kind falls in the pipeline — the rank of the stage that
+ * produced it. It is what lets a listing read script, narration, stills, clip
+ * rather than alphabetically, which is the order the work actually happened in
+ * and the order an operator reviews it.
+ */
+export function artifactKindRank(kind: string): number {
+  const task = KIND_TASKS[kind]
+  return task ? taskKindRank(task) : Number.MAX_SAFE_INTEGER
 }
 
 /**

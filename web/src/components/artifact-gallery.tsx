@@ -3,19 +3,28 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   ArrowDownWideNarrow,
+  ChevronDown,
+  ChevronRight,
   Copy,
   Download,
   ExternalLink,
   Eye,
+  FoldVertical,
   Image as ImageIcon,
   LayoutGrid,
   ListTree,
   Maximize2,
   RefreshCw,
   Rows3,
+  UnfoldVertical,
 } from 'lucide-react'
 
-import { AssetPreview, assetKindTone, useAssetViewer } from '@/components/asset-viewer'
+import {
+  AssetPreview,
+  assetKindIcon,
+  assetKindTone,
+  useAssetViewer,
+} from '@/components/asset-viewer'
 import { RerunDialog } from '@/components/stale'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -36,7 +45,7 @@ import {
   Tooltip,
 } from '@/components/ui/primitives'
 import { assetUrl } from '@/lib/api'
-import { downloadName, kindTitle, mediaTypeOf, shortId } from '@/lib/assets'
+import { artifactKindRank, downloadName, kindTitle, mediaTypeOf, shortId } from '@/lib/assets'
 import type { ViewerItem } from '@/lib/assets'
 import { formatBytes, formatRelative } from '@/lib/format'
 import { useHotkeys } from '@/lib/hotkeys'
@@ -52,9 +61,16 @@ import { usePersisted } from '@/lib/workspace'
   show an operator asking whether the stills came out well — so the image leads
   and the address moves into the viewer.
 
-  At fifty chapters this is several hundred images, which is why the grid is
-  virtualised by row: the browser is asked for the dozen thumbnails on screen,
-  not for four hundred at once. The column count is measured rather than assumed,
+  The shape is a tree, because that is the shape of the thing: a video owns a
+  blueprint and a listing, each chapter owns a script, a narration, its stills
+  and the clip they were composed into. Two rules keep it from becoming a filing
+  cabinet — a kind with one artifact is drawn as that artifact rather than as a
+  folder holding it, and the kinds run in pipeline order rather than
+  alphabetically, so a chapter reads script, narration, stills, clip.
+
+  At fifty chapters this is several hundred images, which is why every row is
+  virtualised: the browser is asked for the dozen thumbnails on screen, not for
+  four hundred at once. The column count is measured rather than assumed,
   because the pane is behind a splitter and its width is the operator's choice.
 */
 
@@ -66,24 +82,63 @@ type Density = 's' | 'm' | 'l'
 const TILE_WIDTH: Record<Density, number> = { s: 132, m: 178, l: 248 }
 const GAP = 10
 const PAD = 12
-const GROUP_ROW = 30
+/** One step of the tree. Wide enough to read as a level, narrow enough to keep four. */
+const INDENT = 18
+const SECTION_ROW = 30
+const KIND_ROW = 26
+/** Two lines and a thumbnail, flat; one line under a header that names the rest. */
 const LIST_ROW = 42
+const LIST_ROW_TIGHT = 34
 /**
  * The caption under a tile: its border, then the title, the subtitle and the
  * address line at fixed leading. Fixed rather than measured, because the
  * virtualiser needs a row height before the row exists — so the card is built to
  * the number rather than the number guessed from the card.
  *
- * Under a group header the subtitle is gone — the header has already said which
- * chapter this is — and the tile is a line shorter.
+ * Inside the tree the subtitle is gone — a header has already said which chapter
+ * this is — and the tile is a line shorter.
  */
 const CARD_CHROME = 59
 const CARD_CHROME_TIGHT = 44
+/** Under a header that has already named it: the address line and nothing else. */
+const CARD_CHROME_BARE = 28
+
+interface Cell {
+  item: ViewerItem
+  /** Position in the flattened, visible order — what the viewer walks. */
+  index: number
+}
 
 type Row =
-  | { type: 'group'; key: string; label: string; count: number; bytes: number }
-  | { type: 'grid'; key: string; items: { item: ViewerItem; index: number }[] }
-  | { type: 'list'; key: string; item: ViewerItem; index: number }
+  | {
+      type: 'section'
+      key: string
+      depth: number
+      height: number
+      label: string
+      count: number
+      bytes: number
+    }
+  | {
+      type: 'kind'
+      key: string
+      depth: number
+      height: number
+      artifact: string
+      count: number
+      bytes: number
+      first: number
+    }
+  | {
+      type: 'grid'
+      key: string
+      depth: number
+      height: number
+      width: number
+      titled: boolean
+      cells: Cell[]
+    }
+  | { type: 'list'; key: string; depth: number; height: number; titled: boolean; cell: Cell }
 
 export function ArtifactGallery({
   video,
@@ -103,6 +158,7 @@ export function ArtifactGallery({
   const [group, setGroup] = usePersisted<GroupBy>('video.artifacts.group', 'chapter')
   const [sort, setSort] = usePersisted<SortKey>('video.artifacts.sort', 'pipeline')
   const [density, setDensity] = usePersisted<Density>('video.artifacts.density', 'm')
+  const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set())
   const [rerunning, setRerunning] = useState<ViewerItem | null>(null)
 
   const searchRef = useRef<HTMLInputElement>(null)
@@ -120,7 +176,7 @@ export function ArtifactGallery({
   const kinds = useMemo(() => {
     const counts = new Map<string, number>()
     for (const item of items) counts.set(item.kind, (counts.get(item.kind) ?? 0) + 1)
-    return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+    return [...counts.entries()].sort((a, b) => artifactKindRank(a[0]) - artifactKindRank(b[0]))
   }, [items])
 
   // A filter that outlives the artifact it matched leaves an empty pane with no
@@ -162,84 +218,57 @@ export function ArtifactGallery({
     return () => observer.disconnect()
   }, [])
 
-  // Grouping is by chapter and only ever by chapter: it is the only axis along
-  // which an operator reviews a video, and the kind axis is already the filter.
-  // Sorting by size or age crosses chapters, so it puts the groups away.
-  const grouped = group === 'chapter' && sort === 'pipeline'
+  // The tree is by chapter and only ever by chapter: it is the only axis along
+  // which an operator reviews a video, and the kind axis is the filter above.
+  // Sorting by size or age crosses chapters, so it flattens the tree.
+  const tree = group === 'chapter' && sort === 'pipeline'
+  // A folded section would hide the very thing being searched for.
+  const searching = search.length > 0
 
   const tile = TILE_WIDTH[density]
-  const inner = Math.max(0, width - PAD * 2)
-  const columns = Math.max(1, Math.floor((inner + GAP) / (tile + GAP)))
-  const cellWidth = columns > 0 ? (inner - GAP * (columns - 1)) / columns : tile
-  // 16:10 media plus the caption block, which is a fixed height at every density.
-  const chrome = grouped ? CARD_CHROME_TIGHT : CARD_CHROME
-  const gridRowHeight = Math.round((cellWidth * 10) / 16) + chrome + GAP
 
-  const rows = useMemo<Row[]>(() => {
-    const indexed = shown.map((item, index) => ({ item, index }))
-    const perRow = view === 'grid' ? columns : 1
-    const emit = (cells: { item: ViewerItem; index: number }[], keyPrefix: string): Row[] => {
-      if (view === 'list') {
-        return cells.map(({ item, index }) => ({
-          type: 'list',
-          key: `${item.id}:${index}`,
-          item,
-          index,
-        }))
-      }
-      const out: Row[] = []
-      for (let i = 0; i < cells.length; i += perRow) {
-        out.push({ type: 'grid', key: `${keyPrefix}:${i}`, items: cells.slice(i, i + perRow) })
-      }
-      return out
-    }
-
-    if (!grouped) return emit(indexed, 'r')
-
-    const groups = new Map<number, { label: string; cells: typeof indexed }>()
-    for (const cell of indexed) {
-      const ordinal = cell.item.ordinal ?? 0
-      const entry = groups.get(ordinal) ?? {
-        label: ordinal > 0 ? (cell.item.subtitle ?? `Chapter ${ordinal}`) : 'Whole video',
-        cells: [],
-      }
-      entry.cells.push(cell)
-      groups.set(ordinal, entry)
-    }
-
-    const out: Row[] = []
-    for (const [ordinal, entry] of [...groups.entries()].sort((a, b) => a[0] - b[0])) {
-      out.push({
-        type: 'group',
-        key: `g:${ordinal}`,
-        label: entry.label,
-        count: entry.cells.length,
-        bytes: entry.cells.reduce((sum, cell) => sum + (cell.item.size ?? 0), 0),
-      })
-      out.push(...emit(entry.cells, `g:${ordinal}`))
-    }
-    return out
-  }, [shown, grouped, view, columns])
+  const { rows, ordered } = useMemo(
+    () =>
+      buildRows({
+        shown,
+        tree,
+        view,
+        available: Math.max(0, width - PAD * 2),
+        tile,
+        folded: searching ? EMPTY : folded,
+      }),
+    [shown, tree, view, width, tile, folded, searching],
+  )
 
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: (index) => {
-      const row = rows[index]
-      if (!row) return LIST_ROW
-      if (row.type === 'group') return GROUP_ROW
-      return row.type === 'grid' ? gridRowHeight : LIST_ROW
-    },
+    estimateSize: (index) => rows[index]?.height ?? LIST_ROW,
     getItemKey: (index) => rows[index]?.key ?? index,
     overscan: 6,
   })
 
   // Row heights here are computed, not measured — a wider pane, a bigger tile or
-  // a switch to the list changes every one of them at once, and the cached
+  // a switch of layout changes every one of them at once, and the cached
   // measurements have to be thrown away with them.
   useEffect(() => {
     virtualizer.measure()
-  }, [virtualizer, gridRowHeight, view, grouped])
+  }, [virtualizer, rows])
+
+  const toggle = (key: string) =>
+    setFolded((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+
+  /** Every collapsible node, so "collapse all" does not have to guess. */
+  const allNodes = useMemo(
+    () => rows.flatMap((row) => (row.type === 'section' || row.type === 'kind' ? [row.key] : [])),
+    [rows],
+  )
+  const anyOpen = allNodes.some((key) => !folded.has(key))
 
   /* ------------------------------------------------------------------ chrome */
 
@@ -298,7 +327,7 @@ export function ArtifactGallery({
           <Tooltip
             label={
               sort === 'pipeline'
-                ? 'In pipeline order — chapter by chapter'
+                ? 'Pipeline order — chapter by chapter, stage by stage'
                 : sort === 'newest'
                   ? 'Newest first'
                   : 'Largest first'
@@ -375,33 +404,59 @@ export function ArtifactGallery({
               return (
                 <div
                   key={virtual.key}
-                  className="absolute left-0 w-full px-3"
+                  className="absolute left-0 w-full"
                   style={{ height: virtual.size, transform: `translateY(${virtual.start}px)` }}
                 >
-                  {row.type === 'group' && (
-                    <GroupHeader label={row.label} count={row.count} bytes={row.bytes} />
-                  )}
-                  {row.type === 'grid' && (
-                    <div className="flex" style={{ gap: GAP }}>
-                      {row.items.map(({ item, index }) => (
-                        <ArtifactCard
-                          key={`${item.id}:${index}`}
-                          item={item}
-                          width={cellWidth}
-                          subtitle={!grouped}
-                          onOpen={() => openViewer(shown, index)}
-                          onRerun={() => setRerunning(item)}
-                        />
-                      ))}
-                    </div>
-                  )}
-                  {row.type === 'list' && (
-                    <ArtifactRow
-                      item={row.item}
-                      onOpen={() => openViewer(shown, row.index)}
-                      onRerun={() => setRerunning(row.item)}
-                    />
-                  )}
+                  <div
+                    className="relative h-full"
+                    style={{ paddingLeft: PAD + row.depth * INDENT, paddingRight: PAD }}
+                  >
+                    <Guides depth={row.depth} />
+
+                    {row.type === 'section' && (
+                      <SectionHeader
+                        label={row.label}
+                        count={row.count}
+                        bytes={row.bytes}
+                        folded={folded.has(row.key)}
+                        onToggle={() => toggle(row.key)}
+                      />
+                    )}
+                    {row.type === 'kind' && (
+                      <KindHeader
+                        artifact={row.artifact}
+                        count={row.count}
+                        bytes={row.bytes}
+                        folded={folded.has(row.key)}
+                        onToggle={() => toggle(row.key)}
+                        onView={() => openViewer(ordered, row.first)}
+                      />
+                    )}
+                    {row.type === 'grid' && (
+                      <div className="flex" style={{ gap: GAP }}>
+                        {row.cells.map(({ item, index }) => (
+                          <ArtifactCard
+                            key={`${item.id}:${index}`}
+                            item={item}
+                            width={row.width}
+                            titled={row.titled}
+                            subtitle={!tree}
+                            onOpen={() => openViewer(ordered, index)}
+                            onRerun={() => setRerunning(item)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {row.type === 'list' && (
+                      <ArtifactRow
+                        item={row.cell.item}
+                        titled={row.titled}
+                        subtitle={!tree}
+                        onOpen={() => openViewer(ordered, row.cell.index)}
+                        onRerun={() => setRerunning(row.cell.item)}
+                      />
+                    )}
+                  </div>
                 </div>
               )
             })}
@@ -417,11 +472,29 @@ export function ArtifactGallery({
           {' · '}
           {formatBytes(shownBytes)}
         </span>
+
+        {tree && allNodes.length > 0 && (
+          <Tooltip label={anyOpen ? 'Collapse every group' : 'Expand every group'}>
+            <button
+              type="button"
+              onClick={() => setFolded(anyOpen ? new Set(allNodes) : EMPTY)}
+              className="flex items-center gap-1.5 rounded-[var(--radius-xs)] px-1.5 py-0.5 transition-colors hover:text-fg"
+            >
+              {anyOpen ? (
+                <FoldVertical className="h-3 w-3" />
+              ) : (
+                <UnfoldVertical className="h-3 w-3" />
+              )}
+              {anyOpen ? 'Collapse all' : 'Expand all'}
+            </button>
+          </Tooltip>
+        )}
+
         <Tooltip
           label={
             sort === 'pipeline'
-              ? 'Group the grid by chapter, or lay it out flat'
-              : 'Sorting by size or age crosses chapters, so the groups step aside'
+              ? 'Nest the artifacts by chapter and stage, or lay them out flat'
+              : 'Sorting by size or age crosses chapters, so the tree stands down'
           }
         >
           <button
@@ -433,16 +506,12 @@ export function ArtifactGallery({
             aria-disabled={sort !== 'pipeline'}
             className={cn(
               'ml-auto flex items-center gap-1.5 rounded-[var(--radius-xs)] px-1.5 py-0.5 transition-colors hover:text-fg',
-              grouped && 'text-fg',
+              tree && 'text-fg',
               sort !== 'pipeline' && 'opacity-40',
             )}
           >
             <ListTree className="h-3 w-3" />
-            {sort === 'pipeline'
-              ? grouped
-                ? 'Grouped by chapter'
-                : 'Flat'
-              : 'Grouping is off while sorted'}
+            {sort === 'pipeline' ? (tree ? 'Tree' : 'Flat') : 'Tree is off while sorted'}
           </button>
         </Tooltip>
       </div>
@@ -463,35 +532,301 @@ export function ArtifactGallery({
   )
 }
 
-/* ------------------------------------------------------------------- pieces */
+/* --------------------------------------------------------------- the model */
 
-function GroupHeader({ label, count, bytes }: { label: string; count: number; bytes: number }) {
+const EMPTY: ReadonlySet<string> = new Set()
+
+/**
+ * The visible rows, and the order the viewer walks.
+ *
+ * Both come out of one pass because they have to agree: pressing → in the
+ * lightbox should land on whatever was drawn next, which is neither the order
+ * the assets arrived in nor the order they are stored in. A folded group
+ * contributes nothing to either.
+ */
+function buildRows({
+  shown,
+  tree,
+  view,
+  available,
+  tile,
+  folded,
+}: {
+  shown: ViewerItem[]
+  tree: boolean
+  view: View
+  available: number
+  tile: number
+  folded: ReadonlySet<string>
+}): { rows: Row[]; ordered: ViewerItem[] } {
+  const rows: Row[] = []
+  const ordered: ViewerItem[] = []
+
+  /*
+    How much caption a tile carries, which is what its height is made of.
+    Outside the tree it needs its chapter; inside, a header has already said
+    that; and under a header naming a kind whose artifacts are all called the
+    same thing — twelve tiles reading "Thumbnail icon" — the title is the
+    header repeated, so the address does the distinguishing on its own.
+  */
+  const chromeFor = (titled: boolean) =>
+    !titled ? CARD_CHROME_BARE : tree ? CARD_CHROME_TIGHT : CARD_CHROME
+
+  // Per depth, because an indented row is a narrower row: one fewer column, and
+  // every tile in it a little smaller.
+  const geometry = (depth: number, titled: boolean) => {
+    const usable = Math.max(tile, available - depth * INDENT)
+    const columns = Math.max(1, Math.floor((usable + GAP) / (tile + GAP)))
+    const width = (usable - GAP * (columns - 1)) / columns
+    return { columns, width, height: Math.round((width * 10) / 16) + chromeFor(titled) + GAP }
+  }
+
+  const emit = (items: ViewerItem[], depth: number, titled = true) => {
+    const cells: Cell[] = items.map((item) => {
+      ordered.push(item)
+      return { item, index: ordered.length - 1 }
+    })
+    if (view === 'list') {
+      for (const cell of cells) {
+        rows.push({
+          type: 'list',
+          key: `l:${cell.index}`,
+          depth,
+          height: tree ? LIST_ROW_TIGHT : LIST_ROW,
+          cell,
+          titled,
+        })
+      }
+      return
+    }
+    const { columns, width, height } = geometry(depth, titled)
+    for (let i = 0; i < cells.length; i += columns) {
+      rows.push({
+        type: 'grid',
+        key: `g:${depth}:${cells[i]?.index ?? i}`,
+        depth,
+        height,
+        titled,
+        width,
+        cells: cells.slice(i, i + columns),
+      })
+    }
+  }
+
+  if (!tree) {
+    emit(shown, 0)
+    return { rows, ordered }
+  }
+
+  const sections = new Map<number, { label: string; items: ViewerItem[] }>()
+  for (const item of shown) {
+    const ordinal = item.ordinal ?? 0
+    const section = sections.get(ordinal) ?? {
+      label: ordinal > 0 ? (item.subtitle ?? `Chapter ${ordinal}`) : 'Whole video',
+      items: [],
+    }
+    section.items.push(item)
+    sections.set(ordinal, section)
+  }
+
+  for (const [ordinal, section] of [...sections.entries()].sort((a, b) => a[0] - b[0])) {
+    const key = `s:${ordinal}`
+    rows.push({
+      type: 'section',
+      key,
+      depth: 0,
+      height: SECTION_ROW,
+      label: section.label,
+      count: section.items.length,
+      bytes: bytesOf(section.items),
+    })
+    if (folded.has(key)) continue
+
+    const byKind = new Map<string, ViewerItem[]>()
+    for (const item of section.items) {
+      const list = byKind.get(item.kind)
+      if (list) list.push(item)
+      else byKind.set(item.kind, [item])
+    }
+
+    /*
+      A kind with one artifact is that artifact, not a folder holding it — a
+      chapter's script does not deserve a node of its own. Consecutive singles
+      are gathered into one run so the grid packs them into a shared row instead
+      of giving each a line to itself.
+    */
+    let run: ViewerItem[] = []
+    const flush = () => {
+      if (run.length === 0) return
+      emit(run, 1)
+      run = []
+    }
+
+    for (const artifact of [...byKind.keys()].sort(
+      (a, b) => artifactKindRank(a) - artifactKindRank(b),
+    )) {
+      const group = byKind.get(artifact) ?? []
+      if (group.length === 1) {
+        run.push(...group)
+        continue
+      }
+      flush()
+      const kindKey = `k:${ordinal}:${artifact}`
+      rows.push({
+        type: 'kind',
+        key: kindKey,
+        depth: 1,
+        height: KIND_ROW,
+        artifact,
+        count: group.length,
+        bytes: bytesOf(group),
+        first: ordered.length,
+      })
+      if (folded.has(kindKey)) continue
+      // Stills are numbered by their slot and are worth naming; thumbnail icons
+      // all carry the same name, and eleven copies of it say nothing the header
+      // has not.
+      const named = new Set(group.map((item) => item.title)).size > 1
+      emit(group, 2, named)
+    }
+    flush()
+  }
+
+  return { rows, ordered }
+}
+
+function bytesOf(items: ViewerItem[]): number {
+  return items.reduce((sum, item) => sum + (item.size ?? 0), 0)
+}
+
+/* -------------------------------------------------------------- the pieces */
+
+/**
+ * The vertical rules that make the indentation read as a tree rather than as
+ * margin. Drawn per row rather than per branch: the list is virtualised, so
+ * there is no element spanning a whole group to hang a border on.
+ */
+function Guides({ depth }: { depth: number }) {
+  if (depth === 0) return null
+  return (
+    <>
+      {Array.from({ length: depth }, (_, level) => (
+        <span
+          key={level}
+          aria-hidden
+          className="absolute inset-y-0 w-px bg-[hsl(var(--border))]"
+          style={{ left: PAD + level * INDENT + 7 }}
+        />
+      ))}
+    </>
+  )
+}
+
+function SectionHeader({
+  label,
+  count,
+  bytes,
+  folded,
+  onToggle,
+}: {
+  label: string
+  count: number
+  bytes: number
+  folded: boolean
+  onToggle: () => void
+}) {
   return (
     <div className="flex h-full items-center gap-2 no-select">
-      <h3 className="truncate text-[11.5px] font-semibold text-fg">{label}</h3>
-      <span className="tabular shrink-0 text-[10.5px] text-subtle">
-        {count} · {formatBytes(bytes)}
-      </span>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={!folded}
+        className="flex min-w-0 items-center gap-1.5 text-left"
+      >
+        <Chevron folded={folded} />
+        <span className="truncate text-[11.5px] font-semibold text-fg">{label}</span>
+        <span className="tabular shrink-0 text-[10.5px] text-subtle">
+          {count} · {formatBytes(bytes)}
+        </span>
+      </button>
       <span className="h-px min-w-4 flex-1 bg-[hsl(var(--border))]" aria-hidden />
     </div>
   )
 }
 
+function KindHeader({
+  artifact,
+  count,
+  bytes,
+  folded,
+  onToggle,
+  onView,
+}: {
+  artifact: string
+  count: number
+  bytes: number
+  folded: boolean
+  onToggle: () => void
+  onView: () => void
+}) {
+  const Icon = assetKindIcon(artifact)
+  return (
+    <div className="group flex h-full items-center gap-2 no-select">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={!folded}
+        className="flex min-w-0 items-center gap-1.5 text-left"
+      >
+        <Chevron folded={folded} />
+        <Icon className="h-3 w-3 shrink-0 text-subtle" aria-hidden />
+        <span className="truncate text-[11.5px] font-medium text-muted">{kindTitle(artifact)}</span>
+        <span className="tabular shrink-0 text-[10.5px] text-subtle">
+          {count} · {formatBytes(bytes)}
+        </span>
+      </button>
+      <Tooltip label={`Open all ${count} in the viewer`}>
+        <Button
+          size="xs"
+          variant="ghost"
+          onClick={onView}
+          className="h-5 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+        >
+          <Eye className="h-3 w-3" />
+          View
+        </Button>
+      </Tooltip>
+      <span className="h-px min-w-4 flex-1 bg-[hsl(var(--border))]" aria-hidden />
+    </div>
+  )
+}
+
+function Chevron({ folded }: { folded: boolean }) {
+  return folded ? (
+    <ChevronRight className="h-3 w-3 shrink-0 text-subtle" aria-hidden />
+  ) : (
+    <ChevronDown className="h-3 w-3 shrink-0 text-subtle" aria-hidden />
+  )
+}
+
 /**
  * One artifact as a tile. The card is a plain element rather than a button so
- * the download and raw-file affordances can be real anchors on top of it — a
- * link nested in a button is not a link at all.
+ * the download affordance can be a real anchor on top of it — a link nested in a
+ * button is not a link at all.
  */
 function ArtifactCard({
   item,
   width,
+  titled,
   subtitle,
   onOpen,
   onRerun,
 }: {
   item: ViewerItem
   width: number
-  /** Dropped under a group header, which has already named the chapter. */
+  /** Dropped under a kind header when every tile under it carries the same name. */
+  titled: boolean
+  /** Dropped inside the tree, where a header has already named the chapter. */
   subtitle: boolean
   onOpen: () => void
   onRerun: () => void
@@ -523,16 +858,28 @@ function ArtifactCard({
               </span>
             )}
           </span>
-          <span className={cn('block px-2.5 py-1.5', subtitle ? 'h-[58px]' : 'h-[43px]')}>
-            <span className="block truncate text-[12px] font-medium leading-[16px] text-fg">
-              {item.title}
-            </span>
-            {subtitle && (
+          <span
+            className={cn(
+              'block px-2.5 py-1.5',
+              !titled ? 'h-[27px]' : subtitle ? 'h-[58px]' : 'h-[43px]',
+            )}
+          >
+            {titled && (
+              <span className="block truncate text-[12px] font-medium leading-[16px] text-fg">
+                {item.title}
+              </span>
+            )}
+            {titled && subtitle && (
               <span className="block truncate text-[11px] leading-[15px] text-subtle">
                 {item.subtitle}
               </span>
             )}
-            <span className="flex items-center justify-between gap-2 text-[10.5px] leading-[15px] text-subtle">
+            <span
+              className={cn(
+                'flex items-center justify-between gap-2 text-[10.5px] leading-[15px]',
+                titled ? 'text-subtle' : 'text-muted',
+              )}
+            >
               <Mono className="truncate text-[10.5px] leading-[15px]">{shortId(item.id)}</Mono>
               <span className="tabular shrink-0">{formatBytes(item.size ?? 0)}</span>
             </span>
@@ -579,17 +926,16 @@ function OverlayLink({
   )
 }
 
-/**
- * One artifact as a row. Unlike a tile it keeps its full subtitle even under a
- * group header: a list is read down its columns, and a column that empties out
- * inside every group is harder to read than one that repeats.
- */
 function ArtifactRow({
   item,
+  titled,
+  subtitle,
   onOpen,
   onRerun,
 }: {
   item: ViewerItem
+  titled: boolean
+  subtitle: boolean
   onOpen: () => void
   onRerun: () => void
 }) {
@@ -602,12 +948,23 @@ function ArtifactRow({
           aria-label={`Preview ${item.title}`}
           className="flex min-w-0 flex-1 items-center gap-3 text-left"
         >
-          <span className="h-8 w-14 shrink-0 overflow-hidden rounded-[var(--radius-xs)] border border-[hsl(var(--border))]">
+          <span
+            className={cn(
+              'shrink-0 overflow-hidden rounded-[var(--radius-xs)] border border-[hsl(var(--border))]',
+              subtitle ? 'h-8 w-14' : 'h-6 w-11',
+            )}
+          >
             <AssetPreview item={item} />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-medium text-fg">{item.title}</span>
-            <span className="block truncate text-[11px] text-subtle">{item.subtitle}</span>
+            {titled ? (
+              <span className="block truncate font-medium text-fg">{item.title}</span>
+            ) : (
+              <Mono className="block truncate text-[11.5px] text-muted">{item.id}</Mono>
+            )}
+            {titled && subtitle && (
+              <span className="block truncate text-[11px] text-subtle">{item.subtitle}</span>
+            )}
           </span>
           <Badge tone={assetKindTone(item.kind)} className="hidden shrink-0 sm:inline-flex">
             {item.kind}

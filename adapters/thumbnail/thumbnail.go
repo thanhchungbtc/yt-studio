@@ -82,7 +82,7 @@ func (b *Builder) Build(ctx context.Context, req provider.ThumbnailRequest) (ent
 		return "", err
 	}
 
-	canvas := image.NewRGBA(image.Rect(0, 0, width, height))
+	canvas := image.NewRGBA(image.Rect(0, 0, frameWidth, frameHeight))
 	copy(canvas.Pix, background.Pix)
 
 	// The grid is laid out first and takes the width it needs; the headline is
@@ -91,14 +91,14 @@ func (b *Builder) Build(ctx context.Context, req provider.ThumbnailRequest) (ent
 	cells := layOutGrid(len(req.Cells), opts.Rows)
 	headline := layOutHeadline(font, req.Headline, cells.headlineBudget())
 	drawHeadline(canvas, headline)
-	cells.place(headlineTop + headline.height())
+	cells.place(headlineTopMargin + headline.height())
 
 	if err := b.drawGrid(ctx, canvas, font, req.Cells, cells); err != nil {
 		return "", err
 	}
 
 	var buf bytes.Buffer
-	buf.Grow(width * height / 2)
+	buf.Grow(frameWidth * frameHeight / 2)
 	// Default compression, not best. On a photographic frame this size, best
 	// costs roughly seven times the CPU to save six percent of the bytes — half
 	// a megabyte either way, against YouTube's two megabyte ceiling. The mock's
@@ -120,10 +120,10 @@ func (b *Builder) options() Options {
 		opts = b.opts()
 	}
 	if opts.Font == "" {
-		opts.Font = defaultFont
+		opts.Font = defaultFontFile
 	}
 	if opts.Rows < 1 {
-		opts.Rows = defaultRows
+		opts.Rows = defaultGridRows
 	}
 	return opts
 }
@@ -138,7 +138,7 @@ func (b *Builder) options() Options {
 // here and the answer never differs: one backdrop, one frame, for the life of
 // the process.
 func (b *Builder) background() (*image.RGBA, error) {
-	path := filepath.Join(b.dir, backgroundFile)
+	path := filepath.Join(b.dir, backgroundFileName)
 
 	backdropsMu.Lock()
 	defer backdropsMu.Unlock()
@@ -167,15 +167,15 @@ var (
 func loadBackground(path string) (*image.RGBA, error) {
 	f, err := os.Open(path) //nolint:gosec // path is operator-configured
 	if err != nil {
-		return nil, fmt.Errorf("%w: %s: %w", ErrUnavailable, backgroundFile, err)
+		return nil, fmt.Errorf("%w: %s: %w", ErrUnavailable, backgroundFileName, err)
 	}
 	defer func() { _ = f.Close() }()
 
 	src, _, err := image.Decode(f)
 	if err != nil {
-		return nil, fmt.Errorf("%w: decode %s: %w", ErrUnavailable, backgroundFile, err)
+		return nil, fmt.Errorf("%w: decode %s: %w", ErrUnavailable, backgroundFileName, err)
 	}
-	img := cover(src, width, height)
+	img := cover(src, frameWidth, frameHeight)
 	scrim(img)
 	return img, nil
 }

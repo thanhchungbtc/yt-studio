@@ -20,8 +20,8 @@ func TestTilesAreAsLargeAsTheFrameAllows(t *testing.T) {
 		g := layOutGrid(tc.cells, tc.rows)
 		grow := g.tileSize + 2
 
-		tooWide := g.cols*grow+(g.cols-1)*tileGap > width-2*gridMarginX
-		tooTall := height-blockHeight(g.rows, grow)-gridBottom-gridGap < headlineTop+headlineMin
+		tooWide := g.cols*grow+(g.cols-1)*tileSpacing > frameWidth-2*gridSideMargin
+		tooTall := frameHeight-blockHeight(g.rows, grow)-gridBottomMargin-headlineToGridGap < headlineTopMargin+headlineFontMin
 		if !tooWide && !tooTall {
 			t.Errorf("%d cells in %d rows: tiles are %dpx and could have been larger",
 				tc.cells, tc.rows, g.tileSize)
@@ -29,14 +29,14 @@ func TestTilesAreAsLargeAsTheFrameAllows(t *testing.T) {
 
 		// And whatever the tiles came out as, the grid fits the frame with room
 		// left for a headline.
-		bottom := g.rowY[len(g.rowY)-1] + g.tileSize + captionGap + captionBand
-		if bottom > height {
+		bottom := g.rowY[len(g.rowY)-1] + g.tileSize + tileToCaptionGap + captionRowHeight
+		if bottom > frameHeight {
 			t.Errorf("%d cells in %d rows: grid ends at %d, past the %dpx frame",
-				tc.cells, tc.rows, bottom, height)
+				tc.cells, tc.rows, bottom, frameHeight)
 		}
-		if budget := g.headlineBudget(); budget < headlineMin {
+		if budget := g.headlineBudget(); budget < headlineFontMin {
 			t.Errorf("%d cells in %d rows: headline left %dpx, under its %dpx floor",
-				tc.cells, tc.rows, budget, headlineMin)
+				tc.cells, tc.rows, budget, headlineFontMin)
 		}
 	}
 }
@@ -50,12 +50,12 @@ func TestUsefulGridsAreWidthBound(t *testing.T) {
 		g := layOutGrid(tc.cells, tc.rows)
 		widest := 0
 		for _, n := range g.counts {
-			widest = max(widest, n*g.tileSize+(n-1)*tileGap)
+			widest = max(widest, n*g.tileSize+(n-1)*tileSpacing)
 		}
 		// Within one tile of the full span: the remainder is integer division.
-		if slack := width - 2*gridMarginX - widest; slack < 0 || slack >= g.tileSize {
+		if slack := frameWidth - 2*gridSideMargin - widest; slack < 0 || slack >= g.tileSize {
 			t.Errorf("%d cells in %d rows: widest row is %dpx of an available %dpx",
-				tc.cells, tc.rows, widest, width-2*gridMarginX)
+				tc.cells, tc.rows, widest, frameWidth-2*gridSideMargin)
 		}
 	}
 }
@@ -81,7 +81,7 @@ func TestEveryCellIsPlacedOnce(t *testing.T) {
 			t.Fatalf("cell %d lands on a box already taken", i)
 		}
 		seen[key] = true
-		if box.Min.X < 0 || box.Max.X > width {
+		if box.Min.X < 0 || box.Max.X > frameWidth {
 			t.Fatalf("cell %d spills the frame: %v", i, box)
 		}
 	}

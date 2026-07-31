@@ -74,7 +74,7 @@ var (
 // thumbnails are visibly letter-spaced, and a face drawn at its natural
 // advances reads as ordinary text rather than as a title.
 func trackingFor(size int) fixed.Int26_6 {
-	return fixed.I(max(size/headlineTrack, 1))
+	return fixed.I(max(size/headlineTracking, 1))
 }
 
 // measure returns the drawn width of a string at a face, tracking included.
@@ -149,14 +149,14 @@ func layOutHeadline(parsed *sfnt.Font, headline string, maxHeight int) headlineL
 	if len(words) == 0 {
 		return headlineLayout{}
 	}
-	maxWidth := fixed.I(width - 2*headlineMarginX)
+	maxWidth := fixed.I(frameWidth - 2*headlineSideMargin)
 
 	// One line is the design. Every size is tried at one line before any is tried
 	// at two, so a hook that fits small-and-single beats one that fits
 	// large-and-wrapped — the reference thumbnails are single-line, and a wrapped
 	// headline costs the grid a third of its height.
-	for lines := 1; lines <= headlineLines; lines++ {
-		for size := headlineMax; size >= headlineMin; size -= headlineStep {
+	for lines := 1; lines <= headlineMaxLines; lines++ {
+		for size := headlineFontMax; size >= headlineFontMin; size -= headlineFontStep {
 			face, err := faceOf(parsed, size)
 			if err != nil {
 				continue
@@ -168,7 +168,7 @@ func layOutHeadline(parsed *sfnt.Font, headline string, maxHeight int) headlineL
 			}
 			candidate := headlineLayout{
 				lines: wrapped, size: size, face: face, tracking: tracking,
-				top: headlineTop, lineH: size + headlineLead,
+				top: headlineTopMargin, lineH: size + headlineLineGap,
 			}
 			if candidate.height() <= maxHeight {
 				return candidate
@@ -176,24 +176,24 @@ func layOutHeadline(parsed *sfnt.Font, headline string, maxHeight int) headlineL
 		}
 	}
 
-	face, err := faceOf(parsed, headlineMin)
+	face, err := faceOf(parsed, headlineFontMin)
 	if err != nil {
 		return headlineLayout{}
 	}
-	tracking := trackingFor(headlineMin)
+	tracking := trackingFor(headlineFontMin)
 	lines := wrap(face, words, maxWidth, tracking)
-	if len(lines) > headlineLines {
-		lines = lines[:headlineLines]
+	if len(lines) > headlineMaxLines {
+		lines = lines[:headlineMaxLines]
 	}
 	return headlineLayout{
-		lines: lines, size: headlineMin, face: face, tracking: tracking,
-		top: headlineTop, lineH: headlineMin + headlineLead,
+		lines: lines, size: headlineFontMin, face: face, tracking: tracking,
+		top: headlineTopMargin, lineH: headlineFontMin + headlineLineGap,
 	}
 }
 
 // wrap greedily breaks words into lines that fit.
 func wrap(face font.Face, words []string, maxWidth, tracking fixed.Int26_6) []string {
-	lines := make([]string, 0, headlineLines+1)
+	lines := make([]string, 0, headlineMaxLines+1)
 	current := ""
 	for _, w := range words {
 		candidate := w
@@ -221,7 +221,7 @@ func wrap(face font.Face, words []string, maxWidth, tracking fixed.Int26_6) []st
 // grid's whole job is to read as a set.
 func fitCaptions(parsed *sfnt.Font, captions []string, maxWidth int) font.Face {
 	limit := fixed.I(maxWidth)
-	for size := captionMax; size >= captionMin; size -= captionStep {
+	for size := captionFontMax; size >= captionFontMin; size -= captionFontStep {
 		face, err := faceOf(parsed, size)
 		if err != nil {
 			continue
@@ -230,7 +230,7 @@ func fitCaptions(parsed *sfnt.Font, captions []string, maxWidth int) font.Face {
 			return face
 		}
 	}
-	face, err := faceOf(parsed, captionMin)
+	face, err := faceOf(parsed, captionFontMin)
 	if err != nil {
 		return nil
 	}
