@@ -98,6 +98,7 @@ func newHarness(t *testing.T) *harness {
 		mockprovider.NewImage(assets, tuning),
 		mockprovider.NewComposer(assets, tuning),
 		mockprovider.NewThumbnail(assets, tuning),
+		mockprovider.NewIcon(assets, tuning),
 		mockprovider.NewUploader(assets, tuning, func() time.Time { return time.Unix(1_700_000_000, 0).UTC() }),
 		broker,
 		expander,
@@ -106,6 +107,12 @@ func newHarness(t *testing.T) *harness {
 				ChapterTolerancePercent: settings.Int(entity.SettingVideoChapterTolerancePercent),
 				MaxAttempts:             settings.Int(entity.SettingTaskMaxAttempts),
 				UploadGate:              settings.GateEnabled(entity.GateUpload),
+			}
+		},
+		func() app.IconOptions {
+			return app.IconOptions{
+				Style: settings.String(entity.SettingThumbnailIconStyle),
+				Size:  settings.Int(entity.SettingThumbnailIconSize),
 			}
 		},
 		func() bool { return settings.Bool(entity.SettingUploadDryRun) },
@@ -311,6 +318,11 @@ func (h *harness) approve(ref, gate string, timeout time.Duration) {
 	h.json(http.MethodPost, "/api/videos/"+ref+"/approve", map[string]any{"gate": gate}, http.StatusOK, nil)
 }
 
+// testThumbnailCells is the grid width every test video asks for. Deliberately
+// not the shipped default of ten: a test that passes only at the default is a
+// test that is reading the default.
+const testThumbnailCells = 4
+
 func createVideo(h *harness, chapters, images int, start bool) videoBody {
 	h.t.Helper()
 	var v videoBody
@@ -320,6 +332,7 @@ func createVideo(h *harness, chapters, images int, start bool) videoBody {
 		"topic":            "a northern port town",
 		"chapterCount":     chapters,
 		"imagesPerChapter": images,
+		"thumbnailCells":   testThumbnailCells,
 		"start":            start,
 	}, http.StatusCreated, &v)
 	return v
@@ -370,9 +383,9 @@ func TestPipelineEndToEndThroughBothGates(t *testing.T) {
 	// Approving the outline is what fixes the video's shape: the DAG is built for
 	// the chapters that were just signed off, not for the number briefed.
 	expanded := h.video("DSS-1")
-	if expanded.Counts.Total != scheduler.NodeCountFor(len(chapters.Chapters), 2) {
+	if expanded.Counts.Total != scheduler.NodeCountFor(len(chapters.Chapters), 2, testThumbnailCells) {
 		t.Fatalf("tasks after approval = %d, want %d",
-			expanded.Counts.Total, scheduler.NodeCountFor(len(chapters.Chapters), 2))
+			expanded.Counts.Total, scheduler.NodeCountFor(len(chapters.Chapters), 2, testThumbnailCells))
 	}
 
 	// Gate 2: the pipeline parks again before upload.
@@ -389,6 +402,26 @@ func TestPipelineEndToEndThroughBothGates(t *testing.T) {
 	// names it so the UI can show what is about to be published.
 	if beforeUpload.ThumbnailAssetID == "" {
 		t.Fatal("the thumbnail was not produced before the upload gate")
+	}
+	// And it was built from a full grid: one plan, one icon per tile, every slot
+	// filled. An icon that never landed would render as a hole.
+	var gridAssets struct {
+		Assets []struct {
+			Kind string `json:"kind"`
+		} `json:"assets"`
+	}
+	h.json(http.MethodGet, "/api/videos/DSS-1/assets", nil, http.StatusOK, &gridAssets)
+	byKind := map[string]int{}
+	for _, a := range gridAssets.Assets {
+		byKind[a.Kind]++
+	}
+	if byKind["thumbnail_plan"] != 1 {
+		t.Errorf("thumbnail plan assets = %d, want 1", byKind["thumbnail_plan"])
+	}
+	// Icons are content-addressed, so two cells that asked for the same picture
+	// share a file: the count is a ceiling, not an equality.
+	if n := byKind["thumbnail_icon"]; n == 0 || n > testThumbnailCells {
+		t.Errorf("thumbnail icon assets = %d, want 1..%d", n, testThumbnailCells)
 	}
 	if beforeUpload.Upload != nil {
 		t.Fatal("the upload ran before its gate was approved")
@@ -1099,8 +1132,8 @@ func TestUngatedBlueprintExpandsItsOwnGraph(t *testing.T) {
 	}
 
 	done := h.waitForState(v.Ref, "completed", 30*time.Second)
-	if done.Counts.Total != scheduler.NodeCountFor(4, 1) {
-		t.Fatalf("tasks = %d, want %d: the graph did not expand", done.Counts.Total, scheduler.NodeCountFor(4, 1))
+	if done.Counts.Total != scheduler.NodeCountFor(4, 1, testThumbnailCells) {
+		t.Fatalf("tasks = %d, want %d: the graph did not expand", done.Counts.Total, scheduler.NodeCountFor(4, 1, testThumbnailCells))
 	}
 	if done.Counts.Succeeded != done.Counts.Total {
 		t.Fatalf("succeeded %d of %d", done.Counts.Succeeded, done.Counts.Total)

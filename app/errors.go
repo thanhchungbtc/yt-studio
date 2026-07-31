@@ -30,6 +30,12 @@ var ErrConflict = errors.New("conflict")
 // attempt rather than a permanent failure.
 var ErrBlueprintOffTarget = errors.New("blueprint chapter count is off target")
 
+// ErrThumbnailPlanOffTarget reports a grid the model came back short on, or a
+// cell it left blank. Not an ErrValidation, for the same reason as above: the
+// graph already holds one icon task per cell and cannot grow, so a plan that
+// does not fill it is a roll to take again.
+var ErrThumbnailPlanOffTarget = errors.New("thumbnail plan does not fill the grid")
+
 // Invalid builds a validation error for one field.
 func Invalid(field, message string) error {
 	return fmt.Errorf("%w: %s %s", ErrValidation, field, message)

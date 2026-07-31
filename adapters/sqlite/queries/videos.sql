@@ -19,15 +19,17 @@ WHERE (CAST(sqlc.arg(channel_id) AS TEXT) = '' OR channel_id = sqlc.arg(channel_
 -- name: CreateVideo :exec
 INSERT INTO videos (
     id, channel_id, ref, title, topic, state, chapter_count, images_per_chapter,
-    target_duration_minutes, blueprint_asset_id, final_asset_id, thumbnail_asset_id,
+    target_duration_minutes, thumbnail_cells, blueprint_asset_id, final_asset_id,
+    thumbnail_asset_id, thumbnail_plan_json, thumbnail_icon_ids_json,
     metadata_json, upload_json, error, created_at, updated_at, started_at, completed_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: UpdateVideo :exec
 UPDATE videos
 SET title = ?, topic = ?, state = ?, chapter_count = ?, images_per_chapter = ?,
-    target_duration_minutes = ?,
+    target_duration_minutes = ?, thumbnail_cells = ?,
     blueprint_asset_id = ?, final_asset_id = ?, thumbnail_asset_id = ?,
+    thumbnail_plan_json = ?, thumbnail_icon_ids_json = ?,
     metadata_json = ?, upload_json = ?, error = ?, updated_at = ?,
     started_at = ?, completed_at = ?
 WHERE id = ?;
@@ -52,6 +54,22 @@ UPDATE videos SET final_asset_id = ?, updated_at = ? WHERE id = ?;
 
 -- name: SetVideoThumbnailAsset :exec
 UPDATE videos SET thumbnail_asset_id = ?, updated_at = ? WHERE id = ?;
+
+-- name: SetVideoThumbnailPlan :exec
+-- The plan and the slots its icons will land in are written together: a plan
+-- with no slots, or slots sized for a plan that was replaced, would put an icon
+-- in the wrong cell.
+UPDATE videos
+SET thumbnail_plan_json = ?, thumbnail_icon_ids_json = ?, updated_at = ?
+WHERE id = ?;
+
+-- name: SetVideoThumbnailIcon :exec
+-- One icon at its index. json_set makes this a single atomic statement, so two
+-- concurrent icon tasks cannot lose each other's write.
+UPDATE videos
+SET thumbnail_icon_ids_json = json_set(thumbnail_icon_ids_json, CAST(sqlc.arg(path) AS TEXT), CAST(sqlc.arg(asset_id) AS TEXT)),
+    updated_at = sqlc.arg(updated_at)
+WHERE id = sqlc.arg(id);
 
 -- name: SetVideoMetadata :exec
 UPDATE videos SET metadata_json = ?, updated_at = ? WHERE id = ?;

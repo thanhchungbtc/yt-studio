@@ -34,6 +34,7 @@ func newExpandingScheduler(t *testing.T, videoID entity.VideoID, chaptersReturne
 			VideoID:          videoID,
 			ChapterCount:     chaptersReturned,
 			ImagesPerChapter: images,
+			ThumbnailCells:   testCells,
 			MaxAttempts:      3,
 			Now:              time.Unix(0, 0).UTC(),
 		})
@@ -80,8 +81,8 @@ func TestUngatedBlueprintExpandsAndRunsToCompletion(t *testing.T) {
 
 	// Every node of the expanded DAG ran, and the durable view agrees.
 	persisted := store.persisted("v1")
-	if len(persisted.Tasks) != NodeCountFor(chapters, images) {
-		t.Fatalf("persisted tasks = %d, want %d", len(persisted.Tasks), NodeCountFor(chapters, images))
+	if len(persisted.Tasks) != NodeCountFor(chapters, images, testCells) {
+		t.Fatalf("persisted tasks = %d, want %d", len(persisted.Tasks), NodeCountFor(chapters, images, testCells))
 	}
 	for _, task := range persisted.Tasks {
 		if task.State != entity.TaskStateSucceeded {
@@ -93,8 +94,8 @@ func TestUngatedBlueprintExpandsAndRunsToCompletion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GraphFromPersisted: %v", err)
 	}
-	if restored.NodeCount() != NodeCountFor(chapters, images) {
-		t.Fatalf("restored node count = %d, want %d", restored.NodeCount(), NodeCountFor(chapters, images))
+	if restored.NodeCount() != NodeCountFor(chapters, images, testCells) {
+		t.Fatalf("restored node count = %d, want %d", restored.NodeCount(), NodeCountFor(chapters, images, testCells))
 	}
 }
 
@@ -129,7 +130,8 @@ func TestGatedBlueprintParksBeforeExpanding(t *testing.T) {
 	// Approval expands first, then releases: the reverse order would let a video
 	// whose whole DAG is one succeeded blueprint report itself completed.
 	tail, err := BuildTail(BuildSpec{
-		VideoID: "v1", ChapterCount: chapters, ImagesPerChapter: images, MaxAttempts: 3,
+		VideoID: "v1", ChapterCount: chapters, ImagesPerChapter: images,
+		ThumbnailCells: testCells, MaxAttempts: 3,
 		Now: time.Unix(0, 0).UTC(),
 	})
 	if err != nil {
@@ -144,8 +146,8 @@ func TestGatedBlueprintParksBeforeExpanding(t *testing.T) {
 	waitFor(t, 5*time.Second, "the video to complete", func() bool {
 		return lifecycle.state("v1") == entity.VideoStateCompleted
 	})
-	if got := len(store.persisted("v1").Tasks); got != NodeCountFor(chapters, images) {
-		t.Fatalf("persisted tasks = %d, want %d", got, NodeCountFor(chapters, images))
+	if got := len(store.persisted("v1").Tasks); got != NodeCountFor(chapters, images, testCells) {
+		t.Fatalf("persisted tasks = %d, want %d", got, NodeCountFor(chapters, images, testCells))
 	}
 }
 
@@ -178,7 +180,8 @@ func TestExpandIsIdempotentForTheSameShape(t *testing.T) {
 		return store.state(blueprint) == entity.TaskStateRunning
 	})
 
-	spec := BuildSpec{VideoID: "v1", ChapterCount: 5, ImagesPerChapter: 2, MaxAttempts: 3, Now: time.Unix(0, 0).UTC()}
+	spec := BuildSpec{VideoID: "v1", ChapterCount: 5, ImagesPerChapter: 2,
+		ThumbnailCells: testCells, MaxAttempts: 3, Now: time.Unix(0, 0).UTC()}
 	tail, err := BuildTail(spec)
 	if err != nil {
 		t.Fatalf("BuildTail: %v", err)
@@ -204,7 +207,8 @@ func TestExpandRejectsUnknownVideo(t *testing.T) {
 	t.Parallel()
 	s, _, _ := newExpandingScheduler(t, "v1", 3, 2)
 	ctx := startScheduler(t, s)
-	tail, err := BuildTail(BuildSpec{VideoID: "ghost", ChapterCount: 2, ImagesPerChapter: 1, MaxAttempts: 1})
+	tail, err := BuildTail(BuildSpec{VideoID: "ghost", ChapterCount: 2, ImagesPerChapter: 1,
+		ThumbnailCells: testCells, MaxAttempts: 1})
 	if err != nil {
 		t.Fatalf("BuildTail: %v", err)
 	}

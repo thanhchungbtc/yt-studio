@@ -116,6 +116,7 @@ type VideoDTO struct {
 	//nolint:lll // one field, one line
 	TargetDurationMinutes int           `json:"targetDurationMinutes" doc:"Planned running time; zero means it falls out of the chapter count"`
 	ImagesPerChapter      int           `json:"imagesPerChapter"`
+	ThumbnailCells        int           `json:"thumbnailCells" doc:"Tiles in the thumbnail grid; one icon is generated per tile"`
 	BlueprintAssetID      string        `json:"blueprintAssetId,omitempty"`
 	FinalAssetID          string        `json:"finalAssetId,omitempty"`
 	ThumbnailAssetID      string        `json:"thumbnailAssetId,omitempty"`
@@ -140,6 +141,7 @@ func videoFrom(v entity.Video, counts repository.TaskCounts) VideoDTO {
 		ChapterCount:          v.ChapterCount,
 		TargetDurationMinutes: v.TargetDurationMinutes,
 		ImagesPerChapter:      v.ImagesPerChapter,
+		ThumbnailCells:        v.ThumbnailCells,
 		Error:                 v.Error,
 		Counts:                countsFrom(counts),
 		CreatedAt:             v.CreatedAt,
@@ -362,7 +364,7 @@ type AssetDTO struct {
 	ID        string    `json:"id" doc:"Content address; also the immutable cache key of its URL"`
 	VideoID   string    `json:"videoId"`
 	ChapterID string    `json:"chapterId,omitempty"`
-	Kind      string    `json:"kind" enum:"blueprint,script,prompt,audio,image,clip,final,metadata,thumbnail"`
+	Kind      string    `json:"kind" enum:"blueprint,script,prompt,audio,image,clip,final,metadata,thumbnail,thumbnail_plan,thumbnail_icon"`
 	Size      int64     `json:"size"`
 	MIME      string    `json:"mime"`
 	URL       string    `json:"url"`

@@ -37,6 +37,9 @@ func (s *stubLLM) ImagePrompts(context.Context, entity.VideoID) ([]provider.Imag
 func (s *stubLLM) Metadata(context.Context, provider.MetadataRequest) (provider.Metadata, error) {
 	return provider.Metadata{}, nil
 }
+func (s *stubLLM) ThumbnailPlan(context.Context, provider.ThumbnailPlanRequest) (provider.ThumbnailPlan, error) {
+	return provider.ThumbnailPlan{}, nil
+}
 func (s *stubLLM) Forget(videoID entity.VideoID) { s.forgotten = append(s.forgotten, videoID) }
 
 // uncachedLLM keeps no prompt cache, so it has no Forget at all.
@@ -53,6 +56,9 @@ func (uncachedLLM) ImagePrompts(context.Context, entity.VideoID) ([]provider.Ima
 }
 func (uncachedLLM) Metadata(context.Context, provider.MetadataRequest) (provider.Metadata, error) {
 	return provider.Metadata{}, nil
+}
+func (uncachedLLM) ThumbnailPlan(context.Context, provider.ThumbnailPlanRequest) (provider.ThumbnailPlan, error) {
+	return provider.ThumbnailPlan{}, nil
 }
 
 func TestSelectionFollowsTheSettingsRow(t *testing.T) {

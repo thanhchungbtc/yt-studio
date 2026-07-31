@@ -131,6 +131,11 @@ WITH refs AS (
            thumbnail_asset_id AS asset_id, CAST('thumbnail' AS TEXT) AS kind
     FROM videos WHERE thumbnail_asset_id IS NOT NULL AND thumbnail_asset_id <> ''
     UNION ALL
+    SELECT v.id AS video_id, CAST(NULL AS TEXT) AS chapter_id,
+           CAST(j.value AS TEXT) AS asset_id, CAST('thumbnail_icon' AS TEXT) AS kind
+    FROM videos v, json_each(v.thumbnail_icon_ids_json) j
+    WHERE j.value IS NOT NULL AND j.value <> ''
+    UNION ALL
     SELECT video_id, id AS chapter_id,
            audio_asset_id AS asset_id, CAST('audio' AS TEXT) AS kind
     FROM chapters WHERE audio_asset_id IS NOT NULL AND audio_asset_id <> ''

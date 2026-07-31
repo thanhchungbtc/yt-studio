@@ -13,7 +13,7 @@ func TestBuildGraphShape(t *testing.T) {
 
 	g := testGraph(t, "v1", chapters, images, true)
 
-	if got, want := g.NodeCount(), NodeCountFor(chapters, images); got != want {
+	if got, want := g.NodeCount(), NodeCountFor(chapters, images, testCells); got != want {
 		t.Fatalf("node count = %d, want %d", got, want)
 	}
 
@@ -195,6 +195,8 @@ func TestBuildGraphRejectsBadSpecs(t *testing.T) {
 		{"too many chapters", BuildSpec{VideoID: "v", ChapterCount: entity.MaxChapterCount + 1, ImagesPerChapter: 1}},
 		{"zero images", BuildSpec{VideoID: "v", ChapterCount: 1, ImagesPerChapter: 0}},
 		{"too many images", BuildSpec{VideoID: "v", ChapterCount: 1, ImagesPerChapter: entity.MaxImagesPerChapter + 1}},
+		{"zero cells", BuildSpec{VideoID: "v", ChapterCount: 1, ImagesPerChapter: 1, ThumbnailCells: 0}},
+		{"too many cells", BuildSpec{VideoID: "v", ChapterCount: 1, ImagesPerChapter: 1, ThumbnailCells: entity.MaxThumbnailCells + 1}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -210,7 +212,8 @@ func TestBuildGraphRejectsBadSpecs(t *testing.T) {
 // fixtures stable.
 func TestGraphIsDeterministic(t *testing.T) {
 	t.Parallel()
-	spec := BuildSpec{VideoID: "v1", ChapterCount: 6, ImagesPerChapter: 2, MaxAttempts: 3, Now: time.Unix(0, 0)}
+	spec := BuildSpec{VideoID: "v1", ChapterCount: 6, ImagesPerChapter: 2,
+		ThumbnailCells: testCells, MaxAttempts: 3, Now: time.Unix(0, 0)}
 	a, err := BuildGraph(spec)
 	if err != nil {
 		t.Fatal(err)

@@ -259,10 +259,12 @@ func TestGraphIsAlwaysConsistent(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
 		chapters := rapid.IntRange(1, 60).Draw(rt, "chapters")
 		images := rapid.IntRange(1, 5).Draw(rt, "images")
+		cells := rapid.IntRange(1, entity.MaxThumbnailCells).Draw(rt, "cells")
 		g, err := BuildGraph(BuildSpec{
 			VideoID:          "v1",
 			ChapterCount:     chapters,
 			ImagesPerChapter: images,
+			ThumbnailCells:   cells,
 			MaxAttempts:      3,
 			BlueprintGate:    rapid.Bool().Draw(rt, "blueprintGate"),
 			UploadGate:       rapid.Bool().Draw(rt, "uploadGate"),
@@ -271,7 +273,7 @@ func TestGraphIsAlwaysConsistent(t *testing.T) {
 		if err != nil {
 			rt.Fatalf("BuildGraph: %v", err)
 		}
-		if got, want := g.NodeCount(), NodeCountFor(chapters, images); got != want {
+		if got, want := g.NodeCount(), NodeCountFor(chapters, images, cells); got != want {
 			rt.Fatalf("node count = %d, want %d", got, want)
 		}
 		// Every dependent arc has a matching dependency arc.

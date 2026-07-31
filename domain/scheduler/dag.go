@@ -46,7 +46,11 @@ type BuildSpec struct {
 	VideoID          entity.VideoID
 	ChapterCount     int
 	ImagesPerChapter int
-	MaxAttempts      int
+	// ThumbnailCells is the width of the thumbnail's grid, and therefore how many
+	// icon tasks the graph holds. It is independent of the chapters: the grid is
+	// its own artifact, not a view onto them.
+	ThumbnailCells int
+	MaxAttempts    int
 	// BlueprintGate parks the pipeline after the blueprint for human review;
 	// UploadGate parks it before upload. Both are settings rows.
 	BlueprintGate bool
@@ -146,10 +150,11 @@ func (g *Graph) Edges() []repository.TaskEdge {
 }
 
 // NodeCountFor returns the exact number of tasks a spec produces: blueprint +
-// prime + concat + metadata + thumbnail + upload, plus four per-chapter tasks
-// and one per still. It is exported so callers can preallocate too.
-func NodeCountFor(chapters, imagesPerChapter int) int {
-	return 6 + 4*chapters + chapters*imagesPerChapter
+// prime + concat + metadata + thumbnail plan + thumbnail + upload, plus four
+// per-chapter tasks, one per still and one per thumbnail cell. It is exported
+// so callers can preallocate too.
+func NodeCountFor(chapters, imagesPerChapter, thumbnailCells int) int {
+	return 7 + 4*chapters + chapters*imagesPerChapter + thumbnailCells
 }
 
 // newGraph allocates an empty graph sized for total nodes.
@@ -340,12 +345,17 @@ func BuildGraph(spec BuildSpec) (*Graph, error) {
 		return nil, fmt.Errorf("%w: images per chapter must be %d..%d, got %d",
 			ErrInvalidGraph, entity.MinImagesPerChapter, entity.MaxImagesPerChapter, spec.ImagesPerChapter)
 	}
+	if spec.ThumbnailCells < entity.MinThumbnailCells || spec.ThumbnailCells > entity.MaxThumbnailCells {
+		return nil, fmt.Errorf("%w: thumbnail cells must be %d..%d, got %d",
+			ErrInvalidGraph, entity.MinThumbnailCells, entity.MaxThumbnailCells, spec.ThumbnailCells)
+	}
 	maxAttempts := normaliseAttempts(spec.MaxAttempts)
 
 	n := spec.ChapterCount
 	m := spec.ImagesPerChapter
+	cells := spec.ThumbnailCells
 
-	g := newGraph(spec.VideoID, NodeCountFor(n, m))
+	g := newGraph(spec.VideoID, NodeCountFor(n, m, cells))
 
 	add := func(kind entity.TaskKind, ordinal, index int, gate entity.GateKind) int32 {
 		return g.addNode(kind, ordinal, index, gate, maxAttempts, spec.Now)
@@ -391,6 +401,14 @@ func BuildGraph(spec BuildSpec) (*Graph, error) {
 	}
 	concat := add(entity.TaskKindConcat, -1, -1, entity.GateNone)
 	metadata := add(entity.TaskKindMetadata, -1, -1, entity.GateNone)
+	plan := add(entity.TaskKindThumbnailPlan, -1, -1, entity.GateNone)
+	// One icon per cell, indexed like a chapter's stills are. The width is fixed
+	// here and cannot grow later, which is why the plan's cell count is a
+	// contract rather than a target.
+	icons := make([]int32, cells)
+	for i := range cells {
+		icons[i] = add(entity.TaskKindThumbnailIcon, -1, i, entity.GateNone)
+	}
 	// The thumbnail task carries the upload gate: on success it parks in
 	// awaiting_approval and does not release the upload task.
 	//
@@ -414,10 +432,13 @@ func BuildGraph(spec BuildSpec) (*Graph, error) {
 		link(clips[i], concat)
 	}
 	link(concat, metadata)
-	// The thumbnail needs the hook the metadata wrote and a still to put it on.
-	// Every still is already an ancestor of the concat, so depending on the
-	// metadata alone reaches all of them.
-	link(metadata, thumbnail)
+	// The grid is planned from the listing the metadata just wrote, drawn one
+	// cell at a time, and only then composed.
+	link(metadata, plan)
+	for i := range cells {
+		link(plan, icons[i])
+		link(icons[i], thumbnail)
+	}
 	link(thumbnail, upload)
 
 	if err := g.assertAcyclic(); err != nil {

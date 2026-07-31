@@ -299,6 +299,7 @@ func (c *serveCmd) Run() error {
 	providers.RegisterComposer("mock", mockprovider.NewComposer(assets, tuning))
 	providers.RegisterComposer("ffmpeg", ffmpegComposer)
 	providers.RegisterThumbnail("mock", mockprovider.NewThumbnail(assets, tuning))
+	providers.RegisterThumbnailIcon("mock", mockprovider.NewIcon(assets, tuning))
 	providers.RegisterUploader("mock", mockprovider.NewUploader(assets, tuning, time.Now))
 
 	settings.Constrain(providers.Options())
@@ -344,13 +345,20 @@ func (c *serveCmd) Run() error {
 	runner := app.NewTaskRunner(
 		store, store, store, store, store, store, store,
 		assets, providers.LLM(), providers.TTS(), providers.Image(),
-		providers.Composer(), providers.Thumbnail(), providers.Uploader(), broker,
+		providers.Composer(), providers.Thumbnail(), providers.ThumbnailIcon(),
+		providers.Uploader(), broker,
 		expander,
 		func() app.BlueprintOptions {
 			return app.BlueprintOptions{
 				ChapterTolerancePercent: settings.Int(entity.SettingVideoChapterTolerancePercent),
 				MaxAttempts:             settings.Int(entity.SettingTaskMaxAttempts),
 				UploadGate:              settings.GateEnabled(entity.GateUpload),
+			}
+		},
+		func() app.IconOptions {
+			return app.IconOptions{
+				Style: settings.String(entity.SettingThumbnailIconStyle),
+				Size:  settings.Int(entity.SettingThumbnailIconSize),
 			}
 		},
 		func() bool { return settings.Bool(entity.SettingUploadDryRun) },

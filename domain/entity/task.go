@@ -32,8 +32,13 @@ const (
 	TaskKindConcat TaskKind = "concat"
 	// TaskKindMetadata writes the YouTube title, description and tags.
 	TaskKindMetadata TaskKind = "metadata"
+	// TaskKindThumbnailPlan writes the grid: one caption and one icon prompt per
+	// cell.
+	TaskKindThumbnailPlan TaskKind = "thumbnail_plan"
+	// TaskKindThumbnailIcon generates one cell's icon.
+	TaskKindThumbnailIcon TaskKind = "thumbnail_icon"
 	// TaskKindThumbnail renders the image that fronts the video, from the hook
-	// the metadata task wrote.
+	// the metadata task wrote and the icons the grid asked for.
 	TaskKindThumbnail TaskKind = "thumbnail"
 	// TaskKindUpload publishes the final render.
 	TaskKindUpload TaskKind = "upload"
@@ -50,6 +55,8 @@ var AllTaskKinds = []TaskKind{
 	TaskKindClip,
 	TaskKindConcat,
 	TaskKindMetadata,
+	TaskKindThumbnailPlan,
+	TaskKindThumbnailIcon,
 	TaskKindThumbnail,
 	TaskKindUpload,
 }
@@ -59,7 +66,8 @@ func (k TaskKind) Valid() bool {
 	switch k {
 	case TaskKindBlueprint, TaskKindPrimeImagePrompts, TaskKindImagePrompts,
 		TaskKindScript, TaskKindTTS, TaskKindImage, TaskKindClip,
-		TaskKindConcat, TaskKindMetadata, TaskKindThumbnail, TaskKindUpload:
+		TaskKindConcat, TaskKindMetadata, TaskKindThumbnailPlan,
+		TaskKindThumbnailIcon, TaskKindThumbnail, TaskKindUpload:
 		return true
 	default:
 		return false
@@ -69,13 +77,14 @@ func (k TaskKind) Valid() bool {
 // Pool returns the single pool a task of this kind acquires a slot in.
 func (k TaskKind) Pool() Pool {
 	switch k {
-	case TaskKindBlueprint, TaskKindPrimeImagePrompts, TaskKindScript, TaskKindMetadata:
+	case TaskKindBlueprint, TaskKindPrimeImagePrompts, TaskKindScript,
+		TaskKindMetadata, TaskKindThumbnailPlan:
 		return PoolLLM
 	case TaskKindImagePrompts:
 		return PoolCache
 	case TaskKindTTS:
 		return PoolTTS
-	case TaskKindImage:
+	case TaskKindImage, TaskKindThumbnailIcon:
 		return PoolImage
 	case TaskKindClip, TaskKindConcat, TaskKindThumbnail:
 		return PoolCompose
@@ -93,7 +102,8 @@ func (k TaskKind) PerChapter() bool {
 	case TaskKindScript, TaskKindTTS, TaskKindImagePrompts, TaskKindImage, TaskKindClip:
 		return true
 	case TaskKindBlueprint, TaskKindPrimeImagePrompts, TaskKindConcat,
-		TaskKindMetadata, TaskKindThumbnail, TaskKindUpload:
+		TaskKindMetadata, TaskKindThumbnailPlan, TaskKindThumbnailIcon,
+		TaskKindThumbnail, TaskKindUpload:
 		return false
 	default:
 		return false

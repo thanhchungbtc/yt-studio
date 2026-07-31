@@ -103,4 +103,7 @@ type Video struct {
 	CompletedAt           *int64
 	TargetDurationMinutes int64
 	ThumbnailAssetID      *string
+	ThumbnailCells        int64
+	ThumbnailPlanJson     *string
+	ThumbnailIconIdsJson  string
 }

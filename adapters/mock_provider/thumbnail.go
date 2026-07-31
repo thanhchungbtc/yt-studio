@@ -21,10 +21,15 @@ const (
 	thumbnailHeight = 720
 )
 
-// Thumbnail is the mock thumbnail backend. It scales the still it was given up
-// to thumbnail size and lays the hook over it as one bar per word: the real
-// text rendering waits for a backend with a font, but the length and shape of
-// the hook are visible, which is what makes the mock output reviewable.
+// Thumbnail is the mock thumbnail backend: a black frame, the headline as one
+// bar per word, and the icons tiled in a grid with a bar under each for its
+// caption.
+//
+// Text is bars rather than letters because the backend that will really draw
+// this is a browser rendering an HTML template, and a Go renderer that grew
+// fonts and wrapping would be a second implementation to keep in step. Bars
+// carry what the mock is for: the grid is the right shape, the icons are in the
+// right cells, and a caption that is too long is visibly too long.
 type Thumbnail struct {
 	store  provider.AssetStore
 	tuning Tuning
@@ -42,18 +47,14 @@ func (b *Thumbnail) Build(ctx context.Context, req provider.ThumbnailRequest) (e
 	if err := simulate(ctx, b.tuning, 1); err != nil {
 		return "", err
 	}
-	if len(req.ImageAssetIDs) == 0 {
-		return "", errors.New("mock thumbnail: a thumbnail needs a background still")
-	}
 
-	// The first candidate is the daemon's preference; a backend that reached past
-	// it would be making the choice the daemon already made.
-	background, err := b.still(ctx, req.ImageAssetIDs[0])
-	if err != nil {
+	img := image.NewRGBA(image.Rect(0, 0, thumbnailWidth, thumbnailHeight))
+	fill(img, color.RGBA{R: 8, G: 8, B: 10, A: 255})
+
+	headlineBottom := drawHeadline(img, req.Headline)
+	if err := b.drawGrid(ctx, img, req.Cells, headlineBottom); err != nil {
 		return "", err
 	}
-	img := upscale(background, thumbnailWidth, thumbnailHeight)
-	drawHookBars(img, req.Text)
 
 	var buf bytes.Buffer
 	buf.Grow(thumbnailWidth * thumbnailHeight / 8)
@@ -68,26 +69,157 @@ func (b *Thumbnail) Build(ctx context.Context, req provider.ThumbnailRequest) (e
 	return stored.ID, nil
 }
 
-// still decodes one stored still. A thumbnail is a single small image, so this
-// is the one place in the mocks where reading the whole file into memory is the
-// honest thing to do.
-func (b *Thumbnail) still(ctx context.Context, id entity.AssetID) (image.Image, error) {
-	f, err := b.store.Open(ctx, id, entity.AssetKindImage)
+// Layout constants. The real layout is CSS in the builder's template; these
+// exist so the mock's output is recognisably the same design.
+const (
+	thumbMargin     = thumbnailWidth / 24
+	headlineTop     = thumbnailHeight / 12
+	headlineBarH    = 56
+	headlineGap     = 14
+	captionBarH     = 14
+	captionGap      = 10
+	iconTileGap     = 18
+	headlineToGrid  = 28
+	underlineHeight = 8
+	underlineInset  = thumbnailWidth / 3
+	// A headline is set to fill the line: roughly 26 characters spans the frame,
+	// which is what makes a four-word hook wrap and a three-word hook not.
+	headlineCharW = (thumbnailWidth - 2*thumbMargin) / 26
+	tileBorder    = 3
+)
+
+// drawHeadline lays the hook out as one bar per word, wrapping when the line is
+// full, and returns the y the grid may start at. An empty hook draws nothing
+// and gives the grid the whole frame, so a missing headline is visible as a
+// missing headline.
+func drawHeadline(img *image.RGBA, headline string) int {
+	words := strings.Fields(headline)
+	if len(words) == 0 {
+		return headlineTop
+	}
+	white := color.RGBA{R: 245, G: 245, B: 245, A: 255}
+
+	x, y := thumbMargin, headlineTop
+	lineEnd := thumbnailWidth - thumbMargin
+	for _, w := range words {
+		width := min(len(w)*headlineCharW, lineEnd-thumbMargin)
+		if x+width > lineEnd && x > thumbMargin {
+			x = thumbMargin
+			y += headlineBarH + headlineGap
+		}
+		rect(img, x, y, width, headlineBarH, white)
+		x += width + headlineGap
+	}
+	y += headlineBarH
+
+	// The red rule under the headline, which is the design's one piece of colour.
+	rect(img, thumbnailWidth-thumbMargin-underlineInset, y+headlineGap,
+		underlineInset, underlineHeight, color.RGBA{R: 220, G: 38, B: 38, A: 255})
+	return y + headlineGap + underlineHeight + headlineToGrid
+}
+
+// drawGrid tiles the icons into as square a grid as the cell count allows, then
+// bars a caption under each. Rows and columns are the mock's own arithmetic:
+// the real layout is CSS, and this only has to be close enough to see whether
+// the icons and captions line up.
+func (b *Thumbnail) drawGrid(ctx context.Context, img *image.RGBA, cells []provider.ThumbnailIconCell, top int) error {
+	if len(cells) == 0 {
+		// A headline on its own is a thin thumbnail, not a broken one. Whether an
+		// empty grid is worth publishing is the daemon's judgement, not a
+		// renderer's.
+		return nil
+	}
+	rows := 2
+	if len(cells) <= 3 {
+		rows = 1
+	}
+	cols := (len(cells) + rows - 1) / rows
+
+	available := thumbnailHeight - top - thumbMargin
+	rowHeight := available / rows
+	tile := min((thumbnailWidth-2*thumbMargin-(cols-1)*iconTileGap)/cols,
+		rowHeight-captionBarH-captionGap)
+	if tile < 8 {
+		return fmt.Errorf("mock thumbnail: %d cells do not fit the frame", len(cells))
+	}
+	// Centre the grid on what the tiles actually came out as, so a wide grid and
+	// a narrow one are both centred rather than left-aligned.
+	gridWidth := cols*tile + (cols-1)*iconTileGap
+	originX := (thumbnailWidth - gridWidth) / 2
+
+	for i, cell := range cells {
+		icon, err := b.icon(ctx, cell.IconAssetID)
+		if err != nil {
+			return err
+		}
+		row, col := i/cols, i%cols
+		x := originX + col*(tile+iconTileGap)
+		y := top + row*rowHeight
+
+		// The border is what separates one tile from the next on a black frame;
+		// without it a grid of black squares on black reads as one block.
+		rect(img, x, y, tile, tile, color.RGBA{R: 90, G: 90, B: 96, A: 255})
+		blit(img, upscale(icon, tile-2*tileBorder, tile-2*tileBorder), x+tileBorder, y+tileBorder)
+		// A caption bar as wide as its text is long, centred under the tile.
+		width := min(len(cell.Caption)*tile/14, tile)
+		rect(img, x+(tile-width)/2, y+tile+captionGap, width, captionBarH,
+			color.RGBA{R: 210, G: 210, B: 210, A: 255})
+	}
+	return nil
+}
+
+// icon decodes one stored icon. Each is a small square, so this is the one
+// place in the mocks where reading a whole file into memory is the honest thing
+// to do.
+func (b *Thumbnail) icon(ctx context.Context, id entity.AssetID) (image.Image, error) {
+	if id == "" {
+		return nil, errors.New("mock thumbnail: a cell has no icon")
+	}
+	f, err := b.store.Open(ctx, id, entity.AssetKindThumbnailIcon)
 	if err != nil {
-		return nil, fmt.Errorf("open still %s: %w", id.Short(), err)
+		return nil, fmt.Errorf("open icon %s: %w", id.Short(), err)
 	}
 	defer func() { _ = f.Close() }()
 
 	img, err := png.Decode(f)
 	if err != nil {
-		return nil, fmt.Errorf("decode still %s: %w", id.Short(), err)
+		return nil, fmt.Errorf("decode icon %s: %w", id.Short(), err)
 	}
 	return img, nil
 }
 
-// upscale resamples by nearest neighbour. A thumbnail built from a 320x180 mock
-// still is blocky, which is the point: nobody should mistake it for output from
-// a real backend.
+func fill(img *image.RGBA, c color.RGBA) {
+	bounds := img.Bounds()
+	for y := range bounds.Dy() {
+		for x := range bounds.Dx() {
+			img.SetRGBA(x, y, c)
+		}
+	}
+}
+
+func rect(img *image.RGBA, x, y, width, height int, c color.RGBA) {
+	bounds := img.Bounds()
+	for py := max(y, 0); py < min(y+height, bounds.Dy()); py++ {
+		for px := max(x, 0); px < min(x+width, bounds.Dx()); px++ {
+			img.SetRGBA(px, py, c)
+		}
+	}
+}
+
+func blit(dst, src *image.RGBA, x, y int) {
+	bounds := dst.Bounds()
+	for sy := range src.Bounds().Dy() {
+		for sx := range src.Bounds().Dx() {
+			px, py := x+sx, y+sy
+			if px >= 0 && py >= 0 && px < bounds.Dx() && py < bounds.Dy() {
+				dst.SetRGBA(px, py, src.RGBAAt(sx, sy))
+			}
+		}
+	}
+}
+
+// upscale resamples by nearest neighbour. Icons are drawn at one size and tiled
+// at another, and a blocky tile is a fair signal that this is a mock.
 func upscale(src image.Image, width, height int) *image.RGBA {
 	bounds := src.Bounds()
 	dst := image.NewRGBA(image.Rect(0, 0, width, height))
@@ -105,42 +237,4 @@ func upscale(src image.Image, width, height int) *image.RGBA {
 		}
 	}
 	return dst
-}
-
-// drawHookBars darkens the lower band and lays one bar per word of the hook,
-// each as wide as its word is long. An empty hook leaves the still untouched,
-// so a missing thumbnail text is visible as a missing overlay rather than as a
-// silently ordinary picture.
-func drawHookBars(img *image.RGBA, text string) {
-	words := strings.Fields(text)
-	if len(words) == 0 {
-		return
-	}
-
-	const (
-		margin  = thumbnailWidth / 16
-		barGap  = 16
-		barRise = 4
-	)
-	bandTop := thumbnailHeight / 2
-	for y := bandTop; y < thumbnailHeight; y++ {
-		for x := range thumbnailWidth {
-			img.SetRGBA(x, y, blend(img.RGBAAt(x, y), color.RGBA{A: 255}, 0.55))
-		}
-	}
-
-	// One row per word, sharing the band evenly, so a long hook fills it the way
-	// wrapped text would.
-	rowHeight := (thumbnailHeight - bandTop - margin) / len(words)
-	barHeight := max(rowHeight-barGap, barRise)
-	unit := (thumbnailWidth - 2*margin) / 12 // a 12-character word spans the band
-	for i, word := range words {
-		width := min(len(word)*unit, thumbnailWidth-2*margin)
-		top := bandTop + margin/2 + i*rowHeight
-		for y := top; y < min(top+barHeight, thumbnailHeight); y++ {
-			for x := margin; x < margin+width; x++ {
-				img.SetRGBA(x, y, color.RGBA{R: 240, G: 232, B: 210, A: 255})
-			}
-		}
-	}
 }

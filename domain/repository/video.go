@@ -44,6 +44,10 @@ type VideoWriter interface {
 type VideoFieldWriter interface {
 	SetVideoBlueprintAsset(ctx context.Context, id entity.VideoID, assetID entity.AssetID) error
 	SetVideoFinalAsset(ctx context.Context, id entity.VideoID, assetID entity.AssetID) error
+	SetVideoThumbnailPlan(ctx context.Context, id entity.VideoID, p entity.ThumbnailPlan) error
+	// SetVideoThumbnailIcon writes one icon into the slot the plan sized for it,
+	// so icons that finish out of order still land in their own cell.
+	SetVideoThumbnailIcon(ctx context.Context, id entity.VideoID, index int, assetID entity.AssetID) error
 	SetVideoThumbnailAsset(ctx context.Context, id entity.VideoID, assetID entity.AssetID) error
 	SetVideoMetadata(ctx context.Context, id entity.VideoID, m entity.Metadata) error
 	SetVideoUpload(ctx context.Context, id entity.VideoID, r entity.UploadRecord) error

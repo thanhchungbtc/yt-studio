@@ -23,6 +23,7 @@ func headAndTail(t *testing.T, videoID entity.VideoID, chapters, images int, gat
 		VideoID:          videoID,
 		ChapterCount:     chapters,
 		ImagesPerChapter: images,
+		ThumbnailCells:   testCells,
 		MaxAttempts:      3,
 		BlueprintGate:    gates,
 		UploadGate:       gates,
@@ -204,8 +205,8 @@ func TestHeadGraphRoundTripsThroughPersistence(t *testing.T) {
 	if err := restored.Expand(tail); err != nil {
 		t.Fatalf("Expand after restore: %v", err)
 	}
-	if restored.NodeCount() != NodeCountFor(5, 2) {
-		t.Fatalf("node count = %d, want %d", restored.NodeCount(), NodeCountFor(5, 2))
+	if restored.NodeCount() != NodeCountFor(5, 2, testCells) {
+		t.Fatalf("node count = %d, want %d", restored.NodeCount(), NodeCountFor(5, 2, testCells))
 	}
 }
 

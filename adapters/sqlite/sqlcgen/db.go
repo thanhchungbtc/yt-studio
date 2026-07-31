@@ -162,6 +162,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.setVideoThumbnailAssetStmt, err = db.PrepareContext(ctx, setVideoThumbnailAsset); err != nil {
 		return nil, fmt.Errorf("error preparing query SetVideoThumbnailAsset: %w", err)
 	}
+	if q.setVideoThumbnailIconStmt, err = db.PrepareContext(ctx, setVideoThumbnailIcon); err != nil {
+		return nil, fmt.Errorf("error preparing query SetVideoThumbnailIcon: %w", err)
+	}
+	if q.setVideoThumbnailPlanStmt, err = db.PrepareContext(ctx, setVideoThumbnailPlan); err != nil {
+		return nil, fmt.Errorf("error preparing query SetVideoThumbnailPlan: %w", err)
+	}
 	if q.setVideoUploadStmt, err = db.PrepareContext(ctx, setVideoUpload); err != nil {
 		return nil, fmt.Errorf("error preparing query SetVideoUpload: %w", err)
 	}
@@ -418,6 +424,16 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing setVideoThumbnailAssetStmt: %w", cerr)
 		}
 	}
+	if q.setVideoThumbnailIconStmt != nil {
+		if cerr := q.setVideoThumbnailIconStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing setVideoThumbnailIconStmt: %w", cerr)
+		}
+	}
+	if q.setVideoThumbnailPlanStmt != nil {
+		if cerr := q.setVideoThumbnailPlanStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing setVideoThumbnailPlanStmt: %w", cerr)
+		}
+	}
 	if q.setVideoUploadStmt != nil {
 		if cerr := q.setVideoUploadStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing setVideoUploadStmt: %w", cerr)
@@ -538,6 +554,8 @@ type Queries struct {
 	setVideoMetadataStmt        *sql.Stmt
 	setVideoStateStmt           *sql.Stmt
 	setVideoThumbnailAssetStmt  *sql.Stmt
+	setVideoThumbnailIconStmt   *sql.Stmt
+	setVideoThumbnailPlanStmt   *sql.Stmt
 	setVideoUploadStmt          *sql.Stmt
 	updateChannelStmt           *sql.Stmt
 	updateSettingValueStmt      *sql.Stmt
@@ -597,6 +615,8 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		setVideoMetadataStmt:        q.setVideoMetadataStmt,
 		setVideoStateStmt:           q.setVideoStateStmt,
 		setVideoThumbnailAssetStmt:  q.setVideoThumbnailAssetStmt,
+		setVideoThumbnailIconStmt:   q.setVideoThumbnailIconStmt,
+		setVideoThumbnailPlanStmt:   q.setVideoThumbnailPlanStmt,
 		setVideoUploadStmt:          q.setVideoUploadStmt,
 		updateChannelStmt:           q.updateChannelStmt,
 		updateSettingValueStmt:      q.updateSettingValueStmt,

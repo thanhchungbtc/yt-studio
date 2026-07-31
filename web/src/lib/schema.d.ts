@@ -419,6 +419,8 @@ export interface components {
         | 'final'
         | 'metadata'
         | 'thumbnail'
+        | 'thumbnail_plan'
+        | 'thumbnail_icon'
       mime: string
       /** Format: int64 */
       size: number
@@ -540,6 +542,11 @@ export interface components {
        * @description Defaults to the video.default_images_per_chapter setting
        */
       imagesPerChapter?: number
+      /**
+       * Format: int64
+       * @description Tiles in the thumbnail grid; defaults to the video.default_thumbnail_cells setting
+       */
+      thumbnailCells?: number
       /** @description Enqueue the DAG immediately */
       start?: boolean
       /**
@@ -802,6 +809,8 @@ export interface components {
         | 'clip'
         | 'concat'
         | 'metadata'
+        | 'thumbnail_plan'
+        | 'thumbnail_icon'
         | 'thumbnail'
         | 'upload'
       /** Format: int64 */
@@ -908,6 +917,8 @@ export interface components {
        */
       targetDurationMinutes: number
       thumbnailAssetId?: string
+      /** Format: int64 */
+      thumbnailCells: number
       title: string
       topic: string
       /** Format: date-time */

@@ -20,6 +20,7 @@ func benchGraph(b *testing.B) *Graph {
 		VideoID:          "bench",
 		ChapterCount:     benchChapters,
 		ImagesPerChapter: 2,
+		ThumbnailCells:   testCells,
 		MaxAttempts:      3,
 		Now:              time.Unix(0, 0),
 	})
@@ -36,6 +37,7 @@ func BenchmarkBuildGraph(b *testing.B) {
 			VideoID:          "bench",
 			ChapterCount:     benchChapters,
 			ImagesPerChapter: 2,
+			ThumbnailCells:   testCells,
 			MaxAttempts:      3,
 			Now:              time.Unix(0, 0),
 		})

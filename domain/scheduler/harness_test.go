@@ -279,12 +279,18 @@ func startScheduler(t *testing.T, s *Scheduler) context.Context {
 	return ctx
 }
 
+// testCells is the thumbnail grid width every test graph is built with. It is
+// deliberately not the shipped default: a test that only passes at the default
+// is a test that is reading the default.
+const testCells = 3
+
 func testGraph(t *testing.T, videoID entity.VideoID, chapters, images int, gates bool) *Graph {
 	t.Helper()
 	g, err := BuildGraph(BuildSpec{
 		VideoID:          videoID,
 		ChapterCount:     chapters,
 		ImagesPerChapter: images,
+		ThumbnailCells:   testCells,
 		MaxAttempts:      3,
 		BlueprintGate:    gates,
 		UploadGate:       gates,

@@ -66,6 +66,8 @@ const TASK_LABELS: Record<TaskKind, string> = {
   clip: 'Clip',
   concat: 'Concat',
   metadata: 'Metadata',
+  thumbnail_plan: 'Thumbnail plan',
+  thumbnail_icon: 'Thumbnail icon',
   thumbnail: 'Thumbnail',
   upload: 'Upload',
 }

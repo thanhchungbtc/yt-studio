@@ -62,22 +62,50 @@ type VideoComposer interface {
 	Concat(ctx context.Context, req ConcatRequest) (entity.AssetID, error)
 }
 
+// ThumbnailIconRequest asks for exactly one tile's icon.
+//
+// It has no chapter and no ordinal: an icon belongs to the video's grid, not to
+// a chapter, and it is square by definition. Reusing ImageRequest here would
+// leave two thirds of that struct permanently empty.
+type ThumbnailIconRequest struct {
+	VideoID entity.VideoID
+	// Index is which cell of the grid this is, 0-based.
+	Index int
+	// Prompt is the cell's subject and the grid's shared style clause, already
+	// joined. The backend is handed exactly what was asked for, so a style change
+	// produces a new content address rather than silently reusing old bytes.
+	Prompt string
+	// Size is the square edge in pixels.
+	Size int
+}
+
+// ThumbnailIconGenerator generates one icon per call. It is its own port rather
+// than a second use of ImageProvider because icons and chapter stills are
+// selected independently: the cheap fast model that draws clean line art is
+// rarely the one worth pointing at a three-hour video's stills.
+type ThumbnailIconGenerator interface {
+	Icon(ctx context.Context, req ThumbnailIconRequest) (entity.AssetID, error)
+}
+
+// ThumbnailIconCell is one rendered tile: what it says and what it shows.
+type ThumbnailIconCell struct {
+	Caption     string
+	IconAssetID entity.AssetID
+}
+
 // ThumbnailRequest asks for the one image that fronts a finished video.
 //
-// The candidate backgrounds are carried rather than looked up, for the same
-// reason ClipRequest carries its titles: a backend that composites a frame
-// needs the frame, and passing it keeps the backend free of any repository.
-// Which still becomes the background is the daemon's decision — a backend that
-// picked for itself would be doing orchestration.
+// Everything the backend renders is carried here, for the same reason
+// ClipRequest carries its titles: it keeps the backend free of any repository.
+// Cells are in grid order — reading order, left to right.
 type ThumbnailRequest struct {
 	VideoID  entity.VideoID
 	VideoRef entity.Ref
-	Title    string
-	// Text is the all-caps hook the metadata task wrote, for overlay.
-	Text string
-	// ImageAssetIDs are the stills offered as backgrounds, in the order the
-	// daemon prefers them.
-	ImageAssetIDs []entity.AssetID
+	// Title is the video's own title, available to a template that wants it.
+	Title string
+	// Headline is the all-caps hook, the line the thumbnail is read by.
+	Headline string
+	Cells    []ThumbnailIconCell
 }
 
 // ThumbnailBuilder renders one video's thumbnail per call.

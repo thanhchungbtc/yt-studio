@@ -74,6 +74,10 @@ func (l *shortLLM) Metadata(context.Context, provider.MetadataRequest) (provider
 	return provider.Metadata{}, errors.New("not used")
 }
 
+func (l *shortLLM) ThumbnailPlan(context.Context, provider.ThumbnailPlanRequest) (provider.ThumbnailPlan, error) {
+	return provider.ThumbnailPlan{}, errors.New("not used")
+}
+
 // recordingExpander captures the tail an approval would splice on.
 type recordingExpander struct {
 	videoID entity.VideoID
@@ -93,7 +97,7 @@ func (e *recordingExpander) Expand(_ context.Context, videoID entity.VideoID, ta
 func (f *fixture) draft(ref string, chapterCount, images int) entity.Video {
 	f.t.Helper()
 	v, err := entity.NewVideo(entity.VideoID(ref), f.channel.ID, entity.Ref(ref),
-		"The Long Winter", "a northern port town", chapterCount, images, 0, testTime)
+		"The Long Winter", "a northern port town", chapterCount, images, testThumbnailCells, 0, testTime)
 	if err != nil {
 		f.t.Fatalf("NewVideo: %v", err)
 	}
@@ -160,7 +164,7 @@ func TestBlueprintShortfallIsAcceptedAndShapesTheGraph(t *testing.T) {
 		t.Fatalf("ExpandVideoGraph: %v", err)
 	}
 	// The tail is every node but the blueprint, built for what came back.
-	if got, want := len(expander.tail.Tasks), scheduler.NodeCountFor(returned, images)-1; got != want {
+	if got, want := len(expander.tail.Tasks), scheduler.NodeCountFor(returned, images, testThumbnailCells)-1; got != want {
 		t.Fatalf("tail tasks = %d, want %d (a %d-chapter DAG minus the blueprint)", got, want, returned)
 	}
 	if expander.videoID != v.ID {
@@ -384,7 +388,7 @@ func TestApproveBlueprintGateExpandsBeforeReleasing(t *testing.T) {
 	if expander.calls != 1 {
 		t.Fatalf("expansions = %d, want exactly 1", expander.calls)
 	}
-	if got, want := len(expander.tail.Tasks), scheduler.NodeCountFor(returned, images)-1; got != want {
+	if got, want := len(expander.tail.Tasks), scheduler.NodeCountFor(returned, images, testThumbnailCells)-1; got != want {
 		t.Fatalf("tail tasks = %d, want %d", got, want)
 	}
 	if len(gate.approved) != 1 {
@@ -492,7 +496,8 @@ func TestStartVideoResumesAnExpandedGraphInsteadOfResubmitting(t *testing.T) {
 	v := f.draft("DSS-1", 6, 2)
 
 	full, err := scheduler.BuildGraph(scheduler.BuildSpec{
-		VideoID: v.ID, ChapterCount: 6, ImagesPerChapter: 2, MaxAttempts: 3, Now: testTime,
+		VideoID: v.ID, ChapterCount: 6, ImagesPerChapter: 2,
+		ThumbnailCells: testThumbnailCells, MaxAttempts: 3, Now: testTime,
 	})
 	if err != nil {
 		t.Fatalf("BuildGraph: %v", err)

@@ -33,12 +33,13 @@ const (
 	SettingGateBlueprintEnabled SettingKey = "gate.blueprint.enabled"
 	SettingGateUploadEnabled    SettingKey = "gate.upload.enabled"
 
-	SettingProviderLLM       SettingKey = "provider.llm"
-	SettingProviderTTS       SettingKey = "provider.tts"
-	SettingProviderImage     SettingKey = "provider.image"
-	SettingProviderComposer  SettingKey = "provider.composer"
-	SettingProviderThumbnail SettingKey = "provider.thumbnail"
-	SettingProviderUploader  SettingKey = "provider.uploader"
+	SettingProviderLLM           SettingKey = "provider.llm"
+	SettingProviderTTS           SettingKey = "provider.tts"
+	SettingProviderImage         SettingKey = "provider.image"
+	SettingProviderComposer      SettingKey = "provider.composer"
+	SettingProviderThumbnail     SettingKey = "provider.thumbnail"
+	SettingProviderThumbnailIcon SettingKey = "provider.thumbnail_icon"
+	SettingProviderUploader      SettingKey = "provider.uploader"
 	// SettingNineRouterModel picks which upstream the 9router backend routes to.
 	// It is a settings row rather than a flag because it is the knob that gets
 	// turned most while prompts are being tuned.
@@ -46,6 +47,18 @@ const (
 
 	SettingVideoDefaultChapters SettingKey = "video.default_chapter_count"
 	SettingVideoDefaultImages   SettingKey = "video.default_images_per_chapter"
+	// SettingVideoDefaultThumbnailCells seeds a new video's grid width. It is a
+	// default rather than the live value: the DAG holds one icon task per cell
+	// from expansion onward, so a video keeps the width it was created with.
+	SettingVideoDefaultThumbnailCells SettingKey = "video.default_thumbnail_cells"
+	// SettingThumbnailIconStyle is the clause appended to every icon prompt. It
+	// lives outside the plan so restyling the whole grid costs the icons rather
+	// than the words: change it and ten cheap generations re-run, with no model
+	// asked to write captions again.
+	SettingThumbnailIconStyle SettingKey = "thumbnail.icon.style"
+	// SettingThumbnailIconSize is the square edge each icon is generated at.
+	SettingThumbnailIconSize SettingKey = "thumbnail.icon.size"
+
 	// SettingVideoChapterTolerancePercent bounds how far an accepted blueprint's
 	// chapter count may fall from the one the video was briefed with.
 	SettingVideoChapterTolerancePercent SettingKey = "video.chapter_tolerance_percent"
@@ -233,13 +246,17 @@ func DefaultSettings() []Setting {
 		{Key: SettingProviderTTS, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for narration."},
 		{Key: SettingProviderImage, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for stills."},
 		{Key: SettingProviderComposer, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for clip and concat composition."},
-		{Key: SettingProviderThumbnail, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for the thumbnail image."},
+		{Key: SettingProviderThumbnail, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend that renders the thumbnail image."},
+		{Key: SettingProviderThumbnailIcon, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for the thumbnail's grid icons; selected apart from stills."},
 		{Key: SettingProviderUploader, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for publishing."},
 		//nolint:lll // one row, one line
 		{Key: SettingNineRouterModel, Value: "ag/gemini-3-flash", Type: SettingTypeString, Group: "providers", Description: "Which upstream the 9router backend routes to, e.g. ag/gemini-3-flash. See GET /v1/models on the gateway."},
 
 		{Key: SettingVideoDefaultChapters, Value: "50", Type: SettingTypeInt, Group: "video", Min: MinChapterCount, Max: MaxChapterCount, Description: "Chapters created for a new video when unspecified."},
 		{Key: SettingVideoDefaultImages, Value: "2", Type: SettingTypeInt, Group: "video", Min: MinImagesPerChapter, Max: MaxImagesPerChapter, Description: "Stills generated per chapter when unspecified."},
+		{Key: SettingThumbnailIconStyle, Value: "thick-stroke white line art on a pure black background, flat, no shading, no text, centred with a generous margin", Type: SettingTypeString, Group: "video", Description: "Appended to every thumbnail icon prompt; what makes ten icons look like one set."},
+		{Key: SettingThumbnailIconSize, Value: "512", Type: SettingTypeInt, Group: "video", Min: 64, Max: 2048, Description: "Square edge, in pixels, each thumbnail icon is generated at."},
+		{Key: SettingVideoDefaultThumbnailCells, Value: "10", Type: SettingTypeInt, Group: "video", Min: MinThumbnailCells, Max: MaxThumbnailCells, Description: "Tiles in a new video's thumbnail grid; one icon is generated per tile."},
 		{Key: SettingVideoChapterTolerancePercent, Value: "20", Type: SettingTypeInt, Group: "video", Min: 0, Max: 100, Description: "How far an accepted blueprint's chapter count may fall from the target, as a percentage."},
 
 		//nolint:lll // one row, one line

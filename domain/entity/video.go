@@ -110,6 +110,25 @@ type Metadata struct {
 	Privacy       string
 }
 
+// ThumbnailCell is one tile of the grid under the thumbnail's headline.
+//
+// The prompt is the subject only — "a lit alarm clock, side view". The style
+// clause every icon shares is appended when the icon is generated, not stored
+// here, so restyling the whole grid costs the icons rather than the words.
+type ThumbnailCell struct {
+	Caption string
+	Prompt  string
+}
+
+// ThumbnailPlan is the grid the thumbnail is built from: what each tile says
+// and what it pictures.
+//
+// It is stored as JSON on the video row, so a field added here needs no
+// migration. Slice order is grid order — reading order, left to right.
+type ThumbnailPlan struct {
+	Cells []ThumbnailCell
+}
+
 // UploadRecord is the durable receipt of an upload attempt.
 type UploadRecord struct {
 	VideoID    string
@@ -131,6 +150,11 @@ type Video struct {
 
 	ChapterCount     int
 	ImagesPerChapter int
+	// ThumbnailCells is how many tiles the thumbnail's grid has. It is on the row
+	// rather than read from settings at expansion because the DAG gets one icon
+	// task per cell and can never grow after: a video's graph has to be
+	// explainable from the video's own record.
+	ThumbnailCells int
 	// TargetDurationMinutes is how long the finished video should run. Zero
 	// means unset, and the length is whatever ChapterCount chapters of the
 	// channel's usual size come to.
@@ -139,8 +163,13 @@ type Video struct {
 	BlueprintAssetID *AssetID
 	FinalAssetID     *AssetID
 	ThumbnailAssetID *AssetID
-	Metadata         *Metadata
-	Upload           *UploadRecord
+	// ThumbnailIconAssetIDs is one slot per cell, filled by the icon tasks as
+	// they land. It is sized when the plan is written, so an out-of-order write
+	// has a slot to go in rather than an array to grow.
+	ThumbnailIconAssetIDs []AssetID
+	ThumbnailPlan         *ThumbnailPlan
+	Metadata              *Metadata
+	Upload                *UploadRecord
 
 	Error       string
 	CreatedAt   time.Time
@@ -152,7 +181,7 @@ type Video struct {
 // NewVideo validates and constructs a Video in the draft state.
 //
 //nolint:revive // the parameter list is the video's shape
-func NewVideo(id VideoID, channelID ChannelID, ref Ref, title, topic string, chapterCount, imagesPerChapter, targetDurationMinutes int, now time.Time) (Video, error) {
+func NewVideo(id VideoID, channelID ChannelID, ref Ref, title, topic string, chapterCount, imagesPerChapter, thumbnailCells, targetDurationMinutes int, now time.Time) (Video, error) {
 	if strings.TrimSpace(string(id)) == "" {
 		return Video{}, fmt.Errorf("%w: id must not be empty", ErrInvalidVideo)
 	}
@@ -174,6 +203,10 @@ func NewVideo(id VideoID, channelID ChannelID, ref Ref, title, topic string, cha
 		return Video{}, fmt.Errorf("%w: images per chapter must be %d..%d, got %d",
 			ErrInvalidVideo, MinImagesPerChapter, MaxImagesPerChapter, imagesPerChapter)
 	}
+	if thumbnailCells < MinThumbnailCells || thumbnailCells > MaxThumbnailCells {
+		return Video{}, fmt.Errorf("%w: thumbnail cells must be %d..%d, got %d",
+			ErrInvalidVideo, MinThumbnailCells, MaxThumbnailCells, thumbnailCells)
+	}
 	if targetDurationMinutes < 0 || targetDurationMinutes > MaxDurationMinutes {
 		return Video{}, fmt.Errorf("%w: target duration must be 0..%d minutes, got %d",
 			ErrInvalidVideo, MaxDurationMinutes, targetDurationMinutes)
@@ -187,6 +220,7 @@ func NewVideo(id VideoID, channelID ChannelID, ref Ref, title, topic string, cha
 		State:                 VideoStateDraft,
 		ChapterCount:          chapterCount,
 		ImagesPerChapter:      imagesPerChapter,
+		ThumbnailCells:        thumbnailCells,
 		TargetDurationMinutes: targetDurationMinutes,
 		CreatedAt:             now,
 		UpdatedAt:             now,
@@ -199,6 +233,10 @@ const (
 	MaxChapterCount     = 500
 	MinImagesPerChapter = 1
 	MaxImagesPerChapter = 20
+	// The thumbnail's grid. The ceiling is what still reads at 1280x720 on a
+	// phone: past two dozen tiles nobody can tell what any of them are.
+	MinThumbnailCells = 1
+	MaxThumbnailCells = 24
 	// MaxDurationMinutes bounds a target length at twelve hours, which is well
 	// past the longest thing this channel would publish.
 	MaxDurationMinutes = 720

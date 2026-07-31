@@ -644,6 +644,7 @@ function Overview({
                   )}
                 </KeyValue>
                 <KeyValue label="Stills / chapter">{video.imagesPerChapter}</KeyValue>
+                <KeyValue label="Thumbnail tiles">{video.thumbnailCells}</KeyValue>
                 <KeyValue label="Created">{formatAbsolute(video.createdAt)}</KeyValue>
                 <KeyValue label="Started">{formatAbsolute(video.startedAt)}</KeyValue>
                 <KeyValue label="Completed">{formatAbsolute(video.completedAt)}</KeyValue>

@@ -46,10 +46,12 @@ type TaskRunner struct {
 	images        provider.ImageProvider
 	composer      provider.VideoComposer
 	thumbnails    provider.ThumbnailBuilder
+	icons         provider.ThumbnailIconGenerator
 	uploader      provider.Uploader
 	notifier      ChapterNotifier
 	expander      GraphExpander
 	blueprintOpts func() BlueprintOptions
+	iconOpts      func() IconOptions
 	dryRun        func() bool
 	now           func() time.Time
 	log           *slog.Logger
@@ -74,10 +76,12 @@ func NewTaskRunner(
 	images provider.ImageProvider,
 	composer provider.VideoComposer,
 	thumbnails provider.ThumbnailBuilder,
+	icons provider.ThumbnailIconGenerator,
 	uploader provider.Uploader,
 	notifier ChapterNotifier,
 	expander GraphExpander,
 	blueprintOpts func() BlueprintOptions,
+	iconOpts func() IconOptions,
 	dryRun func() bool,
 	now func() time.Time,
 	log *slog.Logger,
@@ -89,8 +93,9 @@ func NewTaskRunner(
 		videos: videos, videoFields: videoFields, channels: channels,
 		chapters: chapters, chapterWriter: chapterWriter, chapterFields: chapterFields,
 		assets: assets, store: store, llm: llm, tts: tts, images: images,
-		composer: composer, thumbnails: thumbnails, uploader: uploader, notifier: notifier,
-		expander: expander, blueprintOpts: blueprintOpts,
+		composer: composer, thumbnails: thumbnails, icons: icons,
+		uploader: uploader, notifier: notifier,
+		expander: expander, blueprintOpts: blueprintOpts, iconOpts: iconOpts,
 		dryRun: dryRun, now: now, log: log,
 	}
 }
@@ -153,8 +158,14 @@ func (r *TaskRunner) dispatch(ctx context.Context, t entity.Task) entity.TaskOut
 	case entity.TaskKindMetadata:
 		return GenerateMetadata(ctx, t, r.videos, r.chapters, r.llm,
 			r.videoFields, r.assets, r.store, r.now())
+	case entity.TaskKindThumbnailPlan:
+		return GenerateThumbnailPlan(ctx, t, r.videos, r.chapters, r.llm,
+			r.videoFields, r.assets, r.store, r.now())
+	case entity.TaskKindThumbnailIcon:
+		return GenerateThumbnailIcon(ctx, t, r.videos, r.icons,
+			r.videoFields, r.assets, r.store, r.iconOpts(), r.now())
 	case entity.TaskKindThumbnail:
-		return BuildThumbnail(ctx, t, r.videos, r.chapters, r.thumbnails,
+		return BuildThumbnail(ctx, t, r.videos, r.thumbnails,
 			r.videoFields, r.assets, r.store, r.now())
 	case entity.TaskKindUpload:
 		return PublishVideo(ctx, t, r.videos, r.channels, r.uploader, r.videoFields, r.dryRun)

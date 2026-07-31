@@ -110,6 +110,7 @@ func videoFromRow(r sqlcgen.Video) (entity.Video, error) {
 		ChapterCount:          int(r.ChapterCount),
 		TargetDurationMinutes: int(r.TargetDurationMinutes),
 		ImagesPerChapter:      int(r.ImagesPerChapter),
+		ThumbnailCells:        int(r.ThumbnailCells),
 		BlueprintAssetID:      toAssetID(r.BlueprintAssetID),
 		FinalAssetID:          toAssetID(r.FinalAssetID),
 		ThumbnailAssetID:      toAssetID(r.ThumbnailAssetID),
@@ -125,6 +126,16 @@ func videoFromRow(r sqlcgen.Video) (entity.Video, error) {
 			return entity.Video{}, err
 		}
 		v.Metadata = &m
+	}
+	if r.ThumbnailPlanJson != nil && *r.ThumbnailPlanJson != "" {
+		var p entity.ThumbnailPlan
+		if err := decodeJSON(*r.ThumbnailPlanJson, &p); err != nil {
+			return entity.Video{}, err
+		}
+		v.ThumbnailPlan = &p
+	}
+	if err := decodeJSON(r.ThumbnailIconIdsJson, &v.ThumbnailIconAssetIDs); err != nil {
+		return entity.Video{}, err
 	}
 	if r.UploadJson != nil && *r.UploadJson != "" {
 		var u entity.UploadRecord

@@ -24,6 +24,10 @@ const (
 	AssetKindFinal     AssetKind = "final"
 	AssetKindMetadata  AssetKind = "metadata"
 	AssetKindThumbnail AssetKind = "thumbnail"
+	// AssetKindThumbnailPlan is the JSON grid the thumbnail is built from.
+	AssetKindThumbnailPlan AssetKind = "thumbnail_plan"
+	// AssetKindThumbnailIcon is one tile's icon.
+	AssetKindThumbnailIcon AssetKind = "thumbnail_icon"
 )
 
 // AllAssetKinds lists every AssetKind, for validation and the UI.
@@ -37,13 +41,16 @@ var AllAssetKinds = []AssetKind{
 	AssetKindFinal,
 	AssetKindMetadata,
 	AssetKindThumbnail,
+	AssetKindThumbnailPlan,
+	AssetKindThumbnailIcon,
 }
 
 // Valid reports whether the kind is one of the known constants.
 func (k AssetKind) Valid() bool {
 	switch k {
 	case AssetKindBlueprint, AssetKindScript, AssetKindPrompt, AssetKindAudio,
-		AssetKindImage, AssetKindClip, AssetKindFinal, AssetKindMetadata, AssetKindThumbnail:
+		AssetKindImage, AssetKindClip, AssetKindFinal, AssetKindMetadata,
+		AssetKindThumbnail, AssetKindThumbnailPlan, AssetKindThumbnailIcon:
 		return true
 	default:
 		return false
@@ -53,13 +60,13 @@ func (k AssetKind) Valid() bool {
 // Ext returns the canonical file extension for the kind, including the dot.
 func (k AssetKind) Ext() string {
 	switch k {
-	case AssetKindBlueprint, AssetKindMetadata:
+	case AssetKindBlueprint, AssetKindMetadata, AssetKindThumbnailPlan:
 		return ".json"
 	case AssetKindScript, AssetKindPrompt:
 		return ".txt"
 	case AssetKindAudio:
 		return ".wav"
-	case AssetKindImage, AssetKindThumbnail:
+	case AssetKindImage, AssetKindThumbnail, AssetKindThumbnailIcon:
 		return ".png"
 	case AssetKindClip, AssetKindFinal:
 		return ".mp4"
@@ -71,13 +78,13 @@ func (k AssetKind) Ext() string {
 // MIME returns the content type served for the kind.
 func (k AssetKind) MIME() string {
 	switch k {
-	case AssetKindBlueprint, AssetKindMetadata:
+	case AssetKindBlueprint, AssetKindMetadata, AssetKindThumbnailPlan:
 		return "application/json"
 	case AssetKindScript, AssetKindPrompt:
 		return "text/plain; charset=utf-8"
 	case AssetKindAudio:
 		return "audio/wav"
-	case AssetKindImage, AssetKindThumbnail:
+	case AssetKindImage, AssetKindThumbnail, AssetKindThumbnailIcon:
 		return "image/png"
 	case AssetKindClip, AssetKindFinal:
 		return "video/mp4"

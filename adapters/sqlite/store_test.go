@@ -176,7 +176,7 @@ func TestVideoLifecyclePersistence(t *testing.T) {
 	ctx := context.Background()
 	now := time.Unix(1_700_000_000, 0).UTC()
 
-	v, err := entity.NewVideo("v1", ch.ID, "DSS-1", "Title", "topic", 3, 2, 0, now)
+	v, err := entity.NewVideo("v1", ch.ID, "DSS-1", "Title", "topic", 3, 2, 4, 0, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,6 +250,78 @@ func TestVideoLifecyclePersistence(t *testing.T) {
 	}
 }
 
+// The icon tasks finish in whatever order the image pool hands them back, so
+// each must land in its own slot. The slots are sized when the plan is written:
+// json_set appends rather than pads when the index is past the end, which would
+// put an out-of-order icon in the wrong cell.
+func TestSetVideoThumbnailIconIsIndexed(t *testing.T) {
+	t.Parallel()
+	store, ch := seeded(t)
+	ctx := context.Background()
+	now := time.Unix(0, 0).UTC()
+
+	v, err := entity.NewVideo("v1", ch.ID, "DSS-1", "Title", "", 1, 1, 3, 0, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.CreateVideo(ctx, v); err != nil {
+		t.Fatal(err)
+	}
+	plan := entity.ThumbnailPlan{Cells: []entity.ThumbnailCell{
+		{Caption: "Mind Control", Prompt: "a pocket watch"},
+		{Caption: "Inner Critic", Prompt: "a cracked mirror"},
+		{Caption: "False Memory", Prompt: "a folded map"},
+	}}
+	if err := store.SetVideoThumbnailPlan(ctx, v.ID, plan); err != nil {
+		t.Fatal(err)
+	}
+
+	// Deliberately out of order, as concurrent tasks would arrive.
+	for _, w := range []struct {
+		index int
+		id    entity.AssetID
+	}{{2, "cc"}, {0, "aa"}, {1, "bb"}} {
+		if err := store.SetVideoThumbnailIcon(ctx, v.ID, w.index, w.id); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got, err := store.VideoByID(ctx, v.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []entity.AssetID{"aa", "bb", "cc"}
+	if len(got.ThumbnailIconAssetIDs) != len(want) {
+		t.Fatalf("icons = %v, want %v", got.ThumbnailIconAssetIDs, want)
+	}
+	for i := range want {
+		if got.ThumbnailIconAssetIDs[i] != want[i] {
+			t.Fatalf("icons = %v, want %v", got.ThumbnailIconAssetIDs, want)
+		}
+	}
+	if got.ThumbnailPlan == nil || len(got.ThumbnailPlan.Cells) != 3 {
+		t.Fatalf("plan = %+v, want three cells", got.ThumbnailPlan)
+	}
+	if got.ThumbnailPlan.Cells[1].Caption != "Inner Critic" {
+		t.Fatalf("cell 1 caption = %q", got.ThumbnailPlan.Cells[1].Caption)
+	}
+
+	// A replacement plan resizes the slots rather than leaving the old icons in
+	// cells that no longer mean what they meant.
+	if err := store.SetVideoThumbnailPlan(ctx, v.ID, entity.ThumbnailPlan{
+		Cells: []entity.ThumbnailCell{{Caption: "Only", Prompt: "a bell"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, err = store.VideoByID(ctx, v.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.ThumbnailIconAssetIDs) != 1 || got.ThumbnailIconAssetIDs[0] != "" {
+		t.Fatalf("icons after re-plan = %v, want one empty slot", got.ThumbnailIconAssetIDs)
+	}
+}
+
 // Two image tasks for the same chapter write concurrently; each must land
 // without clobbering the other.
 func TestSetChapterImageIsIndexed(t *testing.T) {
@@ -258,7 +330,7 @@ func TestSetChapterImageIsIndexed(t *testing.T) {
 	ctx := context.Background()
 	now := time.Unix(0, 0).UTC()
 
-	v, err := entity.NewVideo("v1", ch.ID, "DSS-1", "Title", "", 1, 3, 0, now)
+	v, err := entity.NewVideo("v1", ch.ID, "DSS-1", "Title", "", 1, 3, 2, 0, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +378,7 @@ func TestGraphPersistenceRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	now := time.Unix(0, 0).UTC()
 
-	v, err := entity.NewVideo("v1", ch.ID, "DSS-1", "Title", "", 4, 2, 0, now)
+	v, err := entity.NewVideo("v1", ch.ID, "DSS-1", "Title", "", 4, 2, 2, 0, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -314,7 +386,7 @@ func TestGraphPersistenceRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	g, err := scheduler.BuildGraph(scheduler.BuildSpec{
-		VideoID: "v1", ChapterCount: 4, ImagesPerChapter: 2, MaxAttempts: 3,
+		VideoID: "v1", ChapterCount: 4, ImagesPerChapter: 2, ThumbnailCells: 2, MaxAttempts: 3,
 		BlueprintGate: true, UploadGate: true, Now: now,
 	})
 	if err != nil {

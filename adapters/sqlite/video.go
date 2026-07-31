@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/tbui/yt-studio/adapters/sqlite/sqlcgen"
@@ -108,10 +109,11 @@ func (s *Store) CreateVideo(ctx context.Context, v entity.Video) error {
 }
 
 func createVideoParams(v entity.Video) (sqlcgen.CreateVideoParams, error) {
-	metadata, upload, err := videoJSON(v)
+	blobs, err := videoJSON(v)
 	if err != nil {
 		return sqlcgen.CreateVideoParams{}, err
 	}
+	metadata, upload, plan, icons := blobs.metadata, blobs.upload, blobs.plan, blobs.icons
 	return sqlcgen.CreateVideoParams{
 		ID:                    string(v.ID),
 		ChannelID:             string(v.ChannelID),
@@ -122,9 +124,12 @@ func createVideoParams(v entity.Video) (sqlcgen.CreateVideoParams, error) {
 		ChapterCount:          int64(v.ChapterCount),
 		ImagesPerChapter:      int64(v.ImagesPerChapter),
 		TargetDurationMinutes: int64(v.TargetDurationMinutes),
+		ThumbnailCells:        int64(v.ThumbnailCells),
 		BlueprintAssetID:      assetIDPtr(v.BlueprintAssetID),
 		FinalAssetID:          assetIDPtr(v.FinalAssetID),
 		ThumbnailAssetID:      assetIDPtr(v.ThumbnailAssetID),
+		ThumbnailPlanJson:     plan,
+		ThumbnailIconIdsJson:  icons,
 		MetadataJson:          metadata,
 		UploadJson:            upload,
 		Error:                 v.Error,
@@ -135,30 +140,59 @@ func createVideoParams(v entity.Video) (sqlcgen.CreateVideoParams, error) {
 	}, nil
 }
 
-func videoJSON(v entity.Video) (metadata, upload *string, err error) {
+// videoBlobs are the video's JSON-valued columns, encoded once for whichever
+// statement is about to write them.
+type videoBlobs struct {
+	metadata *string
+	upload   *string
+	plan     *string
+	icons    string
+}
+
+func videoJSON(v entity.Video) (videoBlobs, error) {
+	var b videoBlobs
 	if v.Metadata != nil {
 		s, err := encodeJSON(v.Metadata)
 		if err != nil {
-			return nil, nil, fmt.Errorf("encode video metadata: %w", err)
+			return videoBlobs{}, fmt.Errorf("encode video metadata: %w", err)
 		}
-		metadata = strPtr(s)
+		b.metadata = strPtr(s)
 	}
 	if v.Upload != nil {
 		s, err := encodeJSON(v.Upload)
 		if err != nil {
-			return nil, nil, fmt.Errorf("encode upload record: %w", err)
+			return videoBlobs{}, fmt.Errorf("encode upload record: %w", err)
 		}
-		upload = strPtr(s)
+		b.upload = strPtr(s)
 	}
-	return metadata, upload, nil
+	if v.ThumbnailPlan != nil {
+		s, err := encodeJSON(v.ThumbnailPlan)
+		if err != nil {
+			return videoBlobs{}, fmt.Errorf("encode thumbnail plan: %w", err)
+		}
+		b.plan = strPtr(s)
+	}
+	// The column is NOT NULL: an unwritten grid is an empty array, never null,
+	// so the indexed setter always has a document to write into.
+	icons := v.ThumbnailIconAssetIDs
+	if icons == nil {
+		icons = []entity.AssetID{}
+	}
+	s, err := encodeJSON(icons)
+	if err != nil {
+		return videoBlobs{}, fmt.Errorf("encode thumbnail icon ids: %w", err)
+	}
+	b.icons = s
+	return b, nil
 }
 
 // UpdateVideo writes back every mutable field of a video.
 func (s *Store) UpdateVideo(ctx context.Context, v entity.Video) error {
-	metadata, upload, err := videoJSON(v)
+	blobs, err := videoJSON(v)
 	if err != nil {
 		return err
 	}
+	metadata, upload, plan, icons := blobs.metadata, blobs.upload, blobs.plan, blobs.icons
 	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
 		return q.UpdateVideo(ctx, sqlcgen.UpdateVideoParams{
 			Title:                 v.Title,
@@ -167,9 +201,12 @@ func (s *Store) UpdateVideo(ctx context.Context, v entity.Video) error {
 			ChapterCount:          int64(v.ChapterCount),
 			ImagesPerChapter:      int64(v.ImagesPerChapter),
 			TargetDurationMinutes: int64(v.TargetDurationMinutes),
+			ThumbnailCells:        int64(v.ThumbnailCells),
 			BlueprintAssetID:      assetIDPtr(v.BlueprintAssetID),
 			FinalAssetID:          assetIDPtr(v.FinalAssetID),
 			ThumbnailAssetID:      assetIDPtr(v.ThumbnailAssetID),
+			ThumbnailPlanJson:     plan,
+			ThumbnailIconIdsJson:  icons,
 			MetadataJson:          metadata,
 			UploadJson:            upload,
 			Error:                 v.Error,
@@ -281,6 +318,46 @@ func (s *Store) SetVideoFinalAsset(ctx context.Context, id entity.VideoID, asset
 			FinalAssetID: &value,
 			UpdatedAt:    toUnix(time.Now()),
 			ID:           string(id),
+		})
+	})
+}
+
+// SetVideoThumbnailPlan records the grid and sizes the slots its icons will
+// land in. Both in one statement: a plan whose slot array still belongs to the
+// plan before it would put an icon in the wrong cell.
+func (s *Store) SetVideoThumbnailPlan(ctx context.Context, id entity.VideoID, p entity.ThumbnailPlan) error {
+	encoded, err := encodeJSON(p)
+	if err != nil {
+		return fmt.Errorf("encode thumbnail plan: %w", err)
+	}
+	slots, err := encodeJSON(make([]entity.AssetID, len(p.Cells)))
+	if err != nil {
+		return fmt.Errorf("encode thumbnail icon ids: %w", err)
+	}
+	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
+		return q.SetVideoThumbnailPlan(ctx, sqlcgen.SetVideoThumbnailPlanParams{
+			ThumbnailPlanJson:    &encoded,
+			ThumbnailIconIdsJson: slots,
+			UpdatedAt:            toUnix(time.Now()),
+			ID:                   string(id),
+		})
+	})
+}
+
+// SetVideoThumbnailIcon records one icon at its index. json_set makes this a
+// single atomic statement, so two concurrent icon tasks cannot lose each
+// other's write.
+func (s *Store) SetVideoThumbnailIcon(ctx context.Context, id entity.VideoID, index int, assetID entity.AssetID) error {
+	if index < 0 {
+		return fmt.Errorf("%w: icon index must not be negative", entity.ErrInvalidVideo)
+	}
+	path := "$[" + strconv.Itoa(index) + "]"
+	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
+		return q.SetVideoThumbnailIcon(ctx, sqlcgen.SetVideoThumbnailIconParams{
+			Path:      path,
+			AssetID:   string(assetID),
+			UpdatedAt: toUnix(time.Now()),
+			ID:        string(id),
 		})
 	})
 }

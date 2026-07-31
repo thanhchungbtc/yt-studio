@@ -276,7 +276,7 @@ func TestNewAssetValidation(t *testing.T) {
 func TestNewVideoValidation(t *testing.T) {
 	t.Parallel()
 	now := time.Unix(0, 0)
-	if _, err := entity.NewVideo("v1", "c1", "DSS-1", "Title", "topic", 50, 2, 0, now); err != nil {
+	if _, err := entity.NewVideo("v1", "c1", "DSS-1", "Title", "topic", 50, 2, 10, 0, now); err != nil {
 		t.Fatalf("valid video rejected: %v", err)
 	}
 	bad := []struct {
@@ -295,7 +295,7 @@ func TestNewVideoValidation(t *testing.T) {
 	for _, tc := range bad {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if _, err := entity.NewVideo("v1", "c1", tc.ref, tc.title, "", tc.chapters, tc.images, 0, now); !errors.Is(err, entity.ErrInvalidVideo) {
+			if _, err := entity.NewVideo("v1", "c1", tc.ref, tc.title, "", tc.chapters, tc.images, 10, 0, now); !errors.Is(err, entity.ErrInvalidVideo) {
 				t.Fatalf("err = %v, want ErrInvalidVideo", err)
 			}
 		})

@@ -112,6 +112,7 @@ export const api = {
       chapterCount?: number
       targetDurationMinutes?: number
       imagesPerChapter?: number
+      thumbnailCells?: number
       start?: boolean
     },
     idempotencyKey: string,

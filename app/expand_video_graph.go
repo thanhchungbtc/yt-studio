@@ -58,9 +58,12 @@ func ExpandVideoGraph(
 		VideoID:          v.ID,
 		ChapterCount:     len(rows),
 		ImagesPerChapter: v.ImagesPerChapter,
-		MaxAttempts:      opts.MaxAttempts,
-		UploadGate:       opts.UploadGate,
-		Now:              now,
+		// The grid width comes off the video row, not from settings: it decides how
+		// many icon tasks this graph gets, and the graph can never grow after.
+		ThumbnailCells: v.ThumbnailCells,
+		MaxAttempts:    opts.MaxAttempts,
+		UploadGate:     opts.UploadGate,
+		Now:            now,
 	})
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrValidation, err)

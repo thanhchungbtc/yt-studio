@@ -23,6 +23,8 @@ export type TaskKind =
   | 'clip'
   | 'concat'
   | 'metadata'
+  | 'thumbnail_plan'
+  | 'thumbnail_icon'
   | 'thumbnail'
   | 'upload'
 
@@ -85,6 +87,7 @@ export interface Video {
   state: VideoState
   chapterCount: number
   imagesPerChapter: number
+  thumbnailCells: number
   targetDurationMinutes: number
   blueprintAssetId?: string
   finalAssetId?: string

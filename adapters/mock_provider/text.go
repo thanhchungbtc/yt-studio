@@ -4,6 +4,7 @@ import (
 	"math/rand/v2"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // Deterministic prose generation. Every phrase is chosen by a PRNG seeded only
@@ -77,6 +78,23 @@ var (
 	imageComposition = []string{
 		"wide establishing shot", "low horizon, tall sky", "centred symmetrical framing",
 		"three-quarter view", "high vantage looking down", "shallow foreground detail",
+	}
+	// Icon subjects are single objects, drawn small: what survives being reduced
+	// to a 2 cm tile of line art. The style clause is not here — the daemon
+	// appends it, so restyling the grid never re-rolls these words.
+	iconSubjects = []string{
+		"a ship's lantern", "a folded paper map", "a stone archway", "a pocket watch",
+		"a pair of oars", "a stack of ledgers", "a weather vane", "a hand holding a key",
+		"an open gate", "a coil of rope", "a bell in a tower", "a compass rose",
+		"a bundle of letters", "a lighthouse", "a wooden crate", "a broken chain",
+	}
+	iconViews = []string{"side view", "front view", "three-quarter view", "top-down view"}
+	// Words a caption is better off without: two words is the whole budget, and
+	// none of these earn one.
+	captionStopWords = map[string]struct{}{
+		"the": {}, "of": {}, "a": {}, "an": {}, "at": {}, "in": {}, "on": {}, "to": {},
+		"from": {}, "and": {}, "for": {}, "with": {}, "what": {}, "which": {},
+		"before": {}, "under": {}, "after": {}, "second": {},
 	}
 	tagWords = []string{
 		"long form", "narrated", "history", "sleep", "documentary", "storytelling",
@@ -191,6 +209,51 @@ func imagePrompt(seed uint64, chapterTitle, chapterSummary string) string {
 		b.WriteString(chapterSummary)
 	}
 	return b.String()
+}
+
+// iconPrompt describes one tile's subject. It is the subject alone: the shared
+// style clause is the daemon's to append.
+func iconPrompt(seed uint64) string {
+	r := deterministic(seed)
+	return pick(r, iconSubjects) + ", " + pick(r, iconViews)
+}
+
+// caption compresses a chapter title into the two words a tile has room for.
+//
+// Stop words go first, then the trailing ordinal the mock's own titles carry.
+// What is left is Title Case, because that is what the reference thumbnails
+// use — the headline shouts, the captions label.
+func caption(title string) string {
+	words := make([]string, 0, 2)
+	for _, w := range strings.Fields(title) {
+		w = strings.Trim(w, "()[],.:;\"'")
+		if w == "" {
+			continue
+		}
+		if _, stop := captionStopWords[strings.ToLower(w)]; stop {
+			continue
+		}
+		if _, err := strconv.Atoi(w); err == nil {
+			continue
+		}
+		words = append(words, titleCase(w))
+		if len(words) == 2 {
+			break
+		}
+	}
+	if len(words) == 0 {
+		return "Untitled"
+	}
+	return strings.Join(words, " ")
+}
+
+func titleCase(w string) string {
+	lower := strings.ToLower(w)
+	first, size := utf8.DecodeRuneInString(lower)
+	if first == utf8.RuneError {
+		return lower
+	}
+	return strings.ToUpper(string(first)) + lower[size:]
 }
 
 func tagsFor(r *rand.Rand, topic string) []string {

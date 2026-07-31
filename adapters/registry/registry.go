@@ -68,12 +68,13 @@ func (p *port[T]) names() []string {
 
 // Registry owns every provider port's backends.
 type Registry struct {
-	llm       *port[provider.LLMProvider]
-	tts       *port[provider.TTSProvider]
-	image     *port[provider.ImageProvider]
-	composer  *port[provider.VideoComposer]
-	thumbnail *port[provider.ThumbnailBuilder]
-	uploader  *port[provider.Uploader]
+	llm           *port[provider.LLMProvider]
+	tts           *port[provider.TTSProvider]
+	image         *port[provider.ImageProvider]
+	composer      *port[provider.VideoComposer]
+	thumbnail     *port[provider.ThumbnailBuilder]
+	thumbnailIcon *port[provider.ThumbnailIconGenerator]
+	uploader      *port[provider.Uploader]
 }
 
 // New creates an empty registry bound to a settings reader.
@@ -84,7 +85,9 @@ func New(selected Selected) *Registry {
 		image:     newPort[provider.ImageProvider](entity.SettingProviderImage, selected),
 		composer:  newPort[provider.VideoComposer](entity.SettingProviderComposer, selected),
 		thumbnail: newPort[provider.ThumbnailBuilder](entity.SettingProviderThumbnail, selected),
-		uploader:  newPort[provider.Uploader](entity.SettingProviderUploader, selected),
+		thumbnailIcon: newPort[provider.ThumbnailIconGenerator](
+			entity.SettingProviderThumbnailIcon, selected),
+		uploader: newPort[provider.Uploader](entity.SettingProviderUploader, selected),
 	}
 }
 
@@ -109,6 +112,11 @@ func (r *Registry) RegisterThumbnail(name string, impl provider.ThumbnailBuilder
 	r.thumbnail.register(name, impl)
 }
 
+// RegisterThumbnailIcon adds a named backend for the thumbnail's grid icons.
+func (r *Registry) RegisterThumbnailIcon(name string, impl provider.ThumbnailIconGenerator) {
+	r.thumbnailIcon.register(name, impl)
+}
+
 // RegisterUploader adds a named publishing backend.
 func (r *Registry) RegisterUploader(name string, impl provider.Uploader) {
 	r.uploader.register(name, impl)
@@ -121,12 +129,13 @@ func (r *Registry) RegisterUploader(name string, impl provider.Uploader) {
 //nolint:exhaustive // deliberately partial: only the provider.* keys name a backend
 func (r *Registry) Options() map[entity.SettingKey][]string {
 	return map[entity.SettingKey][]string{
-		entity.SettingProviderLLM:       r.llm.names(),
-		entity.SettingProviderTTS:       r.tts.names(),
-		entity.SettingProviderImage:     r.image.names(),
-		entity.SettingProviderComposer:  r.composer.names(),
-		entity.SettingProviderThumbnail: r.thumbnail.names(),
-		entity.SettingProviderUploader:  r.uploader.names(),
+		entity.SettingProviderLLM:           r.llm.names(),
+		entity.SettingProviderTTS:           r.tts.names(),
+		entity.SettingProviderImage:         r.image.names(),
+		entity.SettingProviderComposer:      r.composer.names(),
+		entity.SettingProviderThumbnail:     r.thumbnail.names(),
+		entity.SettingProviderThumbnailIcon: r.thumbnailIcon.names(),
+		entity.SettingProviderUploader:      r.uploader.names(),
 	}
 }
 
@@ -154,6 +163,11 @@ func (r *Registry) Composer() provider.VideoComposer { return composerRouter{r.c
 
 // Thumbnail returns the router for the thumbnail port.
 func (r *Registry) Thumbnail() provider.ThumbnailBuilder { return thumbnailRouter{r.thumbnail} }
+
+// ThumbnailIcon returns the router for the thumbnail icon port.
+func (r *Registry) ThumbnailIcon() provider.ThumbnailIconGenerator {
+	return thumbnailIconRouter{r.thumbnailIcon}
+}
 
 // Uploader returns the router for the publishing port.
 func (r *Registry) Uploader() provider.Uploader { return uploaderRouter{r.uploader} }
@@ -195,6 +209,14 @@ func (r llmRouter) Metadata(ctx context.Context, req provider.MetadataRequest) (
 		return provider.Metadata{}, err
 	}
 	return impl.Metadata(ctx, req)
+}
+
+func (r llmRouter) ThumbnailPlan(ctx context.Context, req provider.ThumbnailPlanRequest) (provider.ThumbnailPlan, error) {
+	impl, err := r.p.pick()
+	if err != nil {
+		return provider.ThumbnailPlan{}, err
+	}
+	return impl.ThumbnailPlan(ctx, req)
 }
 
 // Forget invalidates the selected backend's coalesced prompt batch, for the
@@ -266,6 +288,20 @@ func (r thumbnailRouter) Build(ctx context.Context, req provider.ThumbnailReques
 		return "", err
 	}
 	return impl.Build(ctx, req)
+}
+
+type thumbnailIconRouter struct {
+	p *port[provider.ThumbnailIconGenerator]
+}
+
+var _ provider.ThumbnailIconGenerator = thumbnailIconRouter{}
+
+func (r thumbnailIconRouter) Icon(ctx context.Context, req provider.ThumbnailIconRequest) (entity.AssetID, error) {
+	impl, err := r.p.pick()
+	if err != nil {
+		return "", err
+	}
+	return impl.Icon(ctx, req)
 }
 
 type uploaderRouter struct{ p *port[provider.Uploader] }

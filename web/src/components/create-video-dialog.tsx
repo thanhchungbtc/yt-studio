@@ -33,6 +33,7 @@ export function CreateVideoDialog({
   const [chapterCount, setChapterCount] = useState('50')
   const [durationMinutes, setDurationMinutes] = useState('180')
   const [imagesPerChapter, setImagesPerChapter] = useState('2')
+  const [thumbnailCells, setThumbnailCells] = useState('10')
   const [start, setStart] = useState(true)
   // A stable key per dialog session makes a double submit a no-op.
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID())
@@ -52,6 +53,7 @@ export function CreateVideoDialog({
           chapterCount: Number(chapterCount) || 0,
           targetDurationMinutes: Number(durationMinutes) || 0,
           imagesPerChapter: Number(imagesPerChapter) || 0,
+          thumbnailCells: Number(thumbnailCells) || 0,
           start,
         },
         idempotencyKey,
@@ -69,7 +71,10 @@ export function CreateVideoDialog({
   const chapters = Number(chapterCount) || 0
   const stills = Number(imagesPerChapter) || 0
   const minutes = Number(durationMinutes) || 0
-  const taskEstimate = 5 + 4 * chapters + chapters * stills
+  const cells = Number(thumbnailCells) || 0
+  // Mirrors scheduler.NodeCountFor: the seven video-level tasks, four per
+  // chapter, one per still and one icon per thumbnail tile.
+  const taskEstimate = 7 + 4 * chapters + chapters * stills + cells
 
   return (
     <Modal
@@ -187,6 +192,21 @@ export function CreateVideoDialog({
             )}
           </Field>
         </div>
+
+        {/* Fixed when the video is created: the DAG gets one icon task per tile
+            and cannot change width afterwards. */}
+        <Field label="Thumbnail tiles" hint="Icons in the thumbnail grid, 1–24">
+          {(id) => (
+            <Input
+              id={id}
+              type="number"
+              min={1}
+              max={24}
+              value={thumbnailCells}
+              onChange={(e) => setThumbnailCells(e.target.value)}
+            />
+          )}
+        </Field>
 
         <label className="flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] border border-[hsl(var(--border))] bg-subtle px-3 py-2 text-[12.5px] text-fg">
           <input

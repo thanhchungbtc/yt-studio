@@ -1,4 +1,4 @@
-// Package provider declares the five ports through which the daemon reaches
+// Package provider declares the ports through which the daemon reaches
 // generative backends and the store their output lands in.
 //
 // The rule every backend obeys: a provider call never spans more than one unit
@@ -122,6 +122,29 @@ type Metadata struct {
 	AssetID  entity.AssetID
 }
 
+// ThumbnailPlanRequest asks for the grid that sits under the thumbnail's
+// headline: which ideas from the video earn a tile, and what each tile shows.
+type ThumbnailPlanRequest struct {
+	VideoID  entity.VideoID
+	VideoRef entity.Ref
+	Title    string
+	Topic    string
+	// Headline is the hook the metadata task wrote. The plan sees it so the
+	// captions say something the headline does not already say.
+	Headline string
+	Chapters []BlueprintChapter
+	// Cells is exactly how many tiles to write, not a target. The DAG already
+	// holds one icon task per cell by the time this is called, so a plan that
+	// comes back short leaves tasks with no prompt to read.
+	Cells int
+}
+
+// ThumbnailPlan is the grid plus the asset the JSON was written to.
+type ThumbnailPlan struct {
+	Plan    entity.ThumbnailPlan
+	AssetID entity.AssetID
+}
+
 // LLMProvider covers every text generation step of the pipeline.
 type LLMProvider interface {
 	Blueprint(ctx context.Context, req BlueprintRequest) (Blueprint, error)
@@ -131,4 +154,5 @@ type LLMProvider interface {
 	// so exactly one real generation happens per video.
 	ImagePrompts(ctx context.Context, videoID entity.VideoID) ([]ImagePrompt, error)
 	Metadata(ctx context.Context, req MetadataRequest) (Metadata, error)
+	ThumbnailPlan(ctx context.Context, req ThumbnailPlanRequest) (ThumbnailPlan, error)
 }

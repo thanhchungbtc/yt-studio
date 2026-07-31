@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"image/png"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -226,24 +227,36 @@ func TestGeneratedStillIsAValidPNG(t *testing.T) {
 	}
 }
 
+// grid builds the cells a thumbnail is assembled from: one generated icon per
+// caption, which is the shape the icon tasks will hand the builder.
+func grid(t *testing.T, store provider.AssetStore, captions ...string) []provider.ThumbnailIconCell {
+	t.Helper()
+	icons := mockprovider.NewIcon(store, nil)
+	cells := make([]provider.ThumbnailIconCell, 0, len(captions))
+	for i, caption := range captions {
+		id, err := icons.Icon(context.Background(), provider.ThumbnailIconRequest{
+			VideoID: "v1", Index: i, Prompt: "a stone archway, side view — " + caption, Size: 256,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		cells = append(cells, provider.ThumbnailIconCell{Caption: caption, IconAssetID: id})
+	}
+	return cells
+}
+
 // The thumbnail is the one asset whose dimensions are fixed by YouTube rather
 // than by us, so the mock is held to them.
 func TestThumbnailIsAValidPNGAtYouTubeSize(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	store := newStore(t)
-	images := mockprovider.NewImage(store, nil)
 	thumbnails := mockprovider.NewThumbnail(store, nil)
+	cells := grid(t, store, "Mind Control", "Split Personality", "Inner Critic", "False Memory")
 
-	still, err := images.Generate(ctx, provider.ImageRequest{
-		VideoID: "v1", ChapterID: "v1:ch:1", Ordinal: 1, Index: 0, Prompt: "a stone bridge in thin fog",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
 	id, err := thumbnails.Build(ctx, provider.ThumbnailRequest{
 		VideoID: "v1", VideoRef: "DSS-1", Title: "The Long Winter",
-		Text: "50 BROKEN BELIEFS", ImageAssetIDs: []entity.AssetID{still},
+		Headline: "50 BROKEN BELIEFS", Cells: cells,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -262,29 +275,173 @@ func TestThumbnailIsAValidPNGAtYouTubeSize(t *testing.T) {
 		t.Fatalf("thumbnail is %dx%d, want 1280x720", got.Dx(), got.Dy())
 	}
 
-	// The hook is the reason the task exists: a thumbnail built without it must
-	// not land on the same content address as one built with it.
+	// The headline is the reason the task exists: a thumbnail built without it
+	// must not land on the same content address as one built with it.
 	plain, err := thumbnails.Build(ctx, provider.ThumbnailRequest{
-		VideoID: "v1", VideoRef: "DSS-1", Title: "The Long Winter",
-		ImageAssetIDs: []entity.AssetID{still},
+		VideoID: "v1", VideoRef: "DSS-1", Title: "The Long Winter", Cells: cells,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if plain == id {
-		t.Fatal("the hook made no difference to the rendered bytes")
+		t.Fatal("the headline made no difference to the rendered bytes")
 	}
 }
 
-// A thumbnail with no still to sit on is a caller error, not an empty image.
-func TestThumbnailRequiresABackground(t *testing.T) {
+// Every cell is drawn, so changing one caption changes the image. Without this
+// the grid could silently be rendering the same tile ten times.
+func TestThumbnailRendersEveryCell(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store := newStore(t)
+	thumbnails := mockprovider.NewThumbnail(store, nil)
+
+	base := provider.ThumbnailRequest{
+		VideoID: "v1", VideoRef: "DSS-1", Headline: "REAL CHEAT CODES",
+		Cells: grid(t, store, "Mirroring", "Give First", "Speak Slow", "Smile First"),
+	}
+	first, err := thumbnails.Build(ctx, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Only the last cell's caption differs.
+	changed := base
+	changed.Cells = append([]provider.ThumbnailIconCell(nil), base.Cells...)
+	changed.Cells[len(changed.Cells)-1].Caption = "Smile Very Much First"
+	second, err := thumbnails.Build(ctx, changed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first == second {
+		t.Fatal("a caption change in the last cell did not reach the image")
+	}
+}
+
+// A cell whose icon never landed is a caller error, not a hole in the grid.
+func TestThumbnailRejectsACellWithNoIcon(t *testing.T) {
 	t.Parallel()
 	thumbnails := mockprovider.NewThumbnail(newStore(t), nil)
 
 	if _, err := thumbnails.Build(context.Background(), provider.ThumbnailRequest{
-		VideoID: "v1", VideoRef: "DSS-1", Text: "50 BROKEN BELIEFS",
+		VideoID: "v1", VideoRef: "DSS-1", Headline: "50 BROKEN BELIEFS",
+		Cells: []provider.ThumbnailIconCell{{Caption: "Mind Control"}},
 	}); err == nil {
-		t.Fatal("Build with no candidate stills returned no error")
+		t.Fatal("Build with an iconless cell returned no error")
+	}
+}
+
+// The icons carry the whole look of the grid, so they are held to being square,
+// black-backed and reproducible.
+func TestIconIsASquarePNG(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store := newStore(t)
+	icons := mockprovider.NewIcon(store, nil)
+
+	req := provider.ThumbnailIconRequest{
+		VideoID: "v1", Index: 3, Prompt: "a pocket watch, side view", Size: 256,
+	}
+	id, err := icons.Icon(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rc, err := store.Open(ctx, id, entity.AssetKindThumbnailIcon)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = rc.Close() }()
+
+	img, err := png.Decode(rc)
+	if err != nil {
+		t.Fatalf("output is not a valid PNG: %v", err)
+	}
+	if got := img.Bounds(); got.Dx() != 256 || got.Dy() != 256 {
+		t.Fatalf("icon is %dx%d, want 256x256", got.Dx(), got.Dy())
+	}
+
+	// The index is not part of the seed: two cells that asked for the same thing
+	// are the same file, and content addressing should say so.
+	elsewhere := req
+	elsewhere.Index = 7
+	same, err := icons.Icon(ctx, elsewhere)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if same != id {
+		t.Fatal("the same prompt at a different index produced different bytes")
+	}
+
+	different, err := icons.Icon(ctx, provider.ThumbnailIconRequest{
+		VideoID: "v1", Index: 3, Prompt: "a coil of rope, top-down view", Size: 256,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if different == id {
+		t.Fatal("a different prompt produced the same icon")
+	}
+}
+
+// The plan is a hard contract on count: the DAG already holds one icon task per
+// cell by the time it runs.
+func TestThumbnailPlanFillsEveryCell(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	llm := mockprovider.NewLLM(newStore(t), nil, nil)
+
+	bp, err := llm.Blueprint(ctx, blueprintRequest(12))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := provider.ThumbnailPlanRequest{
+		VideoID: "v1", VideoRef: "DSS-1", Title: bp.Title,
+		Headline: "50 BROKEN BELIEFS", Chapters: bp.Chapters, Cells: 10,
+	}
+	plan, err := llm.ThumbnailPlan(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Plan.Cells) != 10 {
+		t.Fatalf("cells = %d, want exactly 10", len(plan.Plan.Cells))
+	}
+	for i, cell := range plan.Plan.Cells {
+		if cell.Caption == "" {
+			t.Errorf("cell %d has no caption", i)
+		}
+		if words := len(strings.Fields(cell.Caption)); words > 3 {
+			t.Errorf("cell %d caption %q is %d words, want at most 3", i, cell.Caption, words)
+		}
+		if cell.Prompt == "" {
+			t.Errorf("cell %d has no prompt", i)
+		}
+	}
+
+	// The cells are drawn from across the video, not off the front of it: a grid
+	// taken from the first ten chapters of fifty is a bug that looks like output.
+	if plan.Plan.Cells[0].Caption == plan.Plan.Cells[len(plan.Plan.Cells)-1].Caption {
+		t.Error("first and last cell came from the same chapter")
+	}
+
+	again, err := llm.ThumbnailPlan(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.AssetID != plan.AssetID {
+		t.Fatal("the same request produced a different plan")
+	}
+}
+
+// A plan with nothing to draw from cannot be invented, and saying so beats
+// returning ten empty tiles.
+func TestThumbnailPlanNeedsAnOutline(t *testing.T) {
+	t.Parallel()
+	llm := mockprovider.NewLLM(newStore(t), nil, nil)
+
+	if _, err := llm.ThumbnailPlan(context.Background(), provider.ThumbnailPlanRequest{
+		VideoID: "v1", Headline: "50 BROKEN BELIEFS", Cells: 10,
+	}); err == nil {
+		t.Fatal("ThumbnailPlan with no chapters returned no error")
 	}
 }
 

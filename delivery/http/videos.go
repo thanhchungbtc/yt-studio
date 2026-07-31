@@ -50,6 +50,8 @@ type CreateVideoInput struct {
 		ChapterCount     int    `json:"chapterCount,omitempty" minimum:"0" maximum:"500" doc:"Defaults to the video.default_chapter_count setting"`
 		ImagesPerChapter int    `json:"imagesPerChapter,omitempty" minimum:"0" maximum:"20" doc:"Defaults to the video.default_images_per_chapter setting"`
 		//nolint:lll // one field, one line
+		ThumbnailCells int `json:"thumbnailCells,omitempty" minimum:"0" maximum:"24" doc:"Tiles in the thumbnail grid; defaults to the video.default_thumbnail_cells setting"`
+		//nolint:lll // one field, one line
 		TargetDurationMinutes int  `json:"targetDurationMinutes,omitempty" minimum:"0" maximum:"720" doc:"Planned running time; omit to let it fall out of the chapter count"`
 		Start                 bool `json:"start,omitempty" doc:"Enqueue the DAG immediately"`
 	}
@@ -124,12 +126,14 @@ func postVideo(
 		v, err := app.CreateVideo(ctx, channels, channelWriter, videoWriter, newID, now(),
 			settings.Int(entity.SettingVideoDefaultChapters),
 			settings.Int(entity.SettingVideoDefaultImages),
+			settings.Int(entity.SettingVideoDefaultThumbnailCells),
 			app.CreateVideoInput{
 				ChannelKey:            in.Body.Channel,
 				Title:                 in.Body.Title,
 				Topic:                 in.Body.Topic,
 				ChapterCount:          in.Body.ChapterCount,
 				ImagesPerChapter:      in.Body.ImagesPerChapter,
+				ThumbnailCells:        in.Body.ThumbnailCells,
 				TargetDurationMinutes: in.Body.TargetDurationMinutes,
 			})
 		if err != nil {

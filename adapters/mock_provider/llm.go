@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -227,14 +228,52 @@ func (l *LLM) Metadata(ctx context.Context, req provider.MetadataRequest) (provi
 		Title:       truncate(req.Title, 100),
 		Description: desc.String(),
 		Tags:        tagsFor(r, req.Topic),
-		CategoryID:  "24", // Entertainment, matching the real backend
-		Privacy:     "private",
+		// The hook is what the thumbnail is built around, so the mock writes one
+		// rather than leaving the downstream grid headless.
+		ThumbnailText: strings.ToUpper(caption(firstNonEmpty(req.Topic, req.Title))),
+		CategoryID:    "24", // Entertainment, matching the real backend
+		Privacy:       "private",
 	}
 	id, err := l.putJSON(ctx, entity.AssetKindMetadata, md)
 	if err != nil {
 		return provider.Metadata{}, err
 	}
 	return provider.Metadata{Metadata: md, AssetID: id}, nil
+}
+
+// ThumbnailPlan writes the grid that sits under the thumbnail's headline.
+//
+// The cells are drawn from chapters spread across the whole video rather than
+// from the first N: a grid taken from chapters 1 to 10 of a fifty-chapter video
+// looks like a bug, and the real backend will be choosing, not slicing.
+func (l *LLM) ThumbnailPlan(ctx context.Context, req provider.ThumbnailPlanRequest) (provider.ThumbnailPlan, error) {
+	if err := simulate(ctx, l.tuning, 2); err != nil {
+		return provider.ThumbnailPlan{}, err
+	}
+	if req.Cells < 1 {
+		return provider.ThumbnailPlan{}, errors.New("mock llm: a thumbnail plan needs at least one cell")
+	}
+	if len(req.Chapters) == 0 {
+		return provider.ThumbnailPlan{}, errors.New("mock llm: a thumbnail plan needs an outline to draw from")
+	}
+
+	seed := seedOf(string(req.VideoID), req.Headline, strconv.Itoa(req.Cells))
+	plan := entity.ThumbnailPlan{Cells: make([]entity.ThumbnailCell, 0, req.Cells)}
+	for i := range req.Cells {
+		// Spread, with a wrap that only bites if a caller asked for more cells than
+		// the video has chapters. The daemon clamps before it gets here.
+		ch := req.Chapters[i*len(req.Chapters)/req.Cells%len(req.Chapters)]
+		plan.Cells = append(plan.Cells, entity.ThumbnailCell{
+			Caption: caption(ch.Title),
+			Prompt:  iconPrompt(seed ^ uint64(i+1)*0x100000001B3), //nolint:gosec // deterministic mixing
+		})
+	}
+
+	id, err := l.putJSON(ctx, entity.AssetKindThumbnailPlan, plan)
+	if err != nil {
+		return provider.ThumbnailPlan{}, err
+	}
+	return provider.ThumbnailPlan{Plan: plan, AssetID: id}, nil
 }
 
 func (l *LLM) putJSON(ctx context.Context, kind entity.AssetKind, v any) (entity.AssetID, error) {

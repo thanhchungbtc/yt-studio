@@ -12,9 +12,9 @@ import (
 
 // BuildThumbnail renders the image that fronts the finished video.
 //
-// It runs after the metadata because the hook it overlays is part of the
-// listing: the thumbnail text and the title compete for the same glance, so
-// they are written together and only then rendered.
+// It runs after the metadata because the headline it renders is part of the
+// listing: the hook and the title compete for the same glance, so they are
+// written together and only then drawn.
 //
 // When the upload gate is enabled this task carries it: on success the
 // scheduler parks in awaiting_approval and does not release the upload, so what
@@ -26,7 +26,6 @@ func BuildThumbnail(
 	ctx context.Context,
 	t entity.Task,
 	videos repository.VideoReader,
-	chapters repository.ChapterReader,
 	thumbnails provider.ThumbnailBuilder,
 	videoFields repository.VideoFieldWriter,
 	assets repository.AssetWriter,
@@ -40,34 +39,17 @@ func BuildThumbnail(
 	if video.Metadata == nil {
 		return entity.Failed{Err: fmt.Errorf("%w: video has no metadata", ErrValidation), Retryable: true}
 	}
-
-	rows, err := chapters.ListChaptersByVideo(ctx, video.ID)
+	cells, err := thumbnailCells(video)
 	if err != nil {
 		return classify(err)
 	}
-	// Which still fronts the video is settled here rather than in the backend.
-	// The opening chapter's stills are a provisional answer: they exist by the
-	// time this runs, and changing the rule is a change to this line.
-	var candidates []entity.AssetID
-	for _, c := range rows {
-		if c.Ordinal == 1 {
-			candidates = c.ImageAssetIDs
-			break
-		}
-	}
-	if len(candidates) == 0 {
-		return entity.Failed{
-			Err:       fmt.Errorf("%w: no still to build a thumbnail from", ErrValidation),
-			Retryable: true,
-		}
-	}
 
 	assetID, err := thumbnails.Build(ctx, provider.ThumbnailRequest{
-		VideoID:       video.ID,
-		VideoRef:      video.Ref,
-		Title:         video.Metadata.Title,
-		Text:          video.Metadata.ThumbnailText,
-		ImageAssetIDs: candidates,
+		VideoID:  video.ID,
+		VideoRef: video.Ref,
+		Title:    video.Metadata.Title,
+		Headline: video.Metadata.ThumbnailText,
+		Cells:    cells,
 	})
 	if err != nil {
 		return classify(fmt.Errorf("build thumbnail for %s: %w", video.Ref, err))
@@ -81,4 +63,33 @@ func BuildThumbnail(
 		return classify(err)
 	}
 	return entity.Success{Assets: []entity.AssetID{assetID}}
+}
+
+// thumbnailCells pairs each planned caption with the icon that landed in its
+// slot.
+//
+// Every icon task is a dependency of this one, so an empty slot means one of
+// them succeeded without recording anything. Another attempt here would read
+// the same empty slot, so it fails permanently and waits: re-running the icon
+// is what fixes it, and that marks this task stale and brings it back.
+func thumbnailCells(video entity.Video) ([]provider.ThumbnailIconCell, error) {
+	if video.ThumbnailPlan == nil {
+		return nil, fmt.Errorf("%w: video has no thumbnail plan", ErrValidation)
+	}
+	planned := video.ThumbnailPlan.Cells
+	if len(video.ThumbnailIconAssetIDs) < len(planned) {
+		return nil, fmt.Errorf("%w: %d icons for %d cells",
+			ErrValidation, len(video.ThumbnailIconAssetIDs), len(planned))
+	}
+	cells := make([]provider.ThumbnailIconCell, 0, len(planned))
+	for i, c := range planned {
+		if video.ThumbnailIconAssetIDs[i] == "" {
+			return nil, fmt.Errorf("%w: cell %d has no icon", ErrValidation, i)
+		}
+		cells = append(cells, provider.ThumbnailIconCell{
+			Caption:     c.Caption,
+			IconAssetID: video.ThumbnailIconAssetIDs[i],
+		})
+	}
+	return cells, nil
 }

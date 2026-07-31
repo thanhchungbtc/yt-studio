@@ -24,6 +24,11 @@ import (
 
 var testTime = time.Unix(1_700_000_000, 0).UTC()
 
+// testThumbnailCells is the grid width every test video is created with. It is
+// deliberately not the shipped default of ten: a test that passes only at the
+// default is a test that is reading the default.
+const testThumbnailCells = 4
+
 // forgetter stands in for the scheduler. Deleting a video has to tell it first;
 // what it does with that is tested with the scheduler.
 type forgetter struct{ forgotten []entity.VideoID }
@@ -93,7 +98,7 @@ func (f *fixture) video(ref, title string) (entity.Video, entity.Chapter) {
 	f.t.Helper()
 	ctx := context.Background()
 
-	v, err := entity.NewVideo(entity.VideoID(ref), f.channel.ID, entity.Ref(ref), title, "", 1, 1, 0, testTime)
+	v, err := entity.NewVideo(entity.VideoID(ref), f.channel.ID, entity.Ref(ref), title, "", 1, 1, testThumbnailCells, 0, testTime)
 	if err != nil {
 		f.t.Fatalf("NewVideo: %v", err)
 	}

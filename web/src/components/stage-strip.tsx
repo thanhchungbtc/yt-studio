@@ -21,6 +21,8 @@ const ORDER: TaskKind[] = [
   'clip',
   'concat',
   'metadata',
+  'thumbnail_plan',
+  'thumbnail_icon',
   'thumbnail',
   'upload',
 ]

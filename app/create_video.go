@@ -18,6 +18,10 @@ type CreateVideoInput struct {
 	Topic            string
 	ChapterCount     int
 	ImagesPerChapter int
+	// ThumbnailCells is how many tiles the thumbnail's grid gets. Zero takes the
+	// default; the value is kept on the video because the DAG is built one icon
+	// task per cell and cannot change width afterwards.
+	ThumbnailCells int
 	// TargetDurationMinutes is optional. Zero leaves the length to fall out of
 	// the chapter count and the channel's usual chapter size.
 	TargetDurationMinutes int
@@ -34,6 +38,7 @@ func CreateVideo(
 	now time.Time,
 	defaultChapters int,
 	defaultImages int,
+	defaultThumbnailCells int,
 	in CreateVideoInput,
 ) (entity.Video, error) {
 	channel, err := GetChannel(ctx, channels, in.ChannelKey)
@@ -48,6 +53,10 @@ func CreateVideo(
 	if images == 0 {
 		images = defaultImages
 	}
+	cells := in.ThumbnailCells
+	if cells == 0 {
+		cells = defaultThumbnailCells
+	}
 
 	seq, err := seqs.NextVideoSeq(ctx, channel.ID)
 	if err != nil {
@@ -59,7 +68,7 @@ func CreateVideo(
 	}
 
 	v, err := entity.NewVideo(entity.VideoID(newID()), channel.ID, ref, in.Title, in.Topic,
-		chapters, images, in.TargetDurationMinutes, now)
+		chapters, images, cells, in.TargetDurationMinutes, now)
 	if err != nil {
 		return entity.Video{}, fmt.Errorf("%w: %w", ErrValidation, err)
 	}

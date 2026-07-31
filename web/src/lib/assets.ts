@@ -48,6 +48,8 @@ const KIND_TITLES: Record<string, string> = {
   final: 'Final render',
   metadata: 'Publish metadata',
   thumbnail: 'Thumbnail',
+  thumbnail_plan: 'Thumbnail plan',
+  thumbnail_icon: 'Thumbnail icon',
   script: 'Script',
   prompt: 'Prompts',
   audio: 'Narration',
@@ -73,6 +75,8 @@ export function shortId(id: string): string {
 const KIND_EXT: Record<string, string> = {
   blueprint: '.json',
   metadata: '.json',
+  thumbnail_plan: '.json',
+  thumbnail_icon: '.png',
   script: '.txt',
   prompt: '.txt',
   audio: '.wav',
@@ -85,6 +89,8 @@ const KIND_EXT: Record<string, string> = {
 const KIND_MIME: Record<string, string> = {
   blueprint: 'application/json',
   metadata: 'application/json',
+  thumbnail_plan: 'application/json',
+  thumbnail_icon: 'image/png',
   script: 'text/plain; charset=utf-8',
   prompt: 'text/plain; charset=utf-8',
   audio: 'audio/wav',
