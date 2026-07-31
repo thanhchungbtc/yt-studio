@@ -39,9 +39,10 @@ func GenerateMetadata(
 	outline := make([]provider.BlueprintChapter, 0, len(rows))
 	for _, c := range rows {
 		outline = append(outline, provider.BlueprintChapter{
-			Ordinal: c.Ordinal,
-			Title:   c.Title,
-			Summary: c.Summary,
+			Ordinal:        c.Ordinal,
+			Title:          c.Title,
+			Summary:        c.Summary,
+			EstimatedWords: c.EstimatedWords,
 		})
 	}
 

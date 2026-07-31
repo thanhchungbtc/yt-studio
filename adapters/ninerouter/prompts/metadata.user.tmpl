@@ -5,6 +5,9 @@ Working title: {{ .Title }}
 Topic: {{ . }}
 {{- end }}
 Chapters: {{ len .Chapters }}
+{{- with .DurationPhrase }}
+Running time: {{ . }}
+{{- end }}
 
 Chapter structure (in order):
 {{ range .Chapters }}
@@ -15,6 +18,13 @@ Chapter structure (in order):
 
 Write the metadata for this video: the title, the one-paragraph description, the
 comma-separated keywords, and the thumbnail hook.
+{{ if .DurationPhrase }}
+A duration-led title uses "{{ .DurationPhrase }}" exactly. A count-led title
+leads with {{ len .Chapters }}.
+{{- else }}
+No running time is available for this video, so do not use a duration-led
+title. A count-led title leads with {{ len .Chapters }}.
+{{- end }}
 
 The chapter titles above are what the video actually covers — draw the niche
 keywords and the thumbnail hook from them rather than from the working title

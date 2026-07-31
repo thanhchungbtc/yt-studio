@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/tbui/yt-studio/domain/entity"
@@ -23,7 +24,7 @@ const (
 //
 //nolint:lll // one field, one line: each tag is this field's line in the prompt
 type metadataDoc struct {
-	Title       string `json:"title" doc:"follows the format '[Topic] | To Fall Asleep Faster'"`
+	Title       string `json:"title" doc:"ends with the exact words 'To Fall Asleep To'"`
 	Description string `json:"description" doc:"one paragraph of 150 to 300 words"`
 	Tags        string `json:"tags" doc:"10 to 15 keywords as a single comma-separated string"`
 	Thumbnail   string `json:"thumbnail_text" doc:"a 2 to 10 word ALL-CAPS hook, letters and spaces"`
@@ -32,6 +33,12 @@ type metadataDoc struct {
 // metadataPrompt is what the templates render against.
 type metadataPrompt struct {
 	provider.MetadataRequest
+	// DurationPhrase is the running time as a title says it — "3+ Hours". It is
+	// computed here because the model cannot know it, and a title that promises
+	// three hours of something two hours long is a title that lies. Empty when
+	// the video is under an hour, which is what tells the prompt not to reach
+	// for the duration-led shape.
+	DurationPhrase       string
 	ExpectedOutputSchema string
 }
 
@@ -45,7 +52,11 @@ func (c *Client) Metadata(ctx context.Context, req provider.MetadataRequest) (pr
 	if err != nil {
 		return provider.Metadata{}, err
 	}
-	prompt := metadataPrompt{MetadataRequest: req, ExpectedOutputSchema: schema}
+	prompt := metadataPrompt{
+		MetadataRequest:      req,
+		DurationPhrase:       durationPhrase(req.Chapters),
+		ExpectedOutputSchema: schema,
+	}
 
 	system, err := render(metadataSystemPrompt, prompt)
 	if err != nil {
@@ -79,6 +90,37 @@ func (c *Client) Metadata(ctx context.Context, req provider.MetadataRequest) (pr
 		return provider.Metadata{}, err
 	}
 	return provider.Metadata{Metadata: md, AssetID: assetID}, nil
+}
+
+// durationPhrase renders a video's running time the way a title says it.
+//
+// The budget is the sum of what the blueprint assigned each chapter, falling
+// back to the default for chapters it left unassigned. Anything under an hour
+// returns empty: a title promising "1 Hour" of a seven-minute test video is
+// worse than a title that does not mention length at all.
+func durationPhrase(chapters []provider.BlueprintChapter) string {
+	words := 0
+	for _, ch := range chapters {
+		if ch.EstimatedWords > 0 {
+			words += ch.EstimatedWords
+			continue
+		}
+		words += entity.DefaultWordsPerChapter
+	}
+	minutes := words / entity.DefaultWordsPerMinute
+	hours := minutes / 60
+	if hours < 1 {
+		return ""
+	}
+	// A quarter of an hour over is enough to claim the "+": it is a promise of
+	// at least this much, not a rounding.
+	if minutes%60 >= 15 {
+		return strconv.Itoa(hours) + "+ Hours"
+	}
+	if hours == 1 {
+		return "1 Hour"
+	}
+	return strconv.Itoa(hours) + " Hours"
 }
 
 // splitTags turns the comma-separated keyword string the prompt asks for into
