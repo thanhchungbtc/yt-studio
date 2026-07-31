@@ -111,7 +111,7 @@ func (c *Client) Blueprint(ctx context.Context, req provider.BlueprintRequest) (
 		return provider.Blueprint{}, err
 	}
 
-	content, err := c.chat(ctx, system, user)
+	content, err := c.chat(ctx, call{Video: req.VideoID, Label: "blueprint"}, system, user)
 	if err != nil {
 		return provider.Blueprint{}, err
 	}

@@ -60,7 +60,8 @@ func (c *Client) Script(ctx context.Context, req provider.ScriptRequest) (provid
 		return provider.Script{}, err
 	}
 
-	text, err := c.chat(ctx, system, user)
+	text, err := c.chat(ctx,
+		call{Video: req.VideoID, Label: fmt.Sprintf("script-ch%d", req.Ordinal)}, system, user)
 	if err != nil {
 		return provider.Script{}, err
 	}

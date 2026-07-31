@@ -53,14 +53,18 @@ type Config struct {
 	Model string
 	// Timeout bounds one request; zero means defaultTimeout.
 	Timeout time.Duration
+	// TranscriptDir is where each exchange with the model is written for
+	// reading afterwards. Empty switches it off.
+	TranscriptDir string
 }
 
 // Client is the LLM backend. Every generation step funnels through chat, so the
 // wire format, the auth header and the error taxonomy are written once.
 type Client struct {
-	cfg   Config
-	http  *http.Client
-	store provider.AssetStore
+	cfg         Config
+	http        *http.Client
+	store       provider.AssetStore
+	transcripts *transcriptWriter
 }
 
 var _ provider.LLMProvider = (*Client)(nil)
@@ -85,10 +89,17 @@ func New(cfg Config, store provider.AssetStore) (*Client, error) {
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = defaultTimeout
 	}
+	// Eagerly, so an unusable path is a wiring error rather than something
+	// discovered halfway through a fifty-chapter video.
+	transcripts, err := newTranscriptWriter(cfg.TranscriptDir)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrUnavailable, err)
+	}
 	return &Client{
-		cfg:   cfg,
-		http:  &http.Client{Timeout: cfg.Timeout},
-		store: store,
+		cfg:         cfg,
+		http:        &http.Client{Timeout: cfg.Timeout},
+		store:       store,
+		transcripts: transcripts,
 	}, nil
 }
 
@@ -146,11 +157,18 @@ type chatRequest struct {
 	Stream bool `json:"stream"`
 }
 
+type chatUsage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+}
+
 type chatResponse struct {
 	Choices []struct {
 		Message      chatMessage `json:"message"`
 		FinishReason string      `json:"finish_reason"`
 	} `json:"choices"`
+	Usage *chatUsage `json:"usage"`
 	Error *struct {
 		Message string `json:"message"`
 	} `json:"error"`
@@ -167,7 +185,22 @@ const (
 //
 // It is the single seam every generation step goes through, so a change in the
 // gateway's shape is a change in one place.
-func (c *Client) chat(ctx context.Context, system, user string) (string, error) {
+func (c *Client) chat(ctx context.Context, of call, system, user string) (string, error) {
+	started := time.Now()
+	record := transcript{call: of, Model: c.cfg.Model, System: system, User: user, StartedAt: started}
+	defer func() {
+		record.Duration = time.Since(started)
+		c.transcripts.write(record)
+	}()
+
+	text, usage, err := c.complete(ctx, system, user)
+	record.Response, record.Usage, record.Err = text, usage, err
+	return text, err
+}
+
+// complete is the request itself, split out so chat above is only the recording
+// around it.
+func (c *Client) complete(ctx context.Context, system, user string) (string, *chatUsage, error) {
 	payload, err := json.Marshal(chatRequest{
 		Model: c.cfg.Model,
 		Messages: []chatMessage{
@@ -177,13 +210,13 @@ func (c *Client) chat(ctx context.Context, system, user string) (string, error) 
 		Stream: false,
 	})
 	if err != nil {
-		return "", fmt.Errorf("encode chat request: %w", err)
+		return "", nil, fmt.Errorf("encode chat request: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		c.cfg.BaseURL+"/v1/chat/completions", bytes.NewReader(payload))
 	if err != nil {
-		return "", fmt.Errorf("%w: %w", ErrUnavailable, err)
+		return "", nil, fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	c.authorize(req)
@@ -193,36 +226,36 @@ func (c *Client) chat(ctx context.Context, system, user string) (string, error) 
 		// A transport failure is the gateway being unreachable, which no number of
 		// attempts fixes. A cancelled context arrives here too, and app.classify
 		// recognises it as the cancelled video it is.
-		return "", fmt.Errorf("%w: %s: %w", ErrUnavailable, c.cfg.BaseURL, err)
+		return "", nil, fmt.Errorf("%w: %s: %w", ErrUnavailable, c.cfg.BaseURL, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("read chat response: %w", err)
+		return "", nil, fmt.Errorf("read chat response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", statusError(resp.StatusCode, resp.Status, body)
+		return "", nil, statusError(resp.StatusCode, resp.Status, body)
 	}
 
 	var decoded chatResponse
 	if err := json.Unmarshal(body, &decoded); err != nil {
-		return "", fmt.Errorf("chat response is not JSON: %w (%s)", err, snippet(string(body)))
+		return "", nil, fmt.Errorf("chat response is not JSON: %w (%s)", err, snippet(string(body)))
 	}
 	// An upstream failure arrives with a matching status today. This is the belt
 	// to that braces, and costs one nil check.
 	if decoded.Error != nil && decoded.Error.Message != "" {
-		return "", fmt.Errorf("9router: %s", decoded.Error.Message)
+		return "", decoded.Usage, fmt.Errorf("9router: %s", decoded.Error.Message)
 	}
 	if len(decoded.Choices) == 0 {
-		return "", fmt.Errorf("9router returned no choices (%s)", snippet(string(body)))
+		return "", decoded.Usage, fmt.Errorf("9router returned no choices (%s)", snippet(string(body)))
 	}
 	content := strings.TrimSpace(decoded.Choices[0].Message.Content)
 	if content == "" {
-		return "", fmt.Errorf("9router returned an empty completion (finish_reason %q)",
+		return "", decoded.Usage, fmt.Errorf("9router returned an empty completion (finish_reason %q)",
 			decoded.Choices[0].FinishReason)
 	}
-	return content, nil
+	return content, decoded.Usage, nil
 }
 
 func (c *Client) authorize(req *http.Request) {
