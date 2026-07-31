@@ -91,8 +91,12 @@ type UploadRequest struct {
 	VideoRef     entity.Ref
 	ChannelSlug  entity.Slug
 	FinalAssetID entity.AssetID
-	Metadata     entity.Metadata
-	DryRun       bool
+	// ThumbnailAssetID is the custom thumbnail to set on the published video.
+	// YouTube takes it in a second call after the video resource exists, which is
+	// the backend's business: publishing a listing is one unit of work.
+	ThumbnailAssetID entity.AssetID
+	Metadata         entity.Metadata
+	DryRun           bool
 }
 
 // Uploader publishes a finished render.

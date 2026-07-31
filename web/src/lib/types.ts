@@ -88,6 +88,7 @@ export interface Video {
   targetDurationMinutes: number
   blueprintAssetId?: string
   finalAssetId?: string
+  thumbnailAssetId?: string
   metadata?: Metadata
   upload?: UploadRecord
   error?: string

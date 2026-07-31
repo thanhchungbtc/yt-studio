@@ -102,4 +102,5 @@ type Video struct {
 	StartedAt             *int64
 	CompletedAt           *int64
 	TargetDurationMinutes int64
+	ThumbnailAssetID      *string
 }

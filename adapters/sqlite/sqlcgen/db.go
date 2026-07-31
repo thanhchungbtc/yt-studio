@@ -159,6 +159,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.setVideoStateStmt, err = db.PrepareContext(ctx, setVideoState); err != nil {
 		return nil, fmt.Errorf("error preparing query SetVideoState: %w", err)
 	}
+	if q.setVideoThumbnailAssetStmt, err = db.PrepareContext(ctx, setVideoThumbnailAsset); err != nil {
+		return nil, fmt.Errorf("error preparing query SetVideoThumbnailAsset: %w", err)
+	}
 	if q.setVideoUploadStmt, err = db.PrepareContext(ctx, setVideoUpload); err != nil {
 		return nil, fmt.Errorf("error preparing query SetVideoUpload: %w", err)
 	}
@@ -410,6 +413,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing setVideoStateStmt: %w", cerr)
 		}
 	}
+	if q.setVideoThumbnailAssetStmt != nil {
+		if cerr := q.setVideoThumbnailAssetStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing setVideoThumbnailAssetStmt: %w", cerr)
+		}
+	}
 	if q.setVideoUploadStmt != nil {
 		if cerr := q.setVideoUploadStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing setVideoUploadStmt: %w", cerr)
@@ -529,6 +537,7 @@ type Queries struct {
 	setVideoFinalAssetStmt      *sql.Stmt
 	setVideoMetadataStmt        *sql.Stmt
 	setVideoStateStmt           *sql.Stmt
+	setVideoThumbnailAssetStmt  *sql.Stmt
 	setVideoUploadStmt          *sql.Stmt
 	updateChannelStmt           *sql.Stmt
 	updateSettingValueStmt      *sql.Stmt
@@ -587,6 +596,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		setVideoFinalAssetStmt:      q.setVideoFinalAssetStmt,
 		setVideoMetadataStmt:        q.setVideoMetadataStmt,
 		setVideoStateStmt:           q.setVideoStateStmt,
+		setVideoThumbnailAssetStmt:  q.setVideoThumbnailAssetStmt,
 		setVideoUploadStmt:          q.setVideoUploadStmt,
 		updateChannelStmt:           q.updateChannelStmt,
 		updateSettingValueStmt:      q.updateSettingValueStmt,

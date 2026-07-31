@@ -380,6 +380,15 @@ function videoLevelItems(video: Video): ViewerItem[] {
       subtitle: `${video.ref} · ${video.title}`,
     })
   }
+  if (video.thumbnailAssetId) {
+    items.push({
+      id: video.thumbnailAssetId,
+      kind: 'thumbnail',
+      mime: kindMime('thumbnail'),
+      title: kindTitle('thumbnail'),
+      subtitle: video.metadata?.thumbnailText ?? video.ref,
+    })
+  }
   return items
 }
 
@@ -437,6 +446,17 @@ function GateBanner({
               onClick={() => openAt(video.finalAssetId ?? '')}
             >
               Preview the final render
+            </button>
+          )}
+          {/* The gate sits on the thumbnail so that this link exists: what is
+              being approved is the listing, and the thumbnail is most of it. */}
+          {task.gate === 'upload' && video.thumbnailAssetId && (
+            <button
+              type="button"
+              className="text-[hsl(var(--accent))] underline-offset-2 hover:underline"
+              onClick={() => openAt(video.thumbnailAssetId ?? '')}
+            >
+              Review the thumbnail
             </button>
           )}
         </div>
@@ -534,6 +554,21 @@ function Overview({
                   <Badge tone="neutral">{video.metadata.privacy}</Badge>
                 </PanelHeader>
                 <div className="space-y-2 px-3 py-2.5 text-[12px]">
+                  {/* The listing as YouTube will show it: the thumbnail is what
+                      the title is read against, not a separate artifact. */}
+                  {video.thumbnailAssetId && (
+                    <button
+                      type="button"
+                      className="block w-full overflow-hidden rounded"
+                      onClick={() => openAt(video.thumbnailAssetId ?? '')}
+                    >
+                      <img
+                        src={assetUrl(video.thumbnailAssetId)}
+                        alt={`Thumbnail for ${video.title}`}
+                        className="aspect-video w-full bg-black object-cover"
+                      />
+                    </button>
+                  )}
                   <p className="font-medium text-fg">{video.metadata.title}</p>
                   {/* The hook competes for the same glance the title does, so it
                       reads next to it rather than buried under the tags. */}

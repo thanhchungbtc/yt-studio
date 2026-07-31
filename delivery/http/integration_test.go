@@ -247,6 +247,7 @@ type videoBody struct {
 	} `json:"counts"`
 	BlueprintAssetID string `json:"blueprintAssetId"`
 	FinalAssetID     string `json:"finalAssetId"`
+	ThumbnailAssetID string `json:"thumbnailAssetId"`
 	Upload           *struct {
 		URL    string `json:"url"`
 		DryRun bool   `json:"dryRun"`
@@ -384,20 +385,9 @@ func TestPipelineEndToEndThroughBothGates(t *testing.T) {
 		t.Fatal("metadata was not produced before the upload gate")
 	}
 	// The gate is worth nothing if it opens on a listing the operator cannot see
-	// in full: the thumbnail is rendered before it, not after.
-	var gateAssets struct {
-		Assets []struct {
-			Kind string `json:"kind"`
-		} `json:"assets"`
-	}
-	h.json(http.MethodGet, "/api/videos/DSS-1/assets", nil, http.StatusOK, &gateAssets)
-	var hasThumbnail bool
-	for _, a := range gateAssets.Assets {
-		if a.Kind == "thumbnail" {
-			hasThumbnail = true
-		}
-	}
-	if !hasThumbnail {
+	// in full: the thumbnail is rendered before it, not after, and the video row
+	// names it so the UI can show what is about to be published.
+	if beforeUpload.ThumbnailAssetID == "" {
 		t.Fatal("the thumbnail was not produced before the upload gate")
 	}
 	if beforeUpload.Upload != nil {

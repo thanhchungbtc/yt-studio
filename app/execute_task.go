@@ -155,7 +155,7 @@ func (r *TaskRunner) dispatch(ctx context.Context, t entity.Task) entity.TaskOut
 			r.videoFields, r.assets, r.store, r.now())
 	case entity.TaskKindThumbnail:
 		return BuildThumbnail(ctx, t, r.videos, r.chapters, r.thumbnails,
-			r.assets, r.store, r.now())
+			r.videoFields, r.assets, r.store, r.now())
 	case entity.TaskKindUpload:
 		return PublishVideo(ctx, t, r.videos, r.channels, r.uploader, r.videoFields, r.dryRun)
 	default:

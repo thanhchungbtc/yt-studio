@@ -117,6 +117,8 @@ func (r *Registry) RegisterUploader(name string, impl provider.Uploader) {
 // Options reports the registered backend names per settings key, for
 // service.Settings.Constrain. This is what makes the settings screen a dropdown
 // of backends that genuinely exist in this binary.
+//
+//nolint:exhaustive // deliberately partial: only the provider.* keys name a backend
 func (r *Registry) Options() map[entity.SettingKey][]string {
 	return map[entity.SettingKey][]string{
 		entity.SettingProviderLLM:       r.llm.names(),

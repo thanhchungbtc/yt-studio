@@ -30,9 +30,9 @@ func (q *Queries) CountVideos(ctx context.Context, arg CountVideosParams) (int64
 const createVideo = `-- name: CreateVideo :exec
 INSERT INTO videos (
     id, channel_id, ref, title, topic, state, chapter_count, images_per_chapter,
-    target_duration_minutes, blueprint_asset_id, final_asset_id, metadata_json,
-    upload_json, error, created_at, updated_at, started_at, completed_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    target_duration_minutes, blueprint_asset_id, final_asset_id, thumbnail_asset_id,
+    metadata_json, upload_json, error, created_at, updated_at, started_at, completed_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type CreateVideoParams struct {
@@ -47,6 +47,7 @@ type CreateVideoParams struct {
 	TargetDurationMinutes int64
 	BlueprintAssetID      *string
 	FinalAssetID          *string
+	ThumbnailAssetID      *string
 	MetadataJson          *string
 	UploadJson            *string
 	Error                 string
@@ -69,6 +70,7 @@ func (q *Queries) CreateVideo(ctx context.Context, arg CreateVideoParams) error 
 		arg.TargetDurationMinutes,
 		arg.BlueprintAssetID,
 		arg.FinalAssetID,
+		arg.ThumbnailAssetID,
 		arg.MetadataJson,
 		arg.UploadJson,
 		arg.Error,
@@ -90,7 +92,7 @@ func (q *Queries) DeleteVideo(ctx context.Context, id string) error {
 }
 
 const getVideoByID = `-- name: GetVideoByID :one
-SELECT id, channel_id, ref, title, topic, state, chapter_count, images_per_chapter, blueprint_asset_id, final_asset_id, metadata_json, upload_json, error, created_at, updated_at, started_at, completed_at, target_duration_minutes FROM videos WHERE id = ?
+SELECT id, channel_id, ref, title, topic, state, chapter_count, images_per_chapter, blueprint_asset_id, final_asset_id, metadata_json, upload_json, error, created_at, updated_at, started_at, completed_at, target_duration_minutes, thumbnail_asset_id FROM videos WHERE id = ?
 `
 
 func (q *Queries) GetVideoByID(ctx context.Context, id string) (Video, error) {
@@ -115,12 +117,13 @@ func (q *Queries) GetVideoByID(ctx context.Context, id string) (Video, error) {
 		&i.StartedAt,
 		&i.CompletedAt,
 		&i.TargetDurationMinutes,
+		&i.ThumbnailAssetID,
 	)
 	return i, err
 }
 
 const getVideoByRef = `-- name: GetVideoByRef :one
-SELECT id, channel_id, ref, title, topic, state, chapter_count, images_per_chapter, blueprint_asset_id, final_asset_id, metadata_json, upload_json, error, created_at, updated_at, started_at, completed_at, target_duration_minutes FROM videos WHERE ref = ?
+SELECT id, channel_id, ref, title, topic, state, chapter_count, images_per_chapter, blueprint_asset_id, final_asset_id, metadata_json, upload_json, error, created_at, updated_at, started_at, completed_at, target_duration_minutes, thumbnail_asset_id FROM videos WHERE ref = ?
 `
 
 func (q *Queries) GetVideoByRef(ctx context.Context, ref string) (Video, error) {
@@ -145,12 +148,13 @@ func (q *Queries) GetVideoByRef(ctx context.Context, ref string) (Video, error) 
 		&i.StartedAt,
 		&i.CompletedAt,
 		&i.TargetDurationMinutes,
+		&i.ThumbnailAssetID,
 	)
 	return i, err
 }
 
 const listVideos = `-- name: ListVideos :many
-SELECT id, channel_id, ref, title, topic, state, chapter_count, images_per_chapter, blueprint_asset_id, final_asset_id, metadata_json, upload_json, error, created_at, updated_at, started_at, completed_at, target_duration_minutes FROM videos
+SELECT id, channel_id, ref, title, topic, state, chapter_count, images_per_chapter, blueprint_asset_id, final_asset_id, metadata_json, upload_json, error, created_at, updated_at, started_at, completed_at, target_duration_minutes, thumbnail_asset_id FROM videos
 WHERE (CAST(?1 AS TEXT) = '' OR channel_id = ?1)
   AND (CAST(?2 AS TEXT) = '' OR state = ?2)
 ORDER BY created_at DESC
@@ -197,6 +201,7 @@ func (q *Queries) ListVideos(ctx context.Context, arg ListVideosParams) ([]Video
 			&i.StartedAt,
 			&i.CompletedAt,
 			&i.TargetDurationMinutes,
+			&i.ThumbnailAssetID,
 		); err != nil {
 			return nil, err
 		}
@@ -287,6 +292,21 @@ func (q *Queries) SetVideoState(ctx context.Context, arg SetVideoStateParams) er
 	return err
 }
 
+const setVideoThumbnailAsset = `-- name: SetVideoThumbnailAsset :exec
+UPDATE videos SET thumbnail_asset_id = ?, updated_at = ? WHERE id = ?
+`
+
+type SetVideoThumbnailAssetParams struct {
+	ThumbnailAssetID *string
+	UpdatedAt        int64
+	ID               string
+}
+
+func (q *Queries) SetVideoThumbnailAsset(ctx context.Context, arg SetVideoThumbnailAssetParams) error {
+	_, err := q.exec(ctx, q.setVideoThumbnailAssetStmt, setVideoThumbnailAsset, arg.ThumbnailAssetID, arg.UpdatedAt, arg.ID)
+	return err
+}
+
 const setVideoUpload = `-- name: SetVideoUpload :exec
 UPDATE videos SET upload_json = ?, updated_at = ? WHERE id = ?
 `
@@ -306,8 +326,9 @@ const updateVideo = `-- name: UpdateVideo :exec
 UPDATE videos
 SET title = ?, topic = ?, state = ?, chapter_count = ?, images_per_chapter = ?,
     target_duration_minutes = ?,
-    blueprint_asset_id = ?, final_asset_id = ?, metadata_json = ?,
-    upload_json = ?, error = ?, updated_at = ?, started_at = ?, completed_at = ?
+    blueprint_asset_id = ?, final_asset_id = ?, thumbnail_asset_id = ?,
+    metadata_json = ?, upload_json = ?, error = ?, updated_at = ?,
+    started_at = ?, completed_at = ?
 WHERE id = ?
 `
 
@@ -320,6 +341,7 @@ type UpdateVideoParams struct {
 	TargetDurationMinutes int64
 	BlueprintAssetID      *string
 	FinalAssetID          *string
+	ThumbnailAssetID      *string
 	MetadataJson          *string
 	UploadJson            *string
 	Error                 string
@@ -339,6 +361,7 @@ func (q *Queries) UpdateVideo(ctx context.Context, arg UpdateVideoParams) error 
 		arg.TargetDurationMinutes,
 		arg.BlueprintAssetID,
 		arg.FinalAssetID,
+		arg.ThumbnailAssetID,
 		arg.MetadataJson,
 		arg.UploadJson,
 		arg.Error,

@@ -43,6 +43,10 @@ WITH refs AS (
            final_asset_id AS asset_id, CAST('final' AS TEXT) AS kind
     FROM videos WHERE final_asset_id IS NOT NULL AND final_asset_id <> ''
     UNION ALL
+    SELECT id AS video_id, CAST(NULL AS TEXT) AS chapter_id,
+           thumbnail_asset_id AS asset_id, CAST('thumbnail' AS TEXT) AS kind
+    FROM videos WHERE thumbnail_asset_id IS NOT NULL AND thumbnail_asset_id <> ''
+    UNION ALL
     SELECT video_id, id AS chapter_id,
            audio_asset_id AS asset_id, CAST('audio' AS TEXT) AS kind
     FROM chapters WHERE audio_asset_id IS NOT NULL AND audio_asset_id <> ''

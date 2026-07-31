@@ -229,6 +229,9 @@ func TestVideoLifecyclePersistence(t *testing.T) {
 	if err := store.SetVideoMetadata(ctx, "v1", md); err != nil {
 		t.Fatal(err)
 	}
+	if err := store.SetVideoThumbnailAsset(ctx, "v1", "sha256:thumb"); err != nil {
+		t.Fatal(err)
+	}
 	if err := store.SetVideoUpload(ctx, "v1", entity.UploadRecord{VideoID: "yt", URL: "u", DryRun: true, UploadedAt: now}); err != nil {
 		t.Fatal(err)
 	}
@@ -241,6 +244,9 @@ func TestVideoLifecyclePersistence(t *testing.T) {
 	}
 	if got.Upload == nil || !got.Upload.DryRun {
 		t.Fatalf("upload = %+v", got.Upload)
+	}
+	if got.ThumbnailAssetID == nil || *got.ThumbnailAssetID != "sha256:thumb" {
+		t.Fatalf("thumbnail asset = %v", got.ThumbnailAssetID)
 	}
 }
 

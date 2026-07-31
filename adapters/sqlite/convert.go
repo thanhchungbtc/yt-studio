@@ -112,6 +112,7 @@ func videoFromRow(r sqlcgen.Video) (entity.Video, error) {
 		ImagesPerChapter:      int(r.ImagesPerChapter),
 		BlueprintAssetID:      toAssetID(r.BlueprintAssetID),
 		FinalAssetID:          toAssetID(r.FinalAssetID),
+		ThumbnailAssetID:      toAssetID(r.ThumbnailAssetID),
 		Error:                 r.Error,
 		CreatedAt:             fromUnix(r.CreatedAt),
 		UpdatedAt:             fromUnix(r.UpdatedAt),

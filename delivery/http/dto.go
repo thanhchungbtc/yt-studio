@@ -118,6 +118,7 @@ type VideoDTO struct {
 	ImagesPerChapter      int           `json:"imagesPerChapter"`
 	BlueprintAssetID      string        `json:"blueprintAssetId,omitempty"`
 	FinalAssetID          string        `json:"finalAssetId,omitempty"`
+	ThumbnailAssetID      string        `json:"thumbnailAssetId,omitempty"`
 	Metadata              *MetadataDTO  `json:"metadata,omitempty"`
 	Upload                *UploadDTO    `json:"upload,omitempty"`
 	Error                 string        `json:"error,omitempty"`
@@ -151,6 +152,9 @@ func videoFrom(v entity.Video, counts repository.TaskCounts) VideoDTO {
 	}
 	if v.FinalAssetID != nil {
 		dto.FinalAssetID = string(*v.FinalAssetID)
+	}
+	if v.ThumbnailAssetID != nil {
+		dto.ThumbnailAssetID = string(*v.ThumbnailAssetID)
 	}
 	if v.Metadata != nil {
 		tags := v.Metadata.Tags

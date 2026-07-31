@@ -907,6 +907,7 @@ export interface components {
        * @description Planned running time; zero means it falls out of the chapter count
        */
       targetDurationMinutes: number
+      thumbnailAssetId?: string
       title: string
       topic: string
       /** Format: date-time */

@@ -44,6 +44,7 @@ type VideoWriter interface {
 type VideoFieldWriter interface {
 	SetVideoBlueprintAsset(ctx context.Context, id entity.VideoID, assetID entity.AssetID) error
 	SetVideoFinalAsset(ctx context.Context, id entity.VideoID, assetID entity.AssetID) error
+	SetVideoThumbnailAsset(ctx context.Context, id entity.VideoID, assetID entity.AssetID) error
 	SetVideoMetadata(ctx context.Context, id entity.VideoID, m entity.Metadata) error
 	SetVideoUpload(ctx context.Context, id entity.VideoID, r entity.UploadRecord) error
 }

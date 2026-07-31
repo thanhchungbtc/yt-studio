@@ -138,6 +138,7 @@ type Video struct {
 
 	BlueprintAssetID *AssetID
 	FinalAssetID     *AssetID
+	ThumbnailAssetID *AssetID
 	Metadata         *Metadata
 	Upload           *UploadRecord
 

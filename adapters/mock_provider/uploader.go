@@ -42,6 +42,14 @@ func (u *Uploader) Upload(ctx context.Context, req provider.UploadRequest) (enti
 	if info.Size == 0 {
 		return entity.UploadRecord{}, fmt.Errorf("final render %s is empty", req.FinalAssetID.Short())
 	}
+	// The thumbnail is read for the same reason the render is: a real backend
+	// sets it in a second call, and a mock that never touched the file would hide
+	// a thumbnail that was recorded but never stored.
+	if req.ThumbnailAssetID != "" {
+		if _, err := u.store.Stat(ctx, req.ThumbnailAssetID, entity.AssetKindThumbnail); err != nil {
+			return entity.UploadRecord{}, fmt.Errorf("stat thumbnail: %w", err)
+		}
+	}
 
 	// A stable pseudo-video-id derived from the content address, so re-running an
 	// upload of identical bytes yields an identical receipt.

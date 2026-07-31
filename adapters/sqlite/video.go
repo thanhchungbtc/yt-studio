@@ -124,6 +124,7 @@ func createVideoParams(v entity.Video) (sqlcgen.CreateVideoParams, error) {
 		TargetDurationMinutes: int64(v.TargetDurationMinutes),
 		BlueprintAssetID:      assetIDPtr(v.BlueprintAssetID),
 		FinalAssetID:          assetIDPtr(v.FinalAssetID),
+		ThumbnailAssetID:      assetIDPtr(v.ThumbnailAssetID),
 		MetadataJson:          metadata,
 		UploadJson:            upload,
 		Error:                 v.Error,
@@ -168,6 +169,7 @@ func (s *Store) UpdateVideo(ctx context.Context, v entity.Video) error {
 			TargetDurationMinutes: int64(v.TargetDurationMinutes),
 			BlueprintAssetID:      assetIDPtr(v.BlueprintAssetID),
 			FinalAssetID:          assetIDPtr(v.FinalAssetID),
+			ThumbnailAssetID:      assetIDPtr(v.ThumbnailAssetID),
 			MetadataJson:          metadata,
 			UploadJson:            upload,
 			Error:                 v.Error,
@@ -279,6 +281,18 @@ func (s *Store) SetVideoFinalAsset(ctx context.Context, id entity.VideoID, asset
 			FinalAssetID: &value,
 			UpdatedAt:    toUnix(time.Now()),
 			ID:           string(id),
+		})
+	})
+}
+
+// SetVideoThumbnailAsset records the image that fronts the video.
+func (s *Store) SetVideoThumbnailAsset(ctx context.Context, id entity.VideoID, assetID entity.AssetID) error {
+	value := string(assetID)
+	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
+		return q.SetVideoThumbnailAsset(ctx, sqlcgen.SetVideoThumbnailAssetParams{
+			ThumbnailAssetID: &value,
+			UpdatedAt:        toUnix(time.Now()),
+			ID:               string(id),
 		})
 	})
 }

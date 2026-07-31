@@ -28,6 +28,7 @@ func BuildThumbnail(
 	videos repository.VideoReader,
 	chapters repository.ChapterReader,
 	thumbnails provider.ThumbnailBuilder,
+	videoFields repository.VideoFieldWriter,
 	assets repository.AssetWriter,
 	store provider.AssetStore,
 	now time.Time,
@@ -74,6 +75,9 @@ func BuildThumbnail(
 
 	if _, err := RecordAsset(ctx, assets, store, assetID, entity.AssetKindThumbnail,
 		video.ID, nil, "thumbnail.build", now); err != nil {
+		return classify(err)
+	}
+	if err := videoFields.SetVideoThumbnailAsset(ctx, video.ID, assetID); err != nil {
 		return classify(err)
 	}
 	return entity.Success{Assets: []entity.AssetID{assetID}}

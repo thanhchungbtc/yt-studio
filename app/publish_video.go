@@ -30,6 +30,12 @@ func PublishVideo(
 	if video.Metadata == nil {
 		return entity.Failed{Err: fmt.Errorf("%w: video has no metadata", ErrValidation), Retryable: true}
 	}
+	// The thumbnail is a dependency of this task, so a missing one means its task
+	// succeeded without recording anything — worth another attempt rather than
+	// publishing and letting YouTube pick a frame.
+	if video.ThumbnailAssetID == nil || *video.ThumbnailAssetID == "" {
+		return entity.Failed{Err: fmt.Errorf("%w: video has no thumbnail", ErrValidation), Retryable: true}
+	}
 	channel, err := channels.ChannelByID(ctx, video.ChannelID)
 	if err != nil {
 		return classify(err)
@@ -48,12 +54,13 @@ func PublishVideo(
 	}
 
 	record, err := uploader.Upload(ctx, provider.UploadRequest{
-		VideoID:      video.ID,
-		VideoRef:     video.Ref,
-		ChannelSlug:  channel.Slug,
-		FinalAssetID: *video.FinalAssetID,
-		Metadata:     *video.Metadata,
-		DryRun:       dry,
+		VideoID:          video.ID,
+		VideoRef:         video.Ref,
+		ChannelSlug:      channel.Slug,
+		FinalAssetID:     *video.FinalAssetID,
+		ThumbnailAssetID: *video.ThumbnailAssetID,
+		Metadata:         *video.Metadata,
+		DryRun:           dry,
 	})
 	if err != nil {
 		return classify(fmt.Errorf("upload %s: %w", video.Ref, err))
