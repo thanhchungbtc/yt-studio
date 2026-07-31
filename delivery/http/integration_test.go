@@ -319,7 +319,7 @@ func (h *harness) approve(ref, gate string, timeout time.Duration) {
 }
 
 // testThumbnailCells is the grid width every test video asks for. Deliberately
-// not the shipped default of ten: a test that passes only at the default is a
+// not the shipped default: a test that passes only at the default is a
 // test that is reading the default.
 const testThumbnailCells = 4
 

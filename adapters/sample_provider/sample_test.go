@@ -216,7 +216,12 @@ func TestLibraryWithoutIconsStillServesStills(t *testing.T) {
 	if err := os.MkdirAll(sample, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	copyFile(t, filepath.Join(resourcesDir(t), "sample", "audio.wav"), filepath.Join(sample, "audio.wav"))
+	// A bare RIFF header rather than a copy of the real narration: the scan only
+	// reads the first twelve bytes, and the sample is five megabytes.
+	if err := os.WriteFile(filepath.Join(sample, "audio.wav"),
+		[]byte("RIFF\x00\x00\x00\x00WAVEfmt "), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	copyFile(t, filepath.Join(resourcesDir(t), "sample", "img0.jpg"), filepath.Join(sample, "img0.jpg"))
 
 	lib := sampleprovider.NewLibrary(dir)

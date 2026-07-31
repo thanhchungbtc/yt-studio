@@ -27,8 +27,8 @@ const (
 	tileGap = 14
 	// The border drawn around each tile, and the inset from that border to the
 	// icon inside it. Raise tilePad to give the icon more air.
-	tileBorder = 3
-	tilePad    = 8
+	tileBorder = 4
+	tilePad    = 12
 	// Room under the last row of captions.
 	gridBottom = 14
 	// Gap between the headline block and the first row of tiles.
@@ -36,15 +36,20 @@ const (
 
 	// --- captions ---------------------------------------------------------
 	//
+	// captionGap is the space between a tile and the caption under it.
+	//
+	// The type size is chosen once for the whole grid — the largest between
+	// captionMax and captionMin at which every caption fits its tile. Set the two
+	// equal to pin the size and let long captions be cut instead.
+	//
 	// captionBand is the height reserved under every tile whatever size the
 	// captions settle at; reserving the same band for all of them is what keeps
-	// the rows aligned. captionMax and captionMin bound the type size, which is
-	// chosen once for the whole grid rather than per tile.
-	captionGap  = 8
-	captionBand = 28
+	// the rows aligned, so it wants to be a little over captionMax.
+	captionGap  = 6
 	captionMax  = 26
 	captionMin  = 12
 	captionStep = 1
+	captionBand = captionMax + 2
 
 	// --- the headline -----------------------------------------------------
 	//
@@ -52,9 +57,9 @@ const (
 	// largest size between headlineMax and headlineMin that fits on one line.
 	// It wraps only when even the floor will not hold it.
 	//
-	// A fuller grid leaves the headline less room: ten tiles in two rows are
-	// large enough to push it towards its floor, where fourteen in two rows are
-	// smaller and leave it near its ceiling.
+	// A fuller grid leaves the headline less room: the default twelve in two
+	// rows of six sits near the middle of this range, where six in two rows of
+	// three would be large enough to push the headline towards its floor.
 	headlineMarginX = 40
 	headlineTop     = 22
 	headlineMax     = 120

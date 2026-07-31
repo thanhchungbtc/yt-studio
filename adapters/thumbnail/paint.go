@@ -11,14 +11,38 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
-// The palette. One red, one white, one grey: the design's whole range, and the
-// reason a thumbnail from this renderer reads as one of a set.
+// ---------------------------------------------------------------- palette ---
+//
+// The other half of the tuning block in layout.go. Colours are vars rather than
+// consts only because Go has no constant structs; treat them the same way.
+//
+// Alpha is honoured everywhere: a tileFill of A: 0 lets the background photo
+// show through the tiles entirely, and A: 255 makes them solid plates.
 var (
-	inkWhite   = image.NewUniform(color.RGBA{R: 246, G: 246, B: 244, A: 255})
-	inkCaption = image.NewUniform(color.RGBA{R: 226, G: 226, B: 222, A: 255})
-	ruleRed    = color.RGBA{R: 219, G: 36, B: 36, A: 255}
-	tileFill   = color.RGBA{R: 6, G: 6, B: 8, A: 235}
-	tileEdge   = color.RGBA{R: 128, G: 128, B: 134, A: 255}
+	// The headline, and the captions under each tile.
+	inkHeadline = image.NewUniform(color.RGBA{R: 246, G: 246, B: 244, A: 255})
+	inkCaption  = image.NewUniform(color.RGBA{R: 226, G: 226, B: 222, A: 255})
+	// The rule under the headline: the design's one piece of colour.
+	ruleRed = color.RGBA{R: 219, G: 36, B: 36, A: 255}
+	// The plate behind each icon, and the border around it.
+	tileFill        = color.RGBA{R: 6, G: 6, B: 8, A: 235}
+	tileBorderColor = color.RGBA{R: 255, G: 255, B: 255, A: 255}
+)
+
+// How the icon's own background is keyed out.
+//
+// The icons arrive as artwork on a solid dark field — that is what an image
+// model returns when asked for line art, and what the samples are. Drawn as-is
+// they would stamp that field over the tile, so the darkness is turned into
+// transparency instead: everything at or below iconKeyLow disappears, everything
+// at or above iconKeyHigh is kept, and the ramp between the two is what stops
+// the artwork's anti-aliased edges from turning into a hard jagged cut.
+//
+// Raise iconKeyLow to eat more of a background that is not quite black. Lower
+// iconKeyHigh to keep more of the artwork's darker shading.
+const (
+	iconKeyLow  = 48
+	iconKeyHigh = 105
 )
 
 // cover scales an image to fill the frame and centre-crops the overflow, so a
@@ -67,7 +91,7 @@ func drawHeadline(canvas *image.RGBA, h headlineLayout) {
 		// The baseline sits a little above the bottom of the line box, which is
 		// what keeps descenders inside the block rather than into the rule.
 		baseline := h.top + i*h.lineH + h.size
-		drawString(canvas, h.face, line, x, baseline, h.tracking, inkWhite)
+		drawString(canvas, h.face, line, x, baseline, h.tracking, inkHeadline)
 	}
 
 	// The rule runs to the right margin, under the back half of the headline —
@@ -104,23 +128,59 @@ func drawRule(canvas *image.RGBA, x, y, w, h int) {
 	}
 }
 
-// drawTile paints one cell: a dark plate, a thin border, and the icon scaled
-// into what is left.
+// drawTile paints one cell: a plate, a border, and the icon over them with its
+// own background keyed away.
 func drawTile(canvas *image.RGBA, box image.Rectangle, icon image.Image) {
 	draw.Draw(canvas, box, image.NewUniform(tileFill), image.Point{}, draw.Over)
 
 	// The border is what separates one tile from the next over a photograph.
 	for i := range tileBorder {
-		outline(canvas, box.Inset(i), tileEdge)
+		outline(canvas, box.Inset(i), tileBorderColor)
 	}
 
 	inner := box.Inset(tileBorder + tilePad)
 	if inner.Dx() <= 0 || inner.Dy() <= 0 {
 		return
 	}
-	// CatmullRom rather than nearest neighbour: these icons are line art, and
-	// aliased strokes are the first thing that makes a thumbnail look cheap.
-	xdraw.CatmullRom.Scale(canvas, inner, icon, icon.Bounds(), draw.Over, nil)
+	// Scaled into a buffer rather than straight onto the canvas, because the
+	// keying needs the icon's own pixels before they are composited.
+	//
+	// CatmullRom rather than nearest neighbour: these are line art, and aliased
+	// strokes are the first thing that makes a thumbnail look cheap.
+	scaled := image.NewRGBA(image.Rect(0, 0, inner.Dx(), inner.Dy()))
+	xdraw.CatmullRom.Scale(scaled, scaled.Bounds(), icon, icon.Bounds(), draw.Src, nil)
+	keyOutBackground(scaled)
+	draw.Draw(canvas, inner, scaled, image.Point{}, draw.Over)
+}
+
+// keyOutBackground turns an icon's dark field into transparency, in place.
+//
+// Alpha comes from luminance through the ramp above, and the colours are
+// re-premultiplied against it — image/draw works in premultiplied alpha, and
+// leaving the originals there would draw a grey haze where the background used
+// to be.
+func keyOutBackground(img *image.RGBA) {
+	for i := 0; i < len(img.Pix); i += 4 {
+		r, g, b := int(img.Pix[i]), int(img.Pix[i+1]), int(img.Pix[i+2])
+		// Rec. 601 luma: the eye reads green as most of an image's brightness,
+		// and a flat average would key blue artwork differently from red.
+		lum := (299*r + 587*g + 114*b) / 1000
+
+		var alpha int
+		switch {
+		case lum <= iconKeyLow:
+			alpha = 0
+		case lum >= iconKeyHigh:
+			alpha = 255
+		default:
+			alpha = (lum - iconKeyLow) * 255 / (iconKeyHigh - iconKeyLow)
+		}
+
+		img.Pix[i] = uint8(r * alpha / 255)   //nolint:gosec // alpha is 0..255
+		img.Pix[i+1] = uint8(g * alpha / 255) //nolint:gosec // alpha is 0..255
+		img.Pix[i+2] = uint8(b * alpha / 255) //nolint:gosec // alpha is 0..255
+		img.Pix[i+3] = uint8(alpha)           //nolint:gosec // alpha is 0..255
+	}
 }
 
 func outline(canvas *image.RGBA, box image.Rectangle, c color.RGBA) {

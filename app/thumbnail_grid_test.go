@@ -214,8 +214,8 @@ func (r *recordingIcons) Icon(ctx context.Context, req provider.ThumbnailIconReq
 }
 
 // The style clause is joined by the daemon, not stored in the plan: that is
-// what makes restyling the grid cost ten cheap generations rather than a new
-// set of captions.
+// what makes restyling the grid cost a dozen cheap generations rather than a
+// new set of captions.
 func TestThumbnailIconJoinsTheSharedStyleAndLandsInItsSlot(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)

@@ -206,8 +206,8 @@ func (b *Builder) drawGrid(
 		return nil
 	}
 
-	// One size for every caption, chosen once the tiles are sized: ten tiles at
-	// ten type sizes read as ten unrelated pictures.
+	// One size for every caption, chosen once the tiles are sized: a dozen tiles
+	// at a dozen type sizes read as a dozen unrelated pictures.
 	captions := make([]string, 0, len(cells))
 	for _, c := range cells {
 		captions = append(captions, c.Caption)

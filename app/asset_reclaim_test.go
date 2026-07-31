@@ -25,7 +25,7 @@ import (
 var testTime = time.Unix(1_700_000_000, 0).UTC()
 
 // testThumbnailCells is the grid width every test video is created with. It is
-// deliberately not the shipped default of ten: a test that passes only at the
+// deliberately not the shipped default: a test that passes only at the
 // default is a test that is reading the default.
 const testThumbnailCells = 4
 

@@ -33,7 +33,10 @@ export function CreateVideoDialog({
   const [chapterCount, setChapterCount] = useState('50')
   const [durationMinutes, setDurationMinutes] = useState('180')
   const [imagesPerChapter, setImagesPerChapter] = useState('2')
-  const [thumbnailCells, setThumbnailCells] = useState('10')
+  // Kept in step with video.default_thumbnail_cells by hand, as the other
+  // defaults in this form are: the field is always sent, so the server's own
+  // default only applies to callers that omit it.
+  const [thumbnailCells, setThumbnailCells] = useState('12')
   const [start, setStart] = useState(true)
   // A stable key per dialog session makes a double submit a no-op.
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID())
@@ -195,7 +198,10 @@ export function CreateVideoDialog({
 
         {/* Fixed when the video is created: the DAG gets one icon task per tile
             and cannot change width afterwards. */}
-        <Field label="Thumbnail tiles" hint="Icons in the thumbnail grid, 1–24">
+        <Field
+          label="Thumbnail tiles"
+          hint="Icons in the thumbnail grid, 1–24 — twelve is two rows of six"
+        >
           {(id) => (
             <Input
               id={id}
