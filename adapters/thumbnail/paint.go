@@ -22,9 +22,10 @@ var (
 	// The headline, and the captions under each tile.
 	inkHeadline = image.NewUniform(color.RGBA{R: 246, G: 246, B: 244, A: 255})
 	inkCaption  = image.NewUniform(color.RGBA{R: 226, G: 226, B: 222, A: 255})
-	// The plate behind each icon, and the border around it.
+	// The plate behind each icon, and the border around it. The border is a hair
+	// off pure white: at 255 it out-shouts the artwork it is framing.
 	tileFill        = color.RGBA{R: 6, G: 6, B: 8, A: 235}
-	tileBorderColor = color.RGBA{R: 255, G: 255, B: 255, A: 255}
+	tileBorderColor = color.RGBA{R: 228, G: 228, B: 224, A: 255}
 )
 
 // How the icon's own background is keyed out.
