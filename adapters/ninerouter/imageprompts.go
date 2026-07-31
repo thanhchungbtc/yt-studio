@@ -2,17 +2,229 @@ package ninerouter
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
+// VideoContext is what an image-prompt generation needs to know about a video.
+//
+// The port hands this method a video id and nothing else, and a provider may
+// never read the database — so the caller supplies a lookup that resolves one
+// into the other. It is the only method with that shape, because it is the only
+// one whose callers are N per-chapter tasks rather than one.
+type VideoContext struct {
+	provider.BlueprintOutline
+	ImagesPerChapter int
+}
+
+// ContextLookup resolves a video id into the plan its images illustrate.
+type ContextLookup func(ctx context.Context, videoID entity.VideoID) (VideoContext, error)
+
+// imagePromptsDoc is the shape the model returns, and the type the prompt's
+// schema is generated from.
+type imagePromptsDoc struct {
+	//nolint:lll // one field, one line: each tag is this field's line in the prompt
+	Prompts []imagePromptDoc `json:"prompts" doc:"one entry per requested image, in the order the assets were listed"`
+}
+
+//nolint:lll // one field, one line: each tag is this field's line in the prompt
+type imagePromptDoc struct {
+	Chapter int    `json:"chapter" doc:"the 1-based chapter ordinal this image belongs to"`
+	Index   int    `json:"index" doc:"the 0-based position of this image within its chapter"`
+	Prompt  string `json:"prompt" doc:"a complete self-contained prompt of 2 to 4 sentences, ending with the exact style tag"`
+}
+
+// imageAsset is one image the model is asked to write a prompt for.
+type imageAsset struct {
+	Chapter int
+	Index   int
+	Title   string
+	Summary string
+	// Role is which of the three the image plays: the prompt's own vocabulary,
+	// derived from position within the chapter rather than asked for.
+	Role string
+	// Position is where the chapter sits in the video, in the prompt's macro
+	// vocabulary. Empty when the video is too short for the arc to mean much.
+	Position string
+}
+
+// imagePromptsPrompt is what the templates render against.
+type imagePromptsPrompt struct {
+	Blueprint            provider.BlueprintOutline
+	Assets               []imageAsset
+	Total                int
+	ExpectedOutputSchema string
+}
+
 // ImagePrompts returns every chapter's still prompts for one video.
 //
-// Not implemented yet, and the one method that will need state on the client:
-// the port's contract is that N per-chapter callers collapse onto a single
-// generation, which means a singleflight group and a cache. That is why the
-// methods here take a pointer receiver.
-func (c *Client) ImagePrompts(_ context.Context, _ entity.VideoID) ([]provider.ImagePrompt, error) {
-	panic("ninerouter: ImagePrompts is not implemented yet")
+// All of them come from a single generation. The prompt carries the whole
+// outline, so the images of chapter 31 can answer the ones from chapter 12
+// instead of repeating them — and asking per chapter would resend that outline
+// a hundred times to get a hundred unrelated answers.
+//
+// The DAG still holds N individually retryable per-chapter tasks. Singleflight
+// collapses them onto one production and the cache serves the rest; both halves
+// are needed, because singleflight alone only deduplicates calls that overlap
+// in time, and the image pool is capped well below the number of callers.
+func (c *Client) ImagePrompts(ctx context.Context, videoID entity.VideoID) ([]provider.ImagePrompt, error) {
+	if cached, ok := c.cached(videoID); ok {
+		return cached, nil
+	}
+	if c.lookup == nil {
+		return nil, fmt.Errorf("%w: no video context lookup is wired", ErrUnavailable)
+	}
+
+	v, err, _ := c.inflight.Do(string(videoID), func() (any, error) {
+		// A caller that queued behind the production must not trigger another.
+		if cached, ok := c.cached(videoID); ok {
+			return cached, nil
+		}
+		prompts, err := c.generateImagePrompts(ctx, videoID)
+		if err != nil {
+			return nil, err
+		}
+		c.cacheMu.Lock()
+		c.cache[videoID] = prompts
+		c.cacheMu.Unlock()
+		return prompts, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	prompts, ok := v.([]provider.ImagePrompt)
+	if !ok {
+		// Unreachable: the closure above returns only this type.
+		return nil, fmt.Errorf("9router: image prompt cache holds %T", v)
+	}
+	return prompts, nil
+}
+
+// Forget drops a video's batch so a retry regenerates it rather than replaying
+// the answer that was retried away from.
+func (c *Client) Forget(videoID entity.VideoID) {
+	c.cacheMu.Lock()
+	delete(c.cache, videoID)
+	c.cacheMu.Unlock()
+}
+
+func (c *Client) cached(videoID entity.VideoID) ([]provider.ImagePrompt, bool) {
+	c.cacheMu.RLock()
+	defer c.cacheMu.RUnlock()
+	prompts, ok := c.cache[videoID]
+	return prompts, ok
+}
+
+// generateImagePrompts is the real production, run once per video.
+func (c *Client) generateImagePrompts(ctx context.Context, videoID entity.VideoID) ([]provider.ImagePrompt, error) {
+	vc, err := c.lookup(ctx, videoID)
+	if err != nil {
+		return nil, fmt.Errorf("resolve video context: %w", err)
+	}
+	prompt, err := newImagePromptsPrompt(vc)
+	if err != nil {
+		return nil, err
+	}
+	// No chapters means the graph was expanded from an empty outline, which no
+	// number of attempts fixes.
+	if prompt.Total == 0 {
+		return nil, fmt.Errorf("%w: %s has no chapters to illustrate", ErrUnavailable, videoID)
+	}
+
+	system, err := render(imagePromptsSystemPrompt, prompt)
+	if err != nil {
+		return nil, err
+	}
+	user, err := render(imagePromptsUserPrompt, prompt)
+	if err != nil {
+		return nil, err
+	}
+
+	content, err := c.chat(ctx, call{Video: videoID, Label: "image-prompts"}, system, user)
+	if err != nil {
+		return nil, err
+	}
+	var doc imagePromptsDoc
+	if err := json.Unmarshal([]byte(content), &doc); err != nil {
+		return nil, fmt.Errorf("image prompt response is not JSON: %w (%s)", err, snippet(content))
+	}
+
+	out := make([]provider.ImagePrompt, 0, len(doc.Prompts))
+	for _, p := range doc.Prompts {
+		out = append(out, provider.ImagePrompt{Ordinal: p.Chapter, Index: p.Index, Prompt: p.Prompt})
+	}
+	// A short batch is a bad roll rather than a misconfiguration: the per-chapter
+	// tasks address this by (ordinal, index) and a missing pair has no prompt to
+	// draw from, so it is worth asking again.
+	if len(out) < prompt.Total {
+		return nil, fmt.Errorf("9router returned %d image prompts, want %d", len(out), prompt.Total)
+	}
+	return out, nil
+}
+
+func newImagePromptsPrompt(vc VideoContext) (imagePromptsPrompt, error) {
+	perChapter := vc.ImagesPerChapter
+	if perChapter <= 0 {
+		perChapter = 1
+	}
+	assets := make([]imageAsset, 0, len(vc.Chapters)*perChapter)
+	for _, ch := range vc.Chapters {
+		for i := range perChapter {
+			assets = append(assets, imageAsset{
+				Chapter:  ch.Ordinal,
+				Index:    i,
+				Title:    ch.Title,
+				Summary:  ch.Summary,
+				Role:     imageRole(i),
+				Position: macroPosition(ch.Ordinal, len(vc.Chapters)),
+			})
+		}
+	}
+	schema, err := jsonSchemaOf(imagePromptsDoc{})
+	if err != nil {
+		return imagePromptsPrompt{}, err
+	}
+	return imagePromptsPrompt{
+		Blueprint:            vc.BlueprintOutline,
+		Assets:               assets,
+		Total:                len(assets),
+		ExpectedOutputSchema: schema,
+	}, nil
+}
+
+// imageRole names an image's job from its position in the chapter, in the
+// vocabulary the system prompt defines.
+func imageRole(index int) string {
+	switch index {
+	case 0:
+		return "ESTABLISHING"
+	case 1:
+		return "CONCEPT"
+	default:
+		return "RESONANCE"
+	}
+}
+
+// macroPosition places a chapter on the video's arc, in the vocabulary the
+// system prompt defines. A video too short for an arc gets none rather than a
+// spurious one.
+func macroPosition(ordinal, chapters int) string {
+	if chapters < 5 {
+		return ""
+	}
+	switch {
+	case ordinal == 1:
+		return "OPENING"
+	case ordinal == chapters:
+		return "LANDING"
+	case ordinal <= chapters/3:
+		return "BUILD"
+	case ordinal <= 2*chapters/3:
+		return "DARK_MIDDLE"
+	default:
+		return "RECONTEXTUALIZE"
+	}
 }

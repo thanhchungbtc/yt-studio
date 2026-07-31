@@ -1,0 +1,21 @@
+## Full Video Blueprint
+
+Title: {{ .Blueprint.Title }}
+{{- with .Blueprint.Summary }}
+Brief: {{ . }}
+{{- end }}
+
+---
+
+Generate one image generation prompt for each of the following {{ .Total }} image assets.
+Each prompt should be visually evocative, specific, and suitable for both the chapter content and the overall video theme.
+Assets:
+{{ range .Assets }}
+chapter {{ .Chapter }}, image {{ .Index }} — {{ .Role }}{{ if .Position }}, {{ .Position }}{{ end }}
+Chapter title: {{ .Title }}
+{{ .Summary }}
+{{ end }}
+Ensure that:
+1. You return exactly {{ .Total }} items — one per (chapter, index) pair.
+2. Every single generated prompt strictly adheres to the Channel Visual Identity rules, emotional functions, composition densities, and ends with the exact STYLE TAG: "minimalist 2D hand-drawn chalk illustration, pure black background, bold white filled chalk icon, high-contrast, clean solid white chalk texture, flat design, no shading, tight composition, conceptual symbolic visual"
+3. Each prompt is a complete self-contained string of 2 to 4 sentences.

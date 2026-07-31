@@ -24,7 +24,7 @@ func newRecordingClient(t *testing.T, g *gateway) (*ninerouter.Client, string) {
 		Model:         testModel,
 		Timeout:       5 * time.Second,
 		TranscriptDir: dir,
-	}, newStore(t))
+	}, newStore(t), nil)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -188,7 +188,7 @@ func TestUnusableTranscriptDirectoryFailsAtConstruction(t *testing.T) {
 		BaseURL:       "http://localhost:20128",
 		Model:         testModel,
 		TranscriptDir: filepath.Join(file, "under-a-file"),
-	}, newStore(t))
+	}, newStore(t), nil)
 	if !errors.Is(err, provider.ErrUnavailable) {
 		t.Fatalf("New = %v, want ErrUnavailable", err)
 	}

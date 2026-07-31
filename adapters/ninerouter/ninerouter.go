@@ -26,8 +26,12 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
+	"golang.org/x/sync/singleflight"
+
+	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
@@ -37,10 +41,18 @@ import (
 // says why rather than spending its retries on an answer that will not change.
 var ErrUnavailable = fmt.Errorf("9router: %w", provider.ErrUnavailable)
 
-// defaultTimeout bounds one request. A fifty-chapter outline from a reasoning
-// model is a slow call; the per-video context cancels it sooner when an
-// operator cancels the video.
-const defaultTimeout = 3 * time.Minute
+// defaultTimeout bounds one request.
+//
+// It is generous because the two largest calls are genuinely slow: a
+// fifty-chapter outline with a full brief per chapter, and the image-prompt
+// batch that writes a hundred prompts in one go. Cutting either off early costs
+// the whole generation.
+//
+// The cost of the generosity is that a hung call holds its pool slot for the
+// duration, and the LLM pool is capped at two — so two of them stall every
+// other LLM task until they expire. Cancelling the video is the faster way out:
+// the per-video context aborts an in-flight call within about 100ms.
+const defaultTimeout = 20 * time.Minute
 
 // Config is everything needed to reach a 9router instance.
 type Config struct {
@@ -65,13 +77,25 @@ type Client struct {
 	http        *http.Client
 	store       provider.AssetStore
 	transcripts *transcriptWriter
+	lookup      ContextLookup
+
+	// Image prompts are produced once per video and served to N per-chapter
+	// callers. Both halves are needed: singleflight collapses the callers that
+	// overlap in time, the cache answers the ones that come after.
+	inflight singleflight.Group
+	cacheMu  sync.RWMutex
+	cache    map[entity.VideoID][]provider.ImagePrompt
 }
 
 var _ provider.LLMProvider = (*Client)(nil)
 
 // New validates the configuration and wires the client. It touches no network:
 // wiring cannot fail because a gateway is down, and Check is what reports that.
-func New(cfg Config, store provider.AssetStore) (*Client, error) {
+//
+// lookup resolves a video id into the plan its images illustrate. Only
+// ImagePrompts needs it, because only ImagePrompts is handed an id and nothing
+// else; a nil lookup leaves that one method unavailable and the rest working.
+func New(cfg Config, store provider.AssetStore, lookup ContextLookup) (*Client, error) {
 	if strings.TrimSpace(cfg.BaseURL) == "" {
 		return nil, fmt.Errorf("%w: base url must not be empty", ErrUnavailable)
 	}
@@ -100,6 +124,8 @@ func New(cfg Config, store provider.AssetStore) (*Client, error) {
 		http:        &http.Client{Timeout: cfg.Timeout},
 		store:       store,
 		transcripts: transcripts,
+		lookup:      lookup,
+		cache:       make(map[entity.VideoID][]provider.ImagePrompt, 4),
 	}, nil
 }
 

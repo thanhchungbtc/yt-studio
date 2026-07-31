@@ -103,7 +103,7 @@ func newClientWithStore(t *testing.T, g *gateway, key string, store provider.Ass
 		APIKey:  key,
 		Model:   testModel,
 		Timeout: 5 * time.Second,
-	}, store)
+	}, store, nil)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -146,14 +146,14 @@ func TestNewRejectsBadConfig(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if _, err := ninerouter.New(tc.cfg, store); !errors.Is(err, provider.ErrUnavailable) {
+			if _, err := ninerouter.New(tc.cfg, store, nil); !errors.Is(err, provider.ErrUnavailable) {
 				t.Fatalf("New = %v, want ErrUnavailable", err)
 			}
 		})
 	}
 	if _, err := ninerouter.New(ninerouter.Config{
 		BaseURL: "http://localhost:20128", Model: testModel,
-	}, nil); !errors.Is(err, provider.ErrUnavailable) {
+	}, nil, nil); !errors.Is(err, provider.ErrUnavailable) {
 		t.Fatalf("New with a nil store = %v, want ErrUnavailable", err)
 	}
 }
@@ -278,7 +278,7 @@ func TestUnreachableGatewayIsUnavailable(t *testing.T) {
 	url := dead.URL
 	dead.Close()
 
-	c, err := ninerouter.New(ninerouter.Config{BaseURL: url, Model: testModel, Timeout: time.Second}, newStore(t))
+	c, err := ninerouter.New(ninerouter.Config{BaseURL: url, Model: testModel, Timeout: time.Second}, newStore(t), nil)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -303,7 +303,7 @@ func TestChatHonoursContextCancellation(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	c, err := ninerouter.New(ninerouter.Config{BaseURL: server.URL, Model: testModel}, newStore(t))
+	c, err := ninerouter.New(ninerouter.Config{BaseURL: server.URL, Model: testModel}, newStore(t), nil)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -355,7 +355,7 @@ func TestBaseURLTrailingSlashIsTrimmed(t *testing.T) {
 	g := newGateway(t, http.StatusOK, `{"ok":true}`)
 	c, err := ninerouter.New(ninerouter.Config{
 		BaseURL: g.server.URL + "/", Model: testModel, Timeout: 5 * time.Second,
-	}, newStore(t))
+	}, newStore(t), nil)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
