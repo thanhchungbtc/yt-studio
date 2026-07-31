@@ -57,7 +57,7 @@ func promptBatch(chapters, perChapter int) string {
 func newImageClient(t *testing.T, g *gateway, vc ninerouter.VideoContext) *ninerouter.Client {
 	t.Helper()
 	c, err := ninerouter.New(ninerouter.Config{
-		BaseURL: g.server.URL, Model: testModel, Timeout: 5 * time.Second,
+		BaseURL: g.server.URL, Model: staticModel(testModel), Timeout: 5 * time.Second,
 	}, newStore(t), func(context.Context, entity.VideoID) (ninerouter.VideoContext, error) {
 		return vc, nil
 	})

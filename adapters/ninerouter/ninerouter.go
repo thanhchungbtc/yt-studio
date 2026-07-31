@@ -61,8 +61,12 @@ type Config struct {
 	// APIKey is sent as a bearer token when set. A local gateway may run with
 	// auth disabled, in which case it is empty and no header is sent.
 	APIKey string
-	// Model is the namespaced upstream id, e.g. ag/gemini-3-flash.
-	Model string
+	// Model resolves the namespaced upstream id, e.g. ag/gemini-3-flash.
+	//
+	// It is a function rather than a string so that a model picked on the
+	// settings screen applies to the next generation instead of the next
+	// restart — the same reason the registry resolves its backend per call.
+	Model func() string
 	// Timeout bounds one request; zero means defaultTimeout.
 	Timeout time.Duration
 	// TranscriptDir is where each exchange with the model is written for
@@ -103,8 +107,8 @@ func New(cfg Config, store provider.AssetStore, lookup ContextLookup) (*Client, 
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return nil, fmt.Errorf("%w: base url %q is not an absolute http url", ErrUnavailable, cfg.BaseURL)
 	}
-	if strings.TrimSpace(cfg.Model) == "" {
-		return nil, fmt.Errorf("%w: model must not be empty", ErrUnavailable)
+	if cfg.Model == nil {
+		return nil, fmt.Errorf("%w: no model resolver was given", ErrUnavailable)
 	}
 	if store == nil {
 		return nil, fmt.Errorf("%w: asset store must not be nil", ErrUnavailable)
@@ -129,8 +133,8 @@ func New(cfg Config, store provider.AssetStore, lookup ContextLookup) (*Client, 
 	}, nil
 }
 
-// Model returns the configured upstream id, for the startup log line.
-func (c *Client) Model() string { return c.cfg.Model }
+// Model returns the currently selected upstream id, for the startup log line.
+func (c *Client) Model() string { return c.cfg.Model() }
 
 // Check probes the gateway, so an operator learns it is unreachable at startup
 // rather than from the first chapter of a fifty-chapter video.
@@ -213,7 +217,7 @@ const (
 // gateway's shape is a change in one place.
 func (c *Client) chat(ctx context.Context, of call, system, user string) (string, error) {
 	started := time.Now()
-	record := transcript{call: of, Model: c.cfg.Model, System: system, User: user, StartedAt: started}
+	record := transcript{call: of, Model: c.cfg.Model(), System: system, User: user, StartedAt: started}
 	defer func() {
 		record.Duration = time.Since(started)
 		c.transcripts.write(record)
@@ -227,8 +231,12 @@ func (c *Client) chat(ctx context.Context, of call, system, user string) (string
 // complete is the request itself, split out so chat above is only the recording
 // around it.
 func (c *Client) complete(ctx context.Context, system, user string) (string, *chatUsage, error) {
+	model := strings.TrimSpace(c.cfg.Model())
+	if model == "" {
+		return "", nil, fmt.Errorf("%w: no model is selected", ErrUnavailable)
+	}
 	payload, err := json.Marshal(chatRequest{
-		Model: c.cfg.Model,
+		Model: model,
 		Messages: []chatMessage{
 			{Role: roleSystem, Content: system},
 			{Role: roleUser, Content: user},

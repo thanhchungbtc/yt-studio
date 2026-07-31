@@ -21,7 +21,7 @@ func newRecordingClient(t *testing.T, g *gateway) (*ninerouter.Client, string) {
 	dir := filepath.Join(t.TempDir(), "transcripts")
 	c, err := ninerouter.New(ninerouter.Config{
 		BaseURL:       g.server.URL,
-		Model:         testModel,
+		Model:         staticModel(testModel),
 		Timeout:       5 * time.Second,
 		TranscriptDir: dir,
 	}, newStore(t), nil)
@@ -186,7 +186,7 @@ func TestUnusableTranscriptDirectoryFailsAtConstruction(t *testing.T) {
 	}
 	_, err := ninerouter.New(ninerouter.Config{
 		BaseURL:       "http://localhost:20128",
-		Model:         testModel,
+		Model:         staticModel(testModel),
 		TranscriptDir: filepath.Join(file, "under-a-file"),
 	}, newStore(t), nil)
 	if !errors.Is(err, provider.ErrUnavailable) {

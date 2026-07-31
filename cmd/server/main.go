@@ -25,6 +25,7 @@ import (
 	"github.com/tbui/yt-studio/adapters/eventbus"
 	"github.com/tbui/yt-studio/adapters/ffmpeg"
 	mockprovider "github.com/tbui/yt-studio/adapters/mock_provider"
+	"github.com/tbui/yt-studio/adapters/ninerouter"
 	"github.com/tbui/yt-studio/adapters/registry"
 	sampleprovider "github.com/tbui/yt-studio/adapters/sample_provider"
 	"github.com/tbui/yt-studio/adapters/sqlite"
@@ -48,6 +49,12 @@ type bootstrap struct {
 	//nolint:lll // one flag, one line
 	Resources string `help:"Fixed production assets: chalkboard.jpg, bg.mp4, bg.mp3, fonts/." default:"var/resources" env:"YTS_RESOURCES" type:"path"`
 	Listen    string `help:"Listen address." default:"127.0.0.1:8080" env:"YTS_LISTEN"`
+	//nolint:lll // one flag, one line
+	NineRouterURL string `help:"9router gateway base URL." default:"http://127.0.0.1:20128" env:"NINEROUTER_URL"`
+	//nolint:lll // one flag, one line
+	NineRouterKey string `help:"9router API key. A gateway running with auth off needs none." env:"NINEROUTER_KEY"`
+	//nolint:lll // one flag, one line
+	Transcripts string `help:"Where each LLM prompt and response is written for inspection. Empty disables." default:"var/transcripts" env:"YTS_TRANSCRIPTS" type:"path"`
 	//nolint:lll // one flag, one line
 	LogLevel string `help:"Startup log level; the settings table takes over once loaded." default:"info" env:"YTS_LOG_LEVEL" enum:"debug,info,warn,error"`
 }
@@ -268,8 +275,23 @@ func (c *serveCmd) Run() error {
 	ffmpegComposer := ffmpeg.New(assets, c.Resources, log)
 	samples := sampleprovider.NewLibrary(c.Resources)
 
+	// The model is read through a closure rather than captured: settings are not
+	// loaded until after every backend has registered, and a model picked on the
+	// settings screen has to apply to the next generation rather than the next
+	// restart.
+	nineRouter, err := ninerouter.New(ninerouter.Config{
+		BaseURL:       c.NineRouterURL,
+		APIKey:        c.NineRouterKey,
+		Model:         func() string { return settings.String(entity.SettingNineRouterModel) },
+		TranscriptDir: c.Transcripts,
+	}, assets, nineRouterContextLookup(store))
+	if err != nil {
+		return err
+	}
+
 	providers := registry.New(settings.String)
 	providers.RegisterLLM("mock", mockprovider.NewLLM(assets, videoContextLookup(store), tuning))
+	providers.RegisterLLM("9router", nineRouter)
 	providers.RegisterTTS("mock", mockprovider.NewTTS(assets, tuning))
 	providers.RegisterTTS("sample", sampleprovider.NewTTS(samples, assets))
 	providers.RegisterImage("mock", mockprovider.NewImage(assets, tuning))
@@ -297,6 +319,16 @@ func (c *serveCmd) Run() error {
 		log.Info("sample backends are not available",
 			slog.String("reason", err.Error()),
 			slog.String("dir", samples.Dir()))
+	}
+	if err := nineRouter.Check(ctx); err != nil {
+		log.Info("9router is not available",
+			slog.String("reason", err.Error()),
+			slog.String("url", c.NineRouterURL))
+	} else {
+		log.Info("9router is available",
+			slog.String("url", c.NineRouterURL),
+			slog.String("model", nineRouter.Model()),
+			slog.String("transcripts", c.Transcripts))
 	}
 
 	// --- scheduler ----------------------------------------------------------
@@ -433,23 +465,60 @@ func (c *serveCmd) Run() error {
 
 // videoContextLookup gives the mock LLM the blueprint context its coalesced
 // prompt call needs, without the provider itself touching the database.
+// nineRouterContextLookup resolves a video id into the plan its images
+// illustrate. Only ImagePrompts needs it: the port hands that method an id and
+// nothing else, and a provider may never read the database itself.
+func nineRouterContextLookup(store *sqlite.Store) ninerouter.ContextLookup {
+	return func(ctx context.Context, videoID entity.VideoID) (ninerouter.VideoContext, error) {
+		v, err := store.VideoByID(ctx, videoID)
+		if err != nil {
+			return ninerouter.VideoContext{}, err
+		}
+		outline, err := chapterOutline(ctx, store, videoID)
+		if err != nil {
+			return ninerouter.VideoContext{}, err
+		}
+		return ninerouter.VideoContext{
+			BlueprintOutline: provider.BlueprintOutline{
+				Title: v.Title, Summary: v.Topic, Chapters: outline,
+			},
+			ImagesPerChapter: v.ImagesPerChapter,
+		}, nil
+	}
+}
+
+// chapterOutline projects a video's chapters, for the two context lookups that
+// both need it.
+func chapterOutline(
+	ctx context.Context,
+	store *sqlite.Store,
+	videoID entity.VideoID,
+) ([]provider.BlueprintChapter, error) {
+	rows, err := store.ListChaptersByVideo(ctx, videoID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]provider.BlueprintChapter, 0, len(rows))
+	for _, c := range rows {
+		out = append(out, provider.BlueprintChapter{
+			Ordinal:        c.Ordinal,
+			Title:          c.Title,
+			Summary:        c.Summary,
+			EstimatedWords: c.EstimatedWords,
+		})
+	}
+	return out, nil
+}
+
 func videoContextLookup(store *sqlite.Store) mockprovider.ContextLookup {
 	return func(ctx context.Context, videoID entity.VideoID) (mockprovider.VideoContext, error) {
 		v, err := store.VideoByID(ctx, videoID)
 		if err != nil {
 			return mockprovider.VideoContext{}, err
 		}
-		rows, err := store.ListChaptersByVideo(ctx, videoID)
+		outline, err := chapterOutline(ctx, store, videoID)
 		if err != nil {
 			return mockprovider.VideoContext{}, err
-		}
-		outline := make([]provider.BlueprintChapter, 0, len(rows))
-		for _, c := range rows {
-			outline = append(outline, provider.BlueprintChapter{
-				Ordinal: c.Ordinal,
-				Title:   c.Title,
-				Summary: c.Summary,
-			})
 		}
 		return mockprovider.VideoContext{
 			Ref:              v.Ref,

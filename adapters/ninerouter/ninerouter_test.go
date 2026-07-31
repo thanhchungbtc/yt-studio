@@ -23,6 +23,11 @@ import (
 
 const testModel = "ag/gemini-3-flash"
 
+// staticModel is the resolver a test uses when the model never changes. In
+// production it reads the settings row, so a model picked on the settings
+// screen applies to the next generation.
+func staticModel(id string) func() string { return func() string { return id } }
+
 // gateway is a stand-in 9router. It records the last request so a test can
 // assert what went out, and replies with whatever the test handed it.
 type gateway struct {
@@ -101,7 +106,7 @@ func newClientWithStore(t *testing.T, g *gateway, key string, store provider.Ass
 	c, err := ninerouter.New(ninerouter.Config{
 		BaseURL: g.server.URL,
 		APIKey:  key,
-		Model:   testModel,
+		Model:   staticModel(testModel),
 		Timeout: 5 * time.Second,
 	}, store, nil)
 	if err != nil {
@@ -139,9 +144,9 @@ func TestNewRejectsBadConfig(t *testing.T) {
 		name string
 		cfg  ninerouter.Config
 	}{
-		{"no base url", ninerouter.Config{Model: testModel}},
-		{"relative base url", ninerouter.Config{BaseURL: "localhost:20128", Model: testModel}},
-		{"no model", ninerouter.Config{BaseURL: "http://localhost:20128"}},
+		{"no base url", ninerouter.Config{Model: staticModel(testModel)}},
+		{"relative base url", ninerouter.Config{BaseURL: "localhost:20128", Model: staticModel(testModel)}},
+		{"no model resolver", ninerouter.Config{BaseURL: "http://localhost:20128"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -152,7 +157,7 @@ func TestNewRejectsBadConfig(t *testing.T) {
 		})
 	}
 	if _, err := ninerouter.New(ninerouter.Config{
-		BaseURL: "http://localhost:20128", Model: testModel,
+		BaseURL: "http://localhost:20128", Model: staticModel(testModel),
 	}, nil, nil); !errors.Is(err, provider.ErrUnavailable) {
 		t.Fatalf("New with a nil store = %v, want ErrUnavailable", err)
 	}
@@ -278,7 +283,7 @@ func TestUnreachableGatewayIsUnavailable(t *testing.T) {
 	url := dead.URL
 	dead.Close()
 
-	c, err := ninerouter.New(ninerouter.Config{BaseURL: url, Model: testModel, Timeout: time.Second}, newStore(t), nil)
+	c, err := ninerouter.New(ninerouter.Config{BaseURL: url, Model: staticModel(testModel), Timeout: time.Second}, newStore(t), nil)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -303,7 +308,7 @@ func TestChatHonoursContextCancellation(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	c, err := ninerouter.New(ninerouter.Config{BaseURL: server.URL, Model: testModel}, newStore(t), nil)
+	c, err := ninerouter.New(ninerouter.Config{BaseURL: server.URL, Model: staticModel(testModel)}, newStore(t), nil)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -354,7 +359,7 @@ func TestBaseURLTrailingSlashIsTrimmed(t *testing.T) {
 	t.Parallel()
 	g := newGateway(t, http.StatusOK, `{"ok":true}`)
 	c, err := ninerouter.New(ninerouter.Config{
-		BaseURL: g.server.URL + "/", Model: testModel, Timeout: 5 * time.Second,
+		BaseURL: g.server.URL + "/", Model: staticModel(testModel), Timeout: 5 * time.Second,
 	}, newStore(t), nil)
 	if err != nil {
 		t.Fatalf("New: %v", err)

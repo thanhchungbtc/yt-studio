@@ -38,6 +38,10 @@ const (
 	SettingProviderImage    SettingKey = "provider.image"
 	SettingProviderComposer SettingKey = "provider.composer"
 	SettingProviderUploader SettingKey = "provider.uploader"
+	// SettingNineRouterModel picks which upstream the 9router backend routes to.
+	// It is a settings row rather than a flag because it is the knob that gets
+	// turned most while prompts are being tuned.
+	SettingNineRouterModel SettingKey = "ninerouter.model"
 
 	SettingVideoDefaultChapters SettingKey = "video.default_chapter_count"
 	SettingVideoDefaultImages   SettingKey = "video.default_images_per_chapter"
@@ -229,6 +233,8 @@ func DefaultSettings() []Setting {
 		{Key: SettingProviderImage, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for stills."},
 		{Key: SettingProviderComposer, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for clip and concat composition."},
 		{Key: SettingProviderUploader, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for publishing."},
+		//nolint:lll // one row, one line
+		{Key: SettingNineRouterModel, Value: "ag/gemini-3-flash", Type: SettingTypeString, Group: "providers", Description: "Which upstream the 9router backend routes to, e.g. ag/gemini-3-flash. See GET /v1/models on the gateway."},
 
 		{Key: SettingVideoDefaultChapters, Value: "50", Type: SettingTypeInt, Group: "video", Min: MinChapterCount, Max: MaxChapterCount, Description: "Chapters created for a new video when unspecified."},
 		{Key: SettingVideoDefaultImages, Value: "2", Type: SettingTypeInt, Group: "video", Min: MinImagesPerChapter, Max: MaxImagesPerChapter, Description: "Stills generated per chapter when unspecified."},
