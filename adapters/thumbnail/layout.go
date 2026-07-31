@@ -2,62 +2,84 @@ package thumbnail
 
 import "image"
 
-// The frame and the fixed proportions of the design.
+// ---------------------------------------------------------------- tuning ----
 //
-// These are constants rather than settings on purpose. A settings table full of
-// pixel values is a second place to change a layout and a first place to get it
-// wrong; the backend that exists to be tweaked without a rebuild is the
-// browser one, and it can hold its layout in CSS where layouts belong.
+// Everything about how the thumbnail is proportioned lives in this one block,
+// so it can be tuned by editing numbers rather than by reading the drawing
+// code. Each comment says what raising the number does.
+//
+// They are constants rather than settings rows on purpose: the backend that
+// exists to be re-styled without a rebuild is the browser one, and a settings
+// table full of pixel values would be a second place to change a layout and a
+// first place to get it wrong.
 const (
-	// width and height are YouTube's thumbnail dimensions.
+	// The frame: YouTube's thumbnail size.
 	width  = 1280
 	height = 720
 
+	// --- the grid ---------------------------------------------------------
+	//
+	// The grid is sized from the frame width first and the headline takes what
+	// is left over, which is what keeps the tiles running edge to edge. Lower
+	// gridMarginX for a wider grid — it is the gutter on each side.
+	gridMarginX = 18
+	// Gap between tiles, horizontally and between rows.
+	tileGap = 14
+	// The border drawn around each tile, and the inset from that border to the
+	// icon inside it. Raise tilePad to give the icon more air.
+	tileBorder = 3
+	tilePad    = 8
+	// Room under the last row of captions.
+	gridBottom = 14
+	// Gap between the headline block and the first row of tiles.
+	gridGap = 18
+
+	// --- captions ---------------------------------------------------------
+	//
+	// captionBand is the height reserved under every tile whatever size the
+	// captions settle at; reserving the same band for all of them is what keeps
+	// the rows aligned. captionMax and captionMin bound the type size, which is
+	// chosen once for the whole grid rather than per tile.
+	captionGap  = 8
+	captionBand = 28
+	captionMax  = 26
+	captionMin  = 12
+	captionStep = 1
+
+	// --- the headline -----------------------------------------------------
+	//
+	// The headline is fitted into whatever height the grid left it, at the
+	// largest size between headlineMax and headlineMin that fits on one line.
+	// It wraps only when even the floor will not hold it.
+	//
+	// A fuller grid leaves the headline less room: ten tiles in two rows are
+	// large enough to push it towards its floor, where fourteen in two rows are
+	// smaller and leave it near its ceiling.
+	headlineMarginX = 40
+	headlineTop     = 22
+	headlineMax     = 120
+	headlineMin     = 44
+	headlineStep    = 4
+	headlineLead    = 6
+	headlineLines   = 2
+	// Letter-spacing is size/headlineTrack. Lower is looser.
+	headlineTrack = 22
+
+	// --- the rule under the headline --------------------------------------
+	ruleGap    = 12
+	ruleHeight = 8
+	ruleWidth  = width / 3
+
+	// --- resources --------------------------------------------------------
 	backgroundFile = "background.jpg"
 	defaultFont    = "CabinSketch-Bold.ttf"
 	defaultRows    = 2
-
-	margin = width / 20
-
-	headlineTop = height / 14
-	// The headline is set as large as it will go between these, stepping down
-	// until it fits. Two lines is the floor: a hook that needs three is a hook
-	// that has already lost the glance it was written for.
-	headlineMax   = 132
-	headlineMin   = 54
-	headlineStep  = 4
-	headlineLead  = 8  // gap between wrapped lines
-	headlineLines = 2  // the most lines a headline may take
-	headlineTrack = 22 // tracking as a fraction of the size: size/22
-
-	ruleGap    = 18
-	ruleHeight = 9
-	// The rule runs under the back half of the headline, as the references do.
-	ruleWidth = width / 3
-
-	gridGap    = 34 // headline block to first row
-	tileGap    = 18
-	tileBorder = 3
-	tilePad    = 10
-
-	captionGap = 12
-	captionMax = 30
-	captionMin = 13
-	// captionBand is the height reserved under every tile for its caption,
-	// whatever size the grid settles on. Reserving the same band for all of them
-	// is what keeps the rows aligned.
-	captionBand = captionMax + 4
-	// gridBottom is the margin under the last row of captions. It is tighter than
-	// the side margin: vertical room is what the headline competes for.
-	gridBottom = margin / 2
-	// A caption is one line under a tile; below the floor it is cut rather than
-	// shrunk further, because a caption nobody can read is not worth the room.
-	captionStep = 1
 )
+
+// ------------------------------------------------------------------ grid ----
 
 // grid is the resolved geometry of one thumbnail's tiles.
 type grid struct {
-	top      int
 	tileSize int
 	rows     int
 	cols     int
@@ -69,9 +91,15 @@ type grid struct {
 	rowX   []int
 }
 
-// layOutGrid fits rows x cols of square tiles plus their captions into what is
-// left of the frame under the headline.
-func layOutGrid(cells, rows, top int) grid {
+// layOutGrid sizes the tiles from the frame width. Where the block sits is
+// decided later by place, once the headline above it has been fitted.
+//
+// Width first, deliberately. Sizing the tiles from whatever height a headline
+// left behind is what made the first cut of this look like a filmstrip
+// stranded mid-frame: the tiles came out small and the frame kept a wide empty
+// gutter down both sides. Here the tiles always span the frame, and it is the
+// headline that gives way.
+func layOutGrid(cells, rows int) grid {
 	if rows < 1 {
 		rows = 1
 	}
@@ -80,22 +108,17 @@ func layOutGrid(cells, rows, top int) grid {
 	}
 	cols := (cells + rows - 1) / rows
 
-	top += gridGap
-	available := height - top - gridBottom
-
-	// Tiles are as wide as a row of them can be, then shrunk only if the rows do
-	// not fit the height that is left. Sizing by height first is what made the
-	// first cut of this look like a filmstrip stranded in the middle of the
-	// frame: the reference grid runs nearly edge to edge.
-	tile := (width - 2*margin - (cols-1)*tileGap) / cols
-	for tile > 1 && rows*(tile+captionGap+captionBand)+(rows-1)*tileGap > available {
+	tile := (width - 2*gridMarginX - (cols-1)*tileGap) / cols
+	// The one case where the tiles give way instead: a grid so tall that the
+	// headline would not get its floor.
+	for tile > 1 && height-blockHeight(rows, tile)-gridBottom-gridGap < headlineTop+headlineMin {
 		tile -= 2
 	}
 	if tile < 1 {
 		tile = 1
 	}
 
-	g := grid{top: top, tileSize: tile, rows: rows, cols: cols}
+	g := grid{tileSize: tile, rows: rows, cols: cols}
 	g.counts = make([]int, rows)
 	g.rowX = make([]int, rows)
 	g.rowY = make([]int, rows)
@@ -107,18 +130,38 @@ func layOutGrid(cells, rows, top int) grid {
 		g.counts[r] = n
 		rowWidth := n*tile + (n-1)*tileGap
 		g.rowX[r] = (width - rowWidth) / 2
-		g.rowY[r] = top + r*(tile+captionGap+captionBand+tileGap)
 	}
-
-	// Vertically centre the whole block in what the headline left behind, so a
-	// short headline does not leave the grid stranded at the top.
-	blockHeight := rows*(tile+captionGap+captionBand) + (rows-1)*tileGap
-	if slack := (available - blockHeight) / 2; slack > 0 {
-		for r := range rows {
-			g.rowY[r] += slack
-		}
-	}
+	g.place(0)
 	return g
+}
+
+// headlineBudget is how much height is left above the grid for the headline and
+// its rule.
+func (g grid) headlineBudget() int {
+	return height - gridBottom - blockHeight(g.rows, g.tileSize) - gridGap - headlineTop
+}
+
+// place centres the block in what the headline left, rather than pinning it to
+// the bottom of the frame.
+//
+// Pinned, a grid of small tiles leaves a band of empty background between the
+// headline and the first row that reads as a mistake. Centred, the leftover
+// space is split above and below and a fourteen-tile grid sits as comfortably
+// as a ten-tile one.
+func (g *grid) place(headlineBottom int) {
+	bandTop := max(headlineBottom+gridGap, headlineTop)
+	bandBottom := height - gridBottom
+	block := blockHeight(g.rows, g.tileSize)
+
+	top := bandTop + max(bandBottom-bandTop-block, 0)/2
+	for r := range g.rows {
+		g.rowY[r] = top + r*(g.tileSize+captionGap+captionBand+tileGap)
+	}
+}
+
+// blockHeight is how tall rows of tiles plus their captions come to.
+func blockHeight(rows, tile int) int {
+	return rows*(tile+captionGap+captionBand) + (rows-1)*tileGap
 }
 
 // tile returns the box the i-th icon is drawn in.

@@ -85,12 +85,15 @@ func (b *Builder) Build(ctx context.Context, req provider.ThumbnailRequest) (ent
 	canvas := image.NewRGBA(image.Rect(0, 0, width, height))
 	copy(canvas.Pix, background.Pix)
 
-	// The headline is laid out first because how many lines it takes is what
-	// decides where the grid starts.
-	headline := layOutHeadline(font, req.Headline)
+	// The grid is laid out first and takes the width it needs; the headline is
+	// then fitted into the band above it. That order is the whole reason the
+	// tiles run edge to edge instead of floating in the middle of the frame.
+	cells := layOutGrid(len(req.Cells), opts.Rows)
+	headline := layOutHeadline(font, req.Headline, cells.headlineBudget())
 	drawHeadline(canvas, headline)
+	cells.place(headlineTop + headline.height())
 
-	if err := b.drawGrid(ctx, canvas, font, req.Cells, headline.bottom(), opts.Rows); err != nil {
+	if err := b.drawGrid(ctx, canvas, font, req.Cells, cells); err != nil {
 		return "", err
 	}
 
@@ -194,7 +197,7 @@ func (b *Builder) drawGrid(
 	canvas *image.RGBA,
 	font *sfnt.Font,
 	cells []provider.ThumbnailIconCell,
-	top, rows int,
+	grid grid,
 ) error {
 	if len(cells) == 0 {
 		// A headline on its own is a thin thumbnail, not a broken one. Whether an
@@ -202,7 +205,6 @@ func (b *Builder) drawGrid(
 		// renderer's.
 		return nil
 	}
-	grid := layOutGrid(len(cells), rows, top)
 
 	// One size for every caption, chosen once the tiles are sized: ten tiles at
 	// ten type sizes read as ten unrelated pictures.

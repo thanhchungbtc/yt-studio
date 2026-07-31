@@ -506,7 +506,11 @@ function Overview({
           <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-subtle">
             Pipeline
           </h2>
-          {loading ? <Skeleton className="h-16" /> : <StageStrip tasks={tasks} />}
+          {loading ? (
+            <Skeleton className="h-16" />
+          ) : (
+            <StageStrip tasks={tasks} videoRef={video.ref} videoId={video.id} />
+          )}
           {!loading && tasks.length === 0 && (
             <p className="text-[12px] text-muted">
               Nothing is enqueued yet. Start the video to build its DAG.

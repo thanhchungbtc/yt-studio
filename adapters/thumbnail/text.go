@@ -125,26 +125,31 @@ type headlineLayout struct {
 	lineH    int
 }
 
-// bottom is the y the grid may start from — under the rule, when there is one.
-func (h headlineLayout) bottom() int {
+// height is what the headline and its rule occupy.
+func (h headlineLayout) height() int {
 	if len(h.lines) == 0 {
-		return headlineTop
+		return 0
 	}
-	return h.top + len(h.lines)*h.lineH + ruleGap + ruleHeight
+	return len(h.lines)*h.lineH + ruleGap + ruleHeight
 }
 
-// layOutHeadline fits the hook to the frame: as large as it goes on one line,
-// and only wrapping when even the floor will not hold it.
+// layOutHeadline fits the hook into the band the grid left above it: as large
+// as it goes on one line, wrapping only when even the floor will not hold it.
 //
-// A headline that does not fit at the floor on two lines is drawn anyway and
-// allowed to overflow, the way the composer's chapter titles are: a clipped
-// word is better than a video that cannot produce a thumbnail.
-func layOutHeadline(parsed *sfnt.Font, headline string) headlineLayout {
+// It is fitted to two bounds rather than one. The width is the frame's, and the
+// height is whatever is left over — the grid is sized first and keeps what it
+// needs, so a fuller grid quietly makes the headline smaller instead of pushing
+// the tiles off the bottom of the frame.
+//
+// A headline that fits neither bound is drawn at the floor and allowed to
+// overflow, the way the composer's chapter titles are: a clipped word is better
+// than a video that cannot produce a thumbnail at all.
+func layOutHeadline(parsed *sfnt.Font, headline string, maxHeight int) headlineLayout {
 	words := strings.Fields(strings.ToUpper(headline))
 	if len(words) == 0 {
 		return headlineLayout{}
 	}
-	maxWidth := fixed.I(width - 2*margin)
+	maxWidth := fixed.I(width - 2*headlineMarginX)
 
 	// One line is the design. Every size is tried at one line before any is tried
 	// at two, so a hook that fits small-and-single beats one that fits
@@ -158,11 +163,15 @@ func layOutHeadline(parsed *sfnt.Font, headline string) headlineLayout {
 			}
 			tracking := trackingFor(size)
 			wrapped := wrap(face, words, maxWidth, tracking)
-			if len(wrapped) <= lines {
-				return headlineLayout{
-					lines: wrapped, size: size, face: face, tracking: tracking,
-					top: headlineTop, lineH: size + headlineLead,
-				}
+			if len(wrapped) > lines {
+				continue
+			}
+			candidate := headlineLayout{
+				lines: wrapped, size: size, face: face, tracking: tracking,
+				top: headlineTop, lineH: size + headlineLead,
+			}
+			if candidate.height() <= maxHeight {
+				return candidate
 			}
 		}
 	}

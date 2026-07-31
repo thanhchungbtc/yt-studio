@@ -73,7 +73,7 @@ func drawHeadline(canvas *image.RGBA, h headlineLayout) {
 	// The rule runs to the right margin, under the back half of the headline —
 	// the one piece of colour in the design.
 	y := h.top + len(h.lines)*h.lineH + ruleGap
-	drawRule(canvas, width-margin-ruleWidth, y, ruleWidth, ruleHeight)
+	drawRule(canvas, width-headlineMarginX-ruleWidth, y, ruleWidth, ruleHeight)
 }
 
 // drawRule paints the underline as a slight rightward taper ending in a point,
