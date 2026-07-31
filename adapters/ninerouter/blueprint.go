@@ -19,6 +19,9 @@ type blueprintPrompt struct {
 	WordsPerMinute  int
 	TotalWords      int
 	DurationMinutes int
+	// ExpectedOutputSchema is generated from blueprintDoc, so the shape the
+	// prompt asks for is the shape the parse expects, always.
+	ExpectedOutputSchema string
 }
 
 // newBlueprintPrompt resolves the video's spoken-word budget.
@@ -28,18 +31,23 @@ type blueprintPrompt struct {
 // it. Without one the length is whatever the requested chapters come to at the
 // default size, which is how videos planned before durations existed keep the
 // shape they were planned with.
-func newBlueprintPrompt(req provider.BlueprintRequest) blueprintPrompt {
+func newBlueprintPrompt(req provider.BlueprintRequest) (blueprintPrompt, error) {
 	rate := entity.DefaultWordsPerMinute
 	total := req.TargetDurationMinutes * rate
 	if total <= 0 {
 		total = req.ChapterCount * entity.DefaultWordsPerChapter
 	}
-	return blueprintPrompt{
-		BlueprintRequest: req,
-		WordsPerMinute:   rate,
-		TotalWords:       total,
-		DurationMinutes:  total / rate,
+	schema, err := jsonSchemaOf(blueprintDoc{})
+	if err != nil {
+		return blueprintPrompt{}, err
 	}
+	return blueprintPrompt{
+		BlueprintRequest:     req,
+		WordsPerMinute:       rate,
+		TotalWords:           total,
+		DurationMinutes:      total / rate,
+		ExpectedOutputSchema: schema,
+	}, nil
 }
 
 // blueprintDoc is the outline as the model returns it and as the store keeps
@@ -50,29 +58,36 @@ func newBlueprintPrompt(req provider.BlueprintRequest) blueprintPrompt {
 // sentence — so the whole document is what lands in the asset store, and only
 // the collapse below crosses the boundary. Nothing is lost, and widening the
 // port later is a change to the collapse rather than to the prompt.
+// The doc tags are the prompt's field descriptions. They read close to the
+// annotations they replaced because they are those annotations, moved to the
+// one place a generated schema can find them.
 type blueprintDoc struct {
-	Video    entity.VideoID `json:"video"`
-	Ref      entity.Ref     `json:"ref"`
-	Title    string         `json:"title"`
-	Summary  string         `json:"summary"`
-	Chapters []chapterDoc   `json:"chapters"`
+	Title    string       `json:"title" doc:"the video's working title, kept as given"`
+	Summary  string       `json:"summary" doc:"two or three sentences describing the whole video"`
+	Chapters []chapterDoc `json:"chapters" doc:"every chapter, in order, numbered from 1"`
 }
 
+//nolint:lll // one field, one line: each tag is this field's line in the prompt
 type chapterDoc struct {
-	Order int    `json:"order"`
-	Title string `json:"title"`
-	// Mechanism is the idea the chapter teaches, stripped of its title. It is
-	// the model's own dedup working shown on the page: two chapters sharing a
-	// mechanism are the duplicate the outline was supposed to remove.
-	Mechanism      string   `json:"mechanism"`
-	CoreConcept    string   `json:"core_concept"`
-	KeyPoints      []string `json:"key_points"`
-	DoNotRepeats   []string `json:"do_not_repeats"`
-	ForwardHook    string   `json:"forward_hook"`
-	Tone           string   `json:"tone"`
-	Pacing         string   `json:"pacing"`
-	Role           string   `json:"role"`
-	EstimatedWords int      `json:"estimated_words"`
+	Order          int      `json:"order" doc:"1-based position in the outline"`
+	Title          string   `json:"title" doc:"short phrase, letters and spaces only, 3-10 words"`
+	CoreConcept    string   `json:"core_concept" doc:"one clear paragraph explaining precisely what the chapter teaches"`
+	KeyPoints      []string `json:"key_points" doc:"beats in order; the first is the opening directive, written as 'Open: <style> — <description>'"`
+	DoNotRepeats   []string `json:"do_not_repeats" doc:"concepts an earlier chapter already taught, each as '<concept> — introduced in <title> (ch N) — <instruction>'; empty when the chapter opens fresh ground"`
+	ForwardHook    string   `json:"forward_hook" doc:"a speakable sentence handing an unresolved question to the next chapter, or an empty string"`
+	Tone           string   `json:"tone" doc:"light | curious | unsettling | dark"`
+	Pacing         string   `json:"pacing" doc:"short | medium | deep"`
+	Role           string   `json:"role" doc:"hook | exploration | contrast | deep_dive"`
+	EstimatedWords int      `json:"estimated_words" doc:"this chapter's share of the video's spoken-word budget"`
+}
+
+// storedBlueprint is what lands in the asset store: the outline the model wrote
+// plus the identity the caller stamps on it. Keeping the two apart is what lets
+// the schema handed to the model describe only what the model supplies.
+type storedBlueprint struct {
+	Video entity.VideoID `json:"video"`
+	Ref   entity.Ref     `json:"ref"`
+	blueprintDoc
 }
 
 // Blueprint plans a video's chapters.
@@ -83,7 +98,10 @@ type chapterDoc struct {
 // makes a chapter well formed. Checking any of it a second time here would only
 // mean two places to change.
 func (c *Client) Blueprint(ctx context.Context, req provider.BlueprintRequest) (provider.Blueprint, error) {
-	prompt := newBlueprintPrompt(req)
+	prompt, err := newBlueprintPrompt(req)
+	if err != nil {
+		return provider.Blueprint{}, err
+	}
 	system, err := render(blueprintSystemPrompt, prompt)
 	if err != nil {
 		return provider.Blueprint{}, err
@@ -108,7 +126,9 @@ func (c *Client) Blueprint(ctx context.Context, req provider.BlueprintRequest) (
 	}
 	doc.normalise(req)
 
-	assetID, err := c.putJSON(ctx, entity.AssetKindBlueprint, doc)
+	assetID, err := c.putJSON(ctx, entity.AssetKindBlueprint, storedBlueprint{
+		Video: req.VideoID, Ref: req.VideoRef, blueprintDoc: doc,
+	})
 	if err != nil {
 		return provider.Blueprint{}, err
 	}
@@ -132,13 +152,12 @@ func (c *Client) Blueprint(ctx context.Context, req provider.BlueprintRequest) (
 	}, nil
 }
 
-// normalise stamps the facts that are the caller's rather than the model's, and
-// renumbers the chapters from their position.
+// normalise renumbers the chapters from their position and falls back to the
+// requested title.
 //
 // Order is reassigned rather than trusted because it is the key the DAG and the
 // chapter table are addressed by; everything else the model said stands.
 func (d *blueprintDoc) normalise(req provider.BlueprintRequest) {
-	d.Video, d.Ref = req.VideoID, req.VideoRef
 	if strings.TrimSpace(d.Title) == "" {
 		d.Title = req.Title
 	}

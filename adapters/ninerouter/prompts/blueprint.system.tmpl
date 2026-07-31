@@ -184,22 +184,6 @@ Reply with a single JSON object and nothing else. No prose before or after it,
 no markdown code fences, no explanation of what you did. Chapters are ordered
 and numbered from 1.
 
-{
-  "title": "the video's working title, kept as given",
-  "summary": "two or three sentences describing the whole video",
-  "chapters": [
-    {
-      "order": 1,
-      "title": "Intro",
-      "mechanism": "the core idea this chapter teaches, in a few words",
-      "core_concept": "one clear paragraph",
-      "key_points": ["Open: <style> — <description>", "beat", "beat"],
-      "do_not_repeats": ["<concept> — introduced in '<title>' (ch N) — <instruction>"],
-      "forward_hook": "a speakable sentence, or an empty string",
-      "tone": "light | curious | unsettling | dark",
-      "pacing": "short | medium | deep",
-      "role": "hook | exploration | contrast | deep_dive",
-      "estimated_words": 160
-    }
-  ]
-}
+It must validate against this schema:
+
+{{ .ExpectedOutputSchema }}
