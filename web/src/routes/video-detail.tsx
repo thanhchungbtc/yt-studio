@@ -51,6 +51,7 @@ import {
 } from '@/components/ui/primitives'
 import { api, assetUrl, qk } from '@/lib/api'
 import {
+  artifactKindFor,
   chapterStillItems,
   downloadName,
   kindMime,
@@ -71,7 +72,7 @@ import {
   taskLabel,
 } from '@/lib/format'
 import { useHotkeys } from '@/lib/hotkeys'
-import type { Chapter, GateKind, Task, Video } from '@/lib/types'
+import type { Chapter, GateKind, Task, TaskKind, Video } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 type Tab = 'overview' | 'chapters' | 'tasks' | 'artifacts'
@@ -499,6 +500,29 @@ function Overview({
       items.findIndex((item) => item.id === id),
     )
 
+  // The same query the artifacts tab runs, so opening one warms the other.
+  const assets = useQuery({
+    queryKey: qk.assets(video.id),
+    queryFn: () => api.listAssets(video.ref),
+  })
+
+  // What each stage of the pipeline left behind, so a stage tile can offer to
+  // show it. Grouped once here rather than filtered per tile: thirteen tiles
+  // scanning the whole asset list on every render is thirteen passes for one
+  // answer.
+  const artifactsByStage = useMemo(() => {
+    const byKind = new Map<TaskKind, ViewerItem[]>()
+    const all = videoAssetItems(assets.data ?? [], chapters, video.ref, tasks)
+    for (const task of tasks) {
+      if (byKind.has(task.kind)) continue
+      const artifact = artifactKindFor(task.kind)
+      if (!artifact) continue
+      const produced = all.filter((item) => item.kind === artifact)
+      if (produced.length > 0) byKind.set(task.kind, produced)
+    }
+    return byKind
+  }, [assets.data, chapters, video.ref, tasks])
+
   return (
     <div className="h-full overflow-y-auto p-4">
       <div className="mx-auto max-w-5xl space-y-4">
@@ -509,7 +533,12 @@ function Overview({
           {loading ? (
             <Skeleton className="h-16" />
           ) : (
-            <StageStrip tasks={tasks} videoRef={video.ref} videoId={video.id} />
+            <StageStrip
+              tasks={tasks}
+              videoRef={video.ref}
+              videoId={video.id}
+              artifacts={artifactsByStage}
+            />
           )}
           {!loading && tasks.length === 0 && (
             <p className="text-[12px] text-muted">

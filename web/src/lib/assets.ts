@@ -68,6 +68,22 @@ const KIND_TASKS: Record<string, TaskKind> = {
 }
 
 /**
+ * The artifact kind a stage of the pipeline produces — the same table as
+ * KIND_TASKS read the other way, for the places that start from a task rather
+ * than from a file.
+ *
+ * Two stages are absent because they leave nothing behind: prime_image_prompts
+ * fills a cache the per-chapter reads serve from, and upload writes a receipt
+ * onto the video rather than a file.
+ */
+export function artifactKindFor(kind: TaskKind): string | undefined {
+  for (const [artifact, task] of Object.entries(KIND_TASKS)) {
+    if (task === kind) return artifact
+  }
+  return undefined
+}
+
+/**
  * Finds the task that produced an artifact, by the coordinates the DAG
  * addresses it with: kind, chapter ordinal, and the index within that chapter.
  *
