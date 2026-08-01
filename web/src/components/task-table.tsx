@@ -113,10 +113,16 @@ interface Sort {
 
 const GROUP_ROW = 28
 const TASK_ROW = 32
+/**
+ * One step of the tree, applied to the name column alone. Indenting the whole
+ * row would carry the state, the timing and the counts along with it, and a
+ * table whose right-hand columns move per group is no longer a table.
+ */
+const INDENT = 16
 
 type Row =
   | { type: 'group'; key: string; label: string; caption: string; tasks: Task[] }
-  | { type: 'task'; key: string; task: Task }
+  | { type: 'task'; key: string; task: Task; depth: number }
 
 /**
  * A blueprint may only be re-run once it has failed or been cancelled: the whole
@@ -546,6 +552,7 @@ export function TaskTable({
                           // A finished row's duration cannot change, so it is
                           // handed a frozen clock and the memo holds.
                           now={row.task.finishedAt ? 0 : now}
+                          depth={row.depth}
                           cursored={cursor === row.task.id}
                           inspected={inspecting === row.task.id}
                           lock={rerunLock(row.task, expanded)}
@@ -635,10 +642,12 @@ function buildRows(
 ): Row[] {
   const compare = comparator(sort, now)
 
+  // Flat is flat: with no header above them there is nothing for the rows to sit
+  // under, and an indent that leads nowhere is just a wasted column.
   if (group === 'none') {
     return [...tasks]
       .sort(compare)
-      .map((task) => ({ type: 'task', key: task.id, task }) satisfies Row)
+      .map((task) => ({ type: 'task', key: task.id, task, depth: 0 }) satisfies Row)
   }
 
   const groups = new Map<string, { label: string; order: number; tasks: Task[] }>()
@@ -669,7 +678,7 @@ function buildRows(
       tasks: members,
     })
     if (folded.has(`g:${key}`)) continue
-    for (const task of members) rows.push({ type: 'task', key: task.id, task })
+    for (const task of members) rows.push({ type: 'task', key: task.id, task, depth: 1 })
   }
   return rows
 }
@@ -819,6 +828,7 @@ const TaskRow = memo(function TaskRow({
   task,
   chapterTitle,
   now,
+  depth,
   cursored,
   inspected,
   lock,
@@ -831,6 +841,8 @@ const TaskRow = memo(function TaskRow({
   task: Task
   chapterTitle: string | undefined
   now: number
+  /** How deep in the tree this row sits — 0 when the list is flat. */
+  depth: number
   cursored: boolean
   inspected: boolean
   lock: string | undefined
@@ -881,12 +893,25 @@ const TaskRow = memo(function TaskRow({
         role="row"
         aria-selected={inspected}
         className={cn(
-          'group flex h-full items-center gap-2 border-b border-[hsl(var(--border))] px-3 text-[12px]',
+          'group relative flex h-full items-center gap-2 border-b border-[hsl(var(--border))] px-3 text-[12px]',
           'transition-colors hover:bg-[hsl(var(--bg-hover))]',
           inspected && 'bg-[hsl(var(--bg-active))]',
           cursored && 'ring-1 ring-inset ring-[hsl(var(--accent))]',
         )}
       >
+        {/* The rule that makes the indent read as a branch rather than as
+            margin. Drawn per row: the list is virtualised, so no element spans a
+            whole group to hang a border on. It lines up under the chevron of the
+            header above it. */}
+        {Array.from({ length: depth }, (_, level) => (
+          <span
+            key={level}
+            aria-hidden
+            className="absolute inset-y-0 w-px bg-[hsl(var(--border))]"
+            style={{ left: 18 + level * INDENT }}
+          />
+        ))}
+        {depth > 0 && <span className="shrink-0" style={{ width: depth * INDENT }} aria-hidden />}
         <TaskStateDot state={task.state} stale={task.stale} />
 
         <button
