@@ -16,7 +16,7 @@ import {
   Rows3,
   X,
 } from 'lucide-react'
-import type { KeyboardEvent, MouseEvent, ReactNode } from 'react'
+import type { KeyboardEvent, ReactNode } from 'react'
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 
 import { AssetPreview, useAssetViewer } from '@/components/asset-viewer'
@@ -31,7 +31,6 @@ import {
   ContextMenuSeparator,
 } from '@/components/ui/menu'
 import {
-  Checkbox,
   Divider,
   EmptyState,
   ErrorNotice,
@@ -57,7 +56,7 @@ import {
   taskStateLabel,
 } from '@/lib/format'
 import { useHotkeys } from '@/lib/hotkeys'
-import type { Chapter, Task, Video } from '@/lib/types'
+import type { Chapter, Task, TaskState, Video } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { usePersisted } from '@/lib/workspace'
 
@@ -155,14 +154,12 @@ export function TaskTable({
   const [group, setGroup] = usePersisted<GroupBy>('video.tasks.group', 'stage')
   const [sort, setSort] = usePersisted<Sort>('video.tasks.sort', { key: 'pipeline', dir: 'asc' })
   const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set())
-  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set())
   const [cursor, setCursor] = useState<string | null>(null)
   const [inspecting, setInspecting] = useState<string | null>(null)
   const [rerunning, setRerunning] = useState<{ ids: string[]; what: string } | null>(null)
 
   const searchRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const anchorRef = useRef<string | null>(null)
 
   useHotkeys([
     {
@@ -266,49 +263,6 @@ export function TaskTable({
     overscan: 12,
   })
 
-  /* ------------------------------------------------------------- selection */
-
-  const toggleOne = useCallback(
-    (id: string, event: MouseEvent<HTMLInputElement>) => {
-      setSelected((prev) => {
-        const next = new Set(prev)
-        const from = anchorRef.current
-        if (event.shiftKey && from && from !== id) {
-          const a = visible.indexOf(from)
-          const b = visible.indexOf(id)
-          if (a >= 0 && b >= 0) {
-            for (let i = Math.min(a, b); i <= Math.max(a, b); i += 1) {
-              const at = visible[i]
-              if (at) next.add(at)
-            }
-            return next
-          }
-        }
-        if (next.has(id)) next.delete(id)
-        else next.add(id)
-        anchorRef.current = id
-        return next
-      })
-    },
-    [visible],
-  )
-
-  const setMany = useCallback((ids: string[], on: boolean) => {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      for (const id of ids) {
-        if (on) next.add(id)
-        else next.delete(id)
-      }
-      return next
-    })
-  }, [])
-
-  const clearSelection = useCallback(() => setSelected(new Set()), [])
-
-  const allShownSelected = visible.length > 0 && visible.every((id) => selected.has(id))
-  const someShownSelected = visible.some((id) => selected.has(id))
-
   /* --------------------------------------------------------------- actions */
 
   const invalidate = useCallback(() => {
@@ -352,13 +306,6 @@ export function TaskTable({
     [artifactsByTask, openViewer],
   )
 
-  const selectedTasks = useMemo(
-    () => [...selected].flatMap((id) => (byId.has(id) ? [byId.get(id) as Task] : [])),
-    [selected, byId],
-  )
-  const selectedRunnable = selectedTasks.filter((task) => !rerunLock(task, expanded))
-  const selectedStale = selectedTasks.filter((task) => task.stale)
-
   /* -------------------------------------------------------------- keyboard */
 
   const moveCursor = useCallback(
@@ -393,31 +340,21 @@ export function TaskTable({
           event.preventDefault()
           setInspecting((prev) => (prev === task.id ? null : task.id))
           break
-        case ' ':
-          if (!task) return
-          event.preventDefault()
-          setMany([task.id], !selected.has(task.id))
-          anchorRef.current = task.id
-          break
         case 'r':
           if (!task) return
           event.preventDefault()
           rerunTask(task)
           break
         case 'Escape':
-          if (selected.size > 0) {
-            event.preventDefault()
-            clearSelection()
-          } else if (inspecting) {
-            event.preventDefault()
-            setInspecting(null)
-          }
+          if (!inspecting) return
+          event.preventDefault()
+          setInspecting(null)
           break
         default:
           break
       }
     },
-    [byId, clearSelection, cursor, inspecting, moveCursor, rerunTask, selected, setMany],
+    [byId, cursor, inspecting, moveCursor, rerunTask],
   )
 
   /* ----------------------------------------------------------------- chrome */
@@ -509,75 +446,19 @@ export function TaskTable({
         </div>
       </div>
 
-      {/* ------------------------------------------------------ selection bar */}
-      {selected.size > 0 && (
-        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[hsl(var(--accent)/0.3)] bg-[hsl(var(--accent-soft))] px-3 py-1.5 no-select">
-          <Badge tone="accent" className="shrink-0">
-            {selected.size} selected
-          </Badge>
-          {selectedRunnable.length < selectedTasks.length && (
-            <span className="text-[11.5px] text-muted">
-              {selectedTasks.length - selectedRunnable.length} cannot be re-run
-            </span>
-          )}
-          <div className="ml-auto flex shrink-0 items-center gap-1.5">
-            {selectedStale.length > 0 && (
-              <Tooltip label="Clear the stale flag on these without re-running anything">
-                <Button
-                  size="xs"
-                  variant="outline"
-                  disabled={accept.isPending}
-                  onClick={() => {
-                    accept.mutate(selectedStale.map((task) => task.id))
-                    clearSelection()
-                  }}
-                >
-                  <Check className="h-3 w-3" />
-                  Keep {selectedStale.length} stale
-                </Button>
-              </Tooltip>
-            )}
-            <Button
-              size="xs"
-              variant="primary"
-              disabled={selectedRunnable.length === 0}
-              onClick={() =>
-                askRerun(
-                  selectedRunnable.map((task) => task.id),
-                  selectedRunnable.length === 1
-                    ? describe(selectedRunnable[0] as Task)
-                    : `${selectedRunnable.length} tasks`,
-                )
-              }
-            >
-              <RefreshCw className="h-3 w-3" />
-              Re-run {selectedRunnable.length}
-            </Button>
-            <Button size="xs" variant="ghost" onClick={clearSelection}>
-              Clear
-            </Button>
-          </div>
-        </div>
-      )}
       {accept.isError && <ErrorNotice error={accept.error} className="mx-3 mt-2" />}
 
       {/* ---------------------------------------------------------- the table */}
       <div className="flex min-h-0 flex-1">
         <div className="@container flex min-w-0 flex-1 flex-col">
           <div className="flex h-[26px] shrink-0 items-center gap-2 border-b border-[hsl(var(--border))] bg-subtle px-3 text-[10.5px] font-semibold uppercase tracking-wider text-subtle no-select">
-            <Checkbox
-              checked={allShownSelected}
-              indeterminate={someShownSelected}
-              onChange={(next) => setMany(visible, next)}
-              label={allShownSelected ? 'Clear the selection' : 'Select every row shown'}
-            />
             <span className="w-[7px] shrink-0" aria-hidden />
             <SortHeader sort={sort} onSort={setSort} column="pipeline" className="min-w-0 flex-1">
               Task
             </SortHeader>
             <span className="hidden w-[104px] shrink-0 @2xl:block">Chapter</span>
             <span className="hidden w-[52px] shrink-0 @3xl:block">Pool</span>
-            <span className="w-[76px] shrink-0">State</span>
+            <span className="w-[86px] shrink-0">State</span>
             <SortHeader
               sort={sort}
               onSort={setSort}
@@ -649,8 +530,6 @@ export function TaskTable({
                           caption={row.caption}
                           tasks={row.tasks}
                           folded={folded.has(row.key)}
-                          selected={row.tasks.every((task) => selected.has(task.id))}
-                          partial={row.tasks.some((task) => selected.has(task.id))}
                           onFold={() =>
                             setFolded((prev) => {
                               const next = new Set(prev)
@@ -658,12 +537,6 @@ export function TaskTable({
                               else next.add(row.key)
                               return next
                             })
-                          }
-                          onSelect={(on) =>
-                            setMany(
-                              row.tasks.map((task) => task.id),
-                              on,
-                            )
                           }
                         />
                       ) : (
@@ -673,12 +546,10 @@ export function TaskTable({
                           // A finished row's duration cannot change, so it is
                           // handed a frozen clock and the memo holds.
                           now={row.task.finishedAt ? 0 : now}
-                          selected={selected.has(row.task.id)}
                           cursored={cursor === row.task.id}
                           inspected={inspecting === row.task.id}
                           lock={rerunLock(row.task, expanded)}
                           produced={artifactsByTask.get(row.task.id)?.length ?? 0}
-                          onSelect={toggleOne}
                           onOpen={openRow}
                           onRerun={rerunTask}
                           onAccept={acceptOne}
@@ -700,7 +571,7 @@ export function TaskTable({
             </span>
             <span className="hidden @2xl:inline">
               <Kbdish>↑</Kbdish> <Kbdish>↓</Kbdish> move · <Kbdish>↵</Kbdish> details ·{' '}
-              <Kbdish>space</Kbdish> select · <Kbdish>r</Kbdish> re-run
+              <Kbdish>r</Kbdish> re-run
             </span>
             {video.counts.stale > 0 && (
               <span className="ml-auto flex items-center gap-1.5 text-[hsl(var(--warning))]">
@@ -887,35 +758,38 @@ function SortHeader({
 
 /* --------------------------------------------------------------- the rows */
 
+/**
+ * The state column, as text. Colour is spent only where it buys something: a
+ * failure, a gate waiting on someone, work in flight. Everything else is the
+ * quiet majority and reads as such.
+ */
+const STATE_TEXT: Record<TaskState, string> = {
+  failed: 'text-[hsl(var(--danger))] font-medium',
+  awaiting_approval: 'text-[hsl(var(--warning))] font-medium',
+  running: 'text-[hsl(var(--accent))] font-medium',
+  succeeded: 'text-muted',
+  ready: 'text-muted',
+  blocked: 'text-subtle',
+  cancelled: 'text-subtle',
+}
+
 const GroupHeader = memo(function GroupHeader({
   label,
   caption,
   tasks,
   folded,
-  selected,
-  partial,
   onFold,
-  onSelect,
 }: {
   label: string
   caption: string
   tasks: Task[]
   folded: boolean
-  selected: boolean
-  partial: boolean
   onFold: () => void
-  onSelect: (on: boolean) => void
 }) {
   const done = tasks.filter((task) => task.state === 'succeeded').length
   const failed = tasks.filter((task) => task.state === 'failed').length
   return (
     <div className="flex h-full items-center gap-2 border-b border-[hsl(var(--border))] bg-[hsl(var(--bg-panel))] px-3 no-select">
-      <Checkbox
-        checked={selected}
-        indeterminate={partial}
-        onChange={(next) => onSelect(next)}
-        label={`Select every task in ${label}`}
-      />
       <button
         type="button"
         onClick={onFold}
@@ -945,12 +819,10 @@ const TaskRow = memo(function TaskRow({
   task,
   chapterTitle,
   now,
-  selected,
   cursored,
   inspected,
   lock,
   produced,
-  onSelect,
   onOpen,
   onRerun,
   onAccept,
@@ -959,12 +831,10 @@ const TaskRow = memo(function TaskRow({
   task: Task
   chapterTitle: string | undefined
   now: number
-  selected: boolean
   cursored: boolean
   inspected: boolean
   lock: string | undefined
   produced: number
-  onSelect: (id: string, event: MouseEvent<HTMLInputElement>) => void
   onOpen: (id: string) => void
   onRerun: (task: Task) => void
   onAccept: (id: string) => void
@@ -1009,21 +879,14 @@ const TaskRow = memo(function TaskRow({
       <div
         id={`task-row-${task.id}`}
         role="row"
-        aria-selected={selected}
-        onDoubleClick={() => onOpen(task.id)}
+        aria-selected={inspected}
         className={cn(
           'group flex h-full items-center gap-2 border-b border-[hsl(var(--border))] px-3 text-[12px]',
           'transition-colors hover:bg-[hsl(var(--bg-hover))]',
-          selected && 'bg-[hsl(var(--accent-soft))]',
           inspected && 'bg-[hsl(var(--bg-active))]',
           cursored && 'ring-1 ring-inset ring-[hsl(var(--accent))]',
         )}
       >
-        <Checkbox
-          checked={selected}
-          onChange={(_, event) => onSelect(task.id, event)}
-          label={`Select ${describe(task)}`}
-        />
         <TaskStateDot state={task.state} stale={task.stale} />
 
         <button
@@ -1075,16 +938,25 @@ const TaskRow = memo(function TaskRow({
         <span className="hidden w-[52px] shrink-0 truncate text-[11.5px] text-muted @3xl:block">
           {poolLabel(task.pool)}
         </span>
-        <span className="w-[76px] shrink-0">
-          <TaskStateBadge state={task.state} />
+        {/*
+          A word, not a pill. The dot in the gutter already carries the colour,
+          and eighty-nine badges down a page is a column of confetti to read one
+          fact through — so only the states that want something from the operator
+          keep their colour.
+        */}
+        <span className={cn('w-[86px] shrink-0 truncate text-[11.5px]', STATE_TEXT[task.state])}>
+          {taskStateLabel(task.state)}
+          {task.stale && <span className="text-[hsl(var(--warning))]"> · stale</span>}
         </span>
+        {/* One attempt of one is the norm; printing it on every row makes the
+            rows that were retried harder to spot, not easier. */}
         <span
           className={cn(
             'tabular hidden w-[40px] shrink-0 text-right text-[11.5px] @xl:block',
             task.attempt > 1 ? 'text-[hsl(var(--warning))]' : 'text-subtle',
           )}
         >
-          {task.attempt}/{task.maxAttempts}
+          {task.attempt > 1 ? `${task.attempt}/${task.maxAttempts}` : ''}
         </span>
         <span
           className={cn(

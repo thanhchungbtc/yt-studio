@@ -1,7 +1,7 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as TooltipPrimitive from '@radix-ui/react-tooltip'
-import { Check, Copy, Minus, Search, X } from 'lucide-react'
-import type { HTMLAttributes, MouseEvent, ReactNode, RefObject } from 'react'
+import { Check, Copy, Search, X } from 'lucide-react'
+import type { HTMLAttributes, ReactNode, RefObject } from 'react'
 import { useEffect, useRef, useState } from 'react'
 
 import { TONE_FILL, type Tone } from '@/components/ui/badge'
@@ -340,61 +340,6 @@ export function FilterChip({
         <span className={cn('tabular', selected ? 'opacity-80' : 'text-subtle')}>{count}</span>
       )}
     </button>
-  )
-}
-
-/**
- * A checkbox that still is one: the native control does the keyboard, the form
- * semantics and the indeterminate state, and only its skin is ours.
- */
-export function Checkbox({
-  checked,
-  indeterminate,
-  onChange,
-  label,
-  disabled,
-  className,
-}: {
-  checked: boolean
-  indeterminate?: boolean
-  onChange: (checked: boolean, event: MouseEvent<HTMLInputElement>) => void
-  label: string
-  disabled?: boolean
-  className?: string
-}) {
-  return (
-    <span className={cn('relative inline-flex h-4 w-4 items-center justify-center', className)}>
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        aria-label={label}
-        ref={(node) => {
-          if (node) node.indeterminate = Boolean(indeterminate) && !checked
-        }}
-        // The click carries the modifier keys a range selection needs, which the
-        // change event does not.
-        onClick={(event) => onChange(!checked, event)}
-        onChange={() => {}}
-        className={cn(
-          'peer h-[13px] w-[13px] shrink-0 cursor-pointer appearance-none rounded-[3px] border transition-colors',
-          'border-[hsl(var(--border-strong))] bg-[hsl(var(--bg))]',
-          'checked:border-[hsl(var(--accent))] checked:bg-[hsl(var(--accent))]',
-          'indeterminate:border-[hsl(var(--accent))] indeterminate:bg-[hsl(var(--accent))]',
-          'hover:border-[hsl(var(--accent))] disabled:cursor-not-allowed disabled:opacity-40',
-        )}
-      />
-      <Check
-        className="pointer-events-none absolute h-2.5 w-2.5 text-[hsl(var(--accent-fg))] opacity-0 peer-checked:opacity-100"
-        strokeWidth={3.5}
-        aria-hidden
-      />
-      <Minus
-        className="pointer-events-none absolute h-2.5 w-2.5 text-[hsl(var(--accent-fg))] opacity-0 peer-indeterminate:opacity-100"
-        strokeWidth={3.5}
-        aria-hidden
-      />
-    </span>
   )
 }
 
