@@ -35,6 +35,15 @@ UPDATE chapters SET script = ?, duration_seconds = ?, updated_at = ? WHERE id = 
 -- name: SetChapterPrompts :exec
 UPDATE chapters SET image_prompts_json = ?, updated_at = ? WHERE id = ?;
 
+-- Written by index for the same reason SetChapterImage is: the operator is
+-- replacing one prompt, and rewriting the whole array would carry back whatever
+-- the row held when it was read.
+-- name: SetChapterPrompt :exec
+UPDATE chapters
+SET image_prompts_json = json_set(image_prompts_json, CAST(sqlc.arg(path) AS TEXT), CAST(sqlc.arg(prompt) AS TEXT)),
+    updated_at = sqlc.arg(updated_at)
+WHERE id = sqlc.arg(id);
+
 -- name: SetChapterAudio :exec
 UPDATE chapters SET audio_asset_id = ?, updated_at = ? WHERE id = ?;
 

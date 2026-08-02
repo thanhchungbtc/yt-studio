@@ -144,6 +144,24 @@ func (s *Store) SetChapterPrompts(ctx context.Context, id entity.ChapterID, prom
 	})
 }
 
+// SetChapterPrompt replaces one prompt at its index, for an operator redrawing
+// a single still. Indexed like SetChapterImage so it cannot carry back a stale
+// copy of its siblings.
+func (s *Store) SetChapterPrompt(ctx context.Context, id entity.ChapterID, index int, prompt string) error {
+	if index < 0 {
+		return fmt.Errorf("%w: prompt index must not be negative", entity.ErrInvalidChapter)
+	}
+	path := "$[" + strconv.Itoa(index) + "]"
+	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
+		return q.SetChapterPrompt(ctx, sqlcgen.SetChapterPromptParams{
+			Path:      path,
+			Prompt:    prompt,
+			UpdatedAt: toUnix(time.Now()),
+			ID:        string(id),
+		})
+	})
+}
+
 // SetChapterAudio records the narration asset.
 func (s *Store) SetChapterAudio(ctx context.Context, id entity.ChapterID, assetID entity.AssetID) error {
 	value := string(assetID)

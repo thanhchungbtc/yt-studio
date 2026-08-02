@@ -876,6 +876,16 @@ const ChapterCard = memo(function ChapterCard({
       ),
     [items, openViewer],
   )
+  // Stills open by slot rather than by address: an empty slot has no address,
+  // and it is the one whose prompt the operator most wants to get at.
+  const openStill = useCallback(
+    (slot: number) =>
+      openViewer(
+        items,
+        items.findIndex((item) => item.kind === 'image' && item.slot === slot),
+      ),
+    [items, openViewer],
+  )
 
   const save = useMutation({
     mutationFn: () => api.updateChapterScript(chapter.id, draft),
@@ -924,7 +934,7 @@ const ChapterCard = memo(function ChapterCard({
               slot={i}
               prompt={chapter.imagePrompts[i]}
               alt={`Chapter ${chapter.ordinal}, still ${i + 1}`}
-              onOpen={() => openAt(id)}
+              onOpen={() => openStill(i)}
             />
           ))}
         </div>
@@ -1090,12 +1100,19 @@ function Still({
   alt: string
   onOpen: () => void
 }) {
+  // A slot with nothing in it still opens: the viewer is where its prompt is
+  // edited, and a still that has not come out is the usual reason to want that.
   if (!id) {
     return (
-      <div className="flex h-[86px] w-[152px] flex-col items-center justify-center gap-1 rounded-[var(--radius-sm)] border border-dashed border-[hsl(var(--border-strong))] bg-[hsl(var(--bg-subtle))] text-[11px] text-subtle">
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={`${alt} — not drawn yet; open to edit its prompt`}
+        className="flex h-[86px] w-[152px] flex-col items-center justify-center gap-1 rounded-[var(--radius-sm)] border border-dashed border-[hsl(var(--border-strong))] bg-[hsl(var(--bg-subtle))] text-[11px] text-subtle transition-colors hover:border-[hsl(var(--accent))] hover:text-muted"
+      >
         <span className="tabular text-[10px] uppercase tracking-wider">still {slot + 1}</span>
         <span>pending</span>
-      </div>
+      </button>
     )
   }
 

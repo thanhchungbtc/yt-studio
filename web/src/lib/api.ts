@@ -135,6 +135,15 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ script }),
     }),
+  /**
+   * Saves the prompt at this slot and redraws that one still from it. Saving
+   * and generating are one call because they are one decision: there is no way
+   * to store a prompt the still on screen was not drawn from.
+   */
+  regenerateStill: (chapterId: string, index: number, prompt: string) =>
+    post<Chapter>(`/api/chapters/${encodeURIComponent(chapterId)}/stills/${index}/generate`, {
+      prompt,
+    }),
   retryChapter: (key: string, ordinal: number) =>
     post<void>(`/api/videos/${encodeURIComponent(key)}/chapters/${ordinal}/retry`),
 

@@ -58,6 +58,26 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/chapters/{id}/stills/{index}/generate': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Redraw one still from an edited prompt
+     * @description Writes the prompt at this index and re-runs that one image task with it. Everything downstream keeps its artifact and is flagged stale, exactly as re-running the still from the task table would. There is no way to save a prompt without generating from it: the stored prompt is always the one the current still was drawn from.
+     */
+    post: operations['regenerateChapterStill']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/health': {
     parameters: {
       query?: never
@@ -542,11 +562,6 @@ export interface components {
        * @description Defaults to the video.default_images_per_chapter setting
        */
       imagesPerChapter?: number
-      /**
-       * Format: int64
-       * @description Tiles in the thumbnail grid; defaults to the video.default_thumbnail_cells setting
-       */
-      thumbnailCells?: number
       /** @description Enqueue the DAG immediately */
       start?: boolean
       /**
@@ -554,6 +569,11 @@ export interface components {
        * @description Planned running time; omit to let it fall out of the chapter count
        */
       targetDurationMinutes?: number
+      /**
+       * Format: int64
+       * @description Tiles in the thumbnail grid; defaults to the video.default_thumbnail_cells setting
+       */
+      thumbnailCells?: number
       title: string
       topic?: string
     }
@@ -650,6 +670,15 @@ export interface components {
       pool: 'llm' | 'tts' | 'image' | 'compose' | 'cache' | 'upload'
       /** Format: int64 */
       queued: number
+    }
+    RegenerateStillInputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/RegenerateStillInputBody.json
+       */
+      readonly $schema?: string
+      prompt: string
     }
     RerunInputBody: {
       /**
@@ -809,8 +838,6 @@ export interface components {
         | 'clip'
         | 'concat'
         | 'metadata'
-        | 'thumbnail_plan'
-        | 'thumbnail_icon'
         | 'thumbnail'
         | 'upload'
       /** Format: int64 */
@@ -917,7 +944,10 @@ export interface components {
        */
       targetDurationMinutes: number
       thumbnailAssetId?: string
-      /** Format: int64 */
+      /**
+       * Format: int64
+       * @description Tiles in the thumbnail grid; one icon is generated per tile
+       */
       thumbnailCells: number
       title: string
       topic: string
@@ -1118,6 +1148,44 @@ export interface operations {
     requestBody: {
       content: {
         'application/json': components['schemas']['UpdateScriptInputBody']
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ChapterDTO']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  regenerateChapterStill: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Chapter id */
+        id: string
+        /** @description 0-based still index within the chapter */
+        index: number
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RegenerateStillInputBody']
       }
     }
     responses: {

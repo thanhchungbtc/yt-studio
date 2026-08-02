@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ChevronLeft,
   ChevronRight,
@@ -26,13 +26,15 @@ import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { Badge } from '@/components/ui/badge'
 import type { Tone } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { CopyButton, Kbd, Skeleton, Tooltip } from '@/components/ui/primitives'
+import { Textarea } from '@/components/ui/field'
+import { CopyButton, ErrorNotice, Kbd, Skeleton, Tooltip } from '@/components/ui/primitives'
 import { RerunDialog } from '@/components/stale'
-import { assetUrl } from '@/lib/api'
-import { downloadName, mediaTypeOf, shortId } from '@/lib/assets'
+import { api, assetUrl, qk } from '@/lib/api'
+import { downloadName, mediaTypeOf, pendingStillId, shortId } from '@/lib/assets'
 import type { MediaType, ViewerItem } from '@/lib/assets'
 import { formatAbsolute, formatBytes } from '@/lib/format'
 import { useHotkeys } from '@/lib/hotkeys'
+import type { Chapter } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 /* ------------------------------------------------------------ kind vocabulary */
@@ -99,7 +101,9 @@ export function AssetPreview({ item, className }: { item: ViewerItem; className?
   const media = mediaTypeOf(item.mime)
   const Icon = assetKindIcon(item.kind)
 
-  if (media === 'image') {
+  // A pending slot claims an image MIME but has no bytes behind its id; asking
+  // for them would draw a broken picture at every size the tile is used.
+  if (media === 'image' && !item.pending) {
     return (
       <img
         src={assetUrl(item.id)}
@@ -172,6 +176,8 @@ export function AssetViewerProvider({
           onIndex={(index) => setState((prev) => (prev ? { ...prev, index } : prev))}
           onClose={() => setState(null)}
           onRerun={videoRef && videoId ? setRerunning : undefined}
+          videoRef={videoRef}
+          videoId={videoId}
         />
       )}
       {rerunning?.taskId && videoRef && videoId && (
@@ -190,12 +196,57 @@ export function AssetViewerProvider({
 
 /* -------------------------------------------------------------------- lightbox */
 
+/**
+ * Keeps a still current while the viewer is open.
+ *
+ * The viewer is handed a snapshot of items, but a still redrawn from the
+ * inspector lands under a *different* content address — so the artifact the
+ * snapshot names stops being the one at that slot. Re-resolving from the
+ * chapter cache by (chapter, slot), the pair that does not change, means the
+ * operator watches the new still arrive in place instead of looking at the old
+ * one until they close and reopen the panel.
+ *
+ * Everything that is not a still is returned untouched.
+ */
+function useLiveStill(
+  item: ViewerItem | undefined,
+  videoRef: string | undefined,
+  videoId: string | undefined,
+): ViewerItem | undefined {
+  const tracking = item?.chapterId !== undefined && item.slot !== undefined && Boolean(videoId)
+
+  // The detail route has already fetched this; the shared key makes it a cache
+  // read that stays subscribed rather than a second request.
+  const chapters = useQuery({
+    queryKey: qk.chapters(videoId ?? ''),
+    queryFn: () => api.listChapters(videoRef ?? ''),
+    enabled: tracking && Boolean(videoRef),
+  })
+
+  return useMemo(() => {
+    if (!item || item.chapterId === undefined || item.slot === undefined) return item
+    const chapter = chapters.data?.find((c) => c.id === item.chapterId)
+    if (!chapter) return item
+    const id = chapter.imageAssetIds[item.slot] ?? ''
+    const prompt = chapter.imagePrompts[item.slot]
+    if (id === item.id && prompt === item.prompt) return item
+    return {
+      ...item,
+      id: id || pendingStillId(chapter.id, item.slot),
+      pending: !id,
+      prompt,
+    }
+  }, [item, chapters.data])
+}
+
 function AssetLightbox({
   items,
   index,
   onIndex,
   onClose,
   onRerun,
+  videoRef,
+  videoId,
 }: {
   items: ViewerItem[]
   index: number
@@ -203,8 +254,10 @@ function AssetLightbox({
   onClose: () => void
   /** Offered only where the viewer knows which video it is inside. */
   onRerun?: (item: ViewerItem) => void
+  videoRef?: string
+  videoId?: string
 }) {
-  const item = items[index]
+  const item = useLiveStill(items[index], videoRef, videoId)
   const [actualSize, setActualSize] = useState(false)
   const [inspector, setInspector] = useState(true)
   const stripRef = useRef<HTMLDivElement>(null)
@@ -222,7 +275,7 @@ function AssetLightbox({
   // removes the flash for one request.
   useEffect(() => {
     for (const neighbour of [items[index + 1], items[index - 1]]) {
-      if (!neighbour || mediaTypeOf(neighbour.mime) !== 'image') continue
+      if (!neighbour || neighbour.pending || mediaTypeOf(neighbour.mime) !== 'image') continue
       const url = assetUrl(neighbour.id)
       if (url) new Image().src = url
     }
@@ -339,7 +392,7 @@ function AssetLightbox({
             )}
 
             <div className="ml-auto flex shrink-0 items-center gap-1">
-              {media === 'image' && (
+              {media === 'image' && !item.pending && (
                 <Tooltip label={actualSize ? 'Fit to window' : 'Actual size'} keys="f">
                   <Button
                     size="icon"
@@ -355,26 +408,34 @@ function AssetLightbox({
                   </Button>
                 </Tooltip>
               )}
-              <Tooltip label="Open the raw artifact">
-                <Button size="icon" variant="ghost" asChild>
-                  <a
-                    href={assetUrl(item.id)}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label="Open the raw artifact"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
-                </Button>
-              </Tooltip>
-              <Tooltip label="Download" keys="d">
-                <Button size="icon" variant="ghost" onClick={download} aria-label="Download">
-                  <Download className="h-4 w-4" />
-                </Button>
-              </Tooltip>
+              {/* There are no bytes behind a pending slot, so neither of these
+                  has anything to open or write. */}
+              {!item.pending && (
+                <>
+                  <Tooltip label="Open the raw artifact">
+                    <Button size="icon" variant="ghost" asChild>
+                      <a
+                        href={assetUrl(item.id)}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label="Open the raw artifact"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    </Button>
+                  </Tooltip>
+                  <Tooltip label="Download" keys="d">
+                    <Button size="icon" variant="ghost" onClick={download} aria-label="Download">
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  </Tooltip>
+                </>
+              )}
               {/* Re-runs the step that made this artifact and nothing else.
-                  Absent when the viewer cannot tell which task that was. */}
-              {onRerun && item?.taskId && (
+                  Absent when the viewer cannot tell which task that was, and on a
+                  pending slot, where Generate in the inspector is the way to run
+                  it — with the prompt in front of the operator. */}
+              {onRerun && item.taskId && !item.pending && (
                 <Tooltip label="Re-run the step that made this">
                   <Button
                     size="icon"
@@ -426,7 +487,7 @@ function AssetLightbox({
               )}
             </div>
 
-            {inspector && <Inspector item={item} />}
+            {inspector && <Inspector item={item} videoRef={videoRef} videoId={videoId} />}
           </div>
 
           {/* --------------------------------------------------- filmstrip */}
@@ -496,6 +557,21 @@ function Stage({
   onToggleSize: (next: boolean) => void
 }) {
   const url = assetUrl(item.id)
+
+  // Nothing has been drawn here yet. Said plainly rather than as a broken image,
+  // because the panel beside it is where the operator does something about it.
+  if (item.pending) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+        <ImageIcon className="h-8 w-8 text-subtle" strokeWidth={1.5} />
+        <p className="text-[12.5px] text-muted">
+          This still has not been drawn yet.
+          <br />
+          Edit the prompt beside it and generate.
+        </p>
+      </div>
+    )
+  }
 
   if (media === 'image') {
     return (
@@ -608,9 +684,29 @@ function TextStage({ item }: { item: ViewerItem }) {
 
 /* ------------------------------------------------------------------- inspector */
 
-function Inspector({ item }: { item: ViewerItem }) {
+function Inspector({
+  item,
+  videoRef,
+  videoId,
+}: {
+  item: ViewerItem
+  videoRef?: string
+  videoId?: string
+}) {
   return (
     <aside className="w-[320px] shrink-0 overflow-y-auto border-l border-[hsl(var(--border))] bg-[hsl(var(--bg-panel))]">
+      {item.chapterId !== undefined && item.slot !== undefined && videoRef && videoId && (
+        <PromptEditor
+          key={`${item.chapterId}:${item.slot}`}
+          chapterId={item.chapterId}
+          slot={item.slot}
+          prompt={item.prompt}
+          pending={item.pending ?? false}
+          videoRef={videoRef}
+          videoId={videoId}
+        />
+      )}
+
       {item.notes?.map((note) => (
         <section key={note.label} className="border-b border-[hsl(var(--border))] px-3 py-3">
           <div className="mb-1.5 flex items-center justify-between gap-2">
@@ -630,30 +726,36 @@ function Inspector({ item }: { item: ViewerItem }) {
         </section>
       ))}
 
-      <section className="px-3 py-3">
-        <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-subtle">
-          Artifact
-        </h3>
-        <dl className="space-y-0">
-          <Row label="Kind">{item.kind}</Row>
-          <Row label="Type">{item.mime}</Row>
-          {item.size !== undefined && <Row label="Size">{formatBytes(item.size)}</Row>}
-          {item.createdAt && <Row label="Created">{formatAbsolute(item.createdAt)}</Row>}
-          <div className="flex items-baseline justify-between gap-3 py-1">
-            <dt className="shrink-0 text-[11.5px] text-subtle">Address</dt>
-            <dd className="flex min-w-0 items-center gap-1">
-              <Tooltip label={item.id}>
-                <span className="truncate font-mono text-[11.5px] text-fg">{shortId(item.id)}</span>
-              </Tooltip>
-              <CopyButton value={item.id} label="Copy the content address" />
-            </dd>
-          </div>
-        </dl>
-        <p className="mt-2 text-[11px] leading-relaxed text-subtle">
-          The address is the hash of the bytes: an identical re-run produces this same artifact and
-          writes nothing new.
-        </p>
-      </section>
+      {/* A pending slot has no bytes, so it has no hash, no size and no date —
+          a section of blanks under a heading that promises an artifact. */}
+      {!item.pending && (
+        <section className="px-3 py-3">
+          <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-subtle">
+            Artifact
+          </h3>
+          <dl className="space-y-0">
+            <Row label="Kind">{item.kind}</Row>
+            <Row label="Type">{item.mime}</Row>
+            {item.size !== undefined && <Row label="Size">{formatBytes(item.size)}</Row>}
+            {item.createdAt && <Row label="Created">{formatAbsolute(item.createdAt)}</Row>}
+            <div className="flex items-baseline justify-between gap-3 py-1">
+              <dt className="shrink-0 text-[11.5px] text-subtle">Address</dt>
+              <dd className="flex min-w-0 items-center gap-1">
+                <Tooltip label={item.id}>
+                  <span className="truncate font-mono text-[11.5px] text-fg">
+                    {shortId(item.id)}
+                  </span>
+                </Tooltip>
+                <CopyButton value={item.id} label="Copy the content address" />
+              </dd>
+            </div>
+          </dl>
+          <p className="mt-2 text-[11px] leading-relaxed text-subtle">
+            The address is the hash of the bytes: an identical re-run produces this same artifact
+            and writes nothing new.
+          </p>
+        </section>
+      )}
 
       <section className="border-t border-[hsl(var(--border))] px-3 py-3">
         <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-subtle">
@@ -669,6 +771,113 @@ function Inspector({ item }: { item: ViewerItem }) {
         </ul>
       </section>
     </aside>
+  )
+}
+
+/**
+ * The prompt a still was drawn from, and the button that draws it again.
+ *
+ * Editing and generating are one action deliberately. A prompt that could be
+ * saved on its own would let the text drift from the picture beside it with
+ * nothing on screen to say which of the two was current; because Generate is
+ * the only way to write one, what the daemon holds is always what drew the
+ * still — or what is drawing it right now.
+ */
+function PromptEditor({
+  chapterId,
+  slot,
+  prompt,
+  pending,
+  videoRef,
+  videoId,
+}: {
+  chapterId: string
+  slot: number
+  prompt: string | undefined
+  pending: boolean
+  videoRef: string
+  videoId: string
+}) {
+  const queryClient = useQueryClient()
+  const [draft, setDraft] = useState(prompt ?? '')
+
+  const generate = useMutation({
+    mutationFn: () => api.regenerateStill(chapterId, slot, draft),
+    onSuccess: (chapter) => {
+      // The response is the chapter as written, so the editor rebinds to the
+      // saved text without a refetch. The tasks are a different story: one has
+      // just been reset and several flagged.
+      queryClient.setQueryData<Chapter[]>(qk.chapters(videoId), (prev) =>
+        prev?.map((c) => (c.id === chapter.id ? { ...c, ...chapter } : c)),
+      )
+      void queryClient.invalidateQueries({ queryKey: qk.videoTasks(videoId) })
+      void queryClient.invalidateQueries({ queryKey: qk.video(videoRef) })
+    },
+  })
+
+  const trimmed = draft.trim()
+  const unsaved = prompt !== undefined && trimmed !== prompt
+
+  return (
+    <section className="border-b border-[hsl(var(--border))] px-3 py-3">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-subtle">
+          Image prompt
+        </h3>
+        {unsaved ? (
+          <Badge tone="warning">unsaved</Badge>
+        ) : (
+          <CopyButton value={draft} label="Copy the image prompt" />
+        )}
+      </div>
+
+      {prompt === undefined ? (
+        <p className="text-[11.5px] leading-relaxed text-subtle">
+          The prompt step has not run for this chapter yet, so there is nothing to edit here. Run
+          it, and the prompt for this slot appears.
+        </p>
+      ) : (
+        <>
+          <Textarea
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            rows={7}
+            spellCheck={false}
+            aria-label={`Prompt for still ${slot + 1}`}
+            className="font-mono text-[11.5px] leading-relaxed"
+          />
+          <div className="mt-2 flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={trimmed === '' || generate.isPending}
+              onClick={() => generate.mutate()}
+            >
+              <Sparkles className={cn('h-3.5 w-3.5', generate.isPending && 'animate-pulse')} />
+              {generate.isPending ? 'Starting…' : 'Generate'}
+            </Button>
+            {unsaved && (
+              <Button size="sm" variant="ghost" onClick={() => setDraft(prompt)}>
+                Revert
+              </Button>
+            )}
+          </div>
+          <p className="mt-2 text-[11px] leading-relaxed text-subtle">
+            {pending
+              ? 'Generating saves this prompt and draws this still.'
+              : 'Generating saves this prompt and redraws this still only.'}{' '}
+            What it fed — this chapter&apos;s clip, and the render below it — keeps its artifact and
+            is flagged for you to decide on.
+          </p>
+          {generate.isSuccess && !unsaved && !generate.isPending && (
+            <p className="mt-2 text-[11px] leading-relaxed text-[hsl(var(--accent))]">
+              Queued. The new still appears here when it lands.
+            </p>
+          )}
+          {generate.isError && <ErrorNotice error={generate.error} className="mt-2" />}
+        </>
+      )}
+    </section>
   )
 }
 

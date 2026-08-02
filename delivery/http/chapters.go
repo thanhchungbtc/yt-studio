@@ -30,6 +30,17 @@ type UpdateScriptInput struct {
 	}
 }
 
+// RegenerateStillInput is an operator's edited prompt and the instruction to
+// draw the still again with it. The two are one request because they are one
+// decision; there is no way to save a prompt without generating from it.
+type RegenerateStillInput struct {
+	ID    string `path:"id" doc:"Chapter id"`
+	Index int    `path:"index" minimum:"0" doc:"0-based still index within the chapter"`
+	Body  struct {
+		Prompt string `json:"prompt" required:"true" minLength:"1"`
+	}
+}
+
 // RetryChapterInput identifies a chapter to re-run.
 type RetryChapterInput struct {
 	Key     string `path:"key" doc:"Video ref or id"`
@@ -71,6 +82,22 @@ func putChapterScript(
 	}
 }
 
+func postRegenerateStill(
+	chapters repository.ChapterReader,
+	fields repository.ChapterFieldWriter,
+	rerunner app.TaskRerunner,
+	notifier app.ChapterNotifier,
+) func(context.Context, *RegenerateStillInput) (*ChapterOutput, error) {
+	return func(ctx context.Context, in *RegenerateStillInput) (*ChapterOutput, error) {
+		c, err := app.RegenerateChapterStill(ctx, chapters, fields, rerunner, notifier,
+			entity.ChapterID(in.ID), in.Index, in.Body.Prompt)
+		if err != nil {
+			return nil, mapError(err)
+		}
+		return &ChapterOutput{Body: chapterFrom(c)}, nil
+	}
+}
+
 func postChapterRetry(
 	videos repository.VideoReader,
 	retrier app.ChapterRetrier,
@@ -97,6 +124,7 @@ func registerChapterRoutes(
 	retrier app.ChapterRetrier,
 	prompts app.PromptCacheInvalidator,
 	marker app.StaleMarker,
+	rerunner app.TaskRerunner,
 ) {
 	huma.Register(api, huma.Operation{
 		OperationID: "listChapters", Method: "GET", Path: "/api/videos/{key}/chapters",
@@ -107,6 +135,18 @@ func registerChapterRoutes(
 		OperationID: "updateChapterScript", Method: "PUT", Path: "/api/chapters/{id}/script",
 		Summary: "Edit a chapter's script", Tags: []string{"chapters"},
 	}, putChapterScript(chapters, fields, notifier, marker))
+
+	huma.Register(api, huma.Operation{
+		OperationID: "regenerateChapterStill", Method: "POST",
+		Path:    "/api/chapters/{id}/stills/{index}/generate",
+		Summary: "Redraw one still from an edited prompt",
+		Description: "Writes the prompt at this index and re-runs that one image task with " +
+			"it. Everything downstream keeps its artifact and is flagged stale, exactly as " +
+			"re-running the still from the task table would. There is no way to save a " +
+			"prompt without generating from it: the stored prompt is always the one the " +
+			"current still was drawn from.",
+		Tags: []string{"chapters"},
+	}, postRegenerateStill(chapters, fields, rerunner, notifier))
 
 	huma.Register(api, huma.Operation{
 		OperationID: "retryChapter", Method: "POST", Path: "/api/videos/{key}/chapters/{ordinal}/retry",

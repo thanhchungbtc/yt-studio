@@ -140,6 +140,33 @@ func (q *Queries) SetChapterImage(ctx context.Context, arg SetChapterImageParams
 	return err
 }
 
+const setChapterPrompt = `-- name: SetChapterPrompt :exec
+UPDATE chapters
+SET image_prompts_json = json_set(image_prompts_json, CAST(?1 AS TEXT), CAST(?2 AS TEXT)),
+    updated_at = ?3
+WHERE id = ?4
+`
+
+type SetChapterPromptParams struct {
+	Path      string
+	Prompt    string
+	UpdatedAt int64
+	ID        string
+}
+
+// Written by index for the same reason SetChapterImage is: the operator is
+// replacing one prompt, and rewriting the whole array would carry back whatever
+// the row held when it was read.
+func (q *Queries) SetChapterPrompt(ctx context.Context, arg SetChapterPromptParams) error {
+	_, err := q.exec(ctx, q.setChapterPromptStmt, setChapterPrompt,
+		arg.Path,
+		arg.Prompt,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	return err
+}
+
 const setChapterPrompts = `-- name: SetChapterPrompts :exec
 UPDATE chapters SET image_prompts_json = ?, updated_at = ? WHERE id = ?
 `

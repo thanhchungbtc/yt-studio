@@ -53,6 +53,35 @@ export interface ViewerItem {
    * rather than making them find the row in a table.
    */
   taskId?: string
+  /**
+   * Where a still sits: its chapter, and its slot within that chapter. This is
+   * the coordinate that survives a redraw — the content address does not — so it
+   * is what the viewer edits a prompt against and what it re-resolves the
+   * picture by afterwards.
+   */
+  chapterId?: string
+  slot?: number
+  /**
+   * The prompt this still was drawn from. Undefined where the chapter has no
+   * prompt at this slot yet, which reads differently from an empty one: nothing
+   * has produced it rather than someone cleared it.
+   */
+  prompt?: string
+  /**
+   * A slot with no artifact behind it — the image task failed, or has not run.
+   * Its id is a stand-in, so nothing may try to fetch, download or hash it. It
+   * is shown anyway because its prompt is exactly what the operator wants to
+   * change when a still did not come out.
+   */
+  pending?: boolean
+}
+
+/**
+ * The stand-in address for a slot the pipeline has not filled. Prefixed rather
+ * than left empty so it is a usable React key and is obviously not a hash.
+ */
+export function pendingStillId(chapterId: string, slot: number): string {
+  return `pending:${chapterId}:${slot}`
 }
 
 /**
@@ -197,13 +226,13 @@ export function downloadName(item: ViewerItem): string {
   return `${slug}-${shortId(item.id)}${KIND_EXT[item.kind] ?? '.bin'}`
 }
 
-function notesFor(kind: string, chapter: Chapter | undefined, slot: number): ViewerNote[] {
+function notesFor(kind: string, chapter: Chapter | undefined): ViewerNote[] {
   if (!chapter) return []
   switch (kind) {
-    case 'image': {
-      const prompt = chapter.imagePrompts[slot]
-      return prompt ? [{ label: `Image prompt ${slot + 1}`, body: prompt, mono: true }] : []
-    }
+    // A still's prompt is not a note: it is editable, and generating from it is
+    // how a still is redrawn. The viewer renders it as its own section.
+    case 'image':
+      return []
     case 'audio':
     case 'clip':
       return chapter.script ? [{ label: 'Narration script', body: chapter.script, mono: true }] : []
@@ -224,21 +253,22 @@ export function chapterStillItems(
 ): ViewerItem[] {
   const subtitle = `${chapterKey(videoRef, chapter.ordinal)} · ${chapter.title}`
 
-  const items: ViewerItem[] = chapter.imageAssetIds.flatMap((id, slot) =>
-    id
-      ? [
-          {
-            id,
-            kind: 'image',
-            mime: kindMime('image'),
-            title: `Still ${slot + 1}`,
-            subtitle,
-            notes: notesFor('image', chapter, slot),
-            taskId: producingTaskId(tasks, 'image', chapter.ordinal, slot),
-          },
-        ]
-      : [],
-  )
+  // Empty slots are kept rather than skipped. A still that failed or has not run
+  // is the one whose prompt most wants changing, and dropping it here would put
+  // that prompt out of reach of the only surface that edits it.
+  const items: ViewerItem[] = chapter.imageAssetIds.map((id, slot) => ({
+    id: id || pendingStillId(chapter.id, slot),
+    kind: 'image',
+    mime: kindMime('image'),
+    title: `Still ${slot + 1}`,
+    subtitle,
+    notes: notesFor('image', chapter),
+    taskId: producingTaskId(tasks, 'image', chapter.ordinal, slot),
+    chapterId: chapter.id,
+    slot,
+    prompt: chapter.imagePrompts[slot],
+    pending: !id,
+  }))
 
   if (chapter.audioAssetId) {
     items.push({
@@ -247,7 +277,7 @@ export function chapterStillItems(
       mime: kindMime('audio'),
       title: kindTitle('audio'),
       subtitle,
-      notes: notesFor('audio', chapter, 0),
+      notes: notesFor('audio', chapter),
       taskId: producingTaskId(tasks, 'audio', chapter.ordinal, -1),
     })
   }
@@ -258,7 +288,7 @@ export function chapterStillItems(
       mime: kindMime('clip'),
       title: kindTitle('clip'),
       subtitle,
-      notes: notesFor('clip', chapter, 0),
+      notes: notesFor('clip', chapter),
       taskId: producingTaskId(tasks, 'clip', chapter.ordinal, -1),
     })
   }
@@ -295,8 +325,13 @@ export function videoAssetItems(
           ? `${chapterKey(videoRef, chapter.ordinal)} · ${chapter.title}`
           : videoRef,
         ordinal: chapter?.ordinal ?? 0,
-        notes: notesFor(asset.kind, chapter, Math.max(0, slot)),
+        notes: notesFor(asset.kind, chapter),
         taskId: producingTaskId(tasks, asset.kind, chapter?.ordinal ?? -1, slot),
+        // Carried so a still opened from the gallery edits its prompt exactly as
+        // one opened from its chapter does.
+        ...(asset.kind === 'image' && chapter && slot >= 0
+          ? { chapterId: chapter.id, slot, prompt: chapter.imagePrompts[slot] }
+          : {}),
       } satisfies ViewerItem,
       ordinal: chapter?.ordinal ?? 0,
       slot: slot < 0 ? 0 : slot,

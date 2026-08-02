@@ -28,6 +28,7 @@ type ChapterWriter interface {
 type ChapterFieldWriter interface {
 	SetChapterScript(ctx context.Context, id entity.ChapterID, script string, durationSeconds float64) error
 	SetChapterPrompts(ctx context.Context, id entity.ChapterID, prompts []string) error
+	SetChapterPrompt(ctx context.Context, id entity.ChapterID, index int, prompt string) error
 	SetChapterAudio(ctx context.Context, id entity.ChapterID, assetID entity.AssetID) error
 	SetChapterImage(ctx context.Context, id entity.ChapterID, index int, assetID entity.AssetID) error
 	SetChapterClip(ctx context.Context, id entity.ChapterID, assetID entity.AssetID) error

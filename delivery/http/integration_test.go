@@ -145,7 +145,7 @@ func newHarness(t *testing.T) *harness {
 		VideoStates: store, Chapters: store, ChapterFields: store, Assets: store,
 		Tasks: store, Store: assets, Settings: settings,
 		Submitter: sched, Expander: sched, Canceller: sched, Approver: sched, Rejecter: sched,
-		Forgetter: sched, TaskRetry: sched, ChapRetry: sched, Pools: sched,
+		Forgetter: sched, TaskRetry: sched, ChapRetry: sched, Rerunner: sched, Pools: sched,
 		Reporter: sched, Prompts: llm, Notifier: broker, Coalescer: broker,
 		Events: broker, SSEClients: broker.Subscribers,
 		LogLevel: level, Log: log,
@@ -650,6 +650,97 @@ func TestChapterScriptEditAndRetry(t *testing.T) {
 	resp, _ := h.do(http.MethodPut, "/api/chapters/"+target.ID+"/script", map[string]any{"script": ""})
 	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("empty script = %d, want 422", resp.StatusCode)
+	}
+}
+
+// Editing a prompt and redrawing the still it describes is one request. The
+// mock painter seeds on the prompt text, so an artifact that changed is proof
+// the edit reached the provider rather than just the row.
+func TestEditingAPromptRedrawsOneStill(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	createVideo(h, 3, 2, true)
+	h.approve("DSS-1", "blueprint", 15*time.Second)
+	h.waitForGate("DSS-1", "upload", 30*time.Second)
+
+	type chapterBody struct {
+		ID            string   `json:"id"`
+		Ordinal       int      `json:"ordinal"`
+		ImagePrompts  []string `json:"imagePrompts"`
+		ImageAssetIDs []string `json:"imageAssetIds"`
+	}
+	var chapters struct {
+		Chapters []chapterBody `json:"chapters"`
+	}
+	h.json(http.MethodGet, "/api/videos/DSS-1/chapters", nil, http.StatusOK, &chapters)
+	target := chapters.Chapters[1]
+	was := target.ImageAssetIDs[0]
+
+	const prompt = "a harbour lighthouse swallowed by fog"
+	var edited chapterBody
+	h.json(http.MethodPost, "/api/chapters/"+target.ID+"/stills/0/generate",
+		map[string]any{"prompt": prompt}, http.StatusOK, &edited)
+	if edited.ImagePrompts[0] != prompt {
+		t.Fatalf("prompt 0 = %q, want the edit", edited.ImagePrompts[0])
+	}
+	if edited.ImagePrompts[1] != target.ImagePrompts[1] {
+		t.Fatal("the sibling prompt was overwritten by an indexed write")
+	}
+
+	// The one still is redrawn from the new text; its sibling is untouched.
+	deadline := time.Now().Add(30 * time.Second)
+	var now chapterBody
+	for time.Now().Before(deadline) {
+		h.json(http.MethodGet, "/api/videos/DSS-1/chapters", nil, http.StatusOK, &chapters)
+		now = chapters.Chapters[1]
+		if now.ImageAssetIDs[0] != "" && now.ImageAssetIDs[0] != was {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if now.ImageAssetIDs[0] == was {
+		t.Fatal("the still was never redrawn from the edited prompt")
+	}
+	if now.ImageAssetIDs[1] != target.ImageAssetIDs[1] {
+		t.Fatal("the sibling still was redrawn too; only one image task should have run")
+	}
+
+	// What the still fed keeps its artifact and is flagged, exactly as re-running
+	// from the task table would leave it.
+	var tasks struct {
+		Tasks []struct {
+			Kind    string `json:"kind"`
+			Ordinal int    `json:"ordinal"`
+			Index   int    `json:"index"`
+			State   string `json:"state"`
+			Stale   bool   `json:"stale"`
+		} `json:"tasks"`
+	}
+	h.json(http.MethodGet, "/api/videos/DSS-1/tasks", nil, http.StatusOK, &tasks)
+	for _, task := range tasks.Tasks {
+		switch {
+		case task.Kind == "clip" && task.Ordinal == 2:
+			if !task.Stale {
+				t.Fatal("the clip built from the old still is not flagged stale")
+			}
+		case task.Kind == "image" && task.Ordinal == 2 && task.Index == 0:
+			if task.Stale {
+				t.Fatal("the redrawn still is flagged stale rather than reset")
+			}
+		}
+	}
+
+	// Both halves of the input are checked at the boundary, and neither runs
+	// anything: a prompt with no text, and an index the graph has no task for.
+	resp, _ := h.do(http.MethodPost, "/api/chapters/"+target.ID+"/stills/0/generate",
+		map[string]any{"prompt": "  "})
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("empty prompt = %d, want 422", resp.StatusCode)
+	}
+	resp, _ = h.do(http.MethodPost, "/api/chapters/"+target.ID+"/stills/9/generate",
+		map[string]any{"prompt": "a ninth still that has no task"})
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("out-of-range index = %d, want 422", resp.StatusCode)
 	}
 }
 
