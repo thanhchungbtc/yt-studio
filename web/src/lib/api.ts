@@ -144,6 +144,14 @@ export const api = {
     post<Chapter>(`/api/chapters/${encodeURIComponent(chapterId)}/stills/${index}/generate`, {
       prompt,
     }),
+  /**
+   * The same one-step loop on the thumbnail grid: saves the cell's prompt and
+   * redraws that icon. The caption and the shared style clause are untouched.
+   */
+  regenerateThumbnailIcon: (key: string, index: number, prompt: string) =>
+    post<Video>(`/api/videos/${encodeURIComponent(key)}/thumbnail/cells/${index}/generate`, {
+      prompt,
+    }),
   retryChapter: (key: string, ordinal: number) =>
     post<void>(`/api/videos/${encodeURIComponent(key)}/chapters/${ordinal}/retry`),
 

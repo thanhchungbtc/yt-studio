@@ -104,6 +104,16 @@ type UploadDTO struct {
 	UploadedAt time.Time `json:"uploadedAt"`
 }
 
+// ThumbnailCellDTO is one tile of the grid: what it says, and what it pictures.
+//
+// The prompt is the subject alone. The style clause every icon shares lives in
+// settings and is appended when the icon is drawn, so it is deliberately absent
+// here — editing one cell must not be able to make it the odd one out.
+type ThumbnailCellDTO struct {
+	Caption string `json:"caption"`
+	Prompt  string `json:"prompt"`
+}
+
 // VideoDTO is a video as the API presents it.
 type VideoDTO struct {
 	ID           string `json:"id"`
@@ -114,20 +124,24 @@ type VideoDTO struct {
 	State        string `json:"state" enum:"draft,running,awaiting_approval,blocked,completed,failed,cancelled"`
 	ChapterCount int    `json:"chapterCount" doc:"Chapters asked for; the accepted blueprint decides the real number"`
 	//nolint:lll // one field, one line
-	TargetDurationMinutes int           `json:"targetDurationMinutes" doc:"Planned running time; zero means it falls out of the chapter count"`
-	ImagesPerChapter      int           `json:"imagesPerChapter"`
-	ThumbnailCells        int           `json:"thumbnailCells" doc:"Tiles in the thumbnail grid; one icon is generated per tile"`
-	BlueprintAssetID      string        `json:"blueprintAssetId,omitempty"`
-	FinalAssetID          string        `json:"finalAssetId,omitempty"`
-	ThumbnailAssetID      string        `json:"thumbnailAssetId,omitempty"`
-	Metadata              *MetadataDTO  `json:"metadata,omitempty"`
-	Upload                *UploadDTO    `json:"upload,omitempty"`
-	Error                 string        `json:"error,omitempty"`
-	Counts                TaskCountsDTO `json:"counts"`
-	CreatedAt             time.Time     `json:"createdAt"`
-	UpdatedAt             time.Time     `json:"updatedAt"`
-	StartedAt             *time.Time    `json:"startedAt,omitempty"`
-	CompletedAt           *time.Time    `json:"completedAt,omitempty"`
+	TargetDurationMinutes int    `json:"targetDurationMinutes" doc:"Planned running time; zero means it falls out of the chapter count"`
+	ImagesPerChapter      int    `json:"imagesPerChapter"`
+	ThumbnailCells        int    `json:"thumbnailCells" doc:"Tiles in the thumbnail grid; one icon is generated per tile"`
+	BlueprintAssetID      string `json:"blueprintAssetId,omitempty"`
+	FinalAssetID          string `json:"finalAssetId,omitempty"`
+	ThumbnailAssetID      string `json:"thumbnailAssetId,omitempty"`
+	//nolint:lll // one field, one line
+	ThumbnailPlan []ThumbnailCellDTO `json:"thumbnailPlan" doc:"One entry per grid cell, in reading order; empty until the plan has run"`
+	//nolint:lll // one field, one line
+	ThumbnailIconIDs []string      `json:"thumbnailIconIds" doc:"The icon drawn for each cell, by index; an empty entry is a cell not yet drawn"`
+	Metadata         *MetadataDTO  `json:"metadata,omitempty"`
+	Upload           *UploadDTO    `json:"upload,omitempty"`
+	Error            string        `json:"error,omitempty"`
+	Counts           TaskCountsDTO `json:"counts"`
+	CreatedAt        time.Time     `json:"createdAt"`
+	UpdatedAt        time.Time     `json:"updatedAt"`
+	StartedAt        *time.Time    `json:"startedAt,omitempty"`
+	CompletedAt      *time.Time    `json:"completedAt,omitempty"`
 }
 
 func videoFrom(v entity.Video, counts repository.TaskCounts) VideoDTO {
@@ -157,6 +171,21 @@ func videoFrom(v entity.Video, counts repository.TaskCounts) VideoDTO {
 	}
 	if v.ThumbnailAssetID != nil {
 		dto.ThumbnailAssetID = string(*v.ThumbnailAssetID)
+	}
+	// Both are always present, never null: a grid the plan has not filled yet is
+	// an empty list, and the client's cell loop is the same either way.
+	dto.ThumbnailPlan = make([]ThumbnailCellDTO, 0, v.ThumbnailCells)
+	if v.ThumbnailPlan != nil {
+		for _, cell := range v.ThumbnailPlan.Cells {
+			dto.ThumbnailPlan = append(dto.ThumbnailPlan, ThumbnailCellDTO{
+				Caption: cell.Caption,
+				Prompt:  cell.Prompt,
+			})
+		}
+	}
+	dto.ThumbnailIconIDs = make([]string, 0, len(v.ThumbnailIconAssetIDs))
+	for _, id := range v.ThumbnailIconAssetIDs {
+		dto.ThumbnailIconIDs = append(dto.ThumbnailIconIDs, string(id))
 	}
 	if v.Metadata != nil {
 		tags := v.Metadata.Tags

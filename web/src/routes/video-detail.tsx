@@ -50,6 +50,7 @@ import {
   kindMime,
   kindTitle,
   producingTaskId,
+  thumbnailCellItems,
   videoAssetItems,
 } from '@/lib/assets'
 import type { ViewerItem } from '@/lib/assets'
@@ -106,8 +107,9 @@ export function VideoDetailRoute() {
         chapters.data ?? [],
         video.data?.ref ?? '',
         tasks.data ?? [],
+        video.data,
       ),
-    [assets.data, chapters.data, video.data?.ref, tasks.data],
+    [assets.data, chapters.data, video.data, tasks.data],
   )
 
   // Tabs move under the same modifier the rest of the shell uses, so a whole
@@ -494,6 +496,55 @@ function GateBanner({
   )
 }
 
+/**
+ * The thumbnail grid as cells rather than as one composed picture.
+ *
+ * The composed thumbnail above it says whether the result works; this says which
+ * tile is wrong. Each cell opens the viewer on itself, where its prompt is
+ * editable — the grid is the only place a cell that failed, and so left no
+ * artifact, can be reached at all.
+ */
+function ThumbnailGrid({ video, tasks }: { video: Video; tasks: Task[] }) {
+  const openViewer = useAssetViewer()
+  const items = useMemo(() => thumbnailCellItems(video, tasks), [video, tasks])
+
+  if (items.length === 0) return null
+
+  return (
+    <Panel>
+      <PanelHeader>
+        <PanelTitle>Thumbnail grid</PanelTitle>
+        <Badge tone="neutral">{items.length} cells</Badge>
+      </PanelHeader>
+      <div className="grid grid-cols-4 gap-2 px-3 py-2.5">
+        {items.map((item, cell) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => openViewer(items, cell)}
+            aria-label={`${item.title} — open to edit its prompt`}
+            className="group flex flex-col gap-1 text-left"
+          >
+            <span
+              className={cn(
+                'block aspect-square overflow-hidden rounded-[var(--radius-sm)] border transition-colors',
+                item.pending
+                  ? 'border-dashed border-[hsl(var(--border-strong))]'
+                  : 'border-[hsl(var(--border))] group-hover:border-[hsl(var(--accent))]',
+              )}
+            >
+              <AssetPreview item={item} />
+            </span>
+            <span className="truncate text-[10.5px] uppercase tracking-wider text-subtle">
+              {video.thumbnailPlan[cell]?.caption || `cell ${cell + 1}`}
+            </span>
+          </button>
+        ))}
+      </div>
+    </Panel>
+  )
+}
+
 /* ------------------------------------------------------------------ overview */
 
 function Overview({
@@ -646,6 +697,8 @@ function Overview({
                 </div>
               </Panel>
             )}
+
+            <ThumbnailGrid video={video} tasks={tasks} />
           </div>
 
           <div className="space-y-4">

@@ -6,7 +6,7 @@
  */
 
 import { chapterKey, taskKindRank } from './format'
-import type { Asset, Chapter, Task, TaskKind } from './types'
+import type { Asset, Chapter, Task, TaskKind, Video } from './types'
 
 export type MediaType = 'image' | 'video' | 'audio' | 'text' | 'binary'
 
@@ -68,6 +68,12 @@ export interface ViewerItem {
    */
   prompt?: string
   /**
+   * The thumbnail grid cell this icon draws. The icon counterpart of `slot`, and
+   * separate from it because the two address different things: a cell belongs to
+   * the video's grid, a slot to a chapter's stills.
+   */
+  cell?: number
+  /**
    * A slot with no artifact behind it — the image task failed, or has not run.
    * Its id is a stand-in, so nothing may try to fetch, download or hash it. It
    * is shown anyway because its prompt is exactly what the operator wants to
@@ -82,6 +88,11 @@ export interface ViewerItem {
  */
 export function pendingStillId(chapterId: string, slot: number): string {
   return `pending:${chapterId}:${slot}`
+}
+
+/** The same stand-in for a grid cell no icon has been drawn into. */
+export function pendingIconId(videoId: string, cell: number): string {
+  return `pending:${videoId}:icon:${cell}`
 }
 
 /**
@@ -226,6 +237,16 @@ export function downloadName(item: ViewerItem): string {
   return `${slug}-${shortId(item.id)}${KIND_EXT[item.kind] ?? '.bin'}`
 }
 
+/**
+ * What a cell says, shown beside what it pictures. Read-only: the caption is the
+ * plan's, and rewriting one tile's words without the others is how a grid stops
+ * reading as one thing.
+ */
+function captionNote(video: Video | undefined, cell: number): ViewerNote[] {
+  const caption = video?.thumbnailPlan[cell]?.caption
+  return caption ? [{ label: 'Caption', body: caption }] : []
+}
+
 function notesFor(kind: string, chapter: Chapter | undefined): ViewerNote[] {
   if (!chapter) return []
   switch (kind) {
@@ -297,6 +318,32 @@ export function chapterStillItems(
 }
 
 /**
+ * The thumbnail grid, cell by cell, in reading order.
+ *
+ * Built from the video row rather than from the asset list, for the same reason
+ * a chapter's stills are: a cell that failed or has not run has no artifact, and
+ * that is exactly the cell whose prompt wants changing.
+ */
+export function thumbnailCellItems(video: Video, tasks: Task[] = []): ViewerItem[] {
+  const cells = Math.max(video.thumbnailPlan.length, video.thumbnailIconIds.length)
+  return Array.from({ length: cells }, (_, cell) => {
+    const id = video.thumbnailIconIds[cell] ?? ''
+    return {
+      id: id || pendingIconId(video.id, cell),
+      kind: 'thumbnail_icon',
+      mime: kindMime('thumbnail_icon'),
+      title: `${kindTitle('thumbnail_icon')} ${cell + 1}`,
+      subtitle: video.ref,
+      notes: captionNote(video, cell),
+      taskId: producingTaskId(tasks, 'thumbnail_icon', -1, cell),
+      cell,
+      prompt: video.thumbnailPlan[cell]?.prompt,
+      pending: !id,
+    }
+  })
+}
+
+/**
  * Every artifact of a video, described. Sorted the way an operator reads the
  * video: what belongs to the whole thing first, then chapter by chapter.
  */
@@ -305,13 +352,23 @@ export function videoAssetItems(
   chapters: Chapter[],
   videoRef: string,
   tasks: Task[] = [],
+  video?: Video,
 ): ViewerItem[] {
   const byId = new Map(chapters.map((chapter) => [chapter.id, chapter]))
 
   const items = assets.map((asset) => {
     const chapter = asset.chapterId ? byId.get(asset.chapterId) : undefined
     const slot = chapter ? chapter.imageAssetIds.indexOf(asset.id) : -1
+    // An icon belongs to a grid cell rather than to a chapter, and the video row
+    // is the only place that mapping exists. Without it every icon looks alike:
+    // same title, same sort key, and — because producingTaskId matches any index
+    // when given -1 — the same producing task, so re-running the fifth icon from
+    // the gallery would re-run the first.
+    const cell =
+      asset.kind === 'thumbnail_icon' ? (video?.thumbnailIconIds.indexOf(asset.id) ?? -1) : -1
+    const index = cell >= 0 ? cell : slot
     const label = kindTitle(asset.kind)
+    const numbered = (asset.kind === 'image' && slot >= 0) || cell >= 0
 
     return {
       item: {
@@ -320,21 +377,24 @@ export function videoAssetItems(
         mime: asset.mime,
         size: asset.size,
         createdAt: asset.createdAt,
-        title: asset.kind === 'image' && slot >= 0 ? `${label} ${slot + 1}` : label,
+        title: numbered ? `${label} ${index + 1}` : label,
         subtitle: chapter
           ? `${chapterKey(videoRef, chapter.ordinal)} · ${chapter.title}`
           : videoRef,
         ordinal: chapter?.ordinal ?? 0,
-        notes: notesFor(asset.kind, chapter),
-        taskId: producingTaskId(tasks, asset.kind, chapter?.ordinal ?? -1, slot),
+        notes: cell >= 0 ? captionNote(video, cell) : notesFor(asset.kind, chapter),
+        taskId: producingTaskId(tasks, asset.kind, chapter?.ordinal ?? -1, index),
         // Carried so a still opened from the gallery edits its prompt exactly as
         // one opened from its chapter does.
         ...(asset.kind === 'image' && chapter && slot >= 0
           ? { chapterId: chapter.id, slot, prompt: chapter.imagePrompts[slot] }
           : {}),
+        ...(cell >= 0 ? { cell, prompt: video?.thumbnailPlan[cell]?.prompt } : {}),
       } satisfies ViewerItem,
       ordinal: chapter?.ordinal ?? 0,
-      slot: slot < 0 ? 0 : slot,
+      // Grid order for icons, slot order for stills: both read the way the
+      // artifact is laid out rather than the order the pool finished them in.
+      slot: index < 0 ? 0 : index,
     }
   })
 

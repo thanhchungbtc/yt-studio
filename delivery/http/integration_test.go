@@ -142,7 +142,7 @@ func newHarness(t *testing.T) *harness {
 	level := &slog.LevelVar{}
 	handler, _ := deliveryhttp.NewRouter(deliveryhttp.Deps{
 		Channels: store, ChannelWriter: store, Videos: store, VideoWriter: store,
-		VideoStates: store, Chapters: store, ChapterFields: store, Assets: store,
+		VideoStates: store, VideoFields: store, Chapters: store, ChapterFields: store, Assets: store,
 		Tasks: store, Store: assets, Settings: settings,
 		Submitter: sched, Expander: sched, Canceller: sched, Approver: sched, Rejecter: sched,
 		Forgetter: sched, TaskRetry: sched, ChapRetry: sched, Rerunner: sched, Pools: sched,
@@ -741,6 +741,102 @@ func TestEditingAPromptRedrawsOneStill(t *testing.T) {
 		map[string]any{"prompt": "a ninth still that has no task"})
 	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("out-of-range index = %d, want 422", resp.StatusCode)
+	}
+}
+
+// The same edit-and-generate loop on the thumbnail grid. The tail here is short
+// but it is the one the operator is judging: the composed thumbnail carries the
+// upload gate, so redrawing a cell reopens the publish decision.
+func TestEditingACellPromptRedrawsOneIcon(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	createVideo(h, 2, 1, true)
+	h.approve("DSS-1", "blueprint", 15*time.Second)
+	h.waitForGate("DSS-1", "upload", 30*time.Second)
+
+	type planCell struct {
+		Caption string `json:"caption"`
+		Prompt  string `json:"prompt"`
+	}
+	type thumbBody struct {
+		ThumbnailPlan    []planCell `json:"thumbnailPlan"`
+		ThumbnailIconIDs []string   `json:"thumbnailIconIds"`
+		ThumbnailAssetID string     `json:"thumbnailAssetId"`
+	}
+	var before thumbBody
+	h.json(http.MethodGet, "/api/videos/DSS-1", nil, http.StatusOK, &before)
+	if len(before.ThumbnailPlan) != testThumbnailCells {
+		t.Fatalf("plan has %d cells, want %d", len(before.ThumbnailPlan), testThumbnailCells)
+	}
+	if len(before.ThumbnailIconIDs) != testThumbnailCells {
+		t.Fatalf("icon ids has %d slots, want %d", len(before.ThumbnailIconIDs), testThumbnailCells)
+	}
+
+	const cell = 2
+	const prompt = "a brass ship's bell, side on"
+	var edited thumbBody
+	h.json(http.MethodPost, "/api/videos/DSS-1/thumbnail/cells/2/generate",
+		map[string]any{"prompt": prompt}, http.StatusOK, &edited)
+	if edited.ThumbnailPlan[cell].Prompt != prompt {
+		t.Fatalf("cell %d prompt = %q, want the edit", cell, edited.ThumbnailPlan[cell].Prompt)
+	}
+	// The caption belongs to the plan; editing what a cell pictures leaves what it
+	// says alone.
+	if edited.ThumbnailPlan[cell].Caption != before.ThumbnailPlan[cell].Caption {
+		t.Fatalf("caption became %q, was %q",
+			edited.ThumbnailPlan[cell].Caption, before.ThumbnailPlan[cell].Caption)
+	}
+	if edited.ThumbnailPlan[0].Prompt != before.ThumbnailPlan[0].Prompt {
+		t.Fatal("a neighbouring cell's prompt was overwritten")
+	}
+
+	deadline := time.Now().Add(30 * time.Second)
+	var now thumbBody
+	for time.Now().Before(deadline) {
+		h.json(http.MethodGet, "/api/videos/DSS-1", nil, http.StatusOK, &now)
+		if now.ThumbnailIconIDs[cell] != "" && now.ThumbnailIconIDs[cell] != before.ThumbnailIconIDs[cell] {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if now.ThumbnailIconIDs[cell] == before.ThumbnailIconIDs[cell] {
+		t.Fatal("the icon was never redrawn from the edited prompt")
+	}
+	if now.ThumbnailIconIDs[0] != before.ThumbnailIconIDs[0] {
+		t.Fatal("a sibling icon was redrawn too; only one icon task should have run")
+	}
+
+	var tasks struct {
+		Tasks []struct {
+			Kind  string `json:"kind"`
+			Index int    `json:"index"`
+			State string `json:"state"`
+			Stale bool   `json:"stale"`
+		} `json:"tasks"`
+	}
+	h.json(http.MethodGet, "/api/videos/DSS-1/tasks", nil, http.StatusOK, &tasks)
+	for _, task := range tasks.Tasks {
+		switch {
+		case task.Kind == "thumbnail":
+			if !task.Stale {
+				t.Fatal("the composed thumbnail is not flagged stale")
+			}
+		case task.Kind == "thumbnail_icon" && task.Index == cell:
+			if task.Stale {
+				t.Fatal("the redrawn icon is flagged stale rather than reset")
+			}
+		}
+	}
+
+	resp, _ := h.do(http.MethodPost, "/api/videos/DSS-1/thumbnail/cells/2/generate",
+		map[string]any{"prompt": " "})
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("empty prompt = %d, want 422", resp.StatusCode)
+	}
+	resp, _ = h.do(http.MethodPost, "/api/videos/DSS-1/thumbnail/cells/99/generate",
+		map[string]any{"prompt": "a cell the grid does not have"})
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("out-of-range cell = %d, want 422", resp.StatusCode)
 	}
 }
 

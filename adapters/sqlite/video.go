@@ -362,6 +362,27 @@ func (s *Store) SetVideoThumbnailIcon(ctx context.Context, id entity.VideoID, in
 	})
 }
 
+// SetVideoThumbnailCellPrompt replaces what one cell pictures.
+//
+// The path reaches into the encoded plan rather than rewriting it, so the
+// caption stays as the plan wrote it and an icon generating right now cannot
+// have its cell replaced underneath it. Go field names, because the plan is
+// marshalled without json tags.
+func (s *Store) SetVideoThumbnailCellPrompt(ctx context.Context, id entity.VideoID, index int, prompt string) error {
+	if index < 0 {
+		return fmt.Errorf("%w: cell index must not be negative", entity.ErrInvalidVideo)
+	}
+	path := "$.Cells[" + strconv.Itoa(index) + "].Prompt"
+	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
+		return q.SetVideoThumbnailCellPrompt(ctx, sqlcgen.SetVideoThumbnailCellPromptParams{
+			Path:      path,
+			Prompt:    prompt,
+			UpdatedAt: toUnix(time.Now()),
+			ID:        string(id),
+		})
+	})
+}
+
 // SetVideoThumbnailAsset records the image that fronts the video.
 func (s *Store) SetVideoThumbnailAsset(ctx context.Context, id entity.VideoID, assetID entity.AssetID) error {
 	value := string(assetID)

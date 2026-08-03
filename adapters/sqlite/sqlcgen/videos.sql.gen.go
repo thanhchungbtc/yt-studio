@@ -323,6 +323,33 @@ func (q *Queries) SetVideoThumbnailAsset(ctx context.Context, arg SetVideoThumbn
 	return err
 }
 
+const setVideoThumbnailCellPrompt = `-- name: SetVideoThumbnailCellPrompt :exec
+UPDATE videos
+SET thumbnail_plan_json = json_set(thumbnail_plan_json, CAST(?1 AS TEXT), CAST(?2 AS TEXT)),
+    updated_at = ?3
+WHERE id = ?4
+`
+
+type SetVideoThumbnailCellPromptParams struct {
+	Path      string
+	Prompt    string
+	UpdatedAt int64
+	ID        string
+}
+
+// One cell's prompt, for an operator redrawing a single icon. Indexed for the
+// same reason as the icon above, and scoped to the prompt so the caption the
+// plan wrote for this cell survives an edit to what it pictures.
+func (q *Queries) SetVideoThumbnailCellPrompt(ctx context.Context, arg SetVideoThumbnailCellPromptParams) error {
+	_, err := q.exec(ctx, q.setVideoThumbnailCellPromptStmt, setVideoThumbnailCellPrompt,
+		arg.Path,
+		arg.Prompt,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	return err
+}
+
 const setVideoThumbnailIcon = `-- name: SetVideoThumbnailIcon :exec
 UPDATE videos
 SET thumbnail_icon_ids_json = json_set(thumbnail_icon_ids_json, CAST(?1 AS TEXT), CAST(?2 AS TEXT)),

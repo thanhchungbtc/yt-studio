@@ -30,7 +30,7 @@ import { Textarea } from '@/components/ui/field'
 import { CopyButton, ErrorNotice, Kbd, Skeleton, Tooltip } from '@/components/ui/primitives'
 import { RerunDialog } from '@/components/stale'
 import { api, assetUrl, qk } from '@/lib/api'
-import { downloadName, mediaTypeOf, pendingStillId, shortId } from '@/lib/assets'
+import { downloadName, mediaTypeOf, pendingIconId, pendingStillId, shortId } from '@/lib/assets'
 import type { MediaType, ViewerItem } from '@/lib/assets'
 import { formatAbsolute, formatBytes } from '@/lib/format'
 import { useHotkeys } from '@/lib/hotkeys'
@@ -197,46 +197,57 @@ export function AssetViewerProvider({
 /* -------------------------------------------------------------------- lightbox */
 
 /**
- * Keeps a still current while the viewer is open.
+ * Keeps a generated tile current while the viewer is open.
  *
- * The viewer is handed a snapshot of items, but a still redrawn from the
+ * The viewer is handed a snapshot of items, but anything redrawn from the
  * inspector lands under a *different* content address — so the artifact the
- * snapshot names stops being the one at that slot. Re-resolving from the
- * chapter cache by (chapter, slot), the pair that does not change, means the
- * operator watches the new still arrive in place instead of looking at the old
- * one until they close and reopen the panel.
+ * snapshot names stops being the one in that position. Re-resolving by the
+ * coordinate that does not change (chapter and slot for a still, cell for an
+ * icon) means the operator watches the new picture arrive in place instead of
+ * looking at the old one until they close and reopen the panel.
  *
- * Everything that is not a still is returned untouched.
+ * Everything else is returned untouched.
  */
-function useLiveStill(
+function useLiveTile(
   item: ViewerItem | undefined,
   videoRef: string | undefined,
   videoId: string | undefined,
 ): ViewerItem | undefined {
-  const tracking = item?.chapterId !== undefined && item.slot !== undefined && Boolean(videoId)
+  const isStill = item?.chapterId !== undefined && item.slot !== undefined
+  const isIcon = item?.cell !== undefined
+  const keyed = Boolean(videoRef) && Boolean(videoId)
 
-  // The detail route has already fetched this; the shared key makes it a cache
-  // read that stays subscribed rather than a second request.
+  // The detail route has already fetched both; the shared keys make these cache
+  // reads that stay subscribed rather than second requests.
   const chapters = useQuery({
     queryKey: qk.chapters(videoId ?? ''),
     queryFn: () => api.listChapters(videoRef ?? ''),
-    enabled: tracking && Boolean(videoRef),
+    enabled: isStill && keyed,
+  })
+  const video = useQuery({
+    queryKey: qk.video(videoRef ?? ''),
+    queryFn: () => api.getVideo(videoRef ?? ''),
+    enabled: isIcon && keyed,
   })
 
   return useMemo(() => {
-    if (!item || item.chapterId === undefined || item.slot === undefined) return item
-    const chapter = chapters.data?.find((c) => c.id === item.chapterId)
-    if (!chapter) return item
-    const id = chapter.imageAssetIds[item.slot] ?? ''
-    const prompt = chapter.imagePrompts[item.slot]
-    if (id === item.id && prompt === item.prompt) return item
-    return {
-      ...item,
-      id: id || pendingStillId(chapter.id, item.slot),
-      pending: !id,
-      prompt,
+    if (!item) return item
+    if (item.chapterId !== undefined && item.slot !== undefined) {
+      const chapter = chapters.data?.find((c) => c.id === item.chapterId)
+      if (!chapter) return item
+      const id = chapter.imageAssetIds[item.slot] ?? ''
+      const prompt = chapter.imagePrompts[item.slot]
+      if (id === item.id && prompt === item.prompt) return item
+      return { ...item, id: id || pendingStillId(chapter.id, item.slot), pending: !id, prompt }
     }
-  }, [item, chapters.data])
+    if (item.cell !== undefined && video.data) {
+      const id = video.data.thumbnailIconIds[item.cell] ?? ''
+      const prompt = video.data.thumbnailPlan[item.cell]?.prompt
+      if (id === item.id && prompt === item.prompt) return item
+      return { ...item, id: id || pendingIconId(video.data.id, item.cell), pending: !id, prompt }
+    }
+    return item
+  }, [item, chapters.data, video.data])
 }
 
 function AssetLightbox({
@@ -257,7 +268,7 @@ function AssetLightbox({
   videoRef?: string
   videoId?: string
 }) {
-  const item = useLiveStill(items[index], videoRef, videoId)
+  const item = useLiveTile(items[index], videoRef, videoId)
   const [actualSize, setActualSize] = useState(false)
   const [inspector, setInspector] = useState(true)
   const stripRef = useRef<HTMLDivElement>(null)
@@ -693,17 +704,55 @@ function Inspector({
   videoRef?: string
   videoId?: string
 }) {
+  const queryClient = useQueryClient()
+  // Pulled out of the item so the narrowing below survives into the callbacks,
+  // which close over them rather than over a prop.
+  const { chapterId, slot, cell } = item
+
   return (
     <aside className="w-[320px] shrink-0 overflow-y-auto border-l border-[hsl(var(--border))] bg-[hsl(var(--bg-panel))]">
-      {item.chapterId !== undefined && item.slot !== undefined && videoRef && videoId && (
+      {chapterId !== undefined && slot !== undefined && videoRef && videoId && (
         <PromptEditor
-          key={`${item.chapterId}:${item.slot}`}
-          chapterId={item.chapterId}
-          slot={item.slot}
+          key={`${chapterId}:${slot}`}
+          label="Image prompt"
+          ariaLabel={`Prompt for still ${slot + 1}`}
           prompt={item.prompt}
-          pending={item.pending ?? false}
-          videoRef={videoRef}
-          videoId={videoId}
+          missing="The prompt step has not run for this chapter yet, so there is nothing to edit here."
+          hint={
+            (item.pending
+              ? 'Generating saves this prompt and draws this still. '
+              : 'Generating saves this prompt and redraws this still only. ') +
+            'What it fed — this chapter’s clip, and the render below it — keeps its artifact and is flagged for you to decide on.'
+          }
+          generate={async (prompt) => {
+            const updated = await api.regenerateStill(chapterId, slot, prompt)
+            queryClient.setQueryData<Chapter[]>(qk.chapters(videoId), (prev) =>
+              prev?.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)),
+            )
+            void queryClient.invalidateQueries({ queryKey: qk.videoTasks(videoId) })
+            void queryClient.invalidateQueries({ queryKey: qk.video(videoRef) })
+          }}
+        />
+      )}
+
+      {cell !== undefined && videoRef && videoId && (
+        <PromptEditor
+          key={`icon:${cell}`}
+          label="Icon prompt"
+          ariaLabel={`Prompt for thumbnail cell ${cell + 1}`}
+          prompt={item.prompt}
+          missing="The thumbnail plan has not run yet, so this cell has nothing to picture."
+          hint={
+            (item.pending
+              ? 'Generating saves this prompt and draws this cell. '
+              : 'Generating saves this prompt and redraws this cell only. ') +
+            'The caption above and the style the grid shares are left alone. The composed thumbnail is flagged — and the upload gate rides on it, so this reopens the publish decision.'
+          }
+          generate={async (prompt) => {
+            const updated = await api.regenerateThumbnailIcon(videoRef, cell, prompt)
+            queryClient.setQueryData(qk.video(videoRef), updated)
+            void queryClient.invalidateQueries({ queryKey: qk.videoTasks(videoId) })
+          }}
         />
       )}
 
@@ -784,36 +833,25 @@ function Inspector({
  * still — or what is drawing it right now.
  */
 function PromptEditor({
-  chapterId,
-  slot,
+  label,
+  ariaLabel,
   prompt,
-  pending,
-  videoRef,
-  videoId,
+  missing,
+  hint,
+  generate,
 }: {
-  chapterId: string
-  slot: number
+  label: string
+  ariaLabel: string
+  /** Undefined where the step that writes prompts has not run. */
   prompt: string | undefined
-  pending: boolean
-  videoRef: string
-  videoId: string
+  /** What to say in that case, in the vocabulary of the thing being drawn. */
+  missing: string
+  hint: string
+  /** Writes the prompt, starts the re-run, and reconciles the caches. */
+  generate: (prompt: string) => Promise<void>
 }) {
-  const queryClient = useQueryClient()
   const [draft, setDraft] = useState(prompt ?? '')
-
-  const generate = useMutation({
-    mutationFn: () => api.regenerateStill(chapterId, slot, draft),
-    onSuccess: (chapter) => {
-      // The response is the chapter as written, so the editor rebinds to the
-      // saved text without a refetch. The tasks are a different story: one has
-      // just been reset and several flagged.
-      queryClient.setQueryData<Chapter[]>(qk.chapters(videoId), (prev) =>
-        prev?.map((c) => (c.id === chapter.id ? { ...c, ...chapter } : c)),
-      )
-      void queryClient.invalidateQueries({ queryKey: qk.videoTasks(videoId) })
-      void queryClient.invalidateQueries({ queryKey: qk.video(videoRef) })
-    },
-  })
+  const run = useMutation({ mutationFn: () => generate(draft) })
 
   const trimmed = draft.trim()
   const unsaved = prompt !== undefined && trimmed !== prompt
@@ -821,21 +859,16 @@ function PromptEditor({
   return (
     <section className="border-b border-[hsl(var(--border))] px-3 py-3">
       <div className="mb-1.5 flex items-center justify-between gap-2">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-subtle">
-          Image prompt
-        </h3>
+        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-subtle">{label}</h3>
         {unsaved ? (
           <Badge tone="warning">unsaved</Badge>
         ) : (
-          <CopyButton value={draft} label="Copy the image prompt" />
+          <CopyButton value={draft} label={`Copy the ${label.toLowerCase()}`} />
         )}
       </div>
 
       {prompt === undefined ? (
-        <p className="text-[11.5px] leading-relaxed text-subtle">
-          The prompt step has not run for this chapter yet, so there is nothing to edit here. Run
-          it, and the prompt for this slot appears.
-        </p>
+        <p className="text-[11.5px] leading-relaxed text-subtle">{missing}</p>
       ) : (
         <>
           <Textarea
@@ -843,18 +876,18 @@ function PromptEditor({
             onChange={(event) => setDraft(event.target.value)}
             rows={7}
             spellCheck={false}
-            aria-label={`Prompt for still ${slot + 1}`}
+            aria-label={ariaLabel}
             className="font-mono text-[11.5px] leading-relaxed"
           />
           <div className="mt-2 flex items-center gap-2">
             <Button
               size="sm"
               variant="primary"
-              disabled={trimmed === '' || generate.isPending}
-              onClick={() => generate.mutate()}
+              disabled={trimmed === '' || run.isPending}
+              onClick={() => run.mutate()}
             >
-              <Sparkles className={cn('h-3.5 w-3.5', generate.isPending && 'animate-pulse')} />
-              {generate.isPending ? 'Starting…' : 'Generate'}
+              <Sparkles className={cn('h-3.5 w-3.5', run.isPending && 'animate-pulse')} />
+              {run.isPending ? 'Starting…' : 'Generate'}
             </Button>
             {unsaved && (
               <Button size="sm" variant="ghost" onClick={() => setDraft(prompt)}>
@@ -862,19 +895,13 @@ function PromptEditor({
               </Button>
             )}
           </div>
-          <p className="mt-2 text-[11px] leading-relaxed text-subtle">
-            {pending
-              ? 'Generating saves this prompt and draws this still.'
-              : 'Generating saves this prompt and redraws this still only.'}{' '}
-            What it fed — this chapter&apos;s clip, and the render below it — keeps its artifact and
-            is flagged for you to decide on.
-          </p>
-          {generate.isSuccess && !unsaved && !generate.isPending && (
+          <p className="mt-2 text-[11px] leading-relaxed text-subtle">{hint}</p>
+          {run.isSuccess && !unsaved && !run.isPending && (
             <p className="mt-2 text-[11px] leading-relaxed text-[hsl(var(--accent))]">
-              Queued. The new still appears here when it lands.
+              Queued. The new picture appears here when it lands.
             </p>
           )}
-          {generate.isError && <ErrorNotice error={generate.error} className="mt-2" />}
+          {run.isError && <ErrorNotice error={run.error} className="mt-2" />}
         </>
       )}
     </section>

@@ -418,6 +418,26 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/videos/{key}/thumbnail/cells/{index}/generate': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Redraw one thumbnail cell from an edited prompt
+     * @description Writes the prompt of this grid cell and re-runs that one icon task with it. The cell's caption is left alone, and so is the shared style clause, which is settings-sourced and appended at generation. The composed thumbnail below it keeps its artifact and is flagged stale — and since the upload gate rides on that thumbnail, redrawing a cell reopens the publish decision.
+     */
+    post: operations['regenerateThumbnailIcon']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
 export type webhooks = Record<string, never>
 export interface components {
@@ -671,6 +691,15 @@ export interface components {
       /** Format: int64 */
       queued: number
     }
+    RegenerateIconInputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/RegenerateIconInputBody.json
+       */
+      readonly $schema?: string
+      prompt: string
+    }
     RegenerateStillInputBody: {
       /**
        * Format: uri
@@ -868,6 +897,10 @@ export interface components {
       readonly $schema?: string
       tasks: components['schemas']['TaskDTO'][]
     }
+    ThumbnailCellDTO: {
+      caption: string
+      prompt: string
+    }
     UpdateChannelInputBody: {
       /**
        * Format: uri
@@ -949,6 +982,10 @@ export interface components {
        * @description Tiles in the thumbnail grid; one icon is generated per tile
        */
       thumbnailCells: number
+      /** @description The icon drawn for each cell, by index; an empty entry is a cell not yet drawn */
+      thumbnailIconIds: string[]
+      /** @description One entry per grid cell, in reading order; empty until the plan has run */
+      thumbnailPlan: components['schemas']['ThumbnailCellDTO'][]
       title: string
       topic: string
       /** Format: date-time */
@@ -1895,6 +1932,44 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['TasksOutputBody']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  regenerateThumbnailIcon: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Video ref or id */
+        key: string
+        /** @description 0-based cell index in the thumbnail grid */
+        index: number
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RegenerateIconInputBody']
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['VideoDTO']
         }
       }
       /** @description Error */

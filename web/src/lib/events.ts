@@ -111,6 +111,20 @@ function applyTaskDeltas(client: QueryClient, deltas: TaskDelta[]): void {
     if (videoDeltas.some((delta) => delta.state === 'succeeded')) {
       void client.invalidateQueries({ queryKey: qk.assets(videoId), refetchType: 'active' })
     }
+    // The thumbnail grid lives on the video row — the plan's cells and the icon
+    // drawn into each of them — and no delta carries it. Without this a cell
+    // redrawn from the viewer would keep showing the icon it replaced.
+    if (
+      videoDeltas.some(
+        (delta) =>
+          delta.state === 'succeeded' &&
+          (delta.kind === 'thumbnail_icon' ||
+            delta.kind === 'thumbnail' ||
+            delta.kind === 'thumbnail_plan'),
+      )
+    ) {
+      void client.invalidateQueries({ predicate: videoEntries(videoId), refetchType: 'active' })
+    }
   }
   client.setQueryData<Task[]>(qk.recentTasks, (prev) => (prev ? mergeTasks(prev, deltas) : prev))
 }

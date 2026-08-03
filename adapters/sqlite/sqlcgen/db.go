@@ -165,6 +165,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.setVideoThumbnailAssetStmt, err = db.PrepareContext(ctx, setVideoThumbnailAsset); err != nil {
 		return nil, fmt.Errorf("error preparing query SetVideoThumbnailAsset: %w", err)
 	}
+	if q.setVideoThumbnailCellPromptStmt, err = db.PrepareContext(ctx, setVideoThumbnailCellPrompt); err != nil {
+		return nil, fmt.Errorf("error preparing query SetVideoThumbnailCellPrompt: %w", err)
+	}
 	if q.setVideoThumbnailIconStmt, err = db.PrepareContext(ctx, setVideoThumbnailIcon); err != nil {
 		return nil, fmt.Errorf("error preparing query SetVideoThumbnailIcon: %w", err)
 	}
@@ -432,6 +435,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing setVideoThumbnailAssetStmt: %w", cerr)
 		}
 	}
+	if q.setVideoThumbnailCellPromptStmt != nil {
+		if cerr := q.setVideoThumbnailCellPromptStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing setVideoThumbnailCellPromptStmt: %w", cerr)
+		}
+	}
 	if q.setVideoThumbnailIconStmt != nil {
 		if cerr := q.setVideoThumbnailIconStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing setVideoThumbnailIconStmt: %w", cerr)
@@ -514,125 +522,127 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 }
 
 type Queries struct {
-	db                          DBTX
-	tx                          *sql.Tx
-	applyTaskTransitionStmt     *sql.Stmt
-	countAssetOwnersStmt        *sql.Stmt
-	countTasksByVideoStmt       *sql.Stmt
-	countVideosStmt             *sql.Stmt
-	createChannelStmt           *sql.Stmt
-	createVideoStmt             *sql.Stmt
-	deleteChannelStmt           *sql.Stmt
-	deleteChaptersByVideoStmt   *sql.Stmt
-	deleteTaskDepsByVideoStmt   *sql.Stmt
-	deleteTasksByVideoStmt      *sql.Stmt
-	deleteVideoStmt             *sql.Stmt
-	getAssetByIDStmt            *sql.Stmt
-	getChannelByIDStmt          *sql.Stmt
-	getChannelBySlugStmt        *sql.Stmt
-	getChapterByIDStmt          *sql.Stmt
-	getSettingStmt              *sql.Stmt
-	getTaskByIDStmt             *sql.Stmt
-	getVideoByIDStmt            *sql.Stmt
-	getVideoByRefStmt           *sql.Stmt
-	getVideoSeqStmt             *sql.Stmt
-	incrementVideoSeqStmt       *sql.Stmt
-	insertTaskStmt              *sql.Stmt
-	insertTaskDepStmt           *sql.Stmt
-	listAssetAddressesStmt      *sql.Stmt
-	listAssetsByVideoStmt       *sql.Stmt
-	listChannelsStmt            *sql.Stmt
-	listChaptersByVideoStmt     *sql.Stmt
-	listMissingAssetOwnersStmt  *sql.Stmt
-	listRecentTasksStmt         *sql.Stmt
-	listSettingsStmt            *sql.Stmt
-	listStaleTasksByVideoStmt   *sql.Stmt
-	listTaskDepsByVideoStmt     *sql.Stmt
-	listTasksByVideoStmt        *sql.Stmt
-	listVideosStmt              *sql.Stmt
-	listVideosWithOpenTasksStmt *sql.Stmt
-	putAssetStmt                *sql.Stmt
-	setChapterAudioStmt         *sql.Stmt
-	setChapterClipStmt          *sql.Stmt
-	setChapterImageStmt         *sql.Stmt
-	setChapterPromptStmt        *sql.Stmt
-	setChapterPromptsStmt       *sql.Stmt
-	setChapterScriptStmt        *sql.Stmt
-	setVideoBlueprintAssetStmt  *sql.Stmt
-	setVideoFinalAssetStmt      *sql.Stmt
-	setVideoMetadataStmt        *sql.Stmt
-	setVideoStateStmt           *sql.Stmt
-	setVideoThumbnailAssetStmt  *sql.Stmt
-	setVideoThumbnailIconStmt   *sql.Stmt
-	setVideoThumbnailPlanStmt   *sql.Stmt
-	setVideoUploadStmt          *sql.Stmt
-	updateChannelStmt           *sql.Stmt
-	updateSettingValueStmt      *sql.Stmt
-	updateVideoStmt             *sql.Stmt
-	upsertChannelBySlugStmt     *sql.Stmt
-	upsertChapterStmt           *sql.Stmt
-	upsertSettingStmt           *sql.Stmt
+	db                              DBTX
+	tx                              *sql.Tx
+	applyTaskTransitionStmt         *sql.Stmt
+	countAssetOwnersStmt            *sql.Stmt
+	countTasksByVideoStmt           *sql.Stmt
+	countVideosStmt                 *sql.Stmt
+	createChannelStmt               *sql.Stmt
+	createVideoStmt                 *sql.Stmt
+	deleteChannelStmt               *sql.Stmt
+	deleteChaptersByVideoStmt       *sql.Stmt
+	deleteTaskDepsByVideoStmt       *sql.Stmt
+	deleteTasksByVideoStmt          *sql.Stmt
+	deleteVideoStmt                 *sql.Stmt
+	getAssetByIDStmt                *sql.Stmt
+	getChannelByIDStmt              *sql.Stmt
+	getChannelBySlugStmt            *sql.Stmt
+	getChapterByIDStmt              *sql.Stmt
+	getSettingStmt                  *sql.Stmt
+	getTaskByIDStmt                 *sql.Stmt
+	getVideoByIDStmt                *sql.Stmt
+	getVideoByRefStmt               *sql.Stmt
+	getVideoSeqStmt                 *sql.Stmt
+	incrementVideoSeqStmt           *sql.Stmt
+	insertTaskStmt                  *sql.Stmt
+	insertTaskDepStmt               *sql.Stmt
+	listAssetAddressesStmt          *sql.Stmt
+	listAssetsByVideoStmt           *sql.Stmt
+	listChannelsStmt                *sql.Stmt
+	listChaptersByVideoStmt         *sql.Stmt
+	listMissingAssetOwnersStmt      *sql.Stmt
+	listRecentTasksStmt             *sql.Stmt
+	listSettingsStmt                *sql.Stmt
+	listStaleTasksByVideoStmt       *sql.Stmt
+	listTaskDepsByVideoStmt         *sql.Stmt
+	listTasksByVideoStmt            *sql.Stmt
+	listVideosStmt                  *sql.Stmt
+	listVideosWithOpenTasksStmt     *sql.Stmt
+	putAssetStmt                    *sql.Stmt
+	setChapterAudioStmt             *sql.Stmt
+	setChapterClipStmt              *sql.Stmt
+	setChapterImageStmt             *sql.Stmt
+	setChapterPromptStmt            *sql.Stmt
+	setChapterPromptsStmt           *sql.Stmt
+	setChapterScriptStmt            *sql.Stmt
+	setVideoBlueprintAssetStmt      *sql.Stmt
+	setVideoFinalAssetStmt          *sql.Stmt
+	setVideoMetadataStmt            *sql.Stmt
+	setVideoStateStmt               *sql.Stmt
+	setVideoThumbnailAssetStmt      *sql.Stmt
+	setVideoThumbnailCellPromptStmt *sql.Stmt
+	setVideoThumbnailIconStmt       *sql.Stmt
+	setVideoThumbnailPlanStmt       *sql.Stmt
+	setVideoUploadStmt              *sql.Stmt
+	updateChannelStmt               *sql.Stmt
+	updateSettingValueStmt          *sql.Stmt
+	updateVideoStmt                 *sql.Stmt
+	upsertChannelBySlugStmt         *sql.Stmt
+	upsertChapterStmt               *sql.Stmt
+	upsertSettingStmt               *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
-		db:                          tx,
-		tx:                          tx,
-		applyTaskTransitionStmt:     q.applyTaskTransitionStmt,
-		countAssetOwnersStmt:        q.countAssetOwnersStmt,
-		countTasksByVideoStmt:       q.countTasksByVideoStmt,
-		countVideosStmt:             q.countVideosStmt,
-		createChannelStmt:           q.createChannelStmt,
-		createVideoStmt:             q.createVideoStmt,
-		deleteChannelStmt:           q.deleteChannelStmt,
-		deleteChaptersByVideoStmt:   q.deleteChaptersByVideoStmt,
-		deleteTaskDepsByVideoStmt:   q.deleteTaskDepsByVideoStmt,
-		deleteTasksByVideoStmt:      q.deleteTasksByVideoStmt,
-		deleteVideoStmt:             q.deleteVideoStmt,
-		getAssetByIDStmt:            q.getAssetByIDStmt,
-		getChannelByIDStmt:          q.getChannelByIDStmt,
-		getChannelBySlugStmt:        q.getChannelBySlugStmt,
-		getChapterByIDStmt:          q.getChapterByIDStmt,
-		getSettingStmt:              q.getSettingStmt,
-		getTaskByIDStmt:             q.getTaskByIDStmt,
-		getVideoByIDStmt:            q.getVideoByIDStmt,
-		getVideoByRefStmt:           q.getVideoByRefStmt,
-		getVideoSeqStmt:             q.getVideoSeqStmt,
-		incrementVideoSeqStmt:       q.incrementVideoSeqStmt,
-		insertTaskStmt:              q.insertTaskStmt,
-		insertTaskDepStmt:           q.insertTaskDepStmt,
-		listAssetAddressesStmt:      q.listAssetAddressesStmt,
-		listAssetsByVideoStmt:       q.listAssetsByVideoStmt,
-		listChannelsStmt:            q.listChannelsStmt,
-		listChaptersByVideoStmt:     q.listChaptersByVideoStmt,
-		listMissingAssetOwnersStmt:  q.listMissingAssetOwnersStmt,
-		listRecentTasksStmt:         q.listRecentTasksStmt,
-		listSettingsStmt:            q.listSettingsStmt,
-		listStaleTasksByVideoStmt:   q.listStaleTasksByVideoStmt,
-		listTaskDepsByVideoStmt:     q.listTaskDepsByVideoStmt,
-		listTasksByVideoStmt:        q.listTasksByVideoStmt,
-		listVideosStmt:              q.listVideosStmt,
-		listVideosWithOpenTasksStmt: q.listVideosWithOpenTasksStmt,
-		putAssetStmt:                q.putAssetStmt,
-		setChapterAudioStmt:         q.setChapterAudioStmt,
-		setChapterClipStmt:          q.setChapterClipStmt,
-		setChapterImageStmt:         q.setChapterImageStmt,
-		setChapterPromptStmt:        q.setChapterPromptStmt,
-		setChapterPromptsStmt:       q.setChapterPromptsStmt,
-		setChapterScriptStmt:        q.setChapterScriptStmt,
-		setVideoBlueprintAssetStmt:  q.setVideoBlueprintAssetStmt,
-		setVideoFinalAssetStmt:      q.setVideoFinalAssetStmt,
-		setVideoMetadataStmt:        q.setVideoMetadataStmt,
-		setVideoStateStmt:           q.setVideoStateStmt,
-		setVideoThumbnailAssetStmt:  q.setVideoThumbnailAssetStmt,
-		setVideoThumbnailIconStmt:   q.setVideoThumbnailIconStmt,
-		setVideoThumbnailPlanStmt:   q.setVideoThumbnailPlanStmt,
-		setVideoUploadStmt:          q.setVideoUploadStmt,
-		updateChannelStmt:           q.updateChannelStmt,
-		updateSettingValueStmt:      q.updateSettingValueStmt,
-		updateVideoStmt:             q.updateVideoStmt,
-		upsertChannelBySlugStmt:     q.upsertChannelBySlugStmt,
-		upsertChapterStmt:           q.upsertChapterStmt,
-		upsertSettingStmt:           q.upsertSettingStmt,
+		db:                              tx,
+		tx:                              tx,
+		applyTaskTransitionStmt:         q.applyTaskTransitionStmt,
+		countAssetOwnersStmt:            q.countAssetOwnersStmt,
+		countTasksByVideoStmt:           q.countTasksByVideoStmt,
+		countVideosStmt:                 q.countVideosStmt,
+		createChannelStmt:               q.createChannelStmt,
+		createVideoStmt:                 q.createVideoStmt,
+		deleteChannelStmt:               q.deleteChannelStmt,
+		deleteChaptersByVideoStmt:       q.deleteChaptersByVideoStmt,
+		deleteTaskDepsByVideoStmt:       q.deleteTaskDepsByVideoStmt,
+		deleteTasksByVideoStmt:          q.deleteTasksByVideoStmt,
+		deleteVideoStmt:                 q.deleteVideoStmt,
+		getAssetByIDStmt:                q.getAssetByIDStmt,
+		getChannelByIDStmt:              q.getChannelByIDStmt,
+		getChannelBySlugStmt:            q.getChannelBySlugStmt,
+		getChapterByIDStmt:              q.getChapterByIDStmt,
+		getSettingStmt:                  q.getSettingStmt,
+		getTaskByIDStmt:                 q.getTaskByIDStmt,
+		getVideoByIDStmt:                q.getVideoByIDStmt,
+		getVideoByRefStmt:               q.getVideoByRefStmt,
+		getVideoSeqStmt:                 q.getVideoSeqStmt,
+		incrementVideoSeqStmt:           q.incrementVideoSeqStmt,
+		insertTaskStmt:                  q.insertTaskStmt,
+		insertTaskDepStmt:               q.insertTaskDepStmt,
+		listAssetAddressesStmt:          q.listAssetAddressesStmt,
+		listAssetsByVideoStmt:           q.listAssetsByVideoStmt,
+		listChannelsStmt:                q.listChannelsStmt,
+		listChaptersByVideoStmt:         q.listChaptersByVideoStmt,
+		listMissingAssetOwnersStmt:      q.listMissingAssetOwnersStmt,
+		listRecentTasksStmt:             q.listRecentTasksStmt,
+		listSettingsStmt:                q.listSettingsStmt,
+		listStaleTasksByVideoStmt:       q.listStaleTasksByVideoStmt,
+		listTaskDepsByVideoStmt:         q.listTaskDepsByVideoStmt,
+		listTasksByVideoStmt:            q.listTasksByVideoStmt,
+		listVideosStmt:                  q.listVideosStmt,
+		listVideosWithOpenTasksStmt:     q.listVideosWithOpenTasksStmt,
+		putAssetStmt:                    q.putAssetStmt,
+		setChapterAudioStmt:             q.setChapterAudioStmt,
+		setChapterClipStmt:              q.setChapterClipStmt,
+		setChapterImageStmt:             q.setChapterImageStmt,
+		setChapterPromptStmt:            q.setChapterPromptStmt,
+		setChapterPromptsStmt:           q.setChapterPromptsStmt,
+		setChapterScriptStmt:            q.setChapterScriptStmt,
+		setVideoBlueprintAssetStmt:      q.setVideoBlueprintAssetStmt,
+		setVideoFinalAssetStmt:          q.setVideoFinalAssetStmt,
+		setVideoMetadataStmt:            q.setVideoMetadataStmt,
+		setVideoStateStmt:               q.setVideoStateStmt,
+		setVideoThumbnailAssetStmt:      q.setVideoThumbnailAssetStmt,
+		setVideoThumbnailCellPromptStmt: q.setVideoThumbnailCellPromptStmt,
+		setVideoThumbnailIconStmt:       q.setVideoThumbnailIconStmt,
+		setVideoThumbnailPlanStmt:       q.setVideoThumbnailPlanStmt,
+		setVideoUploadStmt:              q.setVideoUploadStmt,
+		updateChannelStmt:               q.updateChannelStmt,
+		updateSettingValueStmt:          q.updateSettingValueStmt,
+		updateVideoStmt:                 q.updateVideoStmt,
+		upsertChannelBySlugStmt:         q.upsertChannelBySlugStmt,
+		upsertChapterStmt:               q.upsertChapterStmt,
+		upsertSettingStmt:               q.upsertSettingStmt,
 	}
 }

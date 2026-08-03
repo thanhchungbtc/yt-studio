@@ -48,6 +48,9 @@ type VideoFieldWriter interface {
 	// SetVideoThumbnailIcon writes one icon into the slot the plan sized for it,
 	// so icons that finish out of order still land in their own cell.
 	SetVideoThumbnailIcon(ctx context.Context, id entity.VideoID, index int, assetID entity.AssetID) error
+	// SetVideoThumbnailCellPrompt replaces what one cell pictures, leaving the
+	// caption the plan gave it alone.
+	SetVideoThumbnailCellPrompt(ctx context.Context, id entity.VideoID, index int, prompt string) error
 	SetVideoThumbnailAsset(ctx context.Context, id entity.VideoID, assetID entity.AssetID) error
 	SetVideoMetadata(ctx context.Context, id entity.VideoID, m entity.Metadata) error
 	SetVideoUpload(ctx context.Context, id entity.VideoID, r entity.UploadRecord) error

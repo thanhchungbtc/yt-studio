@@ -71,6 +71,15 @@ SET thumbnail_icon_ids_json = json_set(thumbnail_icon_ids_json, CAST(sqlc.arg(pa
     updated_at = sqlc.arg(updated_at)
 WHERE id = sqlc.arg(id);
 
+-- name: SetVideoThumbnailCellPrompt :exec
+-- One cell's prompt, for an operator redrawing a single icon. Indexed for the
+-- same reason as the icon above, and scoped to the prompt so the caption the
+-- plan wrote for this cell survives an edit to what it pictures.
+UPDATE videos
+SET thumbnail_plan_json = json_set(thumbnail_plan_json, CAST(sqlc.arg(path) AS TEXT), CAST(sqlc.arg(prompt) AS TEXT)),
+    updated_at = sqlc.arg(updated_at)
+WHERE id = sqlc.arg(id);
+
 -- name: SetVideoMetadata :exec
 UPDATE videos SET metadata_json = ?, updated_at = ? WHERE id = ?;
 

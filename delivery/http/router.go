@@ -29,6 +29,7 @@ type Deps struct {
 	Videos        repository.VideoReader
 	VideoWriter   repository.VideoWriter
 	VideoStates   repository.VideoStateWriter
+	VideoFields   repository.VideoFieldWriter
 	Chapters      repository.ChapterReader
 	ChapterFields repository.ChapterFieldWriter
 	Assets        repository.AssetReader
@@ -104,6 +105,7 @@ func NewRouter(d Deps) (http.Handler, huma.API) {
 		d.Store, d.Settings, d.NewID, d.Now, d.Log)
 	registerChapterRoutes(api, d.Videos, d.Chapters, d.ChapterFields, d.Notifier, d.ChapRetry,
 		d.Prompts, d.StaleMark, d.Rerunner)
+	registerThumbnailRoutes(api, d.Videos, d.VideoFields, d.Tasks, d.Rerunner)
 	registerTaskRoutes(api, d.Videos, d.Tasks, d.TaskRetry, d.Prompts,
 		d.Rerunner, d.StaleRun, d.StaleOK)
 	registerSettingRoutes(api, d.Settings, d.Pools, d.Coalescer, d.LogLevel)

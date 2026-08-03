@@ -397,6 +397,7 @@ func (c *serveCmd) Run() error {
 		Videos:        store,
 		VideoWriter:   store,
 		VideoStates:   store,
+		VideoFields:   store,
 		Chapters:      store,
 		ChapterFields: store,
 		Assets:        store,

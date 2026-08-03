@@ -78,6 +78,16 @@ export interface UploadRecord {
   uploadedAt: string
 }
 
+/**
+ * One tile of the thumbnail grid. The prompt is the subject alone — the style
+ * clause every icon shares lives in settings and is appended when the icon is
+ * drawn, so editing one cell cannot make it the odd one out.
+ */
+export interface ThumbnailCell {
+  caption: string
+  prompt: string
+}
+
 export interface Video {
   id: string
   channelId: string
@@ -92,6 +102,10 @@ export interface Video {
   blueprintAssetId?: string
   finalAssetId?: string
   thumbnailAssetId?: string
+  /** One entry per grid cell, in reading order; empty until the plan has run. */
+  thumbnailPlan: ThumbnailCell[]
+  /** The icon drawn for each cell, by index; an empty entry is a cell not yet drawn. */
+  thumbnailIconIds: string[]
   metadata?: Metadata
   upload?: UploadRecord
   error?: string
