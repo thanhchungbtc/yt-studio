@@ -84,7 +84,7 @@ func init() { huma.DefaultArrayNullable = false }
 func NewRouter(d Deps) (http.Handler, huma.API) {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
-	// RealIP is deliberately absent: it trusts forwarding headers, and this daemon
+	// RealIP is deliberately absent: it trusts forwarding headers, and this server
 	// binds to loopback with nothing in front of it.
 	r.Use(middleware.Recoverer)
 	r.Use(requestLogger(d.Log))

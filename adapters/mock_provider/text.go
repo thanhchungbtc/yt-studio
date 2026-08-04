@@ -80,7 +80,7 @@ var (
 		"three-quarter view", "high vantage looking down", "shallow foreground detail",
 	}
 	// Icon subjects are single objects, drawn small: what survives being reduced
-	// to a 2 cm tile of line art. The style clause is not here — the daemon
+	// to a 2 cm tile of line art. The style clause is not here — the server
 	// appends it, so restyling the grid never re-rolls these words.
 	iconSubjects = []string{
 		"a ship's lantern", "a folded paper map", "a stone archway", "a pocket watch",
@@ -212,7 +212,7 @@ func imagePrompt(seed uint64, chapterTitle, chapterSummary string) string {
 }
 
 // iconPrompt describes one tile's subject. It is the subject alone: the shared
-// style clause is the daemon's to append.
+// style clause is the server's to append.
 func iconPrompt(seed uint64) string {
 	r := deterministic(seed)
 	return pick(r, iconSubjects) + ", " + pick(r, iconViews)

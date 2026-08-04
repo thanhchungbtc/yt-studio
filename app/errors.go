@@ -51,7 +51,7 @@ func classify(err error) entity.TaskOutcome {
 	case err == nil:
 		return entity.Success{}
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		// The video was cancelled or the daemon is shutting down. Retrying is
+		// The video was cancelled or the server is shutting down. Retrying is
 		// pointless; resume happens through the task table, not through a retry.
 		return entity.Failed{Err: err, Retryable: false}
 	case errors.Is(err, provider.ErrUnavailable):

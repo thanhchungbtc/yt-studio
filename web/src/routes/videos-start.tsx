@@ -22,7 +22,7 @@ import { formatRelative, videoStateLabel } from '@/lib/format'
  * What fills the detail pane before a video is chosen.
  *
  * A blank pane would be honest but useless, so this is the application's start
- * page: where the daemon's capacity is going right now, what was touched most
+ * page: where the server's capacity is going right now, what was touched most
  * recently, and the three keystrokes worth learning.
  */
 export function VideosStartRoute() {

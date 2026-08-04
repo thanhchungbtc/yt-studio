@@ -8,7 +8,7 @@ package main
 // called from main rather than from a command's Run.
 //
 // What the file may hold is exactly the bootstrap flags and nothing else. It is
-// not a second configuration tier: everything the daemon needs after the
+// not a second configuration tier: everything the server needs after the
 // database is open is a settings row, editable live, and a value that could be
 // set in both places is a value that can disagree with itself.
 
@@ -31,7 +31,7 @@ const (
 
 // envFileLoaded and envVarsLoaded record what the load did, so serve can say so
 // once it has a logger. They are package state because the load happens before
-// any of the daemon exists to carry it.
+// the rest of the server exists to carry it.
 var (
 	envFileLoaded string
 	envVarsLoaded int

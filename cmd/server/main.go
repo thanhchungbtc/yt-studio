@@ -82,7 +82,7 @@ type sweepCmd struct {
 type versionCmd struct{}
 
 type cli struct {
-	Serve   serveCmd   `cmd:"" default:"withargs" help:"Run the daemon."`
+	Serve   serveCmd   `cmd:"" default:"withargs" help:"Run the server."`
 	Seed    seedCmd    `cmd:"" help:"Apply migrations and write the default settings and channels, then exit."`
 	Sweep   sweepCmd   `cmd:"" help:"Reclaim asset files nothing references. Reports unless --apply is given."`
 	Version versionCmd `cmd:"" help:"Print the version."`

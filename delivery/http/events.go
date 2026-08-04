@@ -21,7 +21,7 @@ const heartbeatInterval = 20 * time.Second
 
 // eventsHandler is the single multiplexed SSE stream.
 //
-// Task state flows one way — daemon to browser — so EventSource gives
+// Task state flows one way — server to browser — so EventSource gives
 // reconnection, event ids and resume-from-last-id for free over plain HTTP. A
 // WebSocket would add a bidirectional protocol with no use here.
 func eventsHandler(source EventSource, log *slog.Logger) http.HandlerFunc {
@@ -35,7 +35,7 @@ func eventsHandler(source EventSource, log *slog.Logger) http.HandlerFunc {
 		h.Set("Content-Type", "text/event-stream")
 		h.Set("Cache-Control", "no-cache, no-transform")
 		h.Set("Connection", "keep-alive")
-		// Disables proxy buffering where anything sits in front of the daemon.
+		// Disables proxy buffering where anything sits in front of the server.
 		h.Set("X-Accel-Buffering", "no")
 		w.WriteHeader(http.StatusOK)
 

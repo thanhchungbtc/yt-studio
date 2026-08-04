@@ -9,7 +9,7 @@ import type {
   Video,
 } from './types'
 
-/** ApiError carries the daemon's RFC 7807 problem detail through to the UI. */
+/** ApiError carries the server's RFC 7807 problem detail through to the UI. */
 export class ApiError extends Error {
   readonly status: number
   readonly detail: string

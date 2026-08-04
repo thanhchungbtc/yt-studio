@@ -24,7 +24,7 @@ import (
 
 // ErrUnknownBackend reports a settings value that names no registered backend.
 // Load and Set reject it, so reaching this from a provider call means the row
-// was changed underneath the daemon.
+// was changed underneath the server.
 var ErrUnknownBackend = errors.New("unknown provider backend")
 
 // Selected reads the backend name for one settings key. It is called per

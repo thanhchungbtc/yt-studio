@@ -4,17 +4,20 @@ import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
-// The dev server proxies the daemon's API and event stream, so `make dev` runs
-// the Vite server and the Go binary side by side with no CORS in between.
-// The production build is what `go:embed` picks up.
+// The Vite dev server proxies yt-studio's API and event stream, so `make dev`
+// runs the two side by side with no CORS in between. The production build is
+// what `go:embed` picks up.
+//
+// "server" is ambiguous in this file -- Vite has one too -- so the Go one is
+// named outright throughout.
 export default defineConfig(({ mode }) => {
-  // The daemon's address comes from the same .env the daemon reads, one level up
+  // yt-studio's address comes from the same .env yt-studio reads, one level up
   // from here: a port written in two places is a port that will disagree with
   // itself. The empty prefix loads every key rather than only VITE_ ones, and
   // nothing from it is put in `define`, so no value here reaches the bundle --
   // it is read for the proxy target and nothing else.
   const env = loadEnv(mode, fileURLToPath(new URL('..', import.meta.url)), '')
-  const daemon = `http://${env.YTS_LISTEN || '127.0.0.1:8080'}`
+  const apiTarget = `http://${env.YTS_LISTEN || '127.0.0.1:8080'}`
 
   return {
     plugins: [react(), tailwindcss()],
@@ -25,16 +28,16 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       // Bind IPv4 explicitly. Vite's default resolves to [::1] only on macOS, so
-      // http://127.0.0.1:5173 — which is what the daemon and the Makefile print —
+      // http://127.0.0.1:5173 — which is what yt-studio and the Makefile print —
       // would be refused.
       host: '127.0.0.1',
       port: 5173,
       strictPort: true,
       proxy: {
-        '/api': { target: daemon, changeOrigin: true },
-        '/assets/': { target: daemon, changeOrigin: true },
+        '/api': { target: apiTarget, changeOrigin: true },
+        '/assets/': { target: apiTarget, changeOrigin: true },
         '/events': {
-          target: daemon,
+          target: apiTarget,
           changeOrigin: true,
           // Server-sent events must not be buffered by the proxy.
           configure: (proxy) => {
@@ -48,7 +51,7 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       emptyOutDir: true,
-      // Not the default 'assets': that path belongs to the daemon's
+      // Not the default 'assets': that path belongs to yt-studio's
       // content-addressed artifact route, and a bundle filename would be read as
       // a content address and 404.
       assetsDir: 'app',

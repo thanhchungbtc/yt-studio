@@ -6,7 +6,7 @@ SHELL := /bin/bash
 VAR     := var
 BINARY  := $(VAR)/bin/yt-studio
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-# Where the daemon will be listening. The Makefile needs this only to poll for
+# Where the server will be listening. The Makefile needs this only to poll for
 # readiness and to print a URL — it deliberately does not pass --listen, because
 # a flag beats .env and would silently ignore what the file says. Read, never
 # sourced: sourcing a configuration file executes whatever is in it.
@@ -32,12 +32,12 @@ help:
 	@echo
 	@grep -E '^## ' $(MAKEFILE_LIST) | sed 's/^## /  make /' | column -t -s ':'
 
-## dev: hot-reload the daemon and the web UI together
+## dev: hot-reload the server and the web UI together
 dev: web/node_modules
 	@test -x $(GOBIN)/air || go install github.com/air-verse/air@latest
 	@trap 'kill 0' EXIT INT TERM; \
 	$(GOBIN)/air -c .air.toml & \
-	printf 'waiting for the daemon on $(LISTEN)'; \
+	printf 'waiting for the server on $(LISTEN)'; \
 	up=0; \
 	for i in $$(seq 1 60); do \
 		if curl -sf -o /dev/null http://$(LISTEN)/api/health; then up=1; break; fi; \
@@ -45,9 +45,9 @@ dev: web/node_modules
 	done; \
 	echo; \
 	if [ $$up -eq 1 ]; then \
-		echo "daemon  http://$(LISTEN)"; \
+		echo "server  http://$(LISTEN)"; \
 	else \
-		echo "daemon did not start - see the build output above (is $(LISTEN) already in use?)"; \
+		echo "server did not start - see the build output above (is $(LISTEN) already in use?)"; \
 	fi; \
 	echo "web ui  http://127.0.0.1:5173"; \
 	npm --prefix web run dev & \
@@ -75,7 +75,7 @@ run: build
 # real database, while a flag would also have overridden the address the file
 # names.
 demo: build
-	@# Checked before the trap below is installed: a daemon that cannot bind
+	@# Checked before the trap below is installed: a server that cannot bind
 	@# would otherwise leave the seeding to hit whatever else is on the port.
 	@if curl -sf -o /dev/null http://$(LISTEN)/api/health; then \
 		echo "something is already serving on $(LISTEN) - stop it first"; exit 1; \
@@ -85,7 +85,7 @@ demo: build
 	set -e; \
 	base=http://$(LISTEN); \
 	YTS_DB=$(VAR)/demo.db YTS_ASSETS=$(VAR)/demo-assets $(BINARY) serve & \
-	printf 'waiting for the daemon on $(LISTEN)'; \
+	printf 'waiting for the server on $(LISTEN)'; \
 	for i in $$(seq 1 60); do \
 		if curl -sf -o /dev/null $$base/api/health; then break; fi; \
 		printf '.'; sleep 0.5; \

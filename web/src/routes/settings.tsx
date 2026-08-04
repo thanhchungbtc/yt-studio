@@ -83,7 +83,7 @@ export function SettingsRoute() {
     <>
       <PageHeader
         title="Settings"
-        subtitle="Runtime configuration lives in the database, one row per key. Every change applies without restarting the daemon."
+        subtitle="Runtime configuration lives in the database, one row per key. Every change applies without restarting the server."
         actions={
           <div className="relative">
             <Search
@@ -215,7 +215,7 @@ const SettingRow = memo(function SettingRow({ setting }: { setting: Setting }) {
   }
 
   // A setting with a fixed set of values is a dropdown, whether that set comes
-  // from the type (a boolean) or from the daemon (the backends it registered).
+  // from the type (a boolean) or from the server (the backends it registered).
   // Anything else is free-form text.
   const choices = useMemo(() => {
     if (setting.options.length > 0) {

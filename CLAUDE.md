@@ -4,12 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`yt-studio` is a single-operator daemon that automates producing long-form slideshow videos: a blueprint (chapter outline) is generated, then per-chapter narration, stills and clips, then a final render, metadata and upload. One static Go binary (`cmd/server`) contains the HTTP API, the state machine, the scheduler and the embedded React UI. SQLite is the only datastore; `var/` holds everything generated.
+`yt-studio` is a single-operator server that automates producing long-form slideshow videos: a blueprint (chapter outline) is generated, then per-chapter narration, stills and clips, then a final render, metadata and upload. One static Go binary (`cmd/server`) contains the HTTP API, the state machine, the scheduler and the embedded React UI. SQLite is the only datastore; `var/` holds everything generated.
+
+"The server" throughout this document means that one process. It is more than an API: the scheduler dispatches tasks off its own event loop and the SQLite writer drains its queue, so it keeps working with every browser closed.
 
 ## Commands
 
 ```bash
-make dev          # air hot-reloads the daemon (:8080) + vite dev server (:5173, proxies /api,/events,/assets)
+make dev          # air hot-reloads the server (:8080) + the vite dev server (:5173, proxies /api,/events,/assets)
 make build        # npm build → go build -o var/bin/yt-studio ./cmd/server (CGO_ENABLED=0)
 make run          # build, then serve on 127.0.0.1:8080
 make demo         # slow mocks + two seeded videos, one parked at its blueprint gate (DEMO_LATENCY/DEMO_FAILURES/DEMO_CHAPTERS)
@@ -31,7 +33,7 @@ go test ./domain/scheduler -run '^$' -bench BenchmarkDispatchDecision -benchmem 
 
 CLI subcommands: `serve` (default), `seed`, `sweep [--apply] [--force]`, `version`. Bootstrap flags are the only non-database config: `--db`, `--assets`, `--resources`, `--listen`, `--log-level`.
 
-Regenerate the frontend's API types against a **running** daemon: `npm --prefix web run gen:api`.
+Regenerate the frontend's API types against a **running** server: `npm --prefix web run gen:api`.
 
 ## Layering
 
@@ -51,7 +53,7 @@ Regenerate the frontend's API types against a **running** daemon: `npm --prefix 
 
 Hand-written and owned outright: an off-the-shelf engine would cost a second process. `dag.go` builds a per-video graph once; `dispatch.go` runs one event-driven loop; `pools.go` is `semaphore.Weighted` per pool; `readyset.go` and `retryqueue.go` are the in-memory dispatch structures. Key invariants:
 
-- **The task table is the state.** An unscheduled successor consumes nothing; the daemon may restart while a gate is open. `DepsRemaining` is persisted so recovery is exact rather than recomputed.
+- **The task table is the state.** An unscheduled successor consumes nothing; the server may restart while a gate is open. `DepsRemaining` is persisted so recovery is exact rather than recomputed.
 - **Two-phase graph construction.** A video is enqueued with a `HeadSpec` — the blueprint node alone — because the chapter count is the blueprint's *output*, not its input. The per-chapter tail is spliced on at blueprint *acceptance*: `ApproveGate` when the blueprint gate is on, and `TaskRunner.runBlueprint` itself when it is off (see `app.ExpandVideoGraph`). Anything that fails before expansion leaves a one-node DAG whose blueprint can simply be re-run.
 - **Generations.** Each node has a non-persisted generation counter; a dispatch carries the generation it started under and its completion is discarded on mismatch, so a task in flight when its input was retried cannot land an answer to the old question.
 - **Polling is forbidden as a primary mechanism.** `Config.SafetyInterval` (≥30s) is a consistency net, nothing more.
@@ -78,7 +80,7 @@ Those flags all carry an `env:` tag, and `cmd/server/env.go` loads `.env` from t
 
 ## Providers
 
-`domain/provider` declares seven ports (LLM, TTS, image, composer, thumbnail-icon, thumbnail, uploader). The thumbnail is its own port rather than a third composer method: what it renders is a listing artifact, and the backend that draws it is the one most likely to be swapped independently of the video encoder. Icons are a port of their own for the same reason in reverse — the same capability as a still, but selected apart from it, and an `ImageRequest` here would be two thirds empty. **A provider call never spans more than one unit of work** — no multi-chapter calls, no fan-out inside a provider; orchestration belongs to the daemon. The one deliberate exception is image prompting: `prime_image_prompts` produces one batch behind the interface, and the N per-chapter `image_prompts` tasks stay individually retryable cache reads.
+`domain/provider` declares seven ports (LLM, TTS, image, composer, thumbnail-icon, thumbnail, uploader). The thumbnail is its own port rather than a third composer method: what it renders is a listing artifact, and the backend that draws it is the one most likely to be swapped independently of the video encoder. Icons are a port of their own for the same reason in reverse — the same capability as a still, but selected apart from it, and an `ImageRequest` here would be two thirds empty. **A provider call never spans more than one unit of work** — no multi-chapter calls, no fan-out inside a provider; orchestration belongs to the server. The one deliberate exception is image prompting: `prime_image_prompts` produces one batch behind the interface, and the N per-chapter `image_prompts` tasks stay individually retryable cache reads.
 
 `adapters/registry` resolves the backend named by the settings row **per call**. An unregistered name is an error, never a silent fallback. Backends are registered in `main.go` before settings load, so a bad row fails at startup. Currently wired: `mock` (all ports), `sample` (tts, image, thumbnail icons), `ffmpeg` (composer), `builtin` (thumbnail), `9router` (llm), `runware` (image, thumbnail icons). `ninerouter.ThumbnailPlan` returns `ErrUnavailable` until its prompt is written.
 
@@ -96,7 +98,7 @@ Assets are content-addressed by sha256 (`adapters/assetstore`), streamed with a 
 
 `delivery/http` is thin: huma v2 over chi produces the typed API and OpenAPI at `/api/openapi`, docs at `/api/docs`. `Deps` is a wiring record only — handlers take narrow interfaces as parameters and nothing holds a reference to it. Lists are always `make()`d, never nil (`huma.DefaultArrayNullable = false`). `/events` is the SSE stream; `adapters/eventbus` coalesces per video within a window so a 50-chapter render does not emit hundreds of events per second. `spa.go` serves the embedded UI on 404.
 
-`web/` is React 19 + TanStack Router/Query + Tailwind 4, built by vite into `web/dist` and `go:embed`ed by `web/embed.go`. A placeholder `index.html` is committed so `go build` works on a fresh clone. Vite's `assetsDir` is `app`, not `assets` — `/assets/{id}` belongs to the daemon's content-addressed artifact route. `web/src/lib/schema.d.ts` is generated from the OpenAPI document; `schema-contract.ts` type-asserts the hand-written types in `types.ts` against it, so a Go DTO change breaks the web typecheck.
+`web/` is React 19 + TanStack Router/Query + Tailwind 4, built by vite into `web/dist` and `go:embed`ed by `web/embed.go`. A placeholder `index.html` is committed so `go build` works on a fresh clone. Vite's `assetsDir` is `app`, not `assets` — `/assets/{id}` belongs to the server's content-addressed artifact route. `web/src/lib/schema.d.ts` is generated from the OpenAPI document; `schema-contract.ts` type-asserts the hand-written types in `types.ts` against it, so a Go DTO change breaks the web typecheck.
 
 ## Conventions that the linters enforce
 

@@ -73,7 +73,7 @@ func (s *Store) CountTasksByVideo(ctx context.Context, videoID entity.VideoID) (
 }
 
 // ListOpenGraphs reloads every video that still has open tasks, with its edges,
-// so the daemon resumes rather than restarts.
+// so the server resumes rather than restarts.
 func (s *Store) ListOpenGraphs(ctx context.Context) ([]repository.VideoGraph, error) {
 	videoIDs, err := s.rq.ListVideosWithOpenTasks(ctx)
 	if err != nil {

@@ -2,7 +2,7 @@
  * The shapes the API returns.
  *
  * These mirror the Go DTOs one-for-one. `npm run gen:api` regenerates
- * `schema.d.ts` from the daemon's OpenAPI document, and `npm run typecheck`
+ * `schema.d.ts` from the server's OpenAPI document, and `npm run typecheck`
  * asserts these stay assignable to it — a drifted client type is a build
  * failure rather than a runtime surprise.
  */

@@ -28,7 +28,7 @@ var (
 )
 
 // Runner executes exactly one task and reports its outcome. Everything the
-// daemon owns — lifecycle, the DAG, pools, retries, persistence, gates —
+// server owns — lifecycle, the DAG, pools, retries, persistence, gates —
 // stays outside it; a Runner does the provider call and records the artifacts.
 //
 // It takes the task by value: the scheduler keeps mutating its own copy from
@@ -383,7 +383,7 @@ func (s *Scheduler) startTask(ctx context.Context, t *entity.Task) {
 }
 
 // runSafely turns a panicking Runner into a permanent task failure instead of a
-// dead daemon. A provider is replaceable third-party code by design.
+// dead server. A provider is replaceable third-party code by design.
 func runSafely(ctx context.Context, r Runner, t entity.Task) (outcome entity.TaskOutcome) {
 	defer func() {
 		if rec := recover(); rec != nil {

@@ -279,7 +279,7 @@ func TestPruneEmptyDirsLeavesWhatIsInUse(t *testing.T) {
 }
 
 // A write whose shard directory is pruned out from under it retries rather than
-// failing the task, which is what makes pruning safe against a live daemon.
+// failing the task, which is what makes pruning safe against a live server.
 func TestPutSurvivesAPrunedShardDirectory(t *testing.T) {
 	t.Parallel()
 

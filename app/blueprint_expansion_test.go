@@ -358,7 +358,7 @@ func TestApproveBlueprintGateExpandsBeforeReleasing(t *testing.T) {
 		t.Fatalf("outcome = %#v, want Success", outcome)
 	}
 
-	// The durable head graph, parked on its gate, exactly as the daemon leaves it.
+	// The durable head graph, parked on its gate, exactly as the server leaves it.
 	head, err := scheduler.BuildHeadGraph(scheduler.HeadSpec{
 		VideoID: v.ID, MaxAttempts: 3, BlueprintGate: true, Now: testTime,
 	})

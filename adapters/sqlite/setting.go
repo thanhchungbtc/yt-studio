@@ -38,7 +38,7 @@ func (s *Store) ListSettings(ctx context.Context) ([]entity.Setting, error) {
 }
 
 // UpdateSetting validates the new value against the row's declared type and
-// bounds, then writes it. The change applies without a daemon restart.
+// bounds, then writes it. The change applies without a server restart.
 func (s *Store) UpdateSetting(ctx context.Context, key entity.SettingKey, value string) (entity.Setting, error) {
 	current, err := s.SettingByKey(ctx, key)
 	if err != nil {

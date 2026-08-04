@@ -279,7 +279,7 @@ function ConnectionPill({ state }: { state: ConnectionState }) {
     <Tooltip
       label={
         state === 'live'
-          ? 'Streaming updates from the daemon'
+          ? 'Streaming updates from the server'
           : 'The event stream is down; EventSource will reconnect and resume'
       }
     >

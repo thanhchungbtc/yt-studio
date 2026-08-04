@@ -140,7 +140,7 @@ func (c *Client) Model() string { return c.cfg.Model() }
 // rather than from the first chapter of a fifty-chapter video.
 //
 // The result is deliberately not cached: a gateway that was down when the
-// daemon booted may be up now, and a remembered failure would keep saying
+// server booted may be up now, and a remembered failure would keep saying
 // otherwise.
 func (c *Client) Check(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.cfg.BaseURL+"/api/health", http.NoBody)

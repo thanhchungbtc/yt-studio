@@ -1,10 +1,10 @@
-// Package provider declares the ports through which the daemon reaches
+// Package provider declares the ports through which the server reaches
 // generative backends and the store their output lands in.
 //
 // The rule every backend obeys: a provider call never spans more than one unit
 // of work. No multi-chapter calls, no fan-out inside a provider. All
 // orchestration — lifecycle, the cross-chapter DAG, resource pools, retries,
-// persistence, gates — belongs to the daemon.
+// persistence, gates — belongs to the server.
 //
 // The one deliberate exception is image prompting, where coalescing happens
 // behind the interface: the DAG still holds N individually retryable

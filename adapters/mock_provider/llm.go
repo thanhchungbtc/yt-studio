@@ -261,7 +261,7 @@ func (l *LLM) ThumbnailPlan(ctx context.Context, req provider.ThumbnailPlanReque
 	plan := entity.ThumbnailPlan{Cells: make([]entity.ThumbnailCell, 0, req.Cells)}
 	for i := range req.Cells {
 		// Spread, with a wrap that only bites if a caller asked for more cells than
-		// the video has chapters. The daemon clamps before it gets here.
+		// the video has chapters. The server clamps before it gets here.
 		ch := req.Chapters[i*len(req.Chapters)/req.Cells%len(req.Chapters)]
 		plan.Cells = append(plan.Cells, entity.ThumbnailCell{
 			Caption: caption(ch.Title),

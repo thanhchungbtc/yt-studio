@@ -213,7 +213,7 @@ func (r *recordingIcons) Icon(ctx context.Context, req provider.ThumbnailIconReq
 	return stored.ID, nil
 }
 
-// The style clause is joined by the daemon, not stored in the plan: that is
+// The style clause is joined by the server, not stored in the plan: that is
 // what makes restyling the grid cost a dozen cheap generations rather than a
 // new set of captions.
 func TestThumbnailIconJoinsTheSharedStyleAndLandsInItsSlot(t *testing.T) {

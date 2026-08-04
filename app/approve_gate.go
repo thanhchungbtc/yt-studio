@@ -36,7 +36,7 @@ func FindOpenGate(
 }
 
 // ApproveGate releases a gated task's successors. Waits may last days, so the
-// state lives in the task table and the daemon may have restarted since the
+// state lives in the task table and the server may have restarted since the
 // gate opened.
 //
 // Approving a blueprint does one thing more: it builds the rest of the video's

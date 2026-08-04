@@ -188,7 +188,7 @@ func TestExpandedGraphRoundTripsThroughPersistence(t *testing.T) {
 }
 
 // A head graph is a legitimate thing to resume: a video can sit on its
-// blueprint gate for days, and the daemon may restart underneath it.
+// blueprint gate for days, and the server may restart underneath it.
 func TestHeadGraphRoundTripsThroughPersistence(t *testing.T) {
 	t.Parallel()
 	head, tail := headAndTail(t, "v1", 5, 2, true)

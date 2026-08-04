@@ -162,7 +162,7 @@ func TestTranscriptsAreOnePerCallGroupedByVideo(t *testing.T) {
 	}
 }
 
-// Off is the default, so a daemon that never asked for transcripts never grows
+// Off is the default, so a server that never asked for transcripts never grows
 // a directory of them.
 func TestTranscriptsAreOffWithoutADirectory(t *testing.T) {
 	t.Parallel()

@@ -663,7 +663,7 @@ function Stage({
 
 /**
  * A static bar chart standing in for the narration. It is decorative — the
- * daemon stores no waveform — but an audio artifact with nothing above the
+ * server stores no waveform — but an audio artifact with nothing above the
  * transport reads as a broken panel.
  */
 function Waveform() {
@@ -858,7 +858,7 @@ function Inspector({
  * Editing and generating are one action deliberately. A prompt that could be
  * saved on its own would let the text drift from the picture beside it with
  * nothing on screen to say which of the two was current; because Generate is
- * the only way to write one, what the daemon holds is always what drew the
+ * the only way to write one, what the server holds is always what drew the
  * still — or what is drawing it right now.
  */
 function PromptEditor({

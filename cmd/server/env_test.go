@@ -201,7 +201,7 @@ func TestByteOrderMarkAndCarriageReturns(t *testing.T) {
 func TestTheCommittedExampleParses(t *testing.T) {
 	reset(t)
 	t.Setenv(envFileVar, filepath.Join("..", "..", ".env.example"))
-	// Every key in the example is one the daemon reads, so setting them here
+	// Every key in the example is one the server reads, so setting them here
 	// would change this process's configuration. They are all already set to
 	// something by the harness below, which is what makes the load a no-op.
 	for _, key := range []string{

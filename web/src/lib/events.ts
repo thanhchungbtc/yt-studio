@@ -40,7 +40,7 @@ export function useEventStream(): ConnectionState {
       }
     }
     const onResync = () => {
-      // The client was away longer than the daemon's replay buffer.
+      // The client was away longer than the server's replay buffer.
       void clientRef.current.invalidateQueries()
     }
 

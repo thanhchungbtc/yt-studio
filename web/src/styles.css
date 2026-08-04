@@ -226,7 +226,7 @@
   -webkit-user-select: none;
 }
 
-/* A quiet pulse for anything the daemon is actively working on. */
+/* A quiet pulse for anything the server is actively working on. */
 @utility pulse-live {
   animation: pulse-live 1.6s ease-in-out infinite;
   @media (prefers-reduced-motion: reduce) {

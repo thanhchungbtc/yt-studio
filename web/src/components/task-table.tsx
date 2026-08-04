@@ -63,7 +63,7 @@ import { usePersisted } from '@/lib/workspace'
 /*
   The task table.
 
-  A video's task list is the closest thing the daemon has to a log, and at fifty
+  A video's task list is the closest thing the server has to a log, and at fifty
   chapters it is several hundred rows — so it is a filtered, grouped, virtualised
   table rather than a dump. Three decisions shape it:
 

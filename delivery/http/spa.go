@@ -11,7 +11,7 @@ import (
 )
 
 // bundleDir is where Vite writes its content-hashed output. It is deliberately
-// not "assets": that prefix is the daemon's artifact route.
+// not "assets": that prefix is the server's artifact route.
 const bundleDir = "app"
 
 // spaHandler serves the built React app from an embed.FS.

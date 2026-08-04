@@ -74,7 +74,7 @@ const defaultIconSize = 512
 // Config is everything needed to reach the API.
 type Config struct {
 	// APIKey is the bearer token. There is no anonymous access, so an empty key
-	// is a wiring error the daemon reports at startup rather than at first task.
+	// is a wiring error the server reports at startup rather than at first task.
 	APIKey string
 	// Model resolves the AIR identifier of the checkpoint to run, e.g.
 	// runware:101@1.

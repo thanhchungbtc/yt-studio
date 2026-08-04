@@ -20,7 +20,7 @@ type SettingKey string
 // String returns the underlying text of the key.
 func (k SettingKey) String() string { return string(k) }
 
-// The complete set of settings keys. Everything the daemon needs after the
+// The complete set of settings keys. Everything the server needs after the
 // database is open lives here as a row, not in a config file.
 const (
 	SettingPoolLLMLimit     SettingKey = "pool.llm.limit"

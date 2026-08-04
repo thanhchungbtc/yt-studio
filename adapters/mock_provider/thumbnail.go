@@ -125,7 +125,7 @@ func drawHeadline(img *image.RGBA, headline string) int {
 func (b *Thumbnail) drawGrid(ctx context.Context, img *image.RGBA, cells []provider.ThumbnailIconCell, top int) error {
 	if len(cells) == 0 {
 		// A headline on its own is a thin thumbnail, not a broken one. Whether an
-		// empty grid is worth publishing is the daemon's judgement, not a
+		// empty grid is worth publishing is the server's judgement, not a
 		// renderer's.
 		return nil
 	}

@@ -29,7 +29,7 @@ func ResumeScheduler(
 	for _, vg := range persisted {
 		g, err := scheduler.GraphFromPersisted(vg)
 		if err != nil {
-			// One corrupt graph must not stop the daemon from serving the rest.
+			// One corrupt graph must not stop the rest from being resumed.
 			log.Error("skipping unresumable video",
 				slog.String("video_id", vg.VideoID.String()),
 				slog.String("error", err.Error()))

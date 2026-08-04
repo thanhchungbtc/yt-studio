@@ -204,7 +204,7 @@ func (g GateKind) Valid() bool {
 }
 
 // Task is one node of one video's DAG and the scheduler's unit of work. The
-// table is the state: an unscheduled successor consumes nothing and the daemon
+// table is the state: an unscheduled successor consumes nothing and the server
 // may restart freely while a gate is open.
 type Task struct {
 	ID      TaskID

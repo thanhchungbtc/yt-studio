@@ -13,7 +13,7 @@ type SettingReader interface {
 }
 
 // SettingWriter updates runtime configuration rows. A change applies without a
-// daemon restart.
+// server restart.
 type SettingWriter interface {
 	UpdateSetting(ctx context.Context, key entity.SettingKey, value string) (entity.Setting, error)
 	// UpsertSettings is the seed path: idempotent by key, so a fresh database and

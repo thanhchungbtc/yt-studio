@@ -1,4 +1,4 @@
-# Hot reload for the daemon during `make dev`. Vite serves the web UI and
+# Hot reload for the server during `make dev`. Vite serves the web UI and
 # proxies /api and /events here, so only Go sources trigger a rebuild.
 root = "."
 tmp_dir = "var/air"
@@ -12,7 +12,7 @@ tmp_dir = "var/air"
   # No flags: the database, the asset root and the address are what .env says,
   # or the binary's defaults, which are the same values these used to pass. A
   # flag here would beat the file and silently ignore it. air runs from the
-  # repository root, so .env is where the daemon looks.
+  # repository root, so .env is where the server looks.
   entrypoint = ["./var/air/yt-studio", "serve"]
   include_ext = ["go", "sql"]
   exclude_dir = ["web", "var", ".git", ".github"]

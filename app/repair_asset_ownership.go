@@ -26,7 +26,7 @@ const repairProvenance = "repair.ownership"
 // needed, at which point the missing rows read as "nobody references this".
 //
 // Running it is a precondition for reclaiming any disk. Both callers respect
-// that: the daemon repairs at startup, before it can serve a delete, and the
+// that: the server repairs at startup, before it can serve a delete, and the
 // sweep repairs before it looks at a single file.
 //
 // It is idempotent and normally does nothing at all — the query behind it is an
