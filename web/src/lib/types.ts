@@ -214,6 +214,8 @@ export interface TaskDelta {
   attempt: number
   stale: boolean
   error?: string
+  /** When a retry becomes eligible; set only while one is waiting on backoff. */
+  notBefore?: string
   updatedAt: string
 }
 

@@ -8,6 +8,12 @@
 /web/dist/*
 !/web/dist/index.html
 
+# Bootstrap configuration, which is where the API keys live. The example is
+# committed and is the inventory of what can be set; the real one never is.
+/.env
+/.env.*
+!/.env.example
+
 # Dependencies
 /web/node_modules/
 

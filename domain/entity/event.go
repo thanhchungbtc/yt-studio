@@ -41,9 +41,14 @@ type TaskDelta struct {
 	Attempt   int        `json:"attempt"`
 	// Stale rides on the delta so the UI can flag a task the moment an upstream
 	// re-run marks it, without refetching the whole video.
-	Stale     bool      `json:"stale"`
-	Error     string    `json:"error,omitempty"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	Stale bool   `json:"stale"`
+	Error string `json:"error,omitempty"`
+	// NotBefore rides on the delta because a retryable failure is the one
+	// transition that leaves a task looking idle: state falls back to blocked and
+	// nothing else says whether it is waiting on a dependency or on a backoff
+	// timer. Without it a client would have to refetch to tell those apart.
+	NotBefore *time.Time `json:"notBefore,omitempty"`
+	UpdatedAt time.Time  `json:"updatedAt"`
 }
 
 // VideoDelta is the subset of a Video that changes often enough to stream.
@@ -127,6 +132,7 @@ func (t *Task) Delta() TaskDelta {
 		Attempt:   t.Attempt,
 		Stale:     t.Stale,
 		Error:     t.Error,
+		NotBefore: t.NotBefore,
 		UpdatedAt: t.UpdatedAt,
 	}
 }

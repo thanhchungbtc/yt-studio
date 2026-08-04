@@ -142,12 +142,16 @@ function mergeTasks(previous: Task[], deltas: TaskDelta[]): Task[] {
       task.state === delta.state &&
       task.attempt === delta.attempt &&
       task.stale === delta.stale &&
-      (task.error ?? '') === (delta.error ?? '')
+      (task.error ?? '') === (delta.error ?? '') &&
+      (task.notBefore ?? '') === (delta.notBefore ?? '')
     ) {
       return task
     }
     changed = true
-    return { ...task, ...delta }
+    // notBefore is assigned rather than spread: the field is omitted from the
+    // frame once the backoff is over, and spreading would leave the old deadline
+    // in place — a countdown that has already run out.
+    return { ...task, ...delta, notBefore: delta.notBefore }
   })
 
   // Tasks the client has not seen yet (a freshly enqueued DAG) are appended.

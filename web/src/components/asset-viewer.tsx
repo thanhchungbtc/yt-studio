@@ -23,7 +23,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { ReactNode } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 
-import { Badge } from '@/components/ui/badge'
+import { Badge, TONE_FILL } from '@/components/ui/badge'
 import type { Tone } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/field'
@@ -34,7 +34,7 @@ import { downloadName, mediaTypeOf, pendingIconId, pendingStillId, shortId } fro
 import type { MediaType, ViewerItem } from '@/lib/assets'
 import { formatAbsolute, formatBytes } from '@/lib/format'
 import { useHotkeys } from '@/lib/hotkeys'
-import type { Chapter } from '@/lib/types'
+import type { Chapter, Task } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 /* ------------------------------------------------------------ kind vocabulary */
@@ -195,6 +195,30 @@ export function AssetViewerProvider({
 }
 
 /* -------------------------------------------------------------------- lightbox */
+
+/**
+ * The task that produced what is on screen, live.
+ *
+ * Read out of the video's task list, which the event stream already patches per
+ * delta — so this costs no request of its own and updates as the scheduler
+ * moves. It is what lets the inspector say "drawing" rather than "queued" until
+ * something happens to disagree with it.
+ */
+function useLiveTask(
+  taskId: string | undefined,
+  videoRef: string | undefined,
+  videoId: string | undefined,
+): Task | undefined {
+  const tasks = useQuery({
+    queryKey: qk.videoTasks(videoId ?? ''),
+    queryFn: () => api.listVideoTasks(videoRef ?? ''),
+    enabled: Boolean(taskId) && Boolean(videoRef) && Boolean(videoId),
+  })
+  return useMemo(
+    () => (taskId ? tasks.data?.find((t) => t.id === taskId) : undefined),
+    [tasks.data, taskId],
+  )
+}
 
 /**
  * Keeps a generated tile current while the viewer is open.
@@ -708,6 +732,7 @@ function Inspector({
   // Pulled out of the item so the narrowing below survives into the callbacks,
   // which close over them rather than over a prop.
   const { chapterId, slot, cell } = item
+  const task = useLiveTask(item.taskId, videoRef, videoId)
 
   return (
     <aside className="w-[320px] shrink-0 overflow-y-auto border-l border-[hsl(var(--border))] bg-[hsl(var(--bg-panel))]">
@@ -716,6 +741,8 @@ function Inspector({
           key={`${chapterId}:${slot}`}
           label="Image prompt"
           ariaLabel={`Prompt for still ${slot + 1}`}
+          noun="still"
+          task={task}
           prompt={item.prompt}
           missing="The prompt step has not run for this chapter yet, so there is nothing to edit here."
           hint={
@@ -740,6 +767,8 @@ function Inspector({
           key={`icon:${cell}`}
           label="Icon prompt"
           ariaLabel={`Prompt for thumbnail cell ${cell + 1}`}
+          noun="icon"
+          task={task}
           prompt={item.prompt}
           missing="The thumbnail plan has not run yet, so this cell has nothing to picture."
           hint={
@@ -835,18 +864,24 @@ function Inspector({
 function PromptEditor({
   label,
   ariaLabel,
+  noun,
   prompt,
   missing,
   hint,
+  task,
   generate,
 }: {
   label: string
   ariaLabel: string
+  /** What is being drawn, for the status line: "still", "cell". */
+  noun: string
   /** Undefined where the step that writes prompts has not run. */
   prompt: string | undefined
   /** What to say in that case, in the vocabulary of the thing being drawn. */
   missing: string
   hint: string
+  /** The task that draws this, live, so the panel can say where it is. */
+  task: Task | undefined
   /** Writes the prompt, starts the re-run, and reconciles the caches. */
   generate: (prompt: string) => Promise<void>
 }) {
@@ -855,6 +890,11 @@ function PromptEditor({
 
   const trimmed = draft.trim()
   const unsaved = prompt !== undefined && trimmed !== prompt
+  // A generation that has not finished. The old picture stays on screen while
+  // the new one is drawn, so without this the panel looks idle for as long as
+  // the provider takes — and longer, if the task is waiting for a pool slot.
+  const working = task ? task.state === 'running' || task.state === 'ready' : false
+  const busy = run.isPending || working
 
   return (
     <section className="border-b border-[hsl(var(--border))] px-3 py-3">
@@ -880,14 +920,17 @@ function PromptEditor({
             className="font-mono text-[11.5px] leading-relaxed"
           />
           <div className="mt-2 flex items-center gap-2">
+            {/* Still enabled while it draws: changing your mind mid-generation is
+                legitimate, and the scheduler's generation counter discards the
+                answer to the question you stopped asking. */}
             <Button
               size="sm"
               variant="primary"
               disabled={trimmed === '' || run.isPending}
               onClick={() => run.mutate()}
             >
-              <Sparkles className={cn('h-3.5 w-3.5', run.isPending && 'animate-pulse')} />
-              {run.isPending ? 'Starting…' : 'Generate'}
+              <Sparkles className={cn('h-3.5 w-3.5', busy && 'animate-pulse')} />
+              {run.isPending ? 'Starting…' : working ? 'Generate again' : 'Generate'}
             </Button>
             {unsaved && (
               <Button size="sm" variant="ghost" onClick={() => setDraft(prompt)}>
@@ -895,16 +938,114 @@ function PromptEditor({
               </Button>
             )}
           </div>
+          <DrawStatus task={task} noun={noun} />
           <p className="mt-2 text-[11px] leading-relaxed text-subtle">{hint}</p>
-          {run.isSuccess && !unsaved && !run.isPending && (
-            <p className="mt-2 text-[11px] leading-relaxed text-[hsl(var(--accent))]">
-              Queued. The new picture appears here when it lands.
-            </p>
-          )}
           {run.isError && <ErrorNotice error={run.error} className="mt-2" />}
         </>
       )}
     </section>
+  )
+}
+
+/**
+ * Where the generation actually is.
+ *
+ * Worth its own line because a redrawn tile cannot show this by itself: the
+ * previous picture stays on screen until the new one lands, so queued, drawing
+ * and retrying-after-a-provider-error all look identical. The wait is often the
+ * pool rather than the provider — a redraw during a fifty-chapter render sits in
+ * `ready` behind everything else holding an image slot — so that case is named
+ * rather than left as a spinner.
+ */
+function DrawStatus({ task, noun }: { task: Task | undefined; noun: string }) {
+  // A retry's delay is the one number here that changes on its own, so it gets
+  // the only timer, and only while one is pending.
+  const retryAt = task?.state === 'blocked' && task.notBefore ? Date.parse(task.notBefore) : 0
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!retryAt) return undefined
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [retryAt])
+
+  if (!task) return null
+
+  const attempt = task.attempt > 1 ? ` · attempt ${task.attempt} of ${task.maxAttempts}` : ''
+
+  switch (task.state) {
+    case 'running':
+      return (
+        <StatusLine tone="accent" pulse>
+          Drawing the {noun}…{attempt}
+        </StatusLine>
+      )
+    case 'ready':
+      return (
+        <StatusLine tone="info" pulse>
+          Queued — waiting for a slot in the {task.pool} pool.
+        </StatusLine>
+      )
+    case 'blocked':
+      // A retryable failure and an unmet dependency are both `blocked`; the
+      // attempt count is what separates them, and the deadline only refines the
+      // wording.
+      if (task.attempt > 0 && task.error) {
+        const seconds = retryAt ? Math.max(0, Math.round((retryAt - now) / 1000)) : 0
+        return (
+          <StatusLine tone="warning" detail={task.error}>
+            Attempt {task.attempt} failed — trying again {retryAt ? `in ${seconds}s` : 'shortly'}.
+          </StatusLine>
+        )
+      }
+      return <StatusLine tone="info">Waiting on an earlier step.</StatusLine>
+    case 'failed':
+      return (
+        <StatusLine tone="danger" detail={task.error}>
+          Gave up after {task.attempt} {task.attempt === 1 ? 'attempt' : 'attempts'}. Change the
+          prompt and generate again, or fix the backend and retry.
+        </StatusLine>
+      )
+    case 'cancelled':
+      return <StatusLine tone="neutral">Cancelled with the video.</StatusLine>
+    // Nothing to announce: the picture above is the statement. A stale one is
+    // already flagged in the task table and the banner.
+    case 'succeeded':
+    case 'awaiting_approval':
+      return null
+    default:
+      return null
+  }
+}
+
+function StatusLine({
+  tone,
+  pulse,
+  detail,
+  children,
+}: {
+  tone: Tone
+  pulse?: boolean
+  /** The provider's own words, when there are any. */
+  detail?: string
+  children: ReactNode
+}) {
+  return (
+    <div className="mt-2 flex items-start gap-2">
+      <span
+        aria-hidden
+        className={cn(
+          'mt-[5px] h-[7px] w-[7px] shrink-0 rounded-full',
+          TONE_FILL[tone],
+          pulse && 'pulse-live',
+        )}
+      />
+      <div className="min-w-0 text-[11px] leading-relaxed">
+        <p className="text-fg">{children}</p>
+        {detail && (
+          <p className="mt-0.5 break-words font-mono text-[10.5px] text-subtle">{detail}</p>
+        )}
+      </div>
+    </div>
   )
 }
 

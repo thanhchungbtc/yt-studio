@@ -148,17 +148,27 @@ export function artifactKindRank(kind: string): number {
  * of -1 matches whatever the task carries, which is what lets a caller that
  * does not know the slot still find the single task of its kind.
  */
+export function producingTask(
+  tasks: Task[],
+  kind: string,
+  ordinal: number,
+  index: number,
+): Task | undefined {
+  const taskKind = KIND_TASKS[kind]
+  if (!taskKind) return undefined
+  return tasks.find(
+    (t) => t.kind === taskKind && t.ordinal === ordinal && (index < 0 || t.index === index),
+  )
+}
+
+/** The same lookup where only the id is wanted. */
 export function producingTaskId(
   tasks: Task[],
   kind: string,
   ordinal: number,
   index: number,
 ): string | undefined {
-  const taskKind = KIND_TASKS[kind]
-  if (!taskKind) return undefined
-  return tasks.find(
-    (t) => t.kind === taskKind && t.ordinal === ordinal && (index < 0 || t.index === index),
-  )?.id
+  return producingTask(tasks, kind, ordinal, index)?.id
 }
 
 const KIND_TITLES: Record<string, string> = {

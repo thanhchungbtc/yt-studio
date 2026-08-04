@@ -27,6 +27,7 @@ import (
 	mockprovider "github.com/tbui/yt-studio/adapters/mock_provider"
 	"github.com/tbui/yt-studio/adapters/ninerouter"
 	"github.com/tbui/yt-studio/adapters/registry"
+	"github.com/tbui/yt-studio/adapters/runware"
 	sampleprovider "github.com/tbui/yt-studio/adapters/sample_provider"
 	"github.com/tbui/yt-studio/adapters/sqlite"
 	"github.com/tbui/yt-studio/adapters/thumbnail"
@@ -54,6 +55,8 @@ type bootstrap struct {
 	NineRouterURL string `help:"9router gateway base URL." default:"http://127.0.0.1:20128" env:"NINEROUTER_URL"`
 	//nolint:lll // one flag, one line
 	NineRouterKey string `help:"9router API key. A gateway running with auth off needs none." env:"NINEROUTER_KEY"`
+	//nolint:lll // one flag, one line
+	RunwareKey string `help:"Runware API key, for the runware image and thumbnail-icon backends." env:"RUNWARE_KEY"`
 	//nolint:lll // one flag, one line
 	Transcripts string `help:"Where each LLM prompt and response is written for inspection. Empty disables." default:"var/transcripts" env:"YTS_TRANSCRIPTS" type:"path"`
 	//nolint:lll // one flag, one line
@@ -87,6 +90,13 @@ type cli struct {
 
 func main() {
 	var root cli
+	// Before the parse, not after: kong reads its `env:` tags through os.Getenv
+	// while parsing, so anything the file supplies has to be in the environment
+	// by now.
+	if err := loadEnvFile(); err != nil {
+		fmt.Fprintln(os.Stderr, "yt-studio:", err)
+		os.Exit(1)
+	}
 	kctx := kong.Parse(&root,
 		kong.Name("yt-studio"),
 		kong.Description("Local automation for long-form slideshow videos."),
@@ -229,6 +239,13 @@ func (c *serveCmd) Run() error {
 	defer cancel()
 
 	level, log := newLogger(c.LogLevel)
+	if envFileLoaded != "" {
+		// The path and the count, never the values: a key in a log line is a
+		// leaked key.
+		log.Info("loaded environment file",
+			slog.String("path", envFileLoaded),
+			slog.Int("vars", envVarsLoaded))
+	}
 
 	// --- adapters -----------------------------------------------------------
 	store, err := sqlite.Open(ctx, sqlite.Options{Path: c.DB}, log)
@@ -296,6 +313,19 @@ func (c *serveCmd) Run() error {
 		return err
 	}
 
+	// Same closure treatment, and for the same reason: nothing here may read a
+	// settings value before Load, and the size is picked on the settings screen.
+	runwareClient, err := runware.New(runware.Config{
+		APIKey: c.RunwareKey,
+		Model:  func() string { return settings.String(entity.SettingRunwareModel) },
+		StillSize: func() (int, int) {
+			return settings.Int(entity.SettingRunwareWidth), settings.Int(entity.SettingRunwareHeight)
+		},
+	}, assets, log)
+	if err != nil {
+		return err
+	}
+
 	providers := registry.New(settings.String)
 	providers.RegisterLLM("mock", mockprovider.NewLLM(assets, videoContextLookup(store), tuning))
 	providers.RegisterLLM("9router", nineRouter)
@@ -303,12 +333,14 @@ func (c *serveCmd) Run() error {
 	providers.RegisterTTS("sample", sampleprovider.NewTTS(samples, assets))
 	providers.RegisterImage("mock", mockprovider.NewImage(assets, tuning))
 	providers.RegisterImage("sample", sampleprovider.NewImage(samples, assets))
+	providers.RegisterImage("runware", runware.NewImage(runwareClient))
 	providers.RegisterComposer("mock", mockprovider.NewComposer(assets, tuning))
 	providers.RegisterComposer("ffmpeg", ffmpegComposer)
 	providers.RegisterThumbnail("mock", mockprovider.NewThumbnail(assets, tuning))
 	providers.RegisterThumbnail("builtin", thumbnails)
 	providers.RegisterThumbnailIcon("mock", mockprovider.NewIcon(assets, tuning))
 	providers.RegisterThumbnailIcon("sample", sampleprovider.NewIcon(samples, assets))
+	providers.RegisterThumbnailIcon("runware", runware.NewIcon(runwareClient))
 	providers.RegisterUploader("mock", mockprovider.NewUploader(assets, tuning, time.Now))
 
 	settings.Constrain(providers.Options())
@@ -345,6 +377,15 @@ func (c *serveCmd) Run() error {
 			slog.String("url", c.NineRouterURL),
 			slog.String("model", nineRouter.Model()),
 			slog.String("transcripts", c.Transcripts))
+	}
+	if err := runwareClient.Check(); err != nil {
+		log.Info("runware image backends are not available",
+			slog.String("reason", err.Error()))
+	} else {
+		log.Info("runware image backends are available",
+			slog.String("model", runwareClient.Model()),
+			slog.Int("width", settings.Int(entity.SettingRunwareWidth)),
+			slog.Int("height", settings.Int(entity.SettingRunwareHeight)))
 	}
 
 	// --- scheduler ----------------------------------------------------------

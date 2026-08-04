@@ -20,7 +20,7 @@ import { ArtifactGallery } from '@/components/artifact-gallery'
 import { AssetPreview, AssetViewerProvider, useAssetViewer } from '@/components/asset-viewer'
 import { StageStrip } from '@/components/stage-strip'
 import { RerunDialog, StaleBanner, StaleDot } from '@/components/stale'
-import { VideoStateBadge } from '@/components/state-badges'
+import { TaskStateDot, VideoStateBadge } from '@/components/state-badges'
 import { TaskTable } from '@/components/task-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -49,6 +49,7 @@ import {
   chapterStillItems,
   kindMime,
   kindTitle,
+  producingTask,
   producingTaskId,
   thumbnailCellItems,
   videoAssetItems,
@@ -517,29 +518,33 @@ function ThumbnailGrid({ video, tasks }: { video: Video; tasks: Task[] }) {
         <Badge tone="neutral">{items.length} cells</Badge>
       </PanelHeader>
       <div className="grid grid-cols-4 gap-2 px-3 py-2.5">
-        {items.map((item, cell) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => openViewer(items, cell)}
-            aria-label={`${item.title} — open to edit its prompt`}
-            className="group flex flex-col gap-1 text-left"
-          >
-            <span
-              className={cn(
-                'block aspect-square overflow-hidden rounded-[var(--radius-sm)] border transition-colors',
-                item.pending
-                  ? 'border-dashed border-[hsl(var(--border-strong))]'
-                  : 'border-[hsl(var(--border))] group-hover:border-[hsl(var(--accent))]',
-              )}
+        {items.map((item, cell) => {
+          const task = producingTask(tasks, 'thumbnail_icon', -1, cell)
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => openViewer(items, cell)}
+              aria-label={`${item.title} — open to edit its prompt`}
+              className="group flex flex-col gap-1 text-left"
             >
-              <AssetPreview item={item} />
-            </span>
-            <span className="truncate text-[10.5px] uppercase tracking-wider text-subtle">
-              {video.thumbnailPlan[cell]?.caption || `cell ${cell + 1}`}
-            </span>
-          </button>
-        ))}
+              <span
+                className={cn(
+                  'relative block aspect-square overflow-hidden rounded-[var(--radius-sm)] border transition-colors',
+                  item.pending
+                    ? 'border-dashed border-[hsl(var(--border-strong))]'
+                    : 'border-[hsl(var(--border))] group-hover:border-[hsl(var(--accent))]',
+                )}
+              >
+                <AssetPreview item={item} />
+                <TileWorkingMark task={task} />
+              </span>
+              <span className="truncate text-[10.5px] uppercase tracking-wider text-subtle">
+                {video.thumbnailPlan[cell]?.caption || `cell ${cell + 1}`}
+              </span>
+            </button>
+          )
+        })}
       </div>
     </Panel>
   )
@@ -986,6 +991,7 @@ const ChapterCard = memo(function ChapterCard({
               id={id}
               slot={i}
               prompt={chapter.imagePrompts[i]}
+              task={producingTask(tasks, 'image', chapter.ordinal, i)}
               alt={`Chapter ${chapter.ordinal}, still ${i + 1}`}
               onOpen={() => openStill(i)}
             />
@@ -1144,12 +1150,15 @@ function Still({
   id,
   slot,
   prompt,
+  task,
   alt,
   onOpen,
 }: {
   id: string
   slot: number
   prompt: string | undefined
+  /** The image task for this slot, so the tile can say it is being drawn. */
+  task: Task | undefined
   alt: string
   onOpen: () => void
 }) {
@@ -1164,7 +1173,10 @@ function Still({
         className="flex h-[86px] w-[152px] flex-col items-center justify-center gap-1 rounded-[var(--radius-sm)] border border-dashed border-[hsl(var(--border-strong))] bg-[hsl(var(--bg-subtle))] text-[11px] text-subtle transition-colors hover:border-[hsl(var(--accent))] hover:text-muted"
       >
         <span className="tabular text-[10px] uppercase tracking-wider">still {slot + 1}</span>
-        <span>pending</span>
+        <span className="flex items-center gap-1.5">
+          {task && <TaskStateDot state={task.state} />}
+          {tileState(task)}
+        </span>
       </button>
     )
   }
@@ -1177,6 +1189,9 @@ function Still({
       className="group relative block h-[86px] w-[152px] overflow-hidden rounded-[var(--radius-sm)] border border-[hsl(var(--border))] transition-[border-color,box-shadow] hover:border-[hsl(var(--accent))] hover:elev-2"
     >
       <AssetPreview item={{ id, kind: 'image', mime: kindMime('image'), title: alt }} />
+      {/* The picture on a tile being redrawn is the *previous* one, so the mark
+          is the only thing saying so. Always visible, unlike the hover chrome. */}
+      <TileWorkingMark task={task} />
       <span
         className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100"
         aria-hidden
@@ -1198,6 +1213,50 @@ function Still({
     </Tooltip>
   ) : (
     preview
+  )
+}
+
+/**
+ * The one word an empty tile can say about itself. "Pending" covers a slot the
+ * pipeline has not reached; the rest are the states an operator is waiting on.
+ */
+function tileState(task: Task | undefined): string {
+  if (!task) return 'pending'
+  switch (task.state) {
+    case 'running':
+      return 'drawing'
+    case 'ready':
+      return 'queued'
+    case 'failed':
+      return 'failed'
+    case 'blocked':
+      return task.attempt > 0 && task.error ? 'retrying' : 'pending'
+    default:
+      return 'pending'
+  }
+}
+
+/**
+ * A corner mark on a tile whose artifact is being replaced.
+ *
+ * Only for work in flight or a failure: a tile that is simply done should carry
+ * no chrome at all, and staleness is already said by the chapter's own dot and
+ * the banner above the pane.
+ */
+function TileWorkingMark({ task }: { task: Task | undefined }) {
+  if (!task) return null
+  const working = task.state === 'running' || task.state === 'ready'
+  const retrying = task.state === 'blocked' && task.attempt > 0 && Boolean(task.error)
+  if (!working && !retrying && task.state !== 'failed') return null
+
+  return (
+    <span
+      className="absolute right-1 top-1 flex items-center gap-1 rounded-[var(--radius-xs)] bg-black/60 px-1 py-[1px] text-[10px] font-medium leading-[14px] text-white"
+      title={task.error || `${taskLabel(task.kind)} — ${task.state}`}
+    >
+      <TaskStateDot state={task.state} />
+      {tileState(task)}
+    </span>
   )
 }
 

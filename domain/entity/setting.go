@@ -44,6 +44,16 @@ const (
 	// It is a settings row rather than a flag because it is the knob that gets
 	// turned most while prompts are being tuned.
 	SettingNineRouterModel SettingKey = "ninerouter.model"
+	// SettingRunwareModel picks which checkpoint the Runware backend draws with,
+	// as an AIR identifier. A row for the same reason as the model above: it is
+	// the knob that gets turned while a look is being found.
+	SettingRunwareModel SettingKey = "runware.model"
+	// SettingRunwareWidth and SettingRunwareHeight are the geometry stills are
+	// generated at. They exist because provider.ImageRequest carries a size that
+	// no use case fills in: the still's dimensions are a property of the backend
+	// drawing it, not of the chapter asking for it.
+	SettingRunwareWidth  SettingKey = "runware.width"
+	SettingRunwareHeight SettingKey = "runware.height"
 
 	SettingVideoDefaultChapters SettingKey = "video.default_chapter_count"
 	SettingVideoDefaultImages   SettingKey = "video.default_images_per_chapter"
@@ -259,6 +269,10 @@ func DefaultSettings() []Setting {
 		{Key: SettingProviderUploader, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for publishing."},
 		//nolint:lll // one row, one line
 		{Key: SettingNineRouterModel, Value: "ag/gemini-3-flash", Type: SettingTypeString, Group: "providers", Description: "Which upstream the 9router backend routes to, e.g. ag/gemini-3-flash. See GET /v1/models on the gateway."},
+
+		{Key: SettingRunwareModel, Value: "runware:100@1", Type: SettingTypeString, Group: "providers", Description: "Checkpoint the Runware backend draws with, as an AIR identifier, e.g. runware:100@1."},
+		{Key: SettingRunwareWidth, Value: "1344", Type: SettingTypeInt, Group: "providers", Min: 128, Max: 2048, Description: "Width stills are generated at. The composer frames them at 1344x768, so anything else is resampled."},
+		{Key: SettingRunwareHeight, Value: "768", Type: SettingTypeInt, Group: "providers", Min: 128, Max: 2048, Description: "Height stills are generated at. Most checkpoints require both edges to be a multiple of 64."},
 
 		{Key: SettingVideoDefaultChapters, Value: "50", Type: SettingTypeInt, Group: "video", Min: MinChapterCount, Max: MaxChapterCount, Description: "Chapters created for a new video when unspecified."},
 		{Key: SettingVideoDefaultImages, Value: "2", Type: SettingTypeInt, Group: "video", Min: MinImagesPerChapter, Max: MaxImagesPerChapter, Description: "Stills generated per chapter when unspecified."},

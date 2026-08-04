@@ -6,7 +6,13 @@ SHELL := /bin/bash
 VAR     := var
 BINARY  := $(VAR)/bin/yt-studio
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-LISTEN  ?= 127.0.0.1:8080
+# Where the daemon will be listening. The Makefile needs this only to poll for
+# readiness and to print a URL — it deliberately does not pass --listen, because
+# a flag beats .env and would silently ignore what the file says. Read, never
+# sourced: sourcing a configuration file executes whatever is in it.
+ENV_LISTEN := $(shell grep -E '^[[:space:]]*(export[[:space:]]+)?YTS_LISTEN[[:space:]]*=' .env 2>/dev/null \
+                | tail -1 | sed -e 's/.*=[[:space:]]*//' -e 's/[[:space:]]*$$//' | tr -d "\"'")
+LISTEN  ?= $(or $(ENV_LISTEN),127.0.0.1:8080)
 GOBIN   := $(shell go env GOPATH)/bin
 
 # The demo runs the mocks slowly on purpose. `mock.latency_ms` is scaled per
@@ -54,15 +60,20 @@ build: web/node_modules
 	CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=$(VERSION)" -o $(BINARY) ./cmd/server
 	@echo "$(BINARY)  $$(du -h $(BINARY) | cut -f1)"
 
-## run: build, then serve on 127.0.0.1:8080
+## run: build, then serve - .env names the database, the assets and the address
 run: build
-	$(BINARY) serve --db $(VAR)/yt-studio.db --assets $(VAR)/assets --listen $(LISTEN)
+	$(BINARY) serve
 
 ## demo: serve with slow mocks and seeded videos, to watch the UI live
 #
 # Seeds two videos and lets the first through its blueprint gate, so there is
 # work in flight the moment the browser opens. The second is left sitting at
 # its gate, so the Approve button has something to do.
+#
+# Its own database and asset root arrive as environment variables rather than
+# flags: an exported variable still beats .env, so the demo cannot clobber the
+# real database, while a flag would also have overridden the address the file
+# names.
 demo: build
 	@# Checked before the trap below is installed: a daemon that cannot bind
 	@# would otherwise leave the seeding to hit whatever else is on the port.
@@ -73,7 +84,7 @@ demo: build
 	@trap 'kill 0' EXIT INT TERM; \
 	set -e; \
 	base=http://$(LISTEN); \
-	$(BINARY) serve --db $(VAR)/demo.db --assets $(VAR)/demo-assets --listen $(LISTEN) & \
+	YTS_DB=$(VAR)/demo.db YTS_ASSETS=$(VAR)/demo-assets $(BINARY) serve & \
 	printf 'waiting for the daemon on $(LISTEN)'; \
 	for i in $$(seq 1 60); do \
 		if curl -sf -o /dev/null $$base/api/health; then break; fi; \
