@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
-	mockprovider "github.com/tbui/yt-studio/adapters/mock_provider"
+	mockprovider "github.com/tbui/yt-studio/adapters/mock"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )

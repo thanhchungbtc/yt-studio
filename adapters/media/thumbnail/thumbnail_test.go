@@ -14,8 +14,8 @@ import (
 	"testing"
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
-	mockprovider "github.com/tbui/yt-studio/adapters/mock_provider"
-	"github.com/tbui/yt-studio/adapters/thumbnail"
+	"github.com/tbui/yt-studio/adapters/media/thumbnail"
+	mockprovider "github.com/tbui/yt-studio/adapters/mock"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )

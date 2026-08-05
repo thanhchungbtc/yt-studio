@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
-	sampleprovider "github.com/tbui/yt-studio/adapters/sample_provider"
+	sampleprovider "github.com/tbui/yt-studio/adapters/sample"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )

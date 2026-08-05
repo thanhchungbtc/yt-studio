@@ -20,7 +20,7 @@ import (
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
 	"github.com/tbui/yt-studio/adapters/eventbus"
-	mockprovider "github.com/tbui/yt-studio/adapters/mock_provider"
+	mockprovider "github.com/tbui/yt-studio/adapters/mock"
 	"github.com/tbui/yt-studio/adapters/sqlite"
 	"github.com/tbui/yt-studio/app"
 	deliveryhttp "github.com/tbui/yt-studio/delivery/http"

@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/tbui/yt-studio/adapters/registry"
+	"github.com/tbui/yt-studio/cmd/server/internal/registry"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )

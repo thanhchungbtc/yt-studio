@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
-	"github.com/tbui/yt-studio/adapters/runware"
+	runware2 "github.com/tbui/yt-studio/adapters/media/runware"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )
@@ -125,9 +125,9 @@ func newStore(t *testing.T) *assetstore.FS {
 	return store
 }
 
-func newClient(t *testing.T, a *api, key string, width, height int) *runware.Client {
+func newClient(t *testing.T, a *api, key string, width, height int) *runware2.Client {
 	t.Helper()
-	client, err := runware.New(runware.Config{
+	client, err := runware2.New(runware2.Config{
 		APIKey:           key,
 		Model:            func() string { return testModel },
 		StillSize:        func() (int, int) { return width, height },
@@ -150,13 +150,13 @@ func TestNewRejectsIncompleteConfig(t *testing.T) {
 		t.Fatalf("assetstore.New: %v", err)
 	}
 
-	for name, cfg := range map[string]runware.Config{
+	for name, cfg := range map[string]runware2.Config{
 		"no model resolver": {APIKey: testKey, StillSize: size},
 		"no size resolver":  {APIKey: testKey, Model: model},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			if _, err := runware.New(cfg, store, nil); !errors.Is(err, provider.ErrUnavailable) {
+			if _, err := runware2.New(cfg, store, nil); !errors.Is(err, provider.ErrUnavailable) {
 				t.Fatalf("expected ErrUnavailable, got %v", err)
 			}
 		})
@@ -164,8 +164,8 @@ func TestNewRejectsIncompleteConfig(t *testing.T) {
 
 	t.Run("no store", func(t *testing.T) {
 		t.Parallel()
-		cfg := runware.Config{APIKey: testKey, Model: model, StillSize: size}
-		if _, err := runware.New(cfg, nil, nil); !errors.Is(err, provider.ErrUnavailable) {
+		cfg := runware2.Config{APIKey: testKey, Model: model, StillSize: size}
+		if _, err := runware2.New(cfg, nil, nil); !errors.Is(err, provider.ErrUnavailable) {
 			t.Fatalf("expected ErrUnavailable, got %v", err)
 		}
 	})
@@ -193,7 +193,7 @@ func TestGenerateSlideSendsTheConfiguredTask(t *testing.T) {
 	a := newAPI(t)
 	client := newClient(t, a, testKey, 1344, 768)
 
-	id, err := runware.NewSlide(client).Generate(context.Background(), provider.SlideRequest{
+	id, err := runware2.NewSlide(client).Generate(context.Background(), provider.SlideRequest{
 		Prompt: "a chalk diagram of a lever",
 	})
 	if err != nil {
@@ -240,7 +240,7 @@ func TestGenerateSlidePrefersTheRequestedSize(t *testing.T) {
 
 	// The port declares the fields; a use case that starts filling them must be
 	// obeyed rather than overridden by the settings row.
-	if _, err := runware.NewSlide(client).Generate(context.Background(), provider.SlideRequest{
+	if _, err := runware2.NewSlide(client).Generate(context.Background(), provider.SlideRequest{
 		Prompt: "a lever",
 		Width:  1024,
 		Height: 1024,
@@ -258,7 +258,7 @@ func TestGenerateIconIsSquare(t *testing.T) {
 	a := newAPI(t)
 	client := newClient(t, a, testKey, 1344, 768)
 
-	id, err := runware.NewIcon(client).Icon(context.Background(), provider.ThumbnailIconRequest{
+	id, err := runware2.NewIcon(client).Icon(context.Background(), provider.ThumbnailIconRequest{
 		Index:  3,
 		Prompt: "a lever, thick-stroke white line art",
 		Size:   768,
@@ -280,7 +280,7 @@ func TestGenerateIconFallsBackToADefaultSize(t *testing.T) {
 	a := newAPI(t)
 	client := newClient(t, a, testKey, 1344, 768)
 
-	if _, err := runware.NewIcon(client).Icon(context.Background(), provider.ThumbnailIconRequest{
+	if _, err := runware2.NewIcon(client).Icon(context.Background(), provider.ThumbnailIconRequest{
 		Prompt: "a lever",
 	}); err != nil {
 		t.Fatalf("Icon: %v", err)
@@ -295,7 +295,7 @@ func TestStoredAssetsAreAddressedByKind(t *testing.T) {
 	t.Parallel()
 	a := newAPI(t)
 	store := newStore(t)
-	client, err := runware.New(runware.Config{
+	client, err := runware2.New(runware2.Config{
 		APIKey:    testKey,
 		Model:     func() string { return testModel },
 		StillSize: func() (int, int) { return 512, 512 },
@@ -305,12 +305,12 @@ func TestStoredAssetsAreAddressedByKind(t *testing.T) {
 		t.Fatalf("runware.New: %v", err)
 	}
 
-	slide, err := runware.NewSlide(client).Generate(context.Background(),
+	slide, err := runware2.NewSlide(client).Generate(context.Background(),
 		provider.SlideRequest{Prompt: "a lever"})
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
-	icon, err := runware.NewIcon(client).Icon(context.Background(),
+	icon, err := runware2.NewIcon(client).Icon(context.Background(),
 		provider.ThumbnailIconRequest{Prompt: "a lever", Size: 512})
 	if err != nil {
 		t.Fatalf("Icon: %v", err)
@@ -393,7 +393,7 @@ func TestFailureClassification(t *testing.T) {
 			a.status, a.reply, a.imageStatus = tc.status, tc.reply, tc.imageStatus
 			client := newClient(t, a, testKey, 512, 512)
 
-			_, err := runware.NewSlide(client).Generate(context.Background(),
+			_, err := runware2.NewSlide(client).Generate(context.Background(),
 				provider.SlideRequest{Prompt: "a lever"})
 			if err == nil {
 				t.Fatal("expected an error")
@@ -413,7 +413,7 @@ func TestGenerateWithoutAKeyNeverLeaves(t *testing.T) {
 	a := newAPI(t)
 	client := newClient(t, a, "", 512, 512)
 
-	_, err := runware.NewSlide(client).Generate(context.Background(),
+	_, err := runware2.NewSlide(client).Generate(context.Background(),
 		provider.SlideRequest{Prompt: "a lever"})
 	if !errors.Is(err, provider.ErrUnavailable) {
 		t.Fatalf("expected ErrUnavailable, got %v", err)
@@ -430,7 +430,7 @@ func TestGenerateRejectsAnImpossibleSize(t *testing.T) {
 
 	// The API's own grid and range rules are left to the API, but a zero is not a
 	// size under any of them and is worth neither the round trip nor a retry.
-	_, err := runware.NewSlide(client).Generate(context.Background(),
+	_, err := runware2.NewSlide(client).Generate(context.Background(),
 		provider.SlideRequest{Prompt: "a lever"})
 	if !errors.Is(err, provider.ErrUnavailable) {
 		t.Fatalf("expected ErrUnavailable, got %v", err)
@@ -451,7 +451,7 @@ func TestCancellationAbortsInFlight(t *testing.T) {
 		close(release)
 		server.Close()
 	})
-	client, err := runware.New(runware.Config{
+	client, err := runware2.New(runware2.Config{
 		APIKey:    testKey,
 		Model:     func() string { return testModel },
 		StillSize: func() (int, int) { return 512, 512 },
@@ -463,7 +463,7 @@ func TestCancellationAbortsInFlight(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := runware.NewSlide(client).Generate(ctx,
+	if _, err := runware2.NewSlide(client).Generate(ctx,
 		provider.SlideRequest{Prompt: "a lever"}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected the cancellation to surface, got %v", err)
 	}

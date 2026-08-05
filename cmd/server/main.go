@@ -19,18 +19,18 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/google/uuid"
+	"github.com/tbui/yt-studio/adapters/media/ffmpeg"
+	runware2 "github.com/tbui/yt-studio/adapters/media/runware"
+	"github.com/tbui/yt-studio/adapters/media/thumbnail"
+	"github.com/tbui/yt-studio/cmd/server/internal/registry"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
 	"github.com/tbui/yt-studio/adapters/eventbus"
-	"github.com/tbui/yt-studio/adapters/ffmpeg"
-	mockprovider "github.com/tbui/yt-studio/adapters/mock_provider"
+	mockprovider "github.com/tbui/yt-studio/adapters/mock"
 	"github.com/tbui/yt-studio/adapters/ninerouter"
-	"github.com/tbui/yt-studio/adapters/registry"
-	"github.com/tbui/yt-studio/adapters/runware"
-	sampleprovider "github.com/tbui/yt-studio/adapters/sample_provider"
+	sampleprovider "github.com/tbui/yt-studio/adapters/sample"
 	"github.com/tbui/yt-studio/adapters/sqlite"
-	"github.com/tbui/yt-studio/adapters/thumbnail"
 	"github.com/tbui/yt-studio/app"
 	deliveryhttp "github.com/tbui/yt-studio/delivery/http"
 	"github.com/tbui/yt-studio/domain/entity"
@@ -315,7 +315,7 @@ func (c *serveCmd) Run() error {
 
 	// Same closure treatment, and for the same reason: nothing here may read a
 	// settings value before Load, and the size is picked on the settings screen.
-	runwareClient, err := runware.New(runware.Config{
+	runwareClient, err := runware2.New(runware2.Config{
 		APIKey: c.RunwareKey,
 		Model:  func() string { return settings.String(entity.SettingRunwareModel) },
 		StillSize: func() (int, int) {
@@ -333,14 +333,14 @@ func (c *serveCmd) Run() error {
 	providers.RegisterTTS("sample", sampleprovider.NewTTS(samples, assets))
 	providers.RegisterSlide("mock", mockprovider.NewSlide(assets, tuning))
 	providers.RegisterSlide("sample", sampleprovider.NewSlide(samples, assets))
-	providers.RegisterSlide("runware", runware.NewSlide(runwareClient))
+	providers.RegisterSlide("runware", runware2.NewSlide(runwareClient))
 	providers.RegisterComposer("mock", mockprovider.NewComposer(assets, tuning))
 	providers.RegisterComposer("ffmpeg", ffmpegComposer)
 	providers.RegisterThumbnail("mock", mockprovider.NewThumbnail(assets, tuning))
 	providers.RegisterThumbnail("builtin", thumbnails)
 	providers.RegisterThumbnailIcon("mock", mockprovider.NewIcon(assets, tuning))
 	providers.RegisterThumbnailIcon("sample", sampleprovider.NewIcon(samples, assets))
-	providers.RegisterThumbnailIcon("runware", runware.NewIcon(runwareClient))
+	providers.RegisterThumbnailIcon("runware", runware2.NewIcon(runwareClient))
 	providers.RegisterUploader("mock", mockprovider.NewUploader(assets, tuning, time.Now))
 
 	settings.Constrain(providers.Options())
