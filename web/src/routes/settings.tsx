@@ -1,62 +1,167 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, RotateCcw, Search, X } from 'lucide-react'
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  AlertCircle,
+  Check,
+  Clapperboard,
+  FlaskConical,
+  Gauge,
+  Loader2,
+  Minus,
+  Pencil,
+  Plug,
+  Plus,
+  RotateCcw,
+  Server,
+  ShieldCheck,
+  SlidersHorizontal,
+  Timer,
+  type LucideIcon,
+} from 'lucide-react'
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { PageHeader } from '@/components/app-shell'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input, Select } from '@/components/ui/field'
+import { Input, Select, Textarea } from '@/components/ui/field'
 import {
+  CopyButton,
   EmptyState,
   ErrorNotice,
-  Panel,
-  PanelHeader,
-  PanelTitle,
+  Kbd,
+  SearchField,
+  Segmented,
   Skeleton,
   Tooltip,
 } from '@/components/ui/primitives'
+import { Switch } from '@/components/ui/switch'
 import { api, qk } from '@/lib/api'
-import type { Setting } from '@/lib/types'
+import { formatRelative, poolLabel } from '@/lib/format'
+import { useHotkeys } from '@/lib/hotkeys'
+import type { PoolStat, Setting } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
-const GROUP_TITLES: Record<string, string> = {
-  pools: 'Concurrency pools',
-  gates: 'Approval gates',
-  providers: 'Providers',
-  video: 'Video defaults',
-  scheduler: 'Scheduler',
-  server: 'Server',
-  mock: 'Mock backends',
+interface GroupMeta {
+  title: string
+  blurb: string
+  icon: LucideIcon
 }
 
-const GROUP_BLURBS: Record<string, string> = {
-  pools:
-    'Enforced across every video and channel. Lowering a limit takes effect as running tasks finish; a running provider call is not preemptible.',
-  gates: 'Where the pipeline pauses for a human. A gate costs nothing while it is open.',
-  providers:
-    'Which backend serves each step. Each list holds the backends this build registered; a change applies to the next task.',
-  video: 'Applied to a new video when the request leaves the field blank.',
-  scheduler: 'Retry policy for transient provider failures.',
-  server: 'Applied live — none of these need a restart.',
-  mock: 'Shapes the mock backends so the scheduler can be exercised at realistic pacing.',
+/**
+ * The groups in the order an operator reads them: what the machine may do at
+ * once, where it stops for a human, who does the work, and only then the knobs
+ * that are tuned once and left alone.
+ */
+const GROUPS: Record<string, GroupMeta> = {
+  pools: {
+    title: 'Concurrency',
+    blurb:
+      'Enforced across every video and channel. Lowering a limit takes effect as running tasks finish; a running provider call is not preemptible.',
+    icon: Gauge,
+  },
+  gates: {
+    title: 'Approval gates',
+    blurb: 'Where the pipeline pauses for a human. A gate costs nothing while it is open.',
+    icon: ShieldCheck,
+  },
+  providers: {
+    title: 'Providers',
+    blurb:
+      'Which backend serves each step. Each list holds the backends this build registered; a change applies to the next task.',
+    icon: Plug,
+  },
+  video: {
+    title: 'Video & thumbnail',
+    blurb:
+      'What a new video is created with when the request leaves the field blank, and the shared style the thumbnail is drawn in.',
+    icon: Clapperboard,
+  },
+  scheduler: {
+    title: 'Retries',
+    blurb: 'Retry policy for transient provider failures.',
+    icon: Timer,
+  },
+  server: {
+    title: 'Server',
+    blurb: 'Applied live — none of these need a restart.',
+    icon: Server,
+  },
+  mock: {
+    title: 'Mock backends',
+    blurb: 'Shapes the mock backends so the scheduler can be exercised at realistic pacing.',
+    icon: FlaskConical,
+  },
+}
+
+const GROUP_ORDER = Object.keys(GROUPS)
+
+function groupMeta(group: string): GroupMeta {
+  return GROUPS[group] ?? { title: group, blurb: '', icon: SlidersHorizontal }
+}
+
+/** What a row is doing right now. Absent means the row is at rest. */
+interface RowState {
+  saving?: boolean
+  applied?: boolean
+  error?: unknown
 }
 
 /**
  * The settings screen is a plain CRUD surface over the settings table, with no
  * privileged file access anywhere.
  *
- * The group rail on the left is a table of contents that scrolls the pane rather
- * than a filter that hides the rest.
+ * Two things shape it. Drafts live here rather than in each row, so the pane can
+ * offer one "apply everything" instead of making the operator hunt for the rows
+ * they touched — and so a row that saves itself the moment it is flipped (a
+ * switch, a backend) can sit beside one that waits for Enter without the two
+ * disagreeing about what "unsaved" means. And the rail on the left is a table of
+ * contents that scrolls the pane rather than a filter that hides the rest: with
+ * thirty keys, knowing what exists matters more than seeing one at a time.
  */
 export function SettingsRoute() {
+  const queryClient = useQueryClient()
   const settings = useQuery({ queryKey: qk.settings, queryFn: api.listSettings })
+
+  // Free from cache — the status bar keeps this query warm. It turns an abstract
+  // limit into "and here is what that limit is currently doing".
+  const { data: status } = useQuery({ queryKey: qk.scheduler, queryFn: api.schedulerStatus })
+
   const [query, setQuery] = useState('')
+  const searchRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [active, setActive] = useState('')
+
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const [rowStates, setRowStates] = useState<Record<string, RowState>>({})
+  const draftsRef = useRef(drafts)
+  draftsRef.current = drafts
+  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  useEffect(() => {
+    const pending = timers.current
+    return () => pending.forEach(clearTimeout)
+  }, [])
+
+  const rows = useMemo(() => settings.data ?? [], [settings.data])
+
+  // A value that has caught up with the server — saved here or changed by
+  // another client — is no longer a draft, whichever of the two did it.
+  useEffect(() => {
+    setDrafts((prev) => {
+      let changed = false
+      const next: Record<string, string> = {}
+      for (const row of rows) {
+        const draft = prev[row.key]
+        if (draft === undefined) continue
+        if (draft === row.value) changed = true
+        else next[row.key] = draft
+      }
+      return changed || Object.keys(next).length !== Object.keys(prev).length ? next : prev
+    })
+  }, [rows])
 
   const groups = useMemo(() => {
     const needle = query.trim().toLowerCase()
     const map = new Map<string, Setting[]>()
-    for (const setting of settings.data ?? []) {
+    for (const setting of rows) {
       if (
         needle &&
         !setting.key.toLowerCase().includes(needle) &&
@@ -68,252 +173,905 @@ export function SettingsRoute() {
       if (list) list.push(setting)
       else map.set(setting.group, [setting])
     }
-    const order = Object.keys(GROUP_TITLES)
     return [...map.entries()].sort(
       (a, b) =>
-        (order.indexOf(a[0]) + 1 || 99) - (order.indexOf(b[0]) + 1 || 99) ||
+        (GROUP_ORDER.indexOf(a[0]) + 1 || 99) - (GROUP_ORDER.indexOf(b[0]) + 1 || 99) ||
         a[0].localeCompare(b[0]),
     )
-  }, [settings.data, query])
+  }, [rows, query])
 
-  const total = settings.data?.length ?? 0
-  const shown = groups.reduce((sum, [, rows]) => sum + rows.length, 0)
+  const dirtyKeys = useMemo(
+    () => rows.filter((row) => drafts[row.key] !== undefined).map((row) => row.key),
+    [rows, drafts],
+  )
+  const saving = dirtyKeys.some((key) => rowStates[key]?.saving)
+
+  /**
+   * Applied in sequence rather than at once: the store serialises writes anyway,
+   * and a failure part-way through then names the row it stopped at instead of
+   * scattering six half-answers across the pane.
+   */
+  const apply = useCallback(
+    async (keys: string[]) => {
+      for (const key of keys) {
+        const value = draftsRef.current[key]
+        if (value === undefined) continue
+        setRowStates((prev) => ({ ...prev, [key]: { saving: true } }))
+        try {
+          const updated = await api.updateSetting(key, value)
+          queryClient.setQueryData<Setting[]>(qk.settings, (prev) =>
+            prev?.map((row) => (row.key === updated.key ? updated : row)),
+          )
+          setDrafts((prev) => {
+            const next = { ...prev }
+            delete next[key]
+            return next
+          })
+          setRowStates((prev) => ({ ...prev, [key]: { applied: true } }))
+          clearTimeout(timers.current.get(key))
+          timers.current.set(
+            key,
+            setTimeout(() => {
+              timers.current.delete(key)
+              setRowStates((prev) => {
+                const next = { ...prev }
+                delete next[key]
+                return next
+              })
+            }, 1800),
+          )
+        } catch (error) {
+          setRowStates((prev) => ({ ...prev, [key]: { error } }))
+        }
+      }
+      void queryClient.invalidateQueries({ queryKey: qk.scheduler })
+    },
+    [queryClient],
+  )
+
+  const draft = useCallback((key: string, value: string) => {
+    setDrafts((prev) => ({ ...prev, [key]: value }))
+  }, [])
+
+  const revert = useCallback((key: string) => {
+    setDrafts((prev) => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+    setRowStates((prev) => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+  }, [])
+
+  const commit = useCallback((key: string) => void apply([key]), [apply])
+
+  /** Draft and apply in one move, for a control that has no half-changed state. */
+  const set = useCallback(
+    (key: string, value: string) => {
+      setDrafts((prev) => ({ ...prev, [key]: value }))
+      draftsRef.current = { ...draftsRef.current, [key]: value }
+      void apply([key])
+    },
+    [apply],
+  )
+
+  const discardAll = useCallback(() => {
+    setDrafts({})
+    setRowStates({})
+  }, [])
+
+  useHotkeys([
+    {
+      keys: 'mod+s',
+      label: 'Apply pending settings',
+      group: 'Settings',
+      whileTyping: true,
+      run: () => {
+        ;(document.activeElement as HTMLElement | null)?.blur()
+        if (dirtyKeys.length > 0) void apply(dirtyKeys)
+      },
+    },
+    {
+      keys: '/',
+      label: 'Filter settings',
+      group: 'Settings',
+      run: () => searchRef.current?.focus(),
+    },
+  ])
+
+  // Which section the pane is looking at, measured against the container rather
+  // than the document so the sticky header offset stays honest.
+  useEffect(() => {
+    const container = scrollRef.current
+    if (!container || groups.length === 0) return
+    let frame = 0
+    const measure = () => {
+      frame = 0
+      const top = container.getBoundingClientRect().top
+      let current = groups[0]?.[0] ?? ''
+      for (const [group] of groups) {
+        const node = document.getElementById(`settings-${group}`)
+        if (node && node.getBoundingClientRect().top - top <= 96) current = group
+      }
+      if (container.scrollHeight - container.scrollTop - container.clientHeight < 8) {
+        current = groups[groups.length - 1]?.[0] ?? current
+      }
+      setActive(current)
+    }
+    const onScroll = () => {
+      if (frame === 0) frame = requestAnimationFrame(measure)
+    }
+    measure()
+    container.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      container.removeEventListener('scroll', onScroll)
+      if (frame !== 0) cancelAnimationFrame(frame)
+    }
+  }, [groups])
+
+  const total = rows.length
+  const shown = groups.reduce((sum, [, list]) => sum + list.length, 0)
+  const needle = query.trim().toLowerCase()
 
   return (
     <>
       <PageHeader
         title="Settings"
-        subtitle="Runtime configuration lives in the database, one row per key. Every change applies without restarting the server."
+        subtitle="One row per key, held in the database. Every change applies to the next task rather than the next restart."
         actions={
-          <div className="relative">
-            <Search
-              className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-subtle"
-              aria-hidden
-            />
-            <Input
+          <>
+            <span className="tabular hidden text-[11.5px] text-subtle sm:inline">
+              {shown === total ? `${total} keys` : `${shown} of ${total}`}
+            </span>
+            <SearchField
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={setQuery}
               placeholder="Filter settings"
-              aria-label="Filter settings"
-              className="h-7 w-56 pl-7 pr-7 text-[12px]"
+              inputRef={searchRef}
+              keys="/"
+              className="w-64"
             />
-            {query && (
-              <button
-                type="button"
-                onClick={() => setQuery('')}
-                aria-label="Clear the filter"
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-[var(--radius-xs)] p-0.5 text-subtle hover:bg-[hsl(var(--bg-hover))] hover:text-fg"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            )}
-          </div>
+          </>
         }
       />
 
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-4">
-        {settings.isPending && (
-          <div className="space-y-3">
-            {Array.from({ length: 3 }, (_, i) => (
-              <Skeleton key={i} className="h-40" />
-            ))}
-          </div>
-        )}
-        {settings.isError && <ErrorNotice error={settings.error} />}
-
-        {!settings.isPending && groups.length === 0 && (
-          <EmptyState
-            title="Nothing matches"
-            description={`None of the ${total} settings mention “${query}”.`}
-            action={
-              <Button variant="outline" onClick={() => setQuery('')}>
-                Clear the filter
-              </Button>
-            }
-          />
-        )}
-
-        {groups.length > 0 && (
-          <div className="mx-auto grid max-w-5xl gap-5 lg:grid-cols-[168px_minmax(0,1fr)]">
-            <nav aria-label="Setting groups" className="hidden lg:block">
-              <div className="sticky top-0 space-y-0.5">
-                <p className="mb-1.5 px-2 text-[10.5px] uppercase tracking-wider text-subtle">
-                  {shown === total ? `${total} settings` : `${shown} of ${total}`}
-                </p>
-                {groups.map(([group, rows]) => (
-                  <button
-                    key={group}
-                    type="button"
-                    onClick={() =>
-                      document
-                        .getElementById(`settings-${group}`)
-                        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                    }
-                    className="flex w-full items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1 text-left text-[12px] text-muted transition-colors hover:bg-[hsl(var(--bg-hover))] hover:text-fg"
-                  >
-                    <span className="min-w-0 flex-1 truncate">{GROUP_TITLES[group] ?? group}</span>
-                    <span className="tabular text-[10.5px] text-subtle">{rows.length}</span>
-                  </button>
-                ))}
-              </div>
-            </nav>
-
-            <div className="min-w-0 space-y-3">
-              {groups.map(([group, rows]) => (
-                <Panel key={group} id={`settings-${group}`} className="scroll-mt-4">
-                  <PanelHeader>
-                    <div className="min-w-0">
-                      <PanelTitle className="text-[13px] normal-case tracking-normal text-fg">
-                        {GROUP_TITLES[group] ?? group}
-                      </PanelTitle>
-                      {GROUP_BLURBS[group] && (
-                        <p className="mt-0.5 max-w-2xl text-[11.5px] text-subtle">
-                          {GROUP_BLURBS[group]}
-                        </p>
-                      )}
-                    </div>
-                    <Badge tone="neutral">{rows.length}</Badge>
-                  </PanelHeader>
-                  <ul className="divide-y divide-[hsl(var(--border))]">
-                    {rows.map((setting) => (
-                      <SettingRow key={setting.key} setting={setting} />
-                    ))}
-                  </ul>
-                </Panel>
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-5xl px-4 py-5">
+          {settings.isPending && (
+            <div className="space-y-4">
+              {Array.from({ length: 3 }, (_, i) => (
+                <Skeleton key={i} className="h-44" />
               ))}
             </div>
-          </div>
-        )}
+          )}
+          {settings.isError && <ErrorNotice error={settings.error} />}
+
+          {!settings.isPending && !settings.isError && groups.length === 0 && (
+            <EmptyState
+              icon={<SlidersHorizontal />}
+              title="Nothing matches"
+              description={`None of the ${total} settings mention “${query.trim()}”.`}
+              action={
+                <Button variant="outline" size="sm" onClick={() => setQuery('')}>
+                  Clear the filter
+                </Button>
+              }
+            />
+          )}
+
+          {groups.length > 0 && (
+            <div className="grid gap-6 lg:grid-cols-[184px_minmax(0,1fr)]">
+              <nav aria-label="Setting groups" className="hidden lg:block">
+                <div className="sticky top-0 space-y-0.5 pb-4">
+                  <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-subtle">
+                    Sections
+                  </p>
+                  {groups.map(([group, list]) => (
+                    <RailItem
+                      key={group}
+                      group={group}
+                      count={list.length}
+                      active={active === group}
+                      dirty={list.some((row) => drafts[row.key] !== undefined)}
+                      onSelect={() =>
+                        document
+                          .getElementById(`settings-${group}`)
+                          ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      }
+                    />
+                  ))}
+                </div>
+              </nav>
+
+              <div className="min-w-0 space-y-6">
+                {groups.map(([group, list]) => (
+                  <GroupSection
+                    key={group}
+                    group={group}
+                    rows={list}
+                    pools={status?.pools}
+                    drafts={drafts}
+                    rowStates={rowStates}
+                    needle={needle}
+                    onDraft={draft}
+                    onSet={set}
+                    onCommit={commit}
+                    onRevert={revert}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
+
+      {dirtyKeys.length > 0 && (
+        <PendingBar
+          keys={dirtyKeys}
+          saving={saving}
+          onApply={() => void apply(dirtyKeys)}
+          onDiscard={discardAll}
+        />
+      )}
     </>
   )
 }
 
-const SettingRow = memo(function SettingRow({ setting }: { setting: Setting }) {
-  const queryClient = useQueryClient()
-  const [value, setValue] = useState(setting.value)
-  const [saved, setSaved] = useState(false)
+/* -------------------------------------------------------------------- rail */
 
-  // A change made elsewhere (or by another client) wins over a stale draft.
-  useEffect(() => setValue(setting.value), [setting.value])
+function RailItem({
+  group,
+  count,
+  active,
+  dirty,
+  onSelect,
+}: {
+  group: string
+  count: number
+  active: boolean
+  dirty: boolean
+  onSelect: () => void
+}) {
+  const { title, icon: Icon } = groupMeta(group)
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-current={active ? 'true' : undefined}
+      className={cn(
+        'relative flex w-full items-center gap-2 rounded-[var(--radius-sm)] py-1.5 pl-2.5 pr-2 text-left text-[12px] transition-colors',
+        active
+          ? 'bg-[hsl(var(--bg-active))] font-medium text-fg'
+          : 'text-muted hover:bg-[hsl(var(--bg-hover))] hover:text-fg',
+      )}
+    >
+      {active && (
+        <span
+          aria-hidden
+          className="absolute left-[-6px] top-1/2 h-4 w-[2px] -translate-y-1/2 rounded-full bg-[hsl(var(--accent))]"
+        />
+      )}
+      <Icon className={cn('h-3.5 w-3.5 shrink-0', active ? 'text-[hsl(var(--accent))]' : '')} />
+      <span className="min-w-0 flex-1 truncate">{title}</span>
+      {dirty ? (
+        <span
+          className="h-1.5 w-1.5 shrink-0 rounded-full bg-[hsl(var(--warning))]"
+          aria-label="unsaved changes"
+        />
+      ) : (
+        <span className="tabular text-[10.5px] text-subtle">{count}</span>
+      )}
+    </button>
+  )
+}
 
-  const save = useMutation({
-    mutationFn: (next: string) => api.updateSetting(setting.key, next),
-    onSuccess: (updated) => {
-      queryClient.setQueryData<Setting[]>(qk.settings, (prev) =>
-        prev?.map((s) => (s.key === updated.key ? updated : s)),
-      )
-      void queryClient.invalidateQueries({ queryKey: qk.scheduler })
-      setSaved(true)
-      window.setTimeout(() => setSaved(false), 1500)
-    },
-  })
+/* ----------------------------------------------------------------- section */
 
-  const dirty = value !== setting.value
+interface RowHandlers {
+  onDraft: (key: string, value: string) => void
+  onSet: (key: string, value: string) => void
+  onCommit: (key: string) => void
+  onRevert: (key: string) => void
+}
+
+function GroupSection({
+  group,
+  rows,
+  pools,
+  drafts,
+  rowStates,
+  needle,
+  ...handlers
+}: RowHandlers & {
+  group: string
+  rows: Setting[]
+  pools: PoolStat[] | undefined
+  drafts: Record<string, string>
+  rowStates: Record<string, RowState>
+  needle: string
+}) {
+  const { title, blurb, icon: Icon } = groupMeta(group)
+  return (
+    <section id={`settings-${group}`} className="scroll-mt-5" aria-labelledby={`heading-${group}`}>
+      <div className="mb-2.5 flex items-start gap-2.5 px-0.5">
+        <span className="mt-[1px] flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[hsl(var(--accent-soft))] text-[hsl(var(--accent))]">
+          <Icon className="h-[15px] w-[15px]" />
+        </span>
+        <div className="min-w-0">
+          <h2 id={`heading-${group}`} className="text-[13.5px] font-semibold text-fg">
+            {title}
+          </h2>
+          {blurb && (
+            <p className="mt-0.5 max-w-2xl text-[11.5px] leading-[1.5] text-subtle">{blurb}</p>
+          )}
+        </div>
+      </div>
+
+      <ul className="divide-y divide-[hsl(var(--border))] overflow-hidden rounded-[var(--radius-md)] border border-[hsl(var(--border))] bg-[hsl(var(--bg-elevated))] elev-1">
+        {rows.map((setting) => (
+          <SettingRow
+            key={setting.key}
+            setting={setting}
+            draft={drafts[setting.key]}
+            state={rowStates[setting.key]}
+            pool={poolFor(setting.key, pools)}
+            needle={needle}
+            {...handlers}
+          />
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+/** `pool.image.limit` is the limit of a live pool; say what it is doing. */
+function poolFor(key: string, pools: PoolStat[] | undefined): PoolStat | undefined {
+  const match = /^pool\.(\w+)\.limit$/.exec(key)
+  return match ? pools?.find((stat) => stat.pool === match[1]) : undefined
+}
+
+/* --------------------------------------------------------------------- row */
+
+type ControlKind = 'switch' | 'segmented' | 'select' | 'stepper' | 'number' | 'text' | 'textarea'
+
+/**
+ * The control follows the shape of the value, not its storage type: a fixed set
+ * small enough to read at once is worth spending the width on, a bounded integer
+ * is worth a pair of nudge buttons, and a paragraph-length string needs room to
+ * be read before it is edited.
+ */
+function controlKind(setting: Setting): ControlKind {
+  if (setting.options.length > 0) {
+    const short = setting.options.every((option) => option.length <= 9)
+    const count = setting.options.length
+    // One registered backend is a statement, not a choice, and a segmented
+    // control of one reads as a disabled label; leave it a dropdown.
+    return count >= 2 && count <= 3 && short ? 'segmented' : 'select'
+  }
+  if (setting.type === 'bool') return 'switch'
+  if (setting.type === 'int') {
+    const bounded = setting.min !== setting.max
+    return bounded && setting.max - setting.min <= 256 ? 'stepper' : 'number'
+  }
+  return setting.value.length > 44 ? 'textarea' : 'text'
+}
+
+/** Memoised per row: typing in one field does not re-render the other thirty. */
+const SettingRow = memo(function SettingRow({
+  setting,
+  draft,
+  state,
+  pool,
+  needle,
+  onDraft,
+  onSet,
+  onCommit,
+  onRevert,
+}: RowHandlers & {
+  setting: Setting
+  draft: string | undefined
+  state: RowState | undefined
+  pool: PoolStat | undefined
+  needle: string
+}) {
+  const value = draft ?? setting.value
+  const dirty = draft !== undefined && draft !== setting.value
+  const kind = controlKind(setting)
+  const stacked = kind === 'textarea'
+  const id = `setting-${setting.key}`
+  const hint = `${id}-hint`
+
   const commit = () => {
-    if (dirty) save.mutate(value)
+    if (dirty) onCommit(setting.key)
+  }
+  const onKeyDown = (event: ReactKeyboardEvent) => {
+    if (event.key === 'Enter' && kind !== 'textarea') {
+      event.preventDefault()
+      commit()
+    }
+    if (event.key === 'Escape' && dirty) {
+      event.stopPropagation()
+      onRevert(setting.key)
+    }
   }
 
-  // A setting with a fixed set of values is a dropdown, whether that set comes
-  // from the type (a boolean) or from the server (the backends it registered).
-  // Anything else is free-form text.
-  const choices = useMemo(() => {
-    if (setting.options.length > 0) {
-      return setting.options.map((option) => ({ value: option, label: option }))
-    }
-    if (setting.type === 'bool') {
-      return [
-        { value: 'true', label: 'enabled' },
-        { value: 'false', label: 'disabled' },
-      ]
-    }
-    return null
-  }, [setting.options, setting.type])
+  const control = (
+    <SettingControl
+      id={id}
+      describedBy={hint}
+      kind={kind}
+      setting={setting}
+      value={value}
+      dirty={dirty}
+      onDraft={(next) => onDraft(setting.key, next)}
+      onSet={(next) => onSet(setting.key, next)}
+      onCommit={commit}
+      onKeyDown={onKeyDown}
+    />
+  )
 
   return (
     <li
       className={cn(
-        'flex items-start gap-4 px-3 py-2.5 transition-colors',
-        dirty && 'bg-[hsl(var(--accent)/0.05)]',
+        'group/row relative px-4 py-3 transition-colors',
+        dirty ? 'bg-[hsl(var(--accent)/0.045)]' : 'hover:bg-[hsl(var(--bg-hover)/0.45)]',
       )}
     >
-      <div className="min-w-0 flex-1">
-        <label
-          htmlFor={`setting-${setting.key}`}
-          className="font-mono text-[12px] font-medium text-fg"
-        >
-          {setting.key}
-        </label>
-        <p className="mt-0.5 text-[11.5px] text-subtle">{setting.description}</p>
-        {setting.type === 'int' && setting.min !== setting.max && (
-          <p className="mt-0.5 text-[11px] tabular text-subtle">
-            range {setting.min}–{setting.max}
+      {dirty && (
+        <span aria-hidden className="absolute inset-y-0 left-0 w-[2px] bg-[hsl(var(--accent))]" />
+      )}
+
+      <div className={cn('flex gap-6', stacked ? 'flex-col gap-2.5' : 'items-start')}>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-1.5">
+            {/* A segmented control is a tablist, not a labelable element, so the
+                key is plain text there and the control carries its own name. */}
+            {kind === 'segmented' ? (
+              <span className="truncate font-mono text-[12px] font-medium text-fg">
+                <Highlight text={setting.key} needle={needle} />
+              </span>
+            ) : (
+              <label htmlFor={id} className="truncate font-mono text-[12px] font-medium text-fg">
+                <Highlight text={setting.key} needle={needle} />
+              </label>
+            )}
+            <CopyButton
+              value={setting.key}
+              label="Copy key"
+              className="opacity-0 transition-opacity group-hover/row:opacity-100 group-focus-within/row:opacity-100"
+            />
+            <RowStatus dirty={dirty} state={state} />
+          </div>
+
+          <p id={hint} className="mt-1 max-w-xl text-[12px] leading-[1.55] text-muted">
+            <Highlight text={setting.description} needle={needle} />
           </p>
-        )}
-        {save.isError && <ErrorNotice error={save.error} className="mt-1.5" />}
-      </div>
 
-      <div className="flex w-[260px] shrink-0 items-center gap-2">
-        {choices ? (
-          <Select
-            id={`setting-${setting.key}`}
-            value={value}
-            onChange={(e) => {
-              setValue(e.target.value)
-              save.mutate(e.target.value)
-            }}
-          >
-            {choices.map((choice) => (
-              <option key={choice.value} value={choice.value}>
-                {choice.label}
-              </option>
-            ))}
-          </Select>
-        ) : (
-          <Input
-            id={`setting-${setting.key}`}
-            value={value}
-            type={setting.type === 'int' ? 'number' : 'text'}
-            {...(setting.type === 'int' && setting.min !== setting.max
-              ? { min: setting.min, max: setting.max }
-              : {})}
-            onChange={(e) => setValue(e.target.value)}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commit()
-              if (e.key === 'Escape') setValue(setting.value)
-            }}
-            className={cn(dirty && 'border-[hsl(var(--accent))]')}
-          />
-        )}
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-subtle">
+            {setting.type === 'int' && setting.min !== setting.max && (
+              <span className="tabular">
+                {setting.min}–{setting.max}
+              </span>
+            )}
+            {pool && <PoolNote stat={pool} />}
+            <span className="tabular opacity-0 transition-opacity group-hover/row:opacity-100">
+              written {formatRelative(setting.updatedAt)}
+            </span>
+          </div>
 
-        <div className="flex w-14 justify-end gap-1">
-          {saved && (
-            <Tooltip label="Applied">
-              <Check className="h-4 w-4 text-[hsl(var(--success))]" />
-            </Tooltip>
+          {state?.error !== undefined && <ErrorNotice error={state.error} className="mt-2" />}
+        </div>
+
+        <div
+          className={cn(
+            'flex shrink-0 items-center gap-1.5',
+            stacked ? 'w-full' : 'w-[264px] justify-end',
           )}
-          {dirty && (
-            <>
-              <Tooltip label="Apply" keys="enter">
-                <Button size="icon" variant="primary" onClick={commit} aria-label="Apply">
-                  <Check className="h-3.5 w-3.5" />
-                </Button>
-              </Tooltip>
-              <Tooltip label="Revert" keys="escape">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setValue(setting.value)}
-                  aria-label="Revert"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                </Button>
-              </Tooltip>
-            </>
+        >
+          <div className="min-w-0 flex-1">{control}</div>
+          {kind !== 'switch' && kind !== 'segmented' && kind !== 'select' && (
+            <div className="flex w-[52px] shrink-0 justify-end gap-1">
+              {dirty && (
+                <>
+                  <Tooltip label="Apply" keys={stacked ? 'mod+s' : 'enter'}>
+                    <Button
+                      size="icon"
+                      variant="primary"
+                      onClick={commit}
+                      disabled={state?.saving}
+                      aria-label={`Apply ${setting.key}`}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </Button>
+                  </Tooltip>
+                  <Tooltip label="Revert" keys="escape">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => onRevert(setting.key)}
+                      aria-label={`Revert ${setting.key}`}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                    </Button>
+                  </Tooltip>
+                </>
+              )}
+            </div>
           )}
         </div>
       </div>
     </li>
   )
 })
+
+function RowStatus({ dirty, state }: { dirty: boolean; state: RowState | undefined }) {
+  if (state?.saving) {
+    return (
+      <Pill tone="muted">
+        <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+        Saving
+      </Pill>
+    )
+  }
+  if (state?.error !== undefined) {
+    return (
+      <Pill tone="danger">
+        <AlertCircle className="h-3 w-3" aria-hidden />
+        Rejected
+      </Pill>
+    )
+  }
+  if (state?.applied) {
+    return (
+      <Pill tone="success">
+        <Check className="h-3 w-3" aria-hidden />
+        Applied
+      </Pill>
+    )
+  }
+  if (dirty) {
+    return (
+      <Pill tone="warning">
+        <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden />
+        Unsaved
+      </Pill>
+    )
+  }
+  return null
+}
+
+function Pill({
+  tone,
+  children,
+}: {
+  tone: 'muted' | 'success' | 'warning' | 'danger'
+  children: ReactNode
+}) {
+  const tones = {
+    muted: 'text-subtle',
+    success: 'text-[hsl(var(--success))]',
+    warning: 'text-[hsl(var(--warning))]',
+    danger: 'text-[hsl(var(--danger))]',
+  }
+  return (
+    <span
+      role="status"
+      className={cn(
+        'animate-in-fade inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[10.5px] font-medium',
+        tones[tone],
+      )}
+    >
+      {children}
+    </span>
+  )
+}
+
+function PoolNote({ stat }: { stat: PoolStat }) {
+  const saturated = stat.inFlight >= stat.limit && stat.limit > 0
+  return (
+    <span
+      className={cn('tabular', saturated && stat.queued > 0 ? 'text-[hsl(var(--warning))]' : '')}
+    >
+      {poolLabel(stat.pool)} pool · {stat.inFlight} busy
+      {stat.queued > 0 ? ` · ${stat.queued} queued` : ''}
+    </span>
+  )
+}
+
+/* ---------------------------------------------------------------- controls */
+
+function SettingControl({
+  id,
+  describedBy,
+  kind,
+  setting,
+  value,
+  dirty,
+  onDraft,
+  onSet,
+  onCommit,
+  onKeyDown,
+}: {
+  id: string
+  describedBy: string
+  kind: ControlKind
+  setting: Setting
+  value: string
+  dirty: boolean
+  onDraft: (value: string) => void
+  onSet: (value: string) => void
+  onCommit: () => void
+  onKeyDown: (event: ReactKeyboardEvent) => void
+}) {
+  switch (kind) {
+    case 'switch':
+      return (
+        <div className="flex items-center justify-end gap-2">
+          <span
+            className={cn(
+              'text-[12px] tabular-nums',
+              value === 'true' ? 'font-medium text-fg' : 'text-subtle',
+            )}
+          >
+            {value === 'true' ? 'Enabled' : 'Disabled'}
+          </span>
+          <Switch
+            id={id}
+            aria-describedby={describedBy}
+            checked={value === 'true'}
+            onCheckedChange={(next) => onSet(String(next))}
+          />
+        </div>
+      )
+
+    case 'segmented':
+      return (
+        <Segmented
+          aria-label={setting.key}
+          className="w-full"
+          value={value}
+          onChange={onSet}
+          options={setting.options.map((option) => ({ value: option, label: option }))}
+        />
+      )
+
+    case 'select':
+      return (
+        <Select
+          id={id}
+          aria-describedby={describedBy}
+          value={setting.options.includes(value) ? value : ''}
+          onChange={(event) => onSet(event.target.value)}
+        >
+          {!setting.options.includes(value) && (
+            <option value="" disabled>
+              {value || '—'}
+            </option>
+          )}
+          {setting.options.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </Select>
+      )
+
+    case 'stepper':
+      return (
+        <Stepper
+          id={id}
+          describedBy={describedBy}
+          value={value}
+          min={setting.min}
+          max={setting.max}
+          dirty={dirty}
+          onDraft={onDraft}
+          onCommit={onCommit}
+          onKeyDown={onKeyDown}
+        />
+      )
+
+    case 'textarea':
+      return (
+        <Textarea
+          id={id}
+          aria-describedby={describedBy}
+          value={value}
+          rows={3}
+          spellCheck={false}
+          onChange={(event) => onDraft(event.target.value)}
+          onBlur={onCommit}
+          onKeyDown={onKeyDown}
+          className={cn(dirty && 'border-[hsl(var(--accent))]')}
+        />
+      )
+
+    default:
+      return (
+        <Input
+          id={id}
+          aria-describedby={describedBy}
+          value={value}
+          type={setting.type === 'int' ? 'number' : 'text'}
+          spellCheck={false}
+          autoComplete="off"
+          {...(setting.type === 'int' && setting.min !== setting.max
+            ? { min: setting.min, max: setting.max }
+            : {})}
+          onChange={(event) => onDraft(event.target.value)}
+          onBlur={onCommit}
+          onKeyDown={onKeyDown}
+          className={cn('tabular', dirty && 'border-[hsl(var(--accent))]')}
+        />
+      )
+  }
+}
+
+/**
+ * A bounded integer with its two useful edits attached. The field stays a text
+ * input the operator can type into — the buttons are for the nudge, not a
+ * replacement for knowing the number.
+ */
+function Stepper({
+  id,
+  describedBy,
+  value,
+  min,
+  max,
+  dirty,
+  onDraft,
+  onCommit,
+  onKeyDown,
+}: {
+  id: string
+  describedBy: string
+  value: string
+  min: number
+  max: number
+  dirty: boolean
+  onDraft: (value: string) => void
+  onCommit: () => void
+  onKeyDown: (event: ReactKeyboardEvent) => void
+}) {
+  const current = Number.parseInt(value, 10)
+  const valid = Number.isFinite(current)
+  const step = (delta: number) => {
+    const base = valid ? current : min
+    onDraft(String(Math.min(max, Math.max(min, base + delta))))
+  }
+
+  return (
+    <div
+      className={cn(
+        'flex h-8 w-full items-center rounded-[var(--radius-sm)] border bg-[hsl(var(--bg))] transition-colors',
+        dirty ? 'border-[hsl(var(--accent))]' : 'border-[hsl(var(--border-strong))]',
+      )}
+    >
+      <StepButton
+        label="Decrease"
+        disabled={valid && current <= min}
+        onClick={() => step(-1)}
+        icon={<Minus className="h-3 w-3" />}
+      />
+      <input
+        id={id}
+        aria-describedby={describedBy}
+        type="number"
+        inputMode="numeric"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(event) => onDraft(event.target.value)}
+        onBlur={onCommit}
+        onKeyDown={onKeyDown}
+        className="tabular h-full w-full min-w-0 border-0 bg-transparent text-center text-[13px] font-medium text-fg [appearance:textfield] focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      />
+      <StepButton
+        label="Increase"
+        disabled={valid && current >= max}
+        onClick={() => step(1)}
+        icon={<Plus className="h-3 w-3" />}
+      />
+    </div>
+  )
+}
+
+function StepButton({
+  label,
+  disabled,
+  onClick,
+  icon,
+}: {
+  label: string
+  disabled: boolean
+  onClick: () => void
+  icon: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className="flex h-full w-8 shrink-0 items-center justify-center text-subtle transition-colors hover:bg-[hsl(var(--bg-hover))] hover:text-fg disabled:pointer-events-none disabled:opacity-35"
+    >
+      {icon}
+    </button>
+  )
+}
+
+/* ------------------------------------------------------------ pending bar */
+
+/**
+ * The dock that appears the moment anything is unsaved. It is a sibling of the
+ * scroll area rather than an overlay on it, so it never covers the row it is
+ * talking about.
+ */
+function PendingBar({
+  keys,
+  saving,
+  onApply,
+  onDiscard,
+}: {
+  keys: string[]
+  saving: boolean
+  onApply: () => void
+  onDiscard: () => void
+}) {
+  return (
+    <div className="animate-in-slide flex shrink-0 items-center gap-3 border-t border-[hsl(var(--border))] bg-[hsl(var(--bg-elevated))] px-4 py-2.5 elev-2">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--warning-soft))] text-[hsl(var(--warning))]">
+        <Pencil className="h-3.5 w-3.5" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[12.5px] font-medium text-fg">
+          {keys.length} unsaved change{keys.length === 1 ? '' : 's'}
+        </p>
+        <p className="truncate font-mono text-[11px] text-subtle">{keys.join('  ·  ')}</p>
+      </div>
+      <div className="ml-auto flex shrink-0 items-center gap-2">
+        <Button variant="ghost" size="sm" onClick={onDiscard} disabled={saving}>
+          Discard
+        </Button>
+        <Button variant="primary" size="sm" onClick={onApply} disabled={saving}>
+          {saving ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          ) : (
+            <Check className="h-3.5 w-3.5" aria-hidden />
+          )}
+          Apply all
+          <Kbd keys="mod+s" className="ml-0.5 opacity-70" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------- misc */
+
+/** Marks every occurrence of the filter, so a match is visible without hunting. */
+function Highlight({ text, needle }: { text: string; needle: string }) {
+  if (!needle) return <>{text}</>
+  const parts: ReactNode[] = []
+  const haystack = text.toLowerCase()
+  let cursor = 0
+  for (;;) {
+    const at = haystack.indexOf(needle, cursor)
+    if (at < 0) break
+    if (at > cursor) parts.push(text.slice(cursor, at))
+    parts.push(
+      <mark key={at} className="rounded-[2px] bg-[hsl(var(--accent)/0.22)] px-[1px] text-inherit">
+        {text.slice(at, at + needle.length)}
+      </mark>,
+    )
+    cursor = at + needle.length
+  }
+  if (parts.length === 0) return <>{text}</>
+  if (cursor < text.length) parts.push(text.slice(cursor))
+  return <>{parts}</>
+}
+
+export default SettingsRoute
