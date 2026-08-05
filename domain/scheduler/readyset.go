@@ -3,7 +3,7 @@ package scheduler
 import "github.com/tbui/yt-studio/domain/entity"
 
 // initialRingCapacity is sized for one 50-chapter video's widest pool (100
-// image tasks) so a normal run never grows a ring after warm-up.
+// slide tasks) so a normal run never grows a ring after warm-up.
 const initialRingCapacity = 128
 
 // ring is a fixed-stride FIFO of task pointers. Push and Pop are O(1) and

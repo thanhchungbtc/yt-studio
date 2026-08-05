@@ -9,8 +9,8 @@ DELETE FROM chapters WHERE video_id = ?;
 
 -- name: UpsertChapter :exec
 INSERT INTO chapters (
-    id, video_id, ordinal, title, summary, script, image_prompts_json,
-    audio_asset_id, image_asset_ids_json, clip_asset_id, duration_seconds,
+    id, video_id, ordinal, title, summary, script, slide_prompts_json,
+    audio_asset_id, slide_asset_ids_json, clip_asset_id, duration_seconds,
     estimated_words, created_at, updated_at
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (id) DO UPDATE SET
@@ -18,38 +18,38 @@ ON CONFLICT (id) DO UPDATE SET
     title = excluded.title,
     summary = excluded.summary,
     script = excluded.script,
-    image_prompts_json = excluded.image_prompts_json,
+    slide_prompts_json = excluded.slide_prompts_json,
     audio_asset_id = excluded.audio_asset_id,
-    image_asset_ids_json = excluded.image_asset_ids_json,
+    slide_asset_ids_json = excluded.slide_asset_ids_json,
     clip_asset_id = excluded.clip_asset_id,
     duration_seconds = excluded.duration_seconds,
     estimated_words = excluded.estimated_words,
     updated_at = excluded.updated_at;
 
--- Field-scoped updates. Two image tasks for the same chapter run concurrently,
+-- Field-scoped updates. Two slide tasks for the same chapter run concurrently,
 -- so a read-modify-write of the whole row would lose one of them; each of these
 -- is a single atomic statement instead.
 -- name: SetChapterScript :exec
 UPDATE chapters SET script = ?, duration_seconds = ?, updated_at = ? WHERE id = ?;
 
 -- name: SetChapterPrompts :exec
-UPDATE chapters SET image_prompts_json = ?, updated_at = ? WHERE id = ?;
+UPDATE chapters SET slide_prompts_json = ?, updated_at = ? WHERE id = ?;
 
--- Written by index for the same reason SetChapterImage is: the operator is
+-- Written by index for the same reason SetChapterSlide is: the operator is
 -- replacing one prompt, and rewriting the whole array would carry back whatever
 -- the row held when it was read.
 -- name: SetChapterPrompt :exec
 UPDATE chapters
-SET image_prompts_json = json_set(image_prompts_json, CAST(sqlc.arg(path) AS TEXT), CAST(sqlc.arg(prompt) AS TEXT)),
+SET slide_prompts_json = json_set(slide_prompts_json, CAST(sqlc.arg(path) AS TEXT), CAST(sqlc.arg(prompt) AS TEXT)),
     updated_at = sqlc.arg(updated_at)
 WHERE id = sqlc.arg(id);
 
 -- name: SetChapterAudio :exec
 UPDATE chapters SET audio_asset_id = ?, updated_at = ? WHERE id = ?;
 
--- name: SetChapterImage :exec
+-- name: SetChapterSlide :exec
 UPDATE chapters
-SET image_asset_ids_json = json_set(image_asset_ids_json, CAST(sqlc.arg(path) AS TEXT), CAST(sqlc.arg(asset_id) AS TEXT)),
+SET slide_asset_ids_json = json_set(slide_asset_ids_json, CAST(sqlc.arg(path) AS TEXT), CAST(sqlc.arg(asset_id) AS TEXT)),
     updated_at = sqlc.arg(updated_at)
 WHERE id = sqlc.arg(id);
 

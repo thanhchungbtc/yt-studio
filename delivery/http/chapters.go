@@ -30,12 +30,12 @@ type UpdateScriptInput struct {
 	}
 }
 
-// RegenerateStillInput is an operator's edited prompt and the instruction to
-// draw the still again with it. The two are one request because they are one
+// RegenerateSlideInput is an operator's edited prompt and the instruction to
+// draw the slide again with it. The two are one request because they are one
 // decision; there is no way to save a prompt without generating from it.
-type RegenerateStillInput struct {
+type RegenerateSlideInput struct {
 	ID    string `path:"id" doc:"Chapter id"`
-	Index int    `path:"index" minimum:"0" doc:"0-based still index within the chapter"`
+	Index int    `path:"index" minimum:"0" doc:"0-based slide index within the chapter"`
 	Body  struct {
 		Prompt string `json:"prompt" required:"true" minLength:"1"`
 	}
@@ -82,14 +82,14 @@ func putChapterScript(
 	}
 }
 
-func postRegenerateStill(
+func postRegenerateSlide(
 	chapters repository.ChapterReader,
 	fields repository.ChapterFieldWriter,
 	rerunner app.TaskRerunner,
 	notifier app.ChapterNotifier,
-) func(context.Context, *RegenerateStillInput) (*ChapterOutput, error) {
-	return func(ctx context.Context, in *RegenerateStillInput) (*ChapterOutput, error) {
-		c, err := app.RegenerateChapterStill(ctx, chapters, fields, rerunner, notifier,
+) func(context.Context, *RegenerateSlideInput) (*ChapterOutput, error) {
+	return func(ctx context.Context, in *RegenerateSlideInput) (*ChapterOutput, error) {
+		c, err := app.RegenerateChapterSlide(ctx, chapters, fields, rerunner, notifier,
 			entity.ChapterID(in.ID), in.Index, in.Body.Prompt)
 		if err != nil {
 			return nil, mapError(err)
@@ -137,16 +137,16 @@ func registerChapterRoutes(
 	}, putChapterScript(chapters, fields, notifier, marker))
 
 	huma.Register(api, huma.Operation{
-		OperationID: "regenerateChapterStill", Method: "POST",
-		Path:    "/api/chapters/{id}/stills/{index}/generate",
-		Summary: "Redraw one still from an edited prompt",
-		Description: "Writes the prompt at this index and re-runs that one image task with " +
+		OperationID: "regenerateChapterSlide", Method: "POST",
+		Path:    "/api/chapters/{id}/slides/{index}/generate",
+		Summary: "Redraw one slide from an edited prompt",
+		Description: "Writes the prompt at this index and re-runs that one slide task with " +
 			"it. Everything downstream keeps its artifact and is flagged stale, exactly as " +
-			"re-running the still from the task table would. There is no way to save a " +
+			"re-running the slide from the task table would. There is no way to save a " +
 			"prompt without generating from it: the stored prompt is always the one the " +
-			"current still was drawn from.",
+			"current slide was drawn from.",
 		Tags: []string{"chapters"},
-	}, postRegenerateStill(chapters, fields, rerunner, notifier))
+	}, postRegenerateSlide(chapters, fields, rerunner, notifier))
 
 	huma.Register(api, huma.Operation{
 		OperationID: "retryChapter", Method: "POST", Path: "/api/videos/{key}/chapters/{ordinal}/retry",

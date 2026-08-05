@@ -7,9 +7,9 @@ import (
 )
 
 // RetryChapter resets one chapter and everything downstream of it, so a bad
-// script or a failed still can be re-run without redoing the whole video.
+// script or a failed slide can be re-run without redoing the whole video.
 //
-// The video's coalesced image-prompt batch is dropped first: a retry that
+// The video's coalesced slide-prompt batch is dropped first: a retry that
 // replayed the cached prompts would reproduce exactly the output the operator
 // rejected.
 func RetryChapter(

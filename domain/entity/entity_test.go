@@ -114,7 +114,7 @@ func TestDeterministicIDs(t *testing.T) {
 	if got := entity.NewChapterID("v1", 7); got != "v1:ch:7" {
 		t.Errorf("chapter id = %q", got)
 	}
-	if got := entity.NewTaskID("v1", entity.TaskKindImage, 7, 1); got != "v1:image:7:1" {
+	if got := entity.NewTaskID("v1", entity.TaskKindSlide, 7, 1); got != "v1:slide:7:1" {
 		t.Errorf("task id = %q", got)
 	}
 	if got := entity.NewTaskID("v1", entity.TaskKindBlueprint, -1, -1); got != "v1:blueprint" {
@@ -284,18 +284,18 @@ func TestNewVideoValidation(t *testing.T) {
 		ref      entity.Ref
 		title    string
 		chapters int
-		images   int
+		slides   int
 	}{
 		{"bad ref", "nope", "Title", 1, 1},
 		{"no title", "DSS-1", "  ", 1, 1},
 		{"zero chapters", "DSS-1", "Title", 0, 1},
 		{"too many chapters", "DSS-1", "Title", entity.MaxChapterCount + 1, 1},
-		{"zero images", "DSS-1", "Title", 1, 0},
+		{"zero slides", "DSS-1", "Title", 1, 0},
 	}
 	for _, tc := range bad {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if _, err := entity.NewVideo("v1", "c1", tc.ref, tc.title, "", tc.chapters, tc.images, 10, 0, now); !errors.Is(err, entity.ErrInvalidVideo) {
+			if _, err := entity.NewVideo("v1", "c1", tc.ref, tc.title, "", tc.chapters, tc.slides, 10, 0, now); !errors.Is(err, entity.ErrInvalidVideo) {
 				t.Fatalf("err = %v, want ErrInvalidVideo", err)
 			}
 		})

@@ -57,7 +57,7 @@ func ExpandVideoGraph(
 	tail, err := scheduler.BuildTail(scheduler.BuildSpec{
 		VideoID:          v.ID,
 		ChapterCount:     len(rows),
-		ImagesPerChapter: v.ImagesPerChapter,
+		SlidesPerChapter: v.SlidesPerChapter,
 		// The grid width comes off the video row, not from settings: it decides how
 		// many icon tasks this graph gets, and the graph can never grow after.
 		ThumbnailCells: v.ThumbnailCells,

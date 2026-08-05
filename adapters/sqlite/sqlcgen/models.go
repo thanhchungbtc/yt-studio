@@ -34,9 +34,9 @@ type Chapter struct {
 	Title             string
 	Summary           string
 	Script            string
-	ImagePromptsJson  string
+	SlidePromptsJson  string
 	AudioAssetID      *string
-	ImageAssetIdsJson string
+	SlideAssetIdsJson string
 	ClipAssetID       *string
 	DurationSeconds   float64
 	CreatedAt         int64
@@ -91,7 +91,7 @@ type Video struct {
 	Topic                 string
 	State                 string
 	ChapterCount          int64
-	ImagesPerChapter      int64
+	SlidesPerChapter      int64
 	BlueprintAssetID      *string
 	FinalAssetID          *string
 	MetadataJson          *string

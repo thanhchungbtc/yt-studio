@@ -26,8 +26,8 @@ const (
 	scriptSystemPrompt    = "script.system.tmpl"
 	scriptUserPrompt      = "script.user.tmpl"
 
-	imagePromptsSystemPrompt = "imageprompts.system.tmpl"
-	imagePromptsUserPrompt   = "imageprompts.user.tmpl"
+	slidePromptsSystemPrompt = "slideprompts.system.tmpl"
+	slidePromptsUserPrompt   = "slideprompts.user.tmpl"
 
 	metadataSystemPrompt = "metadata.system.tmpl"
 	metadataUserPrompt   = "metadata.user.tmpl"

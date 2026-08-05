@@ -12,7 +12,7 @@ import (
 // entry says what raising it does.
 //
 // They are constants rather than settings rows on purpose. The backend that
-// exists to be re-styled without a rebuild is the browser one still to come;
+// exists to be re-styled without a rebuild is the browser one slide to come;
 // a settings table full of pixel values would be a second place to change a
 // layout and a first place to get it wrong.
 

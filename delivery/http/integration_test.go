@@ -95,7 +95,7 @@ func newHarness(t *testing.T) *harness {
 		store, store, store, store, store, store, store, assets,
 		llm,
 		mockprovider.NewTTS(assets, tuning),
-		mockprovider.NewImage(assets, tuning),
+		mockprovider.NewSlide(assets, tuning),
 		mockprovider.NewComposer(assets, tuning),
 		mockprovider.NewThumbnail(assets, tuning),
 		mockprovider.NewIcon(assets, tuning),
@@ -196,7 +196,7 @@ func videoContext(store *sqlite.Store) mockprovider.ContextLookup {
 		}
 		return mockprovider.VideoContext{
 			Ref: v.Ref, Title: v.Title, Topic: v.Topic,
-			Chapters: outline, ImagesPerChapter: v.ImagesPerChapter,
+			Chapters: outline, SlidesPerChapter: v.SlidesPerChapter,
 		}, nil
 	}
 }
@@ -323,7 +323,7 @@ func (h *harness) approve(ref, gate string, timeout time.Duration) {
 // test that is reading the default.
 const testThumbnailCells = 4
 
-func createVideo(h *harness, chapters, images int, start bool) videoBody {
+func createVideo(h *harness, chapters, slides int, start bool) videoBody {
 	h.t.Helper()
 	var v videoBody
 	h.json(http.MethodPost, "/api/videos", map[string]any{
@@ -331,7 +331,7 @@ func createVideo(h *harness, chapters, images int, start bool) videoBody {
 		"title":            "The Long Winter of the Harbour",
 		"topic":            "a northern port town",
 		"chapterCount":     chapters,
-		"imagesPerChapter": images,
+		"slidesPerChapter": slides,
 		"thumbnailCells":   testThumbnailCells,
 		"start":            start,
 	}, http.StatusCreated, &v)
@@ -437,14 +437,14 @@ func TestPipelineEndToEndThroughBothGates(t *testing.T) {
 		t.Fatalf("upload receipt = %+v", done.Upload)
 	}
 
-	// Every chapter has its narration, both stills and a clip.
+	// Every chapter has its narration, both slides and a clip.
 	var full struct {
 		Chapters []struct {
 			Ordinal       int      `json:"ordinal"`
 			Script        string   `json:"script"`
-			ImagePrompts  []string `json:"imagePrompts"`
+			SlidePrompts  []string `json:"slidePrompts"`
 			AudioAssetID  string   `json:"audioAssetId"`
-			ImageAssetIDs []string `json:"imageAssetIds"`
+			SlideAssetIDs []string `json:"slideAssetIds"`
 			ClipAssetID   string   `json:"clipAssetId"`
 		} `json:"chapters"`
 	}
@@ -453,15 +453,15 @@ func TestPipelineEndToEndThroughBothGates(t *testing.T) {
 		if c.Script == "" {
 			t.Errorf("chapter %d has no script", c.Ordinal)
 		}
-		if len(c.ImagePrompts) != 2 {
-			t.Errorf("chapter %d has %d prompts, want 2", c.Ordinal, len(c.ImagePrompts))
+		if len(c.SlidePrompts) != 2 {
+			t.Errorf("chapter %d has %d prompts, want 2", c.Ordinal, len(c.SlidePrompts))
 		}
 		if c.AudioAssetID == "" || c.ClipAssetID == "" {
 			t.Errorf("chapter %d is missing audio or clip", c.Ordinal)
 		}
-		for j, id := range c.ImageAssetIDs {
+		for j, id := range c.SlideAssetIDs {
 			if id == "" {
-				t.Errorf("chapter %d still %d is missing", c.Ordinal, j)
+				t.Errorf("chapter %d slide %d is missing", c.Ordinal, j)
 			}
 		}
 	}
@@ -653,7 +653,7 @@ func TestChapterScriptEditAndRetry(t *testing.T) {
 	}
 }
 
-// Editing a prompt and redrawing the still it describes is one request. The
+// Editing a prompt and redrawing the slide it describes is one request. The
 // mock painter seeds on the prompt text, so an artifact that changed is proof
 // the edit reached the provider rather than just the row.
 func TestEditingAPromptRedrawsOneStill(t *testing.T) {
@@ -666,46 +666,46 @@ func TestEditingAPromptRedrawsOneStill(t *testing.T) {
 	type chapterBody struct {
 		ID            string   `json:"id"`
 		Ordinal       int      `json:"ordinal"`
-		ImagePrompts  []string `json:"imagePrompts"`
-		ImageAssetIDs []string `json:"imageAssetIds"`
+		SlidePrompts  []string `json:"slidePrompts"`
+		SlideAssetIDs []string `json:"slideAssetIds"`
 	}
 	var chapters struct {
 		Chapters []chapterBody `json:"chapters"`
 	}
 	h.json(http.MethodGet, "/api/videos/DSS-1/chapters", nil, http.StatusOK, &chapters)
 	target := chapters.Chapters[1]
-	was := target.ImageAssetIDs[0]
+	was := target.SlideAssetIDs[0]
 
 	const prompt = "a harbour lighthouse swallowed by fog"
 	var edited chapterBody
-	h.json(http.MethodPost, "/api/chapters/"+target.ID+"/stills/0/generate",
+	h.json(http.MethodPost, "/api/chapters/"+target.ID+"/slides/0/generate",
 		map[string]any{"prompt": prompt}, http.StatusOK, &edited)
-	if edited.ImagePrompts[0] != prompt {
-		t.Fatalf("prompt 0 = %q, want the edit", edited.ImagePrompts[0])
+	if edited.SlidePrompts[0] != prompt {
+		t.Fatalf("prompt 0 = %q, want the edit", edited.SlidePrompts[0])
 	}
-	if edited.ImagePrompts[1] != target.ImagePrompts[1] {
+	if edited.SlidePrompts[1] != target.SlidePrompts[1] {
 		t.Fatal("the sibling prompt was overwritten by an indexed write")
 	}
 
-	// The one still is redrawn from the new text; its sibling is untouched.
+	// The one slide is redrawn from the new text; its sibling is untouched.
 	deadline := time.Now().Add(30 * time.Second)
 	var now chapterBody
 	for time.Now().Before(deadline) {
 		h.json(http.MethodGet, "/api/videos/DSS-1/chapters", nil, http.StatusOK, &chapters)
 		now = chapters.Chapters[1]
-		if now.ImageAssetIDs[0] != "" && now.ImageAssetIDs[0] != was {
+		if now.SlideAssetIDs[0] != "" && now.SlideAssetIDs[0] != was {
 			break
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	if now.ImageAssetIDs[0] == was {
-		t.Fatal("the still was never redrawn from the edited prompt")
+	if now.SlideAssetIDs[0] == was {
+		t.Fatal("the slide was never redrawn from the edited prompt")
 	}
-	if now.ImageAssetIDs[1] != target.ImageAssetIDs[1] {
-		t.Fatal("the sibling still was redrawn too; only one image task should have run")
+	if now.SlideAssetIDs[1] != target.SlideAssetIDs[1] {
+		t.Fatal("the sibling slide was redrawn too; only one slide task should have run")
 	}
 
-	// What the still fed keeps its artifact and is flagged, exactly as re-running
+	// What the slide fed keeps its artifact and is flagged, exactly as re-running
 	// from the task table would leave it.
 	var tasks struct {
 		Tasks []struct {
@@ -721,24 +721,24 @@ func TestEditingAPromptRedrawsOneStill(t *testing.T) {
 		switch {
 		case task.Kind == "clip" && task.Ordinal == 2:
 			if !task.Stale {
-				t.Fatal("the clip built from the old still is not flagged stale")
+				t.Fatal("the clip built from the old slide is not flagged stale")
 			}
-		case task.Kind == "image" && task.Ordinal == 2 && task.Index == 0:
+		case task.Kind == "slide" && task.Ordinal == 2 && task.Index == 0:
 			if task.Stale {
-				t.Fatal("the redrawn still is flagged stale rather than reset")
+				t.Fatal("the redrawn slide is flagged stale rather than reset")
 			}
 		}
 	}
 
 	// Both halves of the input are checked at the boundary, and neither runs
 	// anything: a prompt with no text, and an index the graph has no task for.
-	resp, _ := h.do(http.MethodPost, "/api/chapters/"+target.ID+"/stills/0/generate",
+	resp, _ := h.do(http.MethodPost, "/api/chapters/"+target.ID+"/slides/0/generate",
 		map[string]any{"prompt": "  "})
 	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("empty prompt = %d, want 422", resp.StatusCode)
 	}
-	resp, _ = h.do(http.MethodPost, "/api/chapters/"+target.ID+"/stills/9/generate",
-		map[string]any{"prompt": "a ninth still that has no task"})
+	resp, _ = h.do(http.MethodPost, "/api/chapters/"+target.ID+"/slides/9/generate",
+		map[string]any{"prompt": "a ninth slide that has no task"})
 	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("out-of-range index = %d, want 422", resp.StatusCode)
 	}
@@ -968,7 +968,7 @@ func TestIdempotencyKeyReplaysTheFirstResponse(t *testing.T) {
 
 	post := func() (int, videoBody, string) {
 		body, err := json.Marshal(map[string]any{
-			"channel": "deep-sleep-stories", "title": "Once only", "chapterCount": 2, "imagesPerChapter": 1,
+			"channel": "deep-sleep-stories", "title": "Once only", "chapterCount": 2, "slidesPerChapter": 1,
 		})
 		if err != nil {
 			t.Fatal(err)

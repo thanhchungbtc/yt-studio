@@ -9,28 +9,28 @@ import (
 	"github.com/tbui/yt-studio/domain/repository"
 )
 
-// RegenerateChapterStill rewrites one image prompt and re-runs the one still it
+// RegenerateChapterSlide rewrites one slide prompt and re-runs the one slide it
 // describes.
 //
 // The write and the re-run are deliberately a single operation. A prompt that
 // had been saved but not generated from would be a third thing to explain — the
-// text beside a still would no longer be the text that drew it — and the
+// text beside a slide would no longer be the text that drew it — and the
 // operator would have to remember which of the two they were looking at.
 // Because this is the only hand write to a prompt, the stored text is always
 // what produced the current image, or what is producing it right now.
 //
-// The prompt is written first because GenerateStill reads it when the task is
+// The prompt is written first because GenerateSlide reads it when the task is
 // dispatched rather than when the re-run is asked for. If the scheduler then
 // refuses the re-run the edit stands and nothing has run, which is the state a
 // second press of the same button resolves.
 //
-// The video's coalesced prompt batch is deliberately left alone: an image task
+// The video's coalesced prompt batch is deliberately left alone: an slide task
 // never reads it, and dropping it here would only make some later re-run of the
 // prompt task cost an LLM call. That re-run overwrites this edit either way —
 // it is the operator's own instruction to go back to generated prompts.
 //
 //nolint:revive // the parameter list is the dependency list
-func RegenerateChapterStill(
+func RegenerateChapterSlide(
 	ctx context.Context,
 	chapters repository.ChapterReader,
 	fields repository.ChapterFieldWriter,
@@ -53,23 +53,23 @@ func RegenerateChapterStill(
 	}
 	// Refused rather than appended: json_set would grow the array past the image
 	// width the DAG was expanded with, leaving a prompt no task will ever read.
-	if index >= len(c.ImagePrompts) {
+	if index >= len(c.SlidePrompts) {
 		return entity.Chapter{}, Invalid("index", fmt.Sprintf(
-			"chapter %d has %d prompts", c.Ordinal, len(c.ImagePrompts)))
+			"chapter %d has %d prompts", c.Ordinal, len(c.SlidePrompts)))
 	}
 
 	if err := fields.SetChapterPrompt(ctx, id, index, prompt); err != nil {
 		return entity.Chapter{}, err
 	}
-	c.ImagePrompts[index] = prompt
+	c.SlidePrompts[index] = prompt
 
-	// Rerun rather than RetryTask: the clip built from the old still, and the
+	// Rerun rather than RetryTask: the clip built from the old slide, and the
 	// render built from that clip, keep their artifacts and are flagged for the
 	// operator instead of being thrown away. It is the same call the tile's
-	// re-run makes, and it holds for a still that failed just as well as one that
+	// re-run makes, and it holds for a slide that failed just as well as one that
 	// succeeded — nothing below a failure ever ran, so nothing below it is
 	// flagged.
-	seed := entity.NewTaskID(c.VideoID, entity.TaskKindImage, c.Ordinal, index)
+	seed := entity.NewTaskID(c.VideoID, entity.TaskKindSlide, c.Ordinal, index)
 	if _, err := rerunner.Rerun(ctx, c.VideoID, []entity.TaskID{seed}, false); err != nil {
 		return entity.Chapter{}, err
 	}

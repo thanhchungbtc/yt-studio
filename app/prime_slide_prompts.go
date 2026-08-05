@@ -8,20 +8,20 @@ import (
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
-// PrimeImagePrompts forces the video's whole prompt batch to be produced once.
+// PrimeSlidePrompts forces the video's whole prompt batch to be produced once.
 //
 // This task exists because the LLM pool is capped at 2: without it, the N
 // per-chapter prompt tasks would trickle through that cap and there would never
 // be a batch to coalesce. It occupies a real LLM slot; the per-chapter tasks
 // then fan out as cheap cache reads on a separate high-concurrency pool.
-func PrimeImagePrompts(
+func PrimeSlidePrompts(
 	ctx context.Context,
 	t entity.Task,
 	llm provider.LLMProvider,
 ) entity.TaskOutcome {
-	prompts, err := llm.ImagePrompts(ctx, t.VideoID)
+	prompts, err := llm.SlidePrompts(ctx, t.VideoID)
 	if err != nil {
-		return classify(fmt.Errorf("prime image prompts: %w", err))
+		return classify(fmt.Errorf("prime slide prompts: %w", err))
 	}
 	if len(prompts) == 0 {
 		return entity.Failed{

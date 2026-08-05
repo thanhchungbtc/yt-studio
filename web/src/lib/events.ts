@@ -195,14 +195,14 @@ function applyChapterDeltas(client: QueryClient, deltas: ChapterDelta[]): void {
         const merged: Chapter = {
           ...chapter,
           audioAssetId: delta.audioAssetId ?? chapter.audioAssetId,
-          imageAssetIds: delta.imageAssetIds ?? chapter.imageAssetIds,
+          slideAssetIds: delta.slideAssetIds ?? chapter.slideAssetIds,
           clipAssetId: delta.clipAssetId ?? chapter.clipAssetId,
           updatedAt: delta.updatedAt,
         }
         if (
           merged.audioAssetId === chapter.audioAssetId &&
           merged.clipAssetId === chapter.clipAssetId &&
-          sameIds(merged.imageAssetIds, chapter.imageAssetIds)
+          sameIds(merged.slideAssetIds, chapter.slideAssetIds)
         ) {
           // A script arrived, which the delta does not carry; refetch lazily.
           if (delta.hasScript && !chapter.script) {

@@ -128,7 +128,7 @@ func TestDeleteIsIdempotent(t *testing.T) {
 	t.Parallel()
 
 	store := newStore(t)
-	stored, err := store.Put(t.Context(), entity.AssetKindImage, bytes.NewReader([]byte("a still")))
+	stored, err := store.Put(t.Context(), entity.AssetKindImage, bytes.NewReader([]byte("a slide")))
 	if err != nil {
 		t.Fatalf("put: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestWalkClassifiesWhatItFinds(t *testing.T) {
 	t.Parallel()
 
 	store := newStore(t)
-	asset, err := store.Put(t.Context(), entity.AssetKindImage, bytes.NewReader([]byte("a still")))
+	asset, err := store.Put(t.Context(), entity.AssetKindImage, bytes.NewReader([]byte("a slide")))
 	if err != nil {
 		t.Fatalf("put: %v", err)
 	}
@@ -228,7 +228,7 @@ func TestPruneEmptyDirsLeavesWhatIsInUse(t *testing.T) {
 	t.Parallel()
 
 	store := newStore(t)
-	kept, err := store.Put(t.Context(), entity.AssetKindImage, bytes.NewReader([]byte("a still that stays")))
+	kept, err := store.Put(t.Context(), entity.AssetKindImage, bytes.NewReader([]byte("a slide that stays")))
 	if err != nil {
 		t.Fatalf("put: %v", err)
 	}

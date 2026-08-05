@@ -20,7 +20,7 @@ const defaultIconSize = 256
 
 // Icon is the mock thumbnail-icon backend. Output is white line art on black,
 // which is the register the real grid is drawn in — a mock that returned the
-// landscape stills use would make a wrong layout look right.
+// landscape slides use would make a wrong layout look right.
 type Icon struct {
 	store  provider.AssetStore
 	tuning Tuning

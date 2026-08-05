@@ -31,7 +31,7 @@ func (s *stubLLM) Blueprint(context.Context, provider.BlueprintRequest) (provide
 func (s *stubLLM) Script(context.Context, provider.ScriptRequest) (provider.Script, error) {
 	return provider.Script{}, nil
 }
-func (s *stubLLM) ImagePrompts(context.Context, entity.VideoID) ([]provider.ImagePrompt, error) {
+func (s *stubLLM) SlidePrompts(context.Context, entity.VideoID) ([]provider.SlidePrompt, error) {
 	return nil, nil
 }
 func (s *stubLLM) Metadata(context.Context, provider.MetadataRequest) (provider.Metadata, error) {
@@ -51,7 +51,7 @@ func (uncachedLLM) Blueprint(context.Context, provider.BlueprintRequest) (provid
 func (uncachedLLM) Script(context.Context, provider.ScriptRequest) (provider.Script, error) {
 	return provider.Script{}, nil
 }
-func (uncachedLLM) ImagePrompts(context.Context, entity.VideoID) ([]provider.ImagePrompt, error) {
+func (uncachedLLM) SlidePrompts(context.Context, entity.VideoID) ([]provider.SlidePrompt, error) {
 	return nil, nil
 }
 func (uncachedLLM) Metadata(context.Context, provider.MetadataRequest) (provider.Metadata, error) {

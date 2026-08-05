@@ -22,7 +22,7 @@ import (
 //
 // A file another video also uses is left alone. Identical bytes across two
 // videos are ordinary rather than exotic — the sample backends serve one
-// narration recording and a handful of stills to every video — so the store
+// narration recording and a handful of slides to every video — so the store
 // keeps one copy and each video records a row against it.
 func DeleteVideo(
 	ctx context.Context,

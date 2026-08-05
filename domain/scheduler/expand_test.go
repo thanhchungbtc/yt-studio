@@ -8,7 +8,7 @@ import (
 	"github.com/tbui/yt-studio/domain/entity"
 )
 
-func headAndTail(t *testing.T, videoID entity.VideoID, chapters, images int, gates bool) (*Graph, Tail) {
+func headAndTail(t *testing.T, videoID entity.VideoID, chapters, slides int, gates bool) (*Graph, Tail) {
 	t.Helper()
 	head, err := BuildHeadGraph(HeadSpec{
 		VideoID:       videoID,
@@ -22,7 +22,7 @@ func headAndTail(t *testing.T, videoID entity.VideoID, chapters, images int, gat
 	tail, err := BuildTail(BuildSpec{
 		VideoID:          videoID,
 		ChapterCount:     chapters,
-		ImagesPerChapter: images,
+		SlidesPerChapter: slides,
 		ThumbnailCells:   testCells,
 		MaxAttempts:      3,
 		BlueprintGate:    gates,
@@ -216,10 +216,10 @@ func TestBuildTailRejectsBadSpecs(t *testing.T) {
 		name string
 		spec BuildSpec
 	}{
-		{"no video", BuildSpec{ChapterCount: 1, ImagesPerChapter: 1}},
-		{"zero chapters", BuildSpec{VideoID: "v", ChapterCount: 0, ImagesPerChapter: 1}},
-		{"too many chapters", BuildSpec{VideoID: "v", ChapterCount: entity.MaxChapterCount + 1, ImagesPerChapter: 1}},
-		{"zero images", BuildSpec{VideoID: "v", ChapterCount: 1, ImagesPerChapter: 0}},
+		{"no video", BuildSpec{ChapterCount: 1, SlidesPerChapter: 1}},
+		{"zero chapters", BuildSpec{VideoID: "v", ChapterCount: 0, SlidesPerChapter: 1}},
+		{"too many chapters", BuildSpec{VideoID: "v", ChapterCount: entity.MaxChapterCount + 1, SlidesPerChapter: 1}},
+		{"zero slides", BuildSpec{VideoID: "v", ChapterCount: 1, SlidesPerChapter: 0}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -36,14 +36,14 @@ func blueprintRequest(chapters int) provider.BlueprintRequest {
 	}
 }
 
-func lookupFor(bp provider.Blueprint, images int) mockprovider.ContextLookup {
+func lookupFor(bp provider.Blueprint, slides int) mockprovider.ContextLookup {
 	return func(context.Context, entity.VideoID) (mockprovider.VideoContext, error) {
 		return mockprovider.VideoContext{
 			Ref:              "DSS-1",
 			Title:            bp.Title,
 			Topic:            "a northern port town",
 			Chapters:         bp.Chapters,
-			ImagesPerChapter: images,
+			SlidesPerChapter: slides,
 		}, nil
 	}
 }
@@ -77,15 +77,15 @@ func TestProvidersAreDeterministic(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		images := mockprovider.NewImage(store, nil)
-		still, err := images.Generate(ctx, provider.ImageRequest{
+		gen := mockprovider.NewSlide(store, nil)
+		slide, err := gen.Generate(ctx, provider.SlideRequest{
 			VideoID: "v1", ChapterID: "v1:ch:1", Ordinal: 1, Index: 0,
 			Prompt: "a wide harbour at low tide",
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		return bp.AssetID, script.AssetID, audio, still
+		return bp.AssetID, script.AssetID, audio, slide
 	}
 
 	a1, a2, a3, a4 := run()
@@ -149,12 +149,12 @@ func TestBlueprintProducesTheRequestedChapters(t *testing.T) {
 
 // All prompts come from one production; concurrent callers get their own slice
 // from the cache.
-func TestImagePromptsAreCoalesced(t *testing.T) {
+func TestSlidePromptsAreCoalesced(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	store := newStore(t)
 
-	const chapters, images = 6, 2
+	const chapters, slides = 6, 2
 	seed := mockprovider.NewLLM(store, nil, nil)
 	bp, err := seed.Blueprint(ctx, blueprintRequest(chapters))
 	if err != nil {
@@ -164,18 +164,18 @@ func TestImagePromptsAreCoalesced(t *testing.T) {
 	var lookups int
 	llm := mockprovider.NewLLM(store, func(ctx context.Context, id entity.VideoID) (mockprovider.VideoContext, error) {
 		lookups++
-		return lookupFor(bp, images)(ctx, id)
+		return lookupFor(bp, slides)(ctx, id)
 	}, nil)
 
-	first, err := llm.ImagePrompts(ctx, "v1")
+	first, err := llm.SlidePrompts(ctx, "v1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(first) != chapters*images {
-		t.Fatalf("prompts = %d, want %d", len(first), chapters*images)
+	if len(first) != chapters*slides {
+		t.Fatalf("prompts = %d, want %d", len(first), chapters*slides)
 	}
 	for range 20 {
-		again, err := llm.ImagePrompts(ctx, "v1")
+		again, err := llm.SlidePrompts(ctx, "v1")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -192,7 +192,7 @@ func TestImagePromptsAreCoalesced(t *testing.T) {
 	}
 
 	llm.Forget("v1")
-	if _, err := llm.ImagePrompts(ctx, "v1"); err != nil {
+	if _, err := llm.SlidePrompts(ctx, "v1"); err != nil {
 		t.Fatal(err)
 	}
 	if lookups != 2 {
@@ -204,9 +204,9 @@ func TestGeneratedStillIsAValidPNG(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	store := newStore(t)
-	images := mockprovider.NewImage(store, nil)
+	gen := mockprovider.NewSlide(store, nil)
 
-	id, err := images.Generate(ctx, provider.ImageRequest{
+	id, err := gen.Generate(ctx, provider.SlideRequest{
 		VideoID: "v1", ChapterID: "v1:ch:1", Ordinal: 1, Index: 0, Prompt: "a stone bridge in thin fog",
 	})
 	if err != nil {
@@ -492,7 +492,7 @@ func TestComposedMP4IsStructurallyValid(t *testing.T) {
 	ctx := context.Background()
 	store := newStore(t)
 	tts := mockprovider.NewTTS(store, nil)
-	images := mockprovider.NewImage(store, nil)
+	gen := mockprovider.NewSlide(store, nil)
 	composer := mockprovider.NewComposer(store, nil)
 
 	makeClip := func(ordinal int) entity.AssetID {
@@ -503,20 +503,20 @@ func TestComposedMP4IsStructurallyValid(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		stills := make([]entity.AssetID, 0, 2)
+		slides := make([]entity.AssetID, 0, 2)
 		for j := range 2 {
-			id, err := images.Generate(ctx, provider.ImageRequest{
+			id, err := gen.Generate(ctx, provider.SlideRequest{
 				VideoID: "v1", ChapterID: entity.NewChapterID("v1", ordinal),
 				Ordinal: ordinal, Index: j, Prompt: "a river bend seen from a ridge",
 			})
 			if err != nil {
 				t.Fatal(err)
 			}
-			stills = append(stills, id)
+			slides = append(slides, id)
 		}
 		clip, err := composer.Clip(ctx, provider.ClipRequest{
 			VideoID: "v1", ChapterID: entity.NewChapterID("v1", ordinal), Ordinal: ordinal,
-			AudioAssetID: audio, ImageAssetIDs: stills,
+			AudioAssetID: audio, SlideAssetIDs: slides,
 		})
 		if err != nil {
 			t.Fatalf("Clip: %v", err)

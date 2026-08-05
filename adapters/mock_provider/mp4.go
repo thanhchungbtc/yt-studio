@@ -26,7 +26,7 @@ type mp4Sample struct {
 const (
 	// mp4Timescale is the movie and video-track timescale, in ticks/second.
 	mp4Timescale = 600
-	// mp4FrameTicks is the fallback hold time for a still when a clip carries no
+	// mp4FrameTicks is the fallback hold time for a slide when a clip carries no
 	// narration to pace it against: five seconds.
 	mp4FrameTicks = 3000
 	mp4Width      = imageWidth
@@ -149,7 +149,7 @@ var unityMatrix = []byte{
 func buildMoov(video []mp4Sample, videoOffset uint32, audioBytes int64, audioOffset uint32) []byte {
 	audioSamples := uint32(audioBytes / mp4AudioBytesPerSample) //nolint:gosec // small
 
-	// Each still is held for its share of the narration, so the two tracks come
+	// Each slide is held for its share of the narration, so the two tracks come
 	// out the same length and a preview does not run silent partway through.
 	frameTicks := uint32(mp4FrameTicks)
 	audioTicks := audioSamples * mp4Timescale / mp4AudioTimescale

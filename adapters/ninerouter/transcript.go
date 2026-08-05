@@ -45,7 +45,7 @@ type transcript struct {
 }
 
 // transcriptSeq disambiguates two calls landing in the same millisecond, which
-// the image-prompt fan-out makes likely.
+// the slide-prompt fan-out makes likely.
 var transcriptSeq atomic.Uint64
 
 // transcriptWriter appends exchanges under a directory, one file each.

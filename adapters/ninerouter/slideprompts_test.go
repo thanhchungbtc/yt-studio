@@ -18,10 +18,10 @@ import (
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
-// videoContext is the plan an image-prompt generation illustrates. The port
+// videoContext is the plan an slide-prompt generation illustrates. The port
 // hands the method an id and nothing else, so the caller resolves it.
 func videoContext(chapters, perChapter int) ninerouter.VideoContext {
-	out := ninerouter.VideoContext{ImagesPerChapter: perChapter}
+	out := ninerouter.VideoContext{SlidesPerChapter: perChapter}
 	out.Title = "The Long Winter of the Harbour"
 	out.Summary = "a northern port town over one winter"
 	for i := 1; i <= chapters; i++ {
@@ -54,7 +54,7 @@ func promptBatch(chapters, perChapter int) string {
 	return string(body)
 }
 
-func newImageClient(t *testing.T, g *gateway, vc ninerouter.VideoContext) *ninerouter.Client {
+func newSlideClient(t *testing.T, g *gateway, vc ninerouter.VideoContext) *ninerouter.Client {
 	t.Helper()
 	c, err := ninerouter.New(ninerouter.Config{
 		BaseURL: g.server.URL, Model: staticModel(testModel), Timeout: 5 * time.Second,
@@ -67,14 +67,14 @@ func newImageClient(t *testing.T, g *gateway, vc ninerouter.VideoContext) *niner
 	return c
 }
 
-func TestImagePromptsCoversEveryAsset(t *testing.T) {
+func TestSlidePromptsCoversEveryAsset(t *testing.T) {
 	t.Parallel()
 	g := newGateway(t, http.StatusOK, completion(promptBatch(3, 2)))
-	c := newImageClient(t, g, videoContext(3, 2))
+	c := newSlideClient(t, g, videoContext(3, 2))
 
-	prompts, err := c.ImagePrompts(context.Background(), "vid-1")
+	prompts, err := c.SlidePrompts(context.Background(), "vid-1")
 	if err != nil {
-		t.Fatalf("ImagePrompts: %v", err)
+		t.Fatalf("SlidePrompts: %v", err)
 	}
 	if len(prompts) != 6 {
 		t.Fatalf("prompts = %d, want 6", len(prompts))
@@ -98,7 +98,7 @@ func TestImagePromptsCoversEveryAsset(t *testing.T) {
 // The port's contract: N per-chapter callers, one real generation. Both halves
 // matter — singleflight only collapses callers that overlap in time, and the
 // image pool is capped well below the number of them.
-func TestImagePromptsCoalescesConcurrentCallers(t *testing.T) {
+func TestSlidePromptsCoalescesConcurrentCallers(t *testing.T) {
 	t.Parallel()
 	var calls atomic.Int32
 	release := make(chan struct{})
@@ -111,17 +111,17 @@ func TestImagePromptsCoalescesConcurrentCallers(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(completion(promptBatch(4, 2))))
 	})
-	c := newImageClient(t, g, videoContext(4, 2))
+	c := newSlideClient(t, g, videoContext(4, 2))
 
 	const callers = 8
 	var wg sync.WaitGroup
-	results := make([][]provider.ImagePrompt, callers)
+	results := make([][]provider.SlidePrompt, callers)
 	errs := make([]error, callers)
 	for i := range callers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			results[i], errs[i] = c.ImagePrompts(context.Background(), "vid-1")
+			results[i], errs[i] = c.SlidePrompts(context.Background(), "vid-1")
 		}()
 	}
 	time.Sleep(50 * time.Millisecond)
@@ -143,13 +143,13 @@ func TestImagePromptsCoalescesConcurrentCallers(t *testing.T) {
 
 // A caller arriving after the production finished is served from the cache, not
 // from a second generation.
-func TestImagePromptsServesLaterCallersFromCache(t *testing.T) {
+func TestSlidePromptsServesLaterCallersFromCache(t *testing.T) {
 	t.Parallel()
 	g := newGateway(t, http.StatusOK, completion(promptBatch(2, 1)))
-	c := newImageClient(t, g, videoContext(2, 1))
+	c := newSlideClient(t, g, videoContext(2, 1))
 
 	for i := range 5 {
-		if _, err := c.ImagePrompts(context.Background(), "vid-1"); err != nil {
+		if _, err := c.SlidePrompts(context.Background(), "vid-1"); err != nil {
 			t.Fatalf("call %d: %v", i, err)
 		}
 	}
@@ -162,14 +162,14 @@ func TestImagePromptsServesLaterCallersFromCache(t *testing.T) {
 func TestForgetDropsTheBatch(t *testing.T) {
 	t.Parallel()
 	g := newGateway(t, http.StatusOK, completion(promptBatch(2, 1)))
-	c := newImageClient(t, g, videoContext(2, 1))
+	c := newSlideClient(t, g, videoContext(2, 1))
 
-	if _, err := c.ImagePrompts(context.Background(), "vid-1"); err != nil {
-		t.Fatalf("ImagePrompts: %v", err)
+	if _, err := c.SlidePrompts(context.Background(), "vid-1"); err != nil {
+		t.Fatalf("SlidePrompts: %v", err)
 	}
 	c.Forget("vid-1")
-	if _, err := c.ImagePrompts(context.Background(), "vid-1"); err != nil {
-		t.Fatalf("ImagePrompts after Forget: %v", err)
+	if _, err := c.SlidePrompts(context.Background(), "vid-1"); err != nil {
+		t.Fatalf("SlidePrompts after Forget: %v", err)
 	}
 	if g.called != 2 {
 		t.Fatalf("%d gateway calls, want 2: Forget did not drop the batch", g.called)
@@ -178,12 +178,12 @@ func TestForgetDropsTheBatch(t *testing.T) {
 
 // A batch that misses assets leaves per-chapter tasks with nothing to draw
 // from, so it is a bad roll worth asking again rather than a hard failure.
-func TestImagePromptsRejectsAShortBatch(t *testing.T) {
+func TestSlidePromptsRejectsAShortBatch(t *testing.T) {
 	t.Parallel()
 	g := newGateway(t, http.StatusOK, completion(promptBatch(2, 1)))
-	c := newImageClient(t, g, videoContext(4, 2))
+	c := newSlideClient(t, g, videoContext(4, 2))
 
-	_, err := c.ImagePrompts(context.Background(), "vid-1")
+	_, err := c.SlidePrompts(context.Background(), "vid-1")
 	if err == nil {
 		t.Fatal("expected an error")
 	}
@@ -194,32 +194,32 @@ func TestImagePromptsRejectsAShortBatch(t *testing.T) {
 		t.Fatalf("error does not say what was missing: %v", err)
 	}
 	// And nothing was cached, so the retry actually re-asks.
-	if _, err := c.ImagePrompts(context.Background(), "vid-1"); err == nil {
+	if _, err := c.SlidePrompts(context.Background(), "vid-1"); err == nil {
 		t.Fatal("a failed batch was cached")
 	}
 }
 
 // Without a lookup the method cannot know what to illustrate, and no number of
 // attempts changes that.
-func TestImagePromptsNeedsALookup(t *testing.T) {
+func TestSlidePromptsNeedsALookup(t *testing.T) {
 	t.Parallel()
 	g := newGateway(t, http.StatusOK, completion(promptBatch(1, 1)))
 	c := newClient(t, g, "")
 
-	if _, err := c.ImagePrompts(context.Background(), "vid-1"); !errors.Is(err, provider.ErrUnavailable) {
-		t.Fatalf("ImagePrompts = %v, want ErrUnavailable", err)
+	if _, err := c.SlidePrompts(context.Background(), "vid-1"); !errors.Is(err, provider.ErrUnavailable) {
+		t.Fatalf("SlidePrompts = %v, want ErrUnavailable", err)
 	}
 }
 
 // The brand identity is the whole point of this prompt: if a rule stops
-// reaching the model the images drift off-channel and nothing fails.
-func TestImagePromptsPromptCarriesTheVisualIdentity(t *testing.T) {
+// reaching the model the slides drift off-channel and nothing fails.
+func TestSlidePromptsPromptCarriesTheVisualIdentity(t *testing.T) {
 	t.Parallel()
 	g := newGateway(t, http.StatusOK, completion(promptBatch(6, 3)))
-	c := newImageClient(t, g, videoContext(6, 3))
+	c := newSlideClient(t, g, videoContext(6, 3))
 
-	if _, err := c.ImagePrompts(context.Background(), "vid-1"); err != nil {
-		t.Fatalf("ImagePrompts: %v", err)
+	if _, err := c.SlidePrompts(context.Background(), "vid-1"); err != nil {
+		t.Fatalf("SlidePrompts: %v", err)
 	}
 	messages := g.messages(t)
 
@@ -258,10 +258,10 @@ func TestImagePromptsPromptCarriesTheVisualIdentity(t *testing.T) {
 func TestShortVideosGetNoMacroPosition(t *testing.T) {
 	t.Parallel()
 	g := newGateway(t, http.StatusOK, completion(promptBatch(3, 1)))
-	c := newImageClient(t, g, videoContext(3, 1))
+	c := newSlideClient(t, g, videoContext(3, 1))
 
-	if _, err := c.ImagePrompts(context.Background(), "vid-1"); err != nil {
-		t.Fatalf("ImagePrompts: %v", err)
+	if _, err := c.SlidePrompts(context.Background(), "vid-1"); err != nil {
+		t.Fatalf("SlidePrompts: %v", err)
 	}
 	user := g.messages(t)["user"]
 	for _, absent := range []string{"OPENING", "DARK_MIDDLE", "LANDING"} {

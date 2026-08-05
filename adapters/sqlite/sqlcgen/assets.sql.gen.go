@@ -146,7 +146,7 @@ WITH refs AS (
     UNION ALL
     SELECT c.video_id AS video_id, c.id AS chapter_id,
            CAST(j.value AS TEXT) AS asset_id, CAST('image' AS TEXT) AS kind
-    FROM chapters c, json_each(c.image_asset_ids_json) j
+    FROM chapters c, json_each(c.slide_asset_ids_json) j
     WHERE j.value IS NOT NULL AND j.value <> ''
 )
 SELECT DISTINCT video_id, chapter_id, asset_id, kind

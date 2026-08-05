@@ -15,7 +15,7 @@ import (
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
-// Clip composes exactly one chapter: its stills dissolved across its narration,
+// Clip composes exactly one chapter: its slides dissolved across its narration,
 // keyed onto the chalkboard under the chapter and video titles.
 //
 // The result runs for the narration plus a head pad, a tail pad and the beat at
@@ -24,8 +24,8 @@ func (c *Composer) Clip(ctx context.Context, req provider.ClipRequest) (entity.A
 	if err := c.Check(); err != nil {
 		return "", err
 	}
-	if len(req.ImageAssetIDs) == 0 {
-		return "", errors.New("ffmpeg composer: a clip needs at least one still")
+	if len(req.SlideAssetIDs) == 0 {
+		return "", errors.New("ffmpeg composer: a clip needs at least one slide")
 	}
 	if req.AudioAssetID == "" {
 		return "", errors.New("ffmpeg composer: a clip needs narration")
@@ -35,7 +35,7 @@ func (c *Composer) Clip(ctx context.Context, req provider.ClipRequest) (entity.A
 	if err != nil {
 		return "", fmt.Errorf("resolve audio %s: %w", req.AudioAssetID.Short(), err)
 	}
-	images, err := c.inputPaths(req.ImageAssetIDs, entity.AssetKindImage)
+	slidePaths, err := c.inputPaths(req.SlideAssetIDs, entity.AssetKindImage)
 	if err != nil {
 		return "", err
 	}
@@ -50,7 +50,7 @@ func (c *Composer) Clip(ctx context.Context, req provider.ClipRequest) (entity.A
 	log.Info("composing chapter",
 		slog.String("title", req.ChapterTitle),
 		slog.Float64("narration_s", narration),
-		slog.Int("stills", len(images)))
+		slog.Int("slides", len(slidePaths)))
 
 	dir, cleanup, err := c.tempDir("clip")
 	if err != nil {
@@ -58,17 +58,17 @@ func (c *Composer) Clip(ctx context.Context, req provider.ClipRequest) (entity.A
 	}
 	defer cleanup()
 
-	// Every still gets an equal share of the narration. The crossfades overlap, so
+	// Every slide gets an equal share of the narration. The crossfades overlap, so
 	// each one has to be long enough to pay for its own transition.
-	n := len(images)
-	stillDuration := (narration + float64(n-1)*imageCrossfade) / float64(n)
+	n := len(slidePaths)
+	slideDuration := (narration + float64(n-1)*slideCrossfade) / float64(n)
 
-	stills, err := c.encodeStills(ctx, images, stillDuration, dir)
+	slideClips, err := c.encodeSlides(ctx, slidePaths, slideDuration, dir)
 	if err != nil {
 		return "", err
 	}
 	slideshow := filepath.Join(dir, "raw_chapter.mp4")
-	if err := c.dissolveAndMux(ctx, stills, audioPath, slideshow); err != nil {
+	if err := c.dissolveAndMux(ctx, slideClips, audioPath, slideshow); err != nil {
 		return "", err
 	}
 	total := narration + 2*chapterCrossfade + chapterTailPad
@@ -79,22 +79,22 @@ func (c *Composer) Clip(ctx context.Context, req provider.ClipRequest) (entity.A
 	return c.ingest(ctx, entity.AssetKindClip, output)
 }
 
-// encodeStills turns each image into a fixed-length silent clip.
+// encodeSlides turns each slide into a fixed-length silent clip.
 //
 // They are independent files, so they encode concurrently — a chapter with
-// several stills otherwise spends most of its wall clock waiting on process
-// startup, one image at a time.
-func (c *Composer) encodeStills(ctx context.Context, images []string, duration float64, dir string) ([]string, error) {
-	clips := make([]string, len(images))
+// several slides otherwise spends most of its wall clock waiting on process
+// startup, one slide at a time.
+func (c *Composer) encodeSlides(ctx context.Context, slidePaths []string, duration float64, dir string) ([]string, error) {
+	clips := make([]string, len(slidePaths))
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(c.lanes)
-	for i, image := range images {
+	for i, slide := range slidePaths {
 		clips[i] = filepath.Join(dir, fmt.Sprintf("img_%02d.mp4", i))
 		g.Go(func() error {
 			args := []string{
 				"-loop", "1",
 				"-r", "1",
-				"-i", image,
+				"-i", slide,
 				"-vf", "format=yuv420p",
 				"-r", itoa(videoFPS),
 				"-t", f6(duration),
@@ -110,8 +110,8 @@ func (c *Composer) encodeStills(ctx context.Context, images []string, duration f
 	return clips, nil
 }
 
-// dissolveAndMux crossfades the still clips into one track and attaches the
-// narration. A single still needs no transition, so its video is copied through
+// dissolveAndMux crossfades the slide clips into one track and attaches the
+// narration. A single slide needs no transition, so its video is copied through
 // rather than re-encoded.
 func (c *Composer) dissolveAndMux(ctx context.Context, clips []string, audio, output string) error {
 	if len(clips) == 1 {
@@ -137,7 +137,7 @@ func (c *Composer) dissolveAndMux(ctx context.Context, clips []string, audio, ou
 	}
 	args = append(args,
 		"-i", audio,
-		"-filter_complex", imageXfadeGraph(durations),
+		"-filter_complex", slideXfadeGraph(durations),
 		"-map", "[vout]",
 		"-map", itoa(len(clips))+":a")
 	args = append(args, encodeArgs()...)

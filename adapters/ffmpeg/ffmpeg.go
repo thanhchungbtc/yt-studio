@@ -45,7 +45,7 @@ const (
 	// titleMaxWidth is the width the chapter title is shrunk to fit.
 	titleMaxWidth = imageWidth - 40
 
-	imageCrossfade   = 0.5
+	slideCrossfade   = 0.5
 	chapterCrossfade = 1.0
 	chapterTailPad   = 1.5
 )
@@ -61,7 +61,7 @@ const (
 // Filter-graph literals. The numbers above are formatted exactly once, here,
 // because a filter graph is a string and "1.0" is not "1".
 const (
-	imageCrossfadeArg = "0.5"
+	slideCrossfadeArg = "0.5"
 	crossfadeArg      = "1.0"
 	// headPadArg and tailPadArg pad a chapter for the crossfade into its
 	// neighbours, plus the trailing beat at the end.
@@ -111,7 +111,7 @@ type Composer struct {
 	// file lands in var/ and the finished render can be renamed into place rather
 	// than copied.
 	work string
-	// lanes bounds the still encodes within one chapter. The compose pool already
+	// lanes bounds the slide encodes within one chapter. The compose pool already
 	// bounds chapters against each other; this keeps a single chapter from taking
 	// the whole machine.
 	lanes int

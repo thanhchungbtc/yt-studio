@@ -188,12 +188,12 @@ func TestCheckReportsMissingKey(t *testing.T) {
 	}
 }
 
-func TestGenerateStillSendsTheConfiguredTask(t *testing.T) {
+func TestGenerateSlideSendsTheConfiguredTask(t *testing.T) {
 	t.Parallel()
 	a := newAPI(t)
 	client := newClient(t, a, testKey, 1344, 768)
 
-	id, err := runware.NewImage(client).Generate(context.Background(), provider.ImageRequest{
+	id, err := runware.NewSlide(client).Generate(context.Background(), provider.SlideRequest{
 		Prompt: "a chalk diagram of a lever",
 	})
 	if err != nil {
@@ -233,14 +233,14 @@ func TestGenerateStillSendsTheConfiguredTask(t *testing.T) {
 	}
 }
 
-func TestGenerateStillPrefersTheRequestedSize(t *testing.T) {
+func TestGenerateSlidePrefersTheRequestedSize(t *testing.T) {
 	t.Parallel()
 	a := newAPI(t)
 	client := newClient(t, a, testKey, 1344, 768)
 
 	// The port declares the fields; a use case that starts filling them must be
 	// obeyed rather than overridden by the settings row.
-	if _, err := runware.NewImage(client).Generate(context.Background(), provider.ImageRequest{
+	if _, err := runware.NewSlide(client).Generate(context.Background(), provider.SlideRequest{
 		Prompt: "a lever",
 		Width:  1024,
 		Height: 1024,
@@ -305,8 +305,8 @@ func TestStoredAssetsAreAddressedByKind(t *testing.T) {
 		t.Fatalf("runware.New: %v", err)
 	}
 
-	still, err := runware.NewImage(client).Generate(context.Background(),
-		provider.ImageRequest{Prompt: "a lever"})
+	slide, err := runware.NewSlide(client).Generate(context.Background(),
+		provider.SlideRequest{Prompt: "a lever"})
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -317,11 +317,11 @@ func TestStoredAssetsAreAddressedByKind(t *testing.T) {
 	}
 	// The same bytes: the content address is the hash, so the two differ only in
 	// the kind they were filed under, and each must be readable as that kind.
-	if still != icon {
-		t.Fatalf("identical bytes produced different addresses: %s and %s", still, icon)
+	if slide != icon {
+		t.Fatalf("identical bytes produced different addresses: %s and %s", slide, icon)
 	}
 	for kind, id := range map[entity.AssetKind]entity.AssetID{
-		entity.AssetKindImage:         still,
+		entity.AssetKindImage:         slide,
 		entity.AssetKindThumbnailIcon: icon,
 	} {
 		if _, err := store.Stat(context.Background(), id, kind); err != nil {
@@ -393,8 +393,8 @@ func TestFailureClassification(t *testing.T) {
 			a.status, a.reply, a.imageStatus = tc.status, tc.reply, tc.imageStatus
 			client := newClient(t, a, testKey, 512, 512)
 
-			_, err := runware.NewImage(client).Generate(context.Background(),
-				provider.ImageRequest{Prompt: "a lever"})
+			_, err := runware.NewSlide(client).Generate(context.Background(),
+				provider.SlideRequest{Prompt: "a lever"})
 			if err == nil {
 				t.Fatal("expected an error")
 			}
@@ -413,8 +413,8 @@ func TestGenerateWithoutAKeyNeverLeaves(t *testing.T) {
 	a := newAPI(t)
 	client := newClient(t, a, "", 512, 512)
 
-	_, err := runware.NewImage(client).Generate(context.Background(),
-		provider.ImageRequest{Prompt: "a lever"})
+	_, err := runware.NewSlide(client).Generate(context.Background(),
+		provider.SlideRequest{Prompt: "a lever"})
 	if !errors.Is(err, provider.ErrUnavailable) {
 		t.Fatalf("expected ErrUnavailable, got %v", err)
 	}
@@ -430,8 +430,8 @@ func TestGenerateRejectsAnImpossibleSize(t *testing.T) {
 
 	// The API's own grid and range rules are left to the API, but a zero is not a
 	// size under any of them and is worth neither the round trip nor a retry.
-	_, err := runware.NewImage(client).Generate(context.Background(),
-		provider.ImageRequest{Prompt: "a lever"})
+	_, err := runware.NewSlide(client).Generate(context.Background(),
+		provider.SlideRequest{Prompt: "a lever"})
 	if !errors.Is(err, provider.ErrUnavailable) {
 		t.Fatalf("expected ErrUnavailable, got %v", err)
 	}
@@ -463,8 +463,8 @@ func TestCancellationAbortsInFlight(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := runware.NewImage(client).Generate(ctx,
-		provider.ImageRequest{Prompt: "a lever"}); !errors.Is(err, context.Canceled) {
+	if _, err := runware.NewSlide(client).Generate(ctx,
+		provider.SlideRequest{Prompt: "a lever"}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected the cancellation to surface, got %v", err)
 	}
 }

@@ -10,12 +10,12 @@ import (
 	"github.com/tbui/yt-studio/domain/repository"
 )
 
-// ResolveImagePrompts takes one chapter's slice of the coalesced batch.
+// ResolveSlidePrompts takes one chapter's slice of the coalesced batch.
 //
 // The DAG keeps N clean per-chapter prompt tasks — individually retryable and
 // uniform with every other chapter task — while the provider serves them all
 // from one production behind singleflight.
-func ResolveImagePrompts(
+func ResolveSlidePrompts(
 	ctx context.Context,
 	t entity.Task,
 	llm provider.LLMProvider,
@@ -29,12 +29,12 @@ func ResolveImagePrompts(
 	if err != nil {
 		return classify(err)
 	}
-	batch, err := llm.ImagePrompts(ctx, t.VideoID)
+	batch, err := llm.SlidePrompts(ctx, t.VideoID)
 	if err != nil {
-		return classify(fmt.Errorf("resolve image prompts: %w", err))
+		return classify(fmt.Errorf("resolve slide prompts: %w", err))
 	}
 
-	mine := make([]provider.ImagePrompt, 0, 4)
+	mine := make([]provider.SlidePrompt, 0, 4)
 	for _, p := range batch {
 		if p.Ordinal == chapter.Ordinal {
 			mine = append(mine, p)

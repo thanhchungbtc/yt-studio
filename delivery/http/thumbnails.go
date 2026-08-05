@@ -10,7 +10,7 @@ import (
 )
 
 // RegenerateIconInput is an operator's edited cell prompt and the instruction
-// to redraw that cell. One request, like the still it mirrors: a prompt cannot
+// to redraw that cell. One request, like the slide it mirrors: a prompt cannot
 // be saved without generating from it.
 type RegenerateIconInput struct {
 	Key   string `path:"key" doc:"Video ref or id"`

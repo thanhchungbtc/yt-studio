@@ -35,7 +35,7 @@ func (l *planLLM) Script(context.Context, provider.ScriptRequest) (provider.Scri
 	return provider.Script{}, errors.New("not used")
 }
 
-func (l *planLLM) ImagePrompts(context.Context, entity.VideoID) ([]provider.ImagePrompt, error) {
+func (l *planLLM) SlidePrompts(context.Context, entity.VideoID) ([]provider.SlidePrompt, error) {
 	return nil, errors.New("not used")
 }
 

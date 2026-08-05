@@ -45,7 +45,7 @@ type HeadSpec struct {
 type BuildSpec struct {
 	VideoID          entity.VideoID
 	ChapterCount     int
-	ImagesPerChapter int
+	SlidesPerChapter int
 	// ThumbnailCells is the width of the thumbnail's grid, and therefore how many
 	// icon tasks the graph holds. It is independent of the chapters: the grid is
 	// its own artifact, not a view onto them.
@@ -151,10 +151,10 @@ func (g *Graph) Edges() []repository.TaskEdge {
 
 // NodeCountFor returns the exact number of tasks a spec produces: blueprint +
 // prime + concat + metadata + thumbnail plan + thumbnail + upload, plus four
-// per-chapter tasks, one per still and one per thumbnail cell. It is exported
+// per-chapter tasks, one per slide and one per thumbnail cell. It is exported
 // so callers can preallocate too.
-func NodeCountFor(chapters, imagesPerChapter, thumbnailCells int) int {
-	return 7 + 4*chapters + chapters*imagesPerChapter + thumbnailCells
+func NodeCountFor(chapters, slidesPerChapter, thumbnailCells int) int {
+	return 7 + 4*chapters + chapters*slidesPerChapter + thumbnailCells
 }
 
 // newGraph allocates an empty graph sized for total nodes.
@@ -329,9 +329,9 @@ func (g *Graph) Expand(tail Tail) error {
 
 // BuildGraph constructs a video's DAG.
 //
-// The structurally important detail: image prompts depend on the blueprint
+// The structurally important detail: slide prompts depend on the blueprint
 // alone, not on the chapter script. That gives the graph two independent
-// branches and is what makes the image pipeline — the longest pole — start
+// branches and is what makes the slide pipeline — the longest pole — start
 // early.
 func BuildGraph(spec BuildSpec) (*Graph, error) {
 	if spec.VideoID == "" {
@@ -341,9 +341,9 @@ func BuildGraph(spec BuildSpec) (*Graph, error) {
 		return nil, fmt.Errorf("%w: chapter count must be %d..%d, got %d",
 			ErrInvalidGraph, entity.MinChapterCount, entity.MaxChapterCount, spec.ChapterCount)
 	}
-	if spec.ImagesPerChapter < entity.MinImagesPerChapter || spec.ImagesPerChapter > entity.MaxImagesPerChapter {
-		return nil, fmt.Errorf("%w: images per chapter must be %d..%d, got %d",
-			ErrInvalidGraph, entity.MinImagesPerChapter, entity.MaxImagesPerChapter, spec.ImagesPerChapter)
+	if spec.SlidesPerChapter < entity.MinSlidesPerChapter || spec.SlidesPerChapter > entity.MaxSlidesPerChapter {
+		return nil, fmt.Errorf("%w: slides per chapter must be %d..%d, got %d",
+			ErrInvalidGraph, entity.MinSlidesPerChapter, entity.MaxSlidesPerChapter, spec.SlidesPerChapter)
 	}
 	if spec.ThumbnailCells < entity.MinThumbnailCells || spec.ThumbnailCells > entity.MaxThumbnailCells {
 		return nil, fmt.Errorf("%w: thumbnail cells must be %d..%d, got %d",
@@ -352,7 +352,7 @@ func BuildGraph(spec BuildSpec) (*Graph, error) {
 	maxAttempts := normaliseAttempts(spec.MaxAttempts)
 
 	n := spec.ChapterCount
-	m := spec.ImagesPerChapter
+	m := spec.SlidesPerChapter
 	cells := spec.ThumbnailCells
 
 	g := newGraph(spec.VideoID, NodeCountFor(n, m, cells))
@@ -374,11 +374,11 @@ func BuildGraph(spec BuildSpec) (*Graph, error) {
 	// Canonical node order. It is deterministic so that golden-file tests over the
 	// dispatch sequence stay stable.
 	blueprint := add(entity.TaskKindBlueprint, -1, -1, blueprintGate)
-	prime := add(entity.TaskKindPrimeImagePrompts, -1, -1, entity.GateNone)
+	prime := add(entity.TaskKindPrimeSlidePrompts, -1, -1, entity.GateNone)
 
 	prompts := make([]int32, n)
 	for i := range n {
-		prompts[i] = add(entity.TaskKindImagePrompts, i+1, -1, entity.GateNone)
+		prompts[i] = add(entity.TaskKindSlidePrompts, i+1, -1, entity.GateNone)
 	}
 	scripts := make([]int32, n)
 	for i := range n {
@@ -388,11 +388,11 @@ func BuildGraph(spec BuildSpec) (*Graph, error) {
 	for i := range n {
 		tts[i] = add(entity.TaskKindTTS, i+1, -1, entity.GateNone)
 	}
-	images := make([][]int32, n)
+	slides := make([][]int32, n)
 	for i := range n {
-		images[i] = make([]int32, m)
+		slides[i] = make([]int32, m)
 		for j := range m {
-			images[i][j] = add(entity.TaskKindImage, i+1, j, entity.GateNone)
+			slides[i][j] = add(entity.TaskKindSlide, i+1, j, entity.GateNone)
 		}
 	}
 	clips := make([]int32, n)
@@ -402,7 +402,7 @@ func BuildGraph(spec BuildSpec) (*Graph, error) {
 	concat := add(entity.TaskKindConcat, -1, -1, entity.GateNone)
 	metadata := add(entity.TaskKindMetadata, -1, -1, entity.GateNone)
 	plan := add(entity.TaskKindThumbnailPlan, -1, -1, entity.GateNone)
-	// One icon per cell, indexed like a chapter's stills are. The width is fixed
+	// One icon per cell, indexed like a chapter's slides are. The width is fixed
 	// here and cannot grow later, which is why the plan's cell count is a
 	// contract rather than a target.
 	icons := make([]int32, cells)
@@ -426,8 +426,8 @@ func BuildGraph(spec BuildSpec) (*Graph, error) {
 		link(scripts[i], tts[i])
 		link(tts[i], clips[i])
 		for j := range m {
-			link(prompts[i], images[i][j])
-			link(images[i][j], clips[i])
+			link(prompts[i], slides[i][j])
+			link(slides[i][j], clips[i])
 		}
 		link(clips[i], concat)
 	}

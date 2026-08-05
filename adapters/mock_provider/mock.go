@@ -35,11 +35,11 @@ type VideoContext struct {
 	Title            string
 	Topic            string
 	Chapters         []provider.BlueprintChapter
-	ImagesPerChapter int
+	SlidesPerChapter int
 }
 
 // ContextLookup resolves a video's context. Wiring it explicitly is what lets
-// ImagePrompts keep the narrow signature the port declares while still having
+// SlidePrompts keep the narrow signature the port declares while still having
 // the blueprint it needs.
 type ContextLookup func(ctx context.Context, videoID entity.VideoID) (VideoContext, error)
 

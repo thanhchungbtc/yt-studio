@@ -99,9 +99,9 @@ type Script struct {
 	AssetID   entity.AssetID
 }
 
-// ImagePrompt is one still's prompt, addressed by chapter ordinal and the
-// still's index within that chapter.
-type ImagePrompt struct {
+// SlidePrompt is one slide's prompt, addressed by chapter ordinal and the
+// slide's index within that chapter.
+type SlidePrompt struct {
 	Ordinal int
 	Index   int
 	Prompt  string
@@ -149,10 +149,10 @@ type ThumbnailPlan struct {
 type LLMProvider interface {
 	Blueprint(ctx context.Context, req BlueprintRequest) (Blueprint, error)
 	Script(ctx context.Context, req ScriptRequest) (Script, error)
-	// ImagePrompts returns every chapter's prompts for one video. Callers are the
+	// SlidePrompts returns every chapter's prompts for one video. Callers are the
 	// N per-chapter tasks; the implementation coalesces them behind singleflight
 	// so exactly one real generation happens per video.
-	ImagePrompts(ctx context.Context, videoID entity.VideoID) ([]ImagePrompt, error)
+	SlidePrompts(ctx context.Context, videoID entity.VideoID) ([]SlidePrompt, error)
 	Metadata(ctx context.Context, req MetadataRequest) (Metadata, error)
 	ThumbnailPlan(ctx context.Context, req ThumbnailPlanRequest) (ThumbnailPlan, error)
 }

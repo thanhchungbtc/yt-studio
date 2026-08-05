@@ -43,7 +43,7 @@ type TaskRunner struct {
 	store         provider.AssetStore
 	llm           provider.LLMProvider
 	tts           provider.TTSProvider
-	images        provider.ImageProvider
+	slides        provider.SlideProvider
 	composer      provider.VideoComposer
 	thumbnails    provider.ThumbnailBuilder
 	icons         provider.ThumbnailIconGenerator
@@ -73,7 +73,7 @@ func NewTaskRunner(
 	store provider.AssetStore,
 	llm provider.LLMProvider,
 	tts provider.TTSProvider,
-	images provider.ImageProvider,
+	slides provider.SlideProvider,
 	composer provider.VideoComposer,
 	thumbnails provider.ThumbnailBuilder,
 	icons provider.ThumbnailIconGenerator,
@@ -92,7 +92,7 @@ func NewTaskRunner(
 	return &TaskRunner{
 		videos: videos, videoFields: videoFields, channels: channels,
 		chapters: chapters, chapterWriter: chapterWriter, chapterFields: chapterFields,
-		assets: assets, store: store, llm: llm, tts: tts, images: images,
+		assets: assets, store: store, llm: llm, tts: tts, slides: slides,
 		composer: composer, thumbnails: thumbnails, icons: icons,
 		uploader: uploader, notifier: notifier,
 		expander: expander, blueprintOpts: blueprintOpts, iconOpts: iconOpts,
@@ -136,18 +136,18 @@ func (r *TaskRunner) dispatch(ctx context.Context, t entity.Task) entity.TaskOut
 	switch t.Kind {
 	case entity.TaskKindBlueprint:
 		return r.runBlueprint(ctx, t)
-	case entity.TaskKindPrimeImagePrompts:
-		return PrimeImagePrompts(ctx, t, r.llm)
-	case entity.TaskKindImagePrompts:
-		return ResolveImagePrompts(ctx, t, r.llm, r.chapters, r.chapterFields)
+	case entity.TaskKindPrimeSlidePrompts:
+		return PrimeSlidePrompts(ctx, t, r.llm)
+	case entity.TaskKindSlidePrompts:
+		return ResolveSlidePrompts(ctx, t, r.llm, r.chapters, r.chapterFields)
 	case entity.TaskKindScript:
 		return GenerateScript(ctx, t, r.videos, r.chapters, r.llm,
 			r.chapterFields, r.assets, r.store, r.notifier, r.now())
 	case entity.TaskKindTTS:
 		return SynthesizeNarration(ctx, t, r.videos, r.chapters, r.tts,
 			r.chapterFields, r.assets, r.store, r.notifier, r.now())
-	case entity.TaskKindImage:
-		return GenerateStill(ctx, t, r.videos, r.chapters, r.images,
+	case entity.TaskKindSlide:
+		return GenerateSlide(ctx, t, r.videos, r.chapters, r.slides,
 			r.chapterFields, r.assets, r.store, r.notifier, r.now())
 	case entity.TaskKindClip:
 		return ComposeChapterClip(ctx, t, r.videos, r.chapters, r.composer, r.chapterFields,

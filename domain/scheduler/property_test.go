@@ -25,7 +25,7 @@ func TestSchedulerInvariants(t *testing.T) {
 	t.Parallel()
 	rapid.Check(t, func(rt *rapid.T) {
 		chapters := rapid.IntRange(1, 6).Draw(rt, "chapters")
-		images := rapid.IntRange(1, 3).Draw(rt, "images")
+		slides := rapid.IntRange(1, 3).Draw(rt, "slides")
 		gates := rapid.Bool().Draw(rt, "gates")
 		limits := map[entity.Pool]int{
 			entity.PoolLLM:     rapid.IntRange(1, 4).Draw(rt, "llm"),
@@ -41,7 +41,7 @@ func TestSchedulerInvariants(t *testing.T) {
 		// unsatisfiable rather than falsified.
 		failEvery := rapid.IntRange(0, 7).Draw(rt, "failEvery")
 
-		g := testGraph(t, "v1", chapters, images, gates)
+		g := testGraph(t, "v1", chapters, slides, gates)
 		var (
 			mu     sync.Mutex
 			burned = map[entity.TaskID]bool{}
@@ -129,7 +129,7 @@ func TestReadySetIsFIFOPerPool(t *testing.T) {
 		for i := range n {
 			pool := entity.AllPools[rapid.IntRange(0, entity.NumPools-1).Draw(rt, "pool")]
 			tasks[i] = entity.Task{
-				ID:    (entity.NewTaskID("v", entity.TaskKindImage, i, 0)),
+				ID:    (entity.NewTaskID("v", entity.TaskKindSlide, i, 0)),
 				Pool:  pool,
 				State: entity.TaskStateReady,
 			}
@@ -171,7 +171,7 @@ func TestReadySetDropsStaleEntries(t *testing.T) {
 		wantAlive := 0
 		for i := range n {
 			tasks[i] = entity.Task{
-				ID:    (entity.NewTaskID("v", entity.TaskKindImage, i, 0)),
+				ID:    (entity.NewTaskID("v", entity.TaskKindSlide, i, 0)),
 				Pool:  entity.PoolImage,
 				State: entity.TaskStateReady,
 			}
@@ -258,12 +258,12 @@ func TestGraphIsAlwaysConsistent(t *testing.T) {
 	t.Parallel()
 	rapid.Check(t, func(rt *rapid.T) {
 		chapters := rapid.IntRange(1, 60).Draw(rt, "chapters")
-		images := rapid.IntRange(1, 5).Draw(rt, "images")
+		slides := rapid.IntRange(1, 5).Draw(rt, "slides")
 		cells := rapid.IntRange(1, entity.MaxThumbnailCells).Draw(rt, "cells")
 		g, err := BuildGraph(BuildSpec{
 			VideoID:          "v1",
 			ChapterCount:     chapters,
-			ImagesPerChapter: images,
+			SlidesPerChapter: slides,
 			ThumbnailCells:   cells,
 			MaxAttempts:      3,
 			BlueprintGate:    rapid.Bool().Draw(rt, "blueprintGate"),
@@ -273,7 +273,7 @@ func TestGraphIsAlwaysConsistent(t *testing.T) {
 		if err != nil {
 			rt.Fatalf("BuildGraph: %v", err)
 		}
-		if got, want := g.NodeCount(), NodeCountFor(chapters, images, cells); got != want {
+		if got, want := g.NodeCount(), NodeCountFor(chapters, slides, cells); got != want {
 			rt.Fatalf("node count = %d, want %d", got, want)
 		}
 		// Every dependent arc has a matching dependency arc.
@@ -311,8 +311,8 @@ func TestGraphSurvivesPersistence(t *testing.T) {
 	t.Parallel()
 	rapid.Check(t, func(rt *rapid.T) {
 		chapters := rapid.IntRange(1, 20).Draw(rt, "chapters")
-		images := rapid.IntRange(1, 3).Draw(rt, "images")
-		original := testGraph(t, "v1", chapters, images, rapid.Bool().Draw(rt, "gates"))
+		slides := rapid.IntRange(1, 3).Draw(rt, "slides")
+		original := testGraph(t, "v1", chapters, slides, rapid.Bool().Draw(rt, "gates"))
 
 		restored, err := GraphFromPersisted(persistedFrom(original))
 		if err != nil {

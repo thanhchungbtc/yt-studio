@@ -109,7 +109,7 @@ func videoFromRow(r sqlcgen.Video) (entity.Video, error) {
 		State:                 entity.VideoState(r.State),
 		ChapterCount:          int(r.ChapterCount),
 		TargetDurationMinutes: int(r.TargetDurationMinutes),
-		ImagesPerChapter:      int(r.ImagesPerChapter),
+		SlidesPerChapter:      int(r.SlidesPerChapter),
 		ThumbnailCells:        int(r.ThumbnailCells),
 		BlueprintAssetID:      toAssetID(r.BlueprintAssetID),
 		FinalAssetID:          toAssetID(r.FinalAssetID),
@@ -162,10 +162,10 @@ func chapterFromRow(r sqlcgen.Chapter) (entity.Chapter, error) {
 		CreatedAt:       fromUnix(r.CreatedAt),
 		UpdatedAt:       fromUnix(r.UpdatedAt),
 	}
-	if err := decodeJSON(r.ImagePromptsJson, &c.ImagePrompts); err != nil {
+	if err := decodeJSON(r.SlidePromptsJson, &c.SlidePrompts); err != nil {
 		return entity.Chapter{}, err
 	}
-	if err := decodeJSON(r.ImageAssetIdsJson, &c.ImageAssetIDs); err != nil {
+	if err := decodeJSON(r.SlideAssetIdsJson, &c.SlideAssetIDs); err != nil {
 		return entity.Chapter{}, err
 	}
 	return c, nil

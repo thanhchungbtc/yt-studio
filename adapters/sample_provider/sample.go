@@ -1,4 +1,4 @@
-// Package sampleprovider serves narration and stills from real media files on
+// Package sampleprovider serves narration and slides from real media files on
 // disk, so the pipeline can be exercised against production-shaped input
 // without a GPU or a network call.
 //
@@ -11,11 +11,11 @@
 // assets under the resources directory, discovered by pattern at first use:
 //
 //	<resources>/sample/*.wav       narration, reused by every chapter
-//	<resources>/sample/img*.jpg    stills, rotated across chapters
+//	<resources>/sample/img*.jpg    slides, rotated across chapters
 //	<resources>/sample/icon*.jpg   thumbnail tiles, one per grid cell
 //
 // The icons are optional: they arrived after the other two, and a library
-// without them still serves narration and stills. Selecting this backend for
+// without them still serves narration and slides. Selecting this backend for
 // the icon port without them is what reports the absence, rather than a
 // startup check failing over a file an operator may never have wanted.
 package sampleprovider
@@ -48,7 +48,7 @@ type Library struct {
 	once   sync.Once
 	err    error
 	audio  string
-	images []string
+	slides []string
 	icons  []string
 }
 
@@ -85,7 +85,7 @@ func (l *Library) scan() error {
 	if err := checkRIFF(audio[0]); err != nil {
 		return err
 	}
-	images, err := l.glob("img*.jpg")
+	slides, err := l.glob("img*.jpg")
 	if err != nil {
 		return err
 	}
@@ -93,7 +93,7 @@ func (l *Library) scan() error {
 	// reported, to whoever actually asked for one.
 	icons, _ := l.glob("icon*.jpg")
 
-	l.audio, l.images, l.icons = audio[0], images, icons
+	l.audio, l.slides, l.icons = audio[0], slides, icons
 	return nil
 }
 

@@ -19,7 +19,7 @@ func (q *Queries) DeleteChaptersByVideo(ctx context.Context, videoID string) err
 }
 
 const getChapterByID = `-- name: GetChapterByID :one
-SELECT id, video_id, ordinal, title, summary, script, image_prompts_json, audio_asset_id, image_asset_ids_json, clip_asset_id, duration_seconds, created_at, updated_at, estimated_words FROM chapters WHERE id = ?
+SELECT id, video_id, ordinal, title, summary, script, slide_prompts_json, audio_asset_id, slide_asset_ids_json, clip_asset_id, duration_seconds, created_at, updated_at, estimated_words FROM chapters WHERE id = ?
 `
 
 func (q *Queries) GetChapterByID(ctx context.Context, id string) (Chapter, error) {
@@ -32,9 +32,9 @@ func (q *Queries) GetChapterByID(ctx context.Context, id string) (Chapter, error
 		&i.Title,
 		&i.Summary,
 		&i.Script,
-		&i.ImagePromptsJson,
+		&i.SlidePromptsJson,
 		&i.AudioAssetID,
-		&i.ImageAssetIdsJson,
+		&i.SlideAssetIdsJson,
 		&i.ClipAssetID,
 		&i.DurationSeconds,
 		&i.CreatedAt,
@@ -45,7 +45,7 @@ func (q *Queries) GetChapterByID(ctx context.Context, id string) (Chapter, error
 }
 
 const listChaptersByVideo = `-- name: ListChaptersByVideo :many
-SELECT id, video_id, ordinal, title, summary, script, image_prompts_json, audio_asset_id, image_asset_ids_json, clip_asset_id, duration_seconds, created_at, updated_at, estimated_words FROM chapters WHERE video_id = ? ORDER BY ordinal
+SELECT id, video_id, ordinal, title, summary, script, slide_prompts_json, audio_asset_id, slide_asset_ids_json, clip_asset_id, duration_seconds, created_at, updated_at, estimated_words FROM chapters WHERE video_id = ? ORDER BY ordinal
 `
 
 func (q *Queries) ListChaptersByVideo(ctx context.Context, videoID string) ([]Chapter, error) {
@@ -64,9 +64,9 @@ func (q *Queries) ListChaptersByVideo(ctx context.Context, videoID string) ([]Ch
 			&i.Title,
 			&i.Summary,
 			&i.Script,
-			&i.ImagePromptsJson,
+			&i.SlidePromptsJson,
 			&i.AudioAssetID,
-			&i.ImageAssetIdsJson,
+			&i.SlideAssetIdsJson,
 			&i.ClipAssetID,
 			&i.DurationSeconds,
 			&i.CreatedAt,
@@ -116,33 +116,9 @@ func (q *Queries) SetChapterClip(ctx context.Context, arg SetChapterClipParams) 
 	return err
 }
 
-const setChapterImage = `-- name: SetChapterImage :exec
-UPDATE chapters
-SET image_asset_ids_json = json_set(image_asset_ids_json, CAST(?1 AS TEXT), CAST(?2 AS TEXT)),
-    updated_at = ?3
-WHERE id = ?4
-`
-
-type SetChapterImageParams struct {
-	Path      string
-	AssetID   string
-	UpdatedAt int64
-	ID        string
-}
-
-func (q *Queries) SetChapterImage(ctx context.Context, arg SetChapterImageParams) error {
-	_, err := q.exec(ctx, q.setChapterImageStmt, setChapterImage,
-		arg.Path,
-		arg.AssetID,
-		arg.UpdatedAt,
-		arg.ID,
-	)
-	return err
-}
-
 const setChapterPrompt = `-- name: SetChapterPrompt :exec
 UPDATE chapters
-SET image_prompts_json = json_set(image_prompts_json, CAST(?1 AS TEXT), CAST(?2 AS TEXT)),
+SET slide_prompts_json = json_set(slide_prompts_json, CAST(?1 AS TEXT), CAST(?2 AS TEXT)),
     updated_at = ?3
 WHERE id = ?4
 `
@@ -154,7 +130,7 @@ type SetChapterPromptParams struct {
 	ID        string
 }
 
-// Written by index for the same reason SetChapterImage is: the operator is
+// Written by index for the same reason SetChapterSlide is: the operator is
 // replacing one prompt, and rewriting the whole array would carry back whatever
 // the row held when it was read.
 func (q *Queries) SetChapterPrompt(ctx context.Context, arg SetChapterPromptParams) error {
@@ -168,17 +144,17 @@ func (q *Queries) SetChapterPrompt(ctx context.Context, arg SetChapterPromptPara
 }
 
 const setChapterPrompts = `-- name: SetChapterPrompts :exec
-UPDATE chapters SET image_prompts_json = ?, updated_at = ? WHERE id = ?
+UPDATE chapters SET slide_prompts_json = ?, updated_at = ? WHERE id = ?
 `
 
 type SetChapterPromptsParams struct {
-	ImagePromptsJson string
+	SlidePromptsJson string
 	UpdatedAt        int64
 	ID               string
 }
 
 func (q *Queries) SetChapterPrompts(ctx context.Context, arg SetChapterPromptsParams) error {
-	_, err := q.exec(ctx, q.setChapterPromptsStmt, setChapterPrompts, arg.ImagePromptsJson, arg.UpdatedAt, arg.ID)
+	_, err := q.exec(ctx, q.setChapterPromptsStmt, setChapterPrompts, arg.SlidePromptsJson, arg.UpdatedAt, arg.ID)
 	return err
 }
 
@@ -206,10 +182,34 @@ func (q *Queries) SetChapterScript(ctx context.Context, arg SetChapterScriptPara
 	return err
 }
 
+const setChapterSlide = `-- name: SetChapterSlide :exec
+UPDATE chapters
+SET slide_asset_ids_json = json_set(slide_asset_ids_json, CAST(?1 AS TEXT), CAST(?2 AS TEXT)),
+    updated_at = ?3
+WHERE id = ?4
+`
+
+type SetChapterSlideParams struct {
+	Path      string
+	AssetID   string
+	UpdatedAt int64
+	ID        string
+}
+
+func (q *Queries) SetChapterSlide(ctx context.Context, arg SetChapterSlideParams) error {
+	_, err := q.exec(ctx, q.setChapterSlideStmt, setChapterSlide,
+		arg.Path,
+		arg.AssetID,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	return err
+}
+
 const upsertChapter = `-- name: UpsertChapter :exec
 INSERT INTO chapters (
-    id, video_id, ordinal, title, summary, script, image_prompts_json,
-    audio_asset_id, image_asset_ids_json, clip_asset_id, duration_seconds,
+    id, video_id, ordinal, title, summary, script, slide_prompts_json,
+    audio_asset_id, slide_asset_ids_json, clip_asset_id, duration_seconds,
     estimated_words, created_at, updated_at
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (id) DO UPDATE SET
@@ -217,9 +217,9 @@ ON CONFLICT (id) DO UPDATE SET
     title = excluded.title,
     summary = excluded.summary,
     script = excluded.script,
-    image_prompts_json = excluded.image_prompts_json,
+    slide_prompts_json = excluded.slide_prompts_json,
     audio_asset_id = excluded.audio_asset_id,
-    image_asset_ids_json = excluded.image_asset_ids_json,
+    slide_asset_ids_json = excluded.slide_asset_ids_json,
     clip_asset_id = excluded.clip_asset_id,
     duration_seconds = excluded.duration_seconds,
     estimated_words = excluded.estimated_words,
@@ -233,9 +233,9 @@ type UpsertChapterParams struct {
 	Title             string
 	Summary           string
 	Script            string
-	ImagePromptsJson  string
+	SlidePromptsJson  string
 	AudioAssetID      *string
-	ImageAssetIdsJson string
+	SlideAssetIdsJson string
 	ClipAssetID       *string
 	DurationSeconds   float64
 	EstimatedWords    int64
@@ -251,9 +251,9 @@ func (q *Queries) UpsertChapter(ctx context.Context, arg UpsertChapterParams) er
 		arg.Title,
 		arg.Summary,
 		arg.Script,
-		arg.ImagePromptsJson,
+		arg.SlidePromptsJson,
 		arg.AudioAssetID,
-		arg.ImageAssetIdsJson,
+		arg.SlideAssetIdsJson,
 		arg.ClipAssetID,
 		arg.DurationSeconds,
 		arg.EstimatedWords,

@@ -138,9 +138,6 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.setChapterClipStmt, err = db.PrepareContext(ctx, setChapterClip); err != nil {
 		return nil, fmt.Errorf("error preparing query SetChapterClip: %w", err)
 	}
-	if q.setChapterImageStmt, err = db.PrepareContext(ctx, setChapterImage); err != nil {
-		return nil, fmt.Errorf("error preparing query SetChapterImage: %w", err)
-	}
 	if q.setChapterPromptStmt, err = db.PrepareContext(ctx, setChapterPrompt); err != nil {
 		return nil, fmt.Errorf("error preparing query SetChapterPrompt: %w", err)
 	}
@@ -149,6 +146,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.setChapterScriptStmt, err = db.PrepareContext(ctx, setChapterScript); err != nil {
 		return nil, fmt.Errorf("error preparing query SetChapterScript: %w", err)
+	}
+	if q.setChapterSlideStmt, err = db.PrepareContext(ctx, setChapterSlide); err != nil {
+		return nil, fmt.Errorf("error preparing query SetChapterSlide: %w", err)
 	}
 	if q.setVideoBlueprintAssetStmt, err = db.PrepareContext(ctx, setVideoBlueprintAsset); err != nil {
 		return nil, fmt.Errorf("error preparing query SetVideoBlueprintAsset: %w", err)
@@ -390,11 +390,6 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing setChapterClipStmt: %w", cerr)
 		}
 	}
-	if q.setChapterImageStmt != nil {
-		if cerr := q.setChapterImageStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing setChapterImageStmt: %w", cerr)
-		}
-	}
 	if q.setChapterPromptStmt != nil {
 		if cerr := q.setChapterPromptStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing setChapterPromptStmt: %w", cerr)
@@ -408,6 +403,11 @@ func (q *Queries) Close() error {
 	if q.setChapterScriptStmt != nil {
 		if cerr := q.setChapterScriptStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing setChapterScriptStmt: %w", cerr)
+		}
+	}
+	if q.setChapterSlideStmt != nil {
+		if cerr := q.setChapterSlideStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing setChapterSlideStmt: %w", cerr)
 		}
 	}
 	if q.setVideoBlueprintAssetStmt != nil {
@@ -562,10 +562,10 @@ type Queries struct {
 	putAssetStmt                    *sql.Stmt
 	setChapterAudioStmt             *sql.Stmt
 	setChapterClipStmt              *sql.Stmt
-	setChapterImageStmt             *sql.Stmt
 	setChapterPromptStmt            *sql.Stmt
 	setChapterPromptsStmt           *sql.Stmt
 	setChapterScriptStmt            *sql.Stmt
+	setChapterSlideStmt             *sql.Stmt
 	setVideoBlueprintAssetStmt      *sql.Stmt
 	setVideoFinalAssetStmt          *sql.Stmt
 	setVideoMetadataStmt            *sql.Stmt
@@ -625,10 +625,10 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		putAssetStmt:                    q.putAssetStmt,
 		setChapterAudioStmt:             q.setChapterAudioStmt,
 		setChapterClipStmt:              q.setChapterClipStmt,
-		setChapterImageStmt:             q.setChapterImageStmt,
 		setChapterPromptStmt:            q.setChapterPromptStmt,
 		setChapterPromptsStmt:           q.setChapterPromptsStmt,
 		setChapterScriptStmt:            q.setChapterScriptStmt,
+		setChapterSlideStmt:             q.setChapterSlideStmt,
 		setVideoBlueprintAssetStmt:      q.setVideoBlueprintAssetStmt,
 		setVideoFinalAssetStmt:          q.setVideoFinalAssetStmt,
 		setVideoMetadataStmt:            q.setVideoMetadataStmt,

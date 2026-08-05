@@ -46,7 +46,7 @@ import {
 import { api, assetUrl, qk } from '@/lib/api'
 import {
   artifactKindFor,
-  chapterStillItems,
+  chapterSlideItems,
   kindMime,
   kindTitle,
   producingTask,
@@ -757,7 +757,7 @@ function Overview({
                     </>
                   )}
                 </KeyValue>
-                <KeyValue label="Stills / chapter">{video.imagesPerChapter}</KeyValue>
+                <KeyValue label="Slides / chapter">{video.slidesPerChapter}</KeyValue>
                 <KeyValue label="Thumbnail tiles">{video.thumbnailCells}</KeyValue>
                 <KeyValue label="Created">{formatAbsolute(video.createdAt)}</KeyValue>
                 <KeyValue label="Started">{formatAbsolute(video.startedAt)}</KeyValue>
@@ -884,7 +884,7 @@ function ChapterGrid({
                 chapter={chapter}
                 videoRef={video.ref}
                 videoId={video.id}
-                imagesPerChapter={video.imagesPerChapter}
+                slidesPerChapter={video.slidesPerChapter}
                 tasks={tasksByOrdinal.get(chapter.ordinal) ?? []}
               />
             </div>
@@ -896,7 +896,7 @@ function ChapterGrid({
 }
 
 /**
- * One chapter: its stills side by side, its narration, and the tasks that
+ * One chapter: its slides side by side, its narration, and the tasks that
  * produced them. Memoised on the chapter and its task slice, so a delta for
  * chapter 7 never re-renders chapter 8.
  */
@@ -904,13 +904,13 @@ const ChapterCard = memo(function ChapterCard({
   chapter,
   videoRef,
   videoId,
-  imagesPerChapter,
+  slidesPerChapter,
   tasks,
 }: {
   chapter: Chapter
   videoRef: string
   videoId: string
-  imagesPerChapter: number
+  slidesPerChapter: number
   tasks: Task[]
 }) {
   const queryClient = useQueryClient()
@@ -920,10 +920,10 @@ const ChapterCard = memo(function ChapterCard({
   const [rerunning, setRerunning] = useState(false)
   const [draft, setDraft] = useState(chapter.script)
 
-  // The whole chapter, viewable as one set: opening a still and pressing → walks
+  // The whole chapter, viewable as one set: opening a slide and pressing → walks
   // its siblings, then the narration, then the clip.
   const items = useMemo(
-    () => chapterStillItems(chapter, videoRef, tasks),
+    () => chapterSlideItems(chapter, videoRef, tasks),
     [chapter, videoRef, tasks],
   )
   const openAt = useCallback(
@@ -934,9 +934,9 @@ const ChapterCard = memo(function ChapterCard({
       ),
     [items, openViewer],
   )
-  // Stills open by slot rather than by address: an empty slot has no address,
+  // Slides open by slot rather than by address: an empty slot has no address,
   // and it is the one whose prompt the operator most wants to get at.
-  const openStill = useCallback(
+  const openSlide = useCallback(
     (slot: number) =>
       openViewer(
         items,
@@ -978,22 +978,22 @@ const ChapterCard = memo(function ChapterCard({
     setExpanded(true)
   }, [chapter.script])
 
-  const stills = Array.from({ length: imagesPerChapter }, (_, i) => chapter.imageAssetIds[i] ?? '')
+  const slides = Array.from({ length: slidesPerChapter }, (_, i) => chapter.slideAssetIds[i] ?? '')
 
   return (
     <Panel className="overflow-hidden transition-colors hover:border-[hsl(var(--border-strong))]">
       <div className="flex gap-3 p-3">
-        {/* Stills, side by side — this is what the operator actually reviews. */}
+        {/* Slides, side by side — this is what the operator actually reviews. */}
         <div className="flex shrink-0 gap-2">
-          {stills.map((id, i) => (
-            <Still
+          {slides.map((id, i) => (
+            <Slide
               key={i}
               id={id}
               slot={i}
-              prompt={chapter.imagePrompts[i]}
+              prompt={chapter.slidePrompts[i]}
               task={producingTask(tasks, 'image', chapter.ordinal, i)}
-              alt={`Chapter ${chapter.ordinal}, still ${i + 1}`}
-              onOpen={() => openStill(i)}
+              alt={`Chapter ${chapter.ordinal}, slide ${i + 1}`}
+              onOpen={() => openSlide(i)}
             />
           ))}
         </div>
@@ -1124,9 +1124,9 @@ const ChapterCard = memo(function ChapterCard({
               <p className="whitespace-pre-wrap font-mono text-[12px] leading-relaxed text-muted">
                 {chapter.script || 'The script has not been generated yet.'}
               </p>
-              {chapter.imagePrompts.length > 0 && (
+              {chapter.slidePrompts.length > 0 && (
                 <ul className="mt-3 space-y-1 border-t border-[hsl(var(--border))] pt-2">
-                  {chapter.imagePrompts.map((prompt, i) => (
+                  {chapter.slidePrompts.map((prompt, i) => (
                     <li key={i} className="text-[11.5px] text-subtle">
                       <span className="text-[hsl(var(--violet))]">prompt {i + 1}</span> — {prompt}
                     </li>
@@ -1142,11 +1142,11 @@ const ChapterCard = memo(function ChapterCard({
 })
 
 /**
- * One still in the chapter grid. It opens the viewer rather than a browser tab:
+ * One slide in the chapter grid. It opens the viewer rather than a browser tab:
  * the prompt that produced the image is the first thing an operator wants
  * beside it, and a raw `/assets/…` tab has nothing but pixels.
  */
-function Still({
+function Slide({
   id,
   slot,
   prompt,
@@ -1163,7 +1163,7 @@ function Still({
   onOpen: () => void
 }) {
   // A slot with nothing in it still opens: the viewer is where its prompt is
-  // edited, and a still that has not come out is the usual reason to want that.
+  // edited, and a slide that has not come out is the usual reason to want that.
   if (!id) {
     return (
       <button
@@ -1172,7 +1172,7 @@ function Still({
         aria-label={`${alt} — not drawn yet; open to edit its prompt`}
         className="flex h-[86px] w-[152px] flex-col items-center justify-center gap-1 rounded-[var(--radius-sm)] border border-dashed border-[hsl(var(--border-strong))] bg-[hsl(var(--bg-subtle))] text-[11px] text-subtle transition-colors hover:border-[hsl(var(--accent))] hover:text-muted"
       >
-        <span className="tabular text-[10px] uppercase tracking-wider">still {slot + 1}</span>
+        <span className="tabular text-[10px] uppercase tracking-wider">slide {slot + 1}</span>
         <span className="flex items-center gap-1.5">
           {task && <TaskStateDot state={task.state} />}
           {tileState(task)}

@@ -44,7 +44,7 @@ var ErrUnavailable = fmt.Errorf("9router: %w", provider.ErrUnavailable)
 // defaultTimeout bounds one request.
 //
 // It is generous because the two largest calls are genuinely slow: a
-// fifty-chapter outline with a full brief per chapter, and the image-prompt
+// fifty-chapter outline with a full brief per chapter, and the slide-prompt
 // batch that writes a hundred prompts in one go. Cutting either off early costs
 // the whole generation.
 //
@@ -83,12 +83,12 @@ type Client struct {
 	transcripts *transcriptWriter
 	lookup      ContextLookup
 
-	// Image prompts are produced once per video and served to N per-chapter
+	// Slide prompts are produced once per video and served to N per-chapter
 	// callers. Both halves are needed: singleflight collapses the callers that
 	// overlap in time, the cache answers the ones that come after.
 	inflight singleflight.Group
 	cacheMu  sync.RWMutex
-	cache    map[entity.VideoID][]provider.ImagePrompt
+	cache    map[entity.VideoID][]provider.SlidePrompt
 }
 
 var _ provider.LLMProvider = (*Client)(nil)
@@ -96,8 +96,8 @@ var _ provider.LLMProvider = (*Client)(nil)
 // New validates the configuration and wires the client. It touches no network:
 // wiring cannot fail because a gateway is down, and Check is what reports that.
 //
-// lookup resolves a video id into the plan its images illustrate. Only
-// ImagePrompts needs it, because only ImagePrompts is handed an id and nothing
+// lookup resolves a video id into the plan its slides illustrate. Only
+// SlidePrompts needs it, because only SlidePrompts is handed an id and nothing
 // else; a nil lookup leaves that one method unavailable and the rest working.
 func New(cfg Config, store provider.AssetStore, lookup ContextLookup) (*Client, error) {
 	if strings.TrimSpace(cfg.BaseURL) == "" {
@@ -129,7 +129,7 @@ func New(cfg Config, store provider.AssetStore, lookup ContextLookup) (*Client, 
 		store:       store,
 		transcripts: transcripts,
 		lookup:      lookup,
-		cache:       make(map[entity.VideoID][]provider.ImagePrompt, 4),
+		cache:       make(map[entity.VideoID][]provider.SlidePrompt, 4),
 	}, nil
 }
 

@@ -331,9 +331,9 @@ func (c *serveCmd) Run() error {
 	providers.RegisterLLM("9router", nineRouter)
 	providers.RegisterTTS("mock", mockprovider.NewTTS(assets, tuning))
 	providers.RegisterTTS("sample", sampleprovider.NewTTS(samples, assets))
-	providers.RegisterImage("mock", mockprovider.NewImage(assets, tuning))
-	providers.RegisterImage("sample", sampleprovider.NewImage(samples, assets))
-	providers.RegisterImage("runware", runware.NewImage(runwareClient))
+	providers.RegisterSlide("mock", mockprovider.NewSlide(assets, tuning))
+	providers.RegisterSlide("sample", sampleprovider.NewSlide(samples, assets))
+	providers.RegisterSlide("runware", runware.NewSlide(runwareClient))
 	providers.RegisterComposer("mock", mockprovider.NewComposer(assets, tuning))
 	providers.RegisterComposer("ffmpeg", ffmpegComposer)
 	providers.RegisterThumbnail("mock", mockprovider.NewThumbnail(assets, tuning))
@@ -399,7 +399,7 @@ func (c *serveCmd) Run() error {
 	expander := &lateExpander{}
 	runner := app.NewTaskRunner(
 		store, store, store, store, store, store, store,
-		assets, providers.LLM(), providers.TTS(), providers.Image(),
+		assets, providers.LLM(), providers.TTS(), providers.Slide(),
 		providers.Composer(), providers.Thumbnail(), providers.ThumbnailIcon(),
 		providers.Uploader(), broker,
 		expander,
@@ -530,8 +530,8 @@ func (c *serveCmd) Run() error {
 
 // videoContextLookup gives the mock LLM the blueprint context its coalesced
 // prompt call needs, without the provider itself touching the database.
-// nineRouterContextLookup resolves a video id into the plan its images
-// illustrate. Only ImagePrompts needs it: the port hands that method an id and
+// nineRouterContextLookup resolves a video id into the plan its slides
+// illustrate. Only SlidePrompts needs it: the port hands that method an id and
 // nothing else, and a provider may never read the database itself.
 func nineRouterContextLookup(store *sqlite.Store) ninerouter.ContextLookup {
 	return func(ctx context.Context, videoID entity.VideoID) (ninerouter.VideoContext, error) {
@@ -547,7 +547,7 @@ func nineRouterContextLookup(store *sqlite.Store) ninerouter.ContextLookup {
 			BlueprintOutline: provider.BlueprintOutline{
 				Title: v.Title, Summary: v.Topic, Chapters: outline,
 			},
-			ImagesPerChapter: v.ImagesPerChapter,
+			SlidesPerChapter: v.SlidesPerChapter,
 		}, nil
 	}
 }
@@ -590,7 +590,7 @@ func videoContextLookup(store *sqlite.Store) mockprovider.ContextLookup {
 			Title:            v.Title,
 			Topic:            v.Topic,
 			Chapters:         outline,
-			ImagesPerChapter: v.ImagesPerChapter,
+			SlidesPerChapter: v.SlidesPerChapter,
 		}, nil
 	}
 }

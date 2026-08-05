@@ -7,6 +7,10 @@ import (
 	"testing"
 )
 
+// The parsing rules are the dotenv package's and are tested there. What is left
+// here is the policy: which file is read, what a missing one means, and what
+// the load reports for the startup log line.
+
 // writeEnv puts a file in a temporary directory and makes it the one the loader
 // finds, by name rather than by working directory: a test that chdir'd would
 // not be safe to run beside its neighbours.
@@ -28,63 +32,30 @@ func reset(t *testing.T) {
 	t.Cleanup(func() { envFileLoaded, envVarsLoaded = "", 0 })
 }
 
-func TestLoadEnvFileSetsVariables(t *testing.T) {
+func TestLoadEnvFileReportsWhatItDid(t *testing.T) {
 	reset(t)
-	writeEnv(t, strings.Join([]string{
-		"# a comment",
-		"",
-		"RUNWARE_KEY=rw-abc123",
-		"export NINEROUTER_URL=http://127.0.0.1:20128",
-		`YTS_LISTEN="127.0.0.1:9090"`,
-		"YTS_TRANSCRIPTS='var/transcripts'",
-		"  YTS_LOG_LEVEL = debug  ",
-	}, "\n"))
-	for _, key := range []string{
-		"RUNWARE_KEY", "NINEROUTER_URL", "YTS_LISTEN", "YTS_TRANSCRIPTS", "YTS_LOG_LEVEL",
-	} {
-		t.Setenv(key, "")
-		os.Unsetenv(key) //nolint:errcheck,usetesting // t.Setenv above restores it after the test
+	path := writeEnv(t, "RUNWARE_KEY=rw-abc123\nNINEROUTER_URL=http://127.0.0.1:20128\n")
+	t.Setenv("RUNWARE_KEY", "")
+	if err := os.Unsetenv("RUNWARE_KEY"); err != nil {
+		t.Fatalf("unset: %v", err)
 	}
+	// Already set, so the file cannot claim it and the count must not either.
+	t.Setenv("NINEROUTER_URL", "http://from-the-shell")
 
 	if err := loadEnvFile(); err != nil {
 		t.Fatalf("loadEnvFile: %v", err)
 	}
-	for key, want := range map[string]string{
-		"RUNWARE_KEY":     "rw-abc123",
-		"NINEROUTER_URL":  "http://127.0.0.1:20128",
-		"YTS_LISTEN":      "127.0.0.1:9090",
-		"YTS_TRANSCRIPTS": "var/transcripts",
-		"YTS_LOG_LEVEL":   "debug",
-	} {
-		if got := os.Getenv(key); got != want {
-			t.Errorf("%s = %q, want %q", key, got, want)
-		}
+	if envFileLoaded != path {
+		t.Errorf("reported loading %q, want %q", envFileLoaded, path)
 	}
-	if envVarsLoaded != 5 {
-		t.Errorf("loaded %d variables, want 5", envVarsLoaded)
+	if envVarsLoaded != 1 {
+		t.Errorf("reported %d variables, want 1", envVarsLoaded)
 	}
-}
-
-// TestTheRealEnvironmentWins is the property that makes a one-off override
-// possible: RUNWARE_KEY=other yt-studio serve must not be talked over.
-func TestTheRealEnvironmentWins(t *testing.T) {
-	reset(t)
-	writeEnv(t, "RUNWARE_KEY=from-the-file\nNINEROUTER_KEY=from-the-file\n")
-	t.Setenv("RUNWARE_KEY", "from-the-shell")
-	// Deliberately empty is still set, and the file must not fill it in.
-	t.Setenv("NINEROUTER_KEY", "")
-
-	if err := loadEnvFile(); err != nil {
-		t.Fatalf("loadEnvFile: %v", err)
+	if got := os.Getenv("RUNWARE_KEY"); got != "rw-abc123" {
+		t.Errorf("RUNWARE_KEY = %q, want the file's value", got)
 	}
-	if got := os.Getenv("RUNWARE_KEY"); got != "from-the-shell" {
-		t.Errorf("RUNWARE_KEY = %q, want the shell's value", got)
-	}
-	if got := os.Getenv("NINEROUTER_KEY"); got != "" {
-		t.Errorf("NINEROUTER_KEY = %q, want the empty value it was set to", got)
-	}
-	if envVarsLoaded != 0 {
-		t.Errorf("loaded %d variables, want none", envVarsLoaded)
+	if got := os.Getenv("NINEROUTER_URL"); got != "http://from-the-shell" {
+		t.Errorf("NINEROUTER_URL = %q, want the shell's value", got)
 	}
 }
 
@@ -111,88 +82,21 @@ func TestMissingFile(t *testing.T) {
 	})
 }
 
-func TestMalformedFilesAreRejected(t *testing.T) {
-	cases := map[string]struct {
-		body     string
-		contains string
-	}{
-		"no equals":      {body: "RUNWARE_KEY\n", contains: "not KEY=VALUE"},
-		"no name":        {body: "=rw-abc\n", contains: "no name"},
-		"unusable name":  {body: "RUNWARE-KEY=rw-abc\n", contains: "not a usable variable name"},
-		"leading digit":  {body: "1KEY=rw-abc\n", contains: "not a usable variable name"},
-		"set twice":      {body: "RUNWARE_KEY=one\nRUNWARE_KEY=two\n", contains: "already set on line 1"},
-		"named the line": {body: "GOOD=1\nBAD\n", contains: ":2:"},
-	}
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			reset(t)
-			writeEnv(t, tc.body)
-			os.Unsetenv("GOOD") //nolint:errcheck,usetesting // only read through the failure below
-
-			err := loadEnvFile()
-			if err == nil {
-				t.Fatal("expected an error")
-			}
-			if !strings.Contains(err.Error(), tc.contains) {
-				t.Errorf("error %q does not carry %q", err, tc.contains)
-			}
-			// Nothing is applied until the whole file parses, so a bad line leaves
-			// the environment as it was rather than half configured.
-			if _, ok := os.LookupEnv("GOOD"); ok {
-				t.Error("a rejected file still set a variable")
-			}
-		})
-	}
-}
-
-// TestValuesAreLiteral covers the two rules a secret is most likely to trip
-// over: a `#` inside a value, and the absence of interpolation.
-func TestValuesAreLiteral(t *testing.T) {
+// TestMalformedFilesFailTheBoot checks only that the rejection reaches main
+// with the line on it; which lines are malformed is the dotenv package's rule.
+func TestMalformedFilesFailTheBoot(t *testing.T) {
 	reset(t)
-	writeEnv(t, strings.Join([]string{
-		"RUNWARE_KEY=rw-a#b$c",
-		"NINEROUTER_KEY=${RUNWARE_KEY}",
-		"YTS_LISTEN=",
-	}, "\n"))
-	for _, key := range []string{"RUNWARE_KEY", "NINEROUTER_KEY", "YTS_LISTEN"} {
-		t.Setenv(key, "")
-		os.Unsetenv(key) //nolint:errcheck,usetesting // t.Setenv above restores it after the test
-	}
+	writeEnv(t, "RUNWARE_KEY=rw-abc\nBAD LINE\n")
 
-	if err := loadEnvFile(); err != nil {
-		t.Fatalf("loadEnvFile: %v", err)
+	err := loadEnvFile()
+	if err == nil {
+		t.Fatal("expected an error")
 	}
-	if got := os.Getenv("RUNWARE_KEY"); got != "rw-a#b$c" {
-		t.Errorf("RUNWARE_KEY = %q; an inline # must not truncate a secret", got)
+	if !strings.Contains(err.Error(), ":2:") {
+		t.Errorf("error %q does not point at the offending line", err)
 	}
-	if got := os.Getenv("NINEROUTER_KEY"); got != "${RUNWARE_KEY}" {
-		t.Errorf("NINEROUTER_KEY = %q, want it taken literally", got)
-	}
-	if got, ok := os.LookupEnv("YTS_LISTEN"); !ok || got != "" {
-		t.Errorf("YTS_LISTEN = %q, %v; an empty value is still an assignment", got, ok)
-	}
-}
-
-func TestByteOrderMarkAndCarriageReturns(t *testing.T) {
-	reset(t)
-	// What a Windows editor writes. Neither should reach the variable name or the
-	// value, because the error it produces explains nothing.
-	writeEnv(t, "\ufeffRUNWARE_KEY=rw-abc\r\nNINEROUTER_URL=http://localhost:20128\r\n")
-	os.Unsetenv("RUNWARE_KEY")    //nolint:errcheck,usetesting // restored by the setenv below
-	os.Unsetenv("NINEROUTER_URL") //nolint:errcheck,usetesting // restored by the setenv below
-	t.Cleanup(func() {
-		os.Unsetenv("RUNWARE_KEY")    //nolint:errcheck,usetesting // package-level cleanup
-		os.Unsetenv("NINEROUTER_URL") //nolint:errcheck,usetesting // package-level cleanup
-	})
-
-	if err := loadEnvFile(); err != nil {
-		t.Fatalf("loadEnvFile: %v", err)
-	}
-	if got := os.Getenv("RUNWARE_KEY"); got != "rw-abc" {
-		t.Errorf("RUNWARE_KEY = %q, want the value without the byte order mark", got)
-	}
-	if got := os.Getenv("NINEROUTER_URL"); got != "http://localhost:20128" {
-		t.Errorf("NINEROUTER_URL = %q, want the value without the carriage return", got)
+	if envFileLoaded != "" {
+		t.Errorf("a rejected file was reported as loaded: %q", envFileLoaded)
 	}
 }
 
@@ -201,9 +105,9 @@ func TestByteOrderMarkAndCarriageReturns(t *testing.T) {
 func TestTheCommittedExampleParses(t *testing.T) {
 	reset(t)
 	t.Setenv(envFileVar, filepath.Join("..", "..", ".env.example"))
-	// Every key in the example is one the server reads, so setting them here
-	// would change this process's configuration. They are all already set to
-	// something by the harness below, which is what makes the load a no-op.
+	// Every key in the example is one the server reads, so letting the file win
+	// here would change this process's configuration. Holding them all already
+	// set is what makes the load a no-op.
 	for _, key := range []string{
 		"RUNWARE_KEY", "NINEROUTER_KEY", "NINEROUTER_URL", "YTS_DB", "YTS_ASSETS",
 		"YTS_RESOURCES", "YTS_LISTEN", "YTS_TRANSCRIPTS", "YTS_LOG_LEVEL",

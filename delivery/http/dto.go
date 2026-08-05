@@ -125,7 +125,7 @@ type VideoDTO struct {
 	ChapterCount int    `json:"chapterCount" doc:"Chapters asked for; the accepted blueprint decides the real number"`
 	//nolint:lll // one field, one line
 	TargetDurationMinutes int    `json:"targetDurationMinutes" doc:"Planned running time; zero means it falls out of the chapter count"`
-	ImagesPerChapter      int    `json:"imagesPerChapter"`
+	SlidesPerChapter      int    `json:"slidesPerChapter"`
 	ThumbnailCells        int    `json:"thumbnailCells" doc:"Tiles in the thumbnail grid; one icon is generated per tile"`
 	BlueprintAssetID      string `json:"blueprintAssetId,omitempty"`
 	FinalAssetID          string `json:"finalAssetId,omitempty"`
@@ -154,7 +154,7 @@ func videoFrom(v entity.Video, counts repository.TaskCounts) VideoDTO {
 		State:                 string(v.State),
 		ChapterCount:          v.ChapterCount,
 		TargetDurationMinutes: v.TargetDurationMinutes,
-		ImagesPerChapter:      v.ImagesPerChapter,
+		SlidesPerChapter:      v.SlidesPerChapter,
 		ThumbnailCells:        v.ThumbnailCells,
 		Error:                 v.Error,
 		Counts:                countsFrom(counts),
@@ -220,9 +220,9 @@ type ChapterDTO struct {
 	Title           string    `json:"title"`
 	Summary         string    `json:"summary"`
 	Script          string    `json:"script"`
-	ImagePrompts    []string  `json:"imagePrompts"`
+	SlidePrompts    []string  `json:"slidePrompts"`
 	AudioAssetID    string    `json:"audioAssetId,omitempty"`
-	ImageAssetIDs   []string  `json:"imageAssetIds"`
+	SlideAssetIDs   []string  `json:"slideAssetIds"`
 	ClipAssetID     string    `json:"clipAssetId,omitempty"`
 	DurationSeconds float64   `json:"durationSeconds" doc:"Measured from the script once it exists"`
 	EstimatedWords  int       `json:"estimatedWords" doc:"Spoken-word budget the blueprint assigned this chapter"`
@@ -230,11 +230,11 @@ type ChapterDTO struct {
 }
 
 func chapterFrom(c entity.Chapter) ChapterDTO {
-	images := make([]string, 0, len(c.ImageAssetIDs))
-	for _, id := range c.ImageAssetIDs {
-		images = append(images, string(id))
+	slides := make([]string, 0, len(c.SlideAssetIDs))
+	for _, id := range c.SlideAssetIDs {
+		slides = append(slides, string(id))
 	}
-	prompts := c.ImagePrompts
+	prompts := c.SlidePrompts
 	if prompts == nil {
 		prompts = []string{}
 	}
@@ -245,8 +245,8 @@ func chapterFrom(c entity.Chapter) ChapterDTO {
 		Title:           c.Title,
 		Summary:         c.Summary,
 		Script:          c.Script,
-		ImagePrompts:    prompts,
-		ImageAssetIDs:   images,
+		SlidePrompts:    prompts,
+		SlideAssetIDs:   slides,
 		DurationSeconds: c.DurationSeconds,
 		EstimatedWords:  c.EstimatedWords,
 		UpdatedAt:       c.UpdatedAt,
@@ -265,7 +265,7 @@ type TaskDTO struct {
 	ID            string     `json:"id"`
 	VideoID       string     `json:"videoId"`
 	ChapterID     string     `json:"chapterId,omitempty"`
-	Kind          string     `json:"kind" enum:"blueprint,prime_image_prompts,image_prompts,script,tts,image,clip,concat,metadata,thumbnail,upload"`
+	Kind          string     `json:"kind" enum:"blueprint,prime_slide_prompts,slide_prompts,script,tts,slide,clip,concat,metadata,thumbnail,upload"`
 	Ordinal       int        `json:"ordinal"`
 	Index         int        `json:"index"`
 	State         string     `json:"state" enum:"blocked,ready,running,awaiting_approval,succeeded,failed,cancelled"`

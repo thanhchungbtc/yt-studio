@@ -28,7 +28,7 @@ export interface ViewerNote {
 }
 
 /**
- * One entry in the viewer. Deliberately not an `Asset`: a chapter still is
+ * One entry in the viewer. Deliberately not an `Asset`: a chapter slide is
  * viewable long before the artifacts list has been fetched, and the viewer
  * should not care which of the two it was handed.
  */
@@ -54,7 +54,7 @@ export interface ViewerItem {
    */
   taskId?: string
   /**
-   * Where a still sits: its chapter, and its slot within that chapter. This is
+   * Where a slide sits: its chapter, and its slot within that chapter. This is
    * the coordinate that survives a redraw — the content address does not — so it
    * is what the viewer edits a prompt against and what it re-resolves the
    * picture by afterwards.
@@ -62,7 +62,7 @@ export interface ViewerItem {
   chapterId?: string
   slot?: number
   /**
-   * The prompt this still was drawn from. Undefined where the chapter has no
+   * The prompt this slide was drawn from. Undefined where the chapter has no
    * prompt at this slot yet, which reads differently from an empty one: nothing
    * has produced it rather than someone cleared it.
    */
@@ -70,14 +70,14 @@ export interface ViewerItem {
   /**
    * The thumbnail grid cell this icon draws. The icon counterpart of `slot`, and
    * separate from it because the two address different things: a cell belongs to
-   * the video's grid, a slot to a chapter's stills.
+   * the video's grid, a slot to a chapter's slides.
    */
   cell?: number
   /**
-   * A slot with no artifact behind it — the image task failed, or has not run.
+   * A slot with no artifact behind it — the slide task failed, or has not run.
    * Its id is a stand-in, so nothing may try to fetch, download or hash it. It
    * is shown anyway because its prompt is exactly what the operator wants to
-   * change when a still did not come out.
+   * change when a slide did not come out.
    */
   pending?: boolean
 }
@@ -86,7 +86,7 @@ export interface ViewerItem {
  * The stand-in address for a slot the pipeline has not filled. Prefixed rather
  * than left empty so it is a usable React key and is obviously not a hash.
  */
-export function pendingStillId(chapterId: string, slot: number): string {
+export function pendingSlideId(chapterId: string, slot: number): string {
   return `pending:${chapterId}:${slot}`
 }
 
@@ -102,9 +102,9 @@ export function pendingIconId(videoId: string, cell: number): string {
 const KIND_TASKS: Record<string, TaskKind> = {
   blueprint: 'blueprint',
   script: 'script',
-  prompt: 'image_prompts',
+  prompt: 'slide_prompts',
   audio: 'tts',
-  image: 'image',
+  image: 'slide',
   clip: 'clip',
   final: 'concat',
   metadata: 'metadata',
@@ -118,7 +118,7 @@ const KIND_TASKS: Record<string, TaskKind> = {
  * KIND_TASKS read the other way, for the places that start from a task rather
  * than from a file.
  *
- * Two stages are absent because they leave nothing behind: prime_image_prompts
+ * Two stages are absent because they leave nothing behind: prime_slide_prompts
  * fills a cache the per-chapter reads serve from, and upload writes a receipt
  * onto the video rather than a file.
  */
@@ -131,7 +131,7 @@ export function artifactKindFor(kind: TaskKind): string | undefined {
 
 /**
  * Where an artifact kind falls in the pipeline — the rank of the stage that
- * produced it. It is what lets a listing read script, narration, stills, clip
+ * produced it. It is what lets a listing read script, narration, slides, clip
  * rather than alphabetically, which is the order the work actually happened in
  * and the order an operator reviews it.
  */
@@ -182,7 +182,7 @@ const KIND_TITLES: Record<string, string> = {
   prompt: 'Prompts',
   audio: 'Narration',
   clip: 'Clip',
-  image: 'Still',
+  image: 'Slide',
 }
 
 export function kindTitle(kind: string): string {
@@ -260,8 +260,8 @@ function captionNote(video: Video | undefined, cell: number): ViewerNote[] {
 function notesFor(kind: string, chapter: Chapter | undefined): ViewerNote[] {
   if (!chapter) return []
   switch (kind) {
-    // A still's prompt is not a note: it is editable, and generating from it is
-    // how a still is redrawn. The viewer renders it as its own section.
+    // A slide's prompt is not a note: it is editable, and generating from it is
+    // how a slide is redrawn. The viewer renders it as its own section.
     case 'image':
       return []
     case 'audio':
@@ -273,31 +273,31 @@ function notesFor(kind: string, chapter: Chapter | undefined): ViewerNote[] {
 }
 
 /**
- * Everything one chapter has produced, in the order it was produced: stills in
+ * Everything one chapter has produced, in the order it was produced: slides in
  * slot order, then the narration, then the rendered clip. Walking the viewer
  * with the arrow keys therefore walks a chapter end to end.
  */
-export function chapterStillItems(
+export function chapterSlideItems(
   chapter: Chapter,
   videoRef: string,
   tasks: Task[] = [],
 ): ViewerItem[] {
   const subtitle = `${chapterKey(videoRef, chapter.ordinal)} · ${chapter.title}`
 
-  // Empty slots are kept rather than skipped. A still that failed or has not run
+  // Empty slots are kept rather than skipped. A slide that failed or has not run
   // is the one whose prompt most wants changing, and dropping it here would put
   // that prompt out of reach of the only surface that edits it.
-  const items: ViewerItem[] = chapter.imageAssetIds.map((id, slot) => ({
-    id: id || pendingStillId(chapter.id, slot),
+  const items: ViewerItem[] = chapter.slideAssetIds.map((id, slot) => ({
+    id: id || pendingSlideId(chapter.id, slot),
     kind: 'image',
     mime: kindMime('image'),
-    title: `Still ${slot + 1}`,
+    title: `Slide ${slot + 1}`,
     subtitle,
     notes: notesFor('image', chapter),
     taskId: producingTaskId(tasks, 'image', chapter.ordinal, slot),
     chapterId: chapter.id,
     slot,
-    prompt: chapter.imagePrompts[slot],
+    prompt: chapter.slidePrompts[slot],
     pending: !id,
   }))
 
@@ -331,7 +331,7 @@ export function chapterStillItems(
  * The thumbnail grid, cell by cell, in reading order.
  *
  * Built from the video row rather than from the asset list, for the same reason
- * a chapter's stills are: a cell that failed or has not run has no artifact, and
+ * a chapter's slides are: a cell that failed or has not run has no artifact, and
  * that is exactly the cell whose prompt wants changing.
  */
 export function thumbnailCellItems(video: Video, tasks: Task[] = []): ViewerItem[] {
@@ -368,7 +368,7 @@ export function videoAssetItems(
 
   const items = assets.map((asset) => {
     const chapter = asset.chapterId ? byId.get(asset.chapterId) : undefined
-    const slot = chapter ? chapter.imageAssetIds.indexOf(asset.id) : -1
+    const slot = chapter ? chapter.slideAssetIds.indexOf(asset.id) : -1
     // An icon belongs to a grid cell rather than to a chapter, and the video row
     // is the only place that mapping exists. Without it every icon looks alike:
     // same title, same sort key, and — because producingTaskId matches any index
@@ -394,15 +394,15 @@ export function videoAssetItems(
         ordinal: chapter?.ordinal ?? 0,
         notes: cell >= 0 ? captionNote(video, cell) : notesFor(asset.kind, chapter),
         taskId: producingTaskId(tasks, asset.kind, chapter?.ordinal ?? -1, index),
-        // Carried so a still opened from the gallery edits its prompt exactly as
+        // Carried so a slide opened from the gallery edits its prompt exactly as
         // one opened from its chapter does.
         ...(asset.kind === 'image' && chapter && slot >= 0
-          ? { chapterId: chapter.id, slot, prompt: chapter.imagePrompts[slot] }
+          ? { chapterId: chapter.id, slot, prompt: chapter.slidePrompts[slot] }
           : {}),
         ...(cell >= 0 ? { cell, prompt: video?.thumbnailPlan[cell]?.prompt } : {}),
       } satisfies ViewerItem,
       ordinal: chapter?.ordinal ?? 0,
-      // Grid order for icons, slot order for stills: both read the way the
+      // Grid order for icons, slot order for slides: both read the way the
       // artifact is laid out rather than the order the pool finished them in.
       slot: index < 0 ? 0 : index,
     }

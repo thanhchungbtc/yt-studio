@@ -10,7 +10,7 @@ import (
 	"github.com/tbui/yt-studio/domain/repository"
 )
 
-// The icon counterpart of the still tests: the edit reaches one cell, and one
+// The icon counterpart of the slide tests: the edit reaches one cell, and one
 // icon task is seeded with it. What differs is the shape of the target — a cell
 // inside the plan, addressed by index, whose caption must survive.
 

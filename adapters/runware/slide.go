@@ -9,16 +9,16 @@ import (
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
-// Image generates one chapter still per call.
-type Image struct{ c *Client }
+// Slide generates one chapter slide per call.
+type Slide struct{ c *Client }
 
-var _ provider.ImageProvider = (*Image)(nil)
+var _ provider.SlideProvider = (*Slide)(nil)
 
-// NewImage wires the still backend to a client.
-func NewImage(c *Client) *Image { return &Image{c: c} }
+// NewSlide wires the slide backend to a client.
+func NewSlide(c *Client) *Slide { return &Slide{c: c} }
 
-// Generate draws one still and returns its content address.
-func (i *Image) Generate(ctx context.Context, req provider.ImageRequest) (entity.AssetID, error) {
+// Generate draws one slide and returns its content address.
+func (i *Slide) Generate(ctx context.Context, req provider.SlideRequest) (entity.AssetID, error) {
 	width, height := req.Width, req.Height
 	// The request's geometry wins when it carries any, and the configured size is
 	// the fallback rather than the rule: the port declares the fields, so a use
@@ -33,7 +33,7 @@ func (i *Image) Generate(ctx context.Context, req provider.ImageRequest) (entity
 	}
 	stored, err := i.c.store.Put(ctx, entity.AssetKindImage, bytes.NewReader(image))
 	if err != nil {
-		return "", fmt.Errorf("store still: %w", err)
+		return "", fmt.Errorf("store slide: %w", err)
 	}
 	return stored.ID, nil
 }

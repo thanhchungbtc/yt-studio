@@ -9,10 +9,10 @@ import (
 // wrong label breaks the map. They are asserted literally, character for
 // character, because that is the only thing ffmpeg reads.
 
-func TestImageXfadeGraph(t *testing.T) {
+func TestSlideXfadeGraph(t *testing.T) {
 	t.Parallel()
 
-	got := imageXfadeGraph([]float64{2.5, 2.5, 2.5})
+	got := slideXfadeGraph([]float64{2.5, 2.5, 2.5})
 	want := "[0:v][1:v]xfade=transition=dissolve:duration=0.5:offset=2.0000[v01];" +
 		"[v01][2:v]xfade=transition=dissolve:duration=0.5:offset=4.0000[vout]"
 	if got != want {
@@ -20,23 +20,23 @@ func TestImageXfadeGraph(t *testing.T) {
 	}
 }
 
-func TestImageXfadeGraphTwoStills(t *testing.T) {
+func TestSlideXfadeGraphTwoSlides(t *testing.T) {
 	t.Parallel()
 
-	// Two stills is one transition, which must land on [vout] directly.
-	got := imageXfadeGraph([]float64{1.25, 1.25})
+	// Two slides is one transition, which must land on [vout] directly.
+	got := slideXfadeGraph([]float64{1.25, 1.25})
 	want := "[0:v][1:v]xfade=transition=dissolve:duration=0.5:offset=0.7500[vout]"
 	if got != want {
 		t.Errorf("graph mismatch\n got: %s\nwant: %s", got, want)
 	}
 }
 
-func TestImageXfadeGraphUsesProbedDurations(t *testing.T) {
+func TestSlideXfadeGraphUsesProbedDurations(t *testing.T) {
 	t.Parallel()
 
 	// Unequal clips: the second offset must accumulate the real length of the
 	// middle clip, not the first one's.
-	got := imageXfadeGraph([]float64{3.0, 2.0, 4.0})
+	got := slideXfadeGraph([]float64{3.0, 2.0, 4.0})
 	if !strings.Contains(got, "offset=2.5000[v01]") {
 		t.Errorf("first offset wrong: %s", got)
 	}

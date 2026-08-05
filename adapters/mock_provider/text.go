@@ -65,7 +65,7 @@ var (
 		"and the ledgers show it plainly enough",
 		"long after the decision had stopped feeling like one",
 	}
-	imageSubjects = []string{
+	slideSubjects = []string{
 		"a wide harbour at low tide", "a stone bridge in thin fog",
 		"a lantern-lit street after rain", "an empty market square at dawn",
 		"a river bend seen from a ridge", "a shuttered mill against pale sky",
@@ -192,11 +192,11 @@ func countWords(s string) int {
 	return n
 }
 
-func imagePrompt(seed uint64, chapterTitle, chapterSummary string) string {
+func slidePrompt(seed uint64, chapterTitle, chapterSummary string) string {
 	r := deterministic(seed)
 	var b strings.Builder
 	b.Grow(192)
-	b.WriteString(pick(r, imageSubjects))
+	b.WriteString(pick(r, slideSubjects))
 	b.WriteString(", ")
 	b.WriteString(pick(r, imageLighting))
 	b.WriteString(", ")

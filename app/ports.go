@@ -107,7 +107,7 @@ type CoalesceSetter interface {
 	SetCoalesce(d time.Duration)
 }
 
-// PromptCacheInvalidator drops a video's coalesced image-prompt batch so a
+// PromptCacheInvalidator drops a video's coalesced slide-prompt batch so a
 // retry regenerates it rather than replaying the cached one.
 type PromptCacheInvalidator interface {
 	Forget(videoID entity.VideoID)

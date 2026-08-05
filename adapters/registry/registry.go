@@ -70,7 +70,7 @@ func (p *port[T]) names() []string {
 type Registry struct {
 	llm           *port[provider.LLMProvider]
 	tts           *port[provider.TTSProvider]
-	image         *port[provider.ImageProvider]
+	slide         *port[provider.SlideProvider]
 	composer      *port[provider.VideoComposer]
 	thumbnail     *port[provider.ThumbnailBuilder]
 	thumbnailIcon *port[provider.ThumbnailIconGenerator]
@@ -82,7 +82,7 @@ func New(selected Selected) *Registry {
 	return &Registry{
 		llm:       newPort[provider.LLMProvider](entity.SettingProviderLLM, selected),
 		tts:       newPort[provider.TTSProvider](entity.SettingProviderTTS, selected),
-		image:     newPort[provider.ImageProvider](entity.SettingProviderImage, selected),
+		slide:     newPort[provider.SlideProvider](entity.SettingProviderSlide, selected),
 		composer:  newPort[provider.VideoComposer](entity.SettingProviderComposer, selected),
 		thumbnail: newPort[provider.ThumbnailBuilder](entity.SettingProviderThumbnail, selected),
 		thumbnailIcon: newPort[provider.ThumbnailIconGenerator](
@@ -97,9 +97,9 @@ func (r *Registry) RegisterLLM(name string, impl provider.LLMProvider) { r.llm.r
 // RegisterTTS adds a named narration backend.
 func (r *Registry) RegisterTTS(name string, impl provider.TTSProvider) { r.tts.register(name, impl) }
 
-// RegisterImage adds a named still backend.
-func (r *Registry) RegisterImage(name string, impl provider.ImageProvider) {
-	r.image.register(name, impl)
+// RegisterSlide adds a named slide backend.
+func (r *Registry) RegisterSlide(name string, impl provider.SlideProvider) {
+	r.slide.register(name, impl)
 }
 
 // RegisterComposer adds a named clip and concat backend.
@@ -131,7 +131,7 @@ func (r *Registry) Options() map[entity.SettingKey][]string {
 	return map[entity.SettingKey][]string{
 		entity.SettingProviderLLM:           r.llm.names(),
 		entity.SettingProviderTTS:           r.tts.names(),
-		entity.SettingProviderImage:         r.image.names(),
+		entity.SettingProviderSlide:         r.slide.names(),
 		entity.SettingProviderComposer:      r.composer.names(),
 		entity.SettingProviderThumbnail:     r.thumbnail.names(),
 		entity.SettingProviderThumbnailIcon: r.thumbnailIcon.names(),
@@ -139,7 +139,7 @@ func (r *Registry) Options() map[entity.SettingKey][]string {
 	}
 }
 
-// PromptCache drops a video's coalesced image-prompt batch. It is declared here
+// PromptCache drops a video's coalesced slide-prompt batch. It is declared here
 // rather than imported from app so this package stays below it; the router
 // satisfies app.PromptCacheInvalidator structurally.
 type PromptCache interface {
@@ -155,8 +155,8 @@ func (r *Registry) PromptCache() PromptCache { return llmRouter{r.llm} }
 // TTS returns the router for the narration port.
 func (r *Registry) TTS() provider.TTSProvider { return ttsRouter{r.tts} }
 
-// Image returns the router for the still port.
-func (r *Registry) Image() provider.ImageProvider { return imageRouter{r.image} }
+// Slide returns the router for the slide port.
+func (r *Registry) Slide() provider.SlideProvider { return slideRouter{r.slide} }
 
 // Composer returns the router for the composition port.
 func (r *Registry) Composer() provider.VideoComposer { return composerRouter{r.composer} }
@@ -195,12 +195,12 @@ func (r llmRouter) Script(ctx context.Context, req provider.ScriptRequest) (prov
 	return impl.Script(ctx, req)
 }
 
-func (r llmRouter) ImagePrompts(ctx context.Context, videoID entity.VideoID) ([]provider.ImagePrompt, error) {
+func (r llmRouter) SlidePrompts(ctx context.Context, videoID entity.VideoID) ([]provider.SlidePrompt, error) {
 	impl, err := r.p.pick()
 	if err != nil {
 		return nil, err
 	}
-	return impl.ImagePrompts(ctx, videoID)
+	return impl.SlidePrompts(ctx, videoID)
 }
 
 func (r llmRouter) Metadata(ctx context.Context, req provider.MetadataRequest) (provider.Metadata, error) {
@@ -244,11 +244,11 @@ func (r ttsRouter) Speak(ctx context.Context, req provider.SpeakRequest) (entity
 	return impl.Speak(ctx, req)
 }
 
-type imageRouter struct{ p *port[provider.ImageProvider] }
+type slideRouter struct{ p *port[provider.SlideProvider] }
 
-var _ provider.ImageProvider = imageRouter{}
+var _ provider.SlideProvider = slideRouter{}
 
-func (r imageRouter) Generate(ctx context.Context, req provider.ImageRequest) (entity.AssetID, error) {
+func (r slideRouter) Generate(ctx context.Context, req provider.SlideRequest) (entity.AssetID, error) {
 	impl, err := r.p.pick()
 	if err != nil {
 		return "", err

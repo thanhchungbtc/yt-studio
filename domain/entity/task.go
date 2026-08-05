@@ -15,18 +15,18 @@ type TaskKind string
 const (
 	// TaskKindBlueprint produces the chapter outline for the whole video.
 	TaskKindBlueprint TaskKind = "blueprint"
-	// TaskKindPrimeImagePrompts occupies a real LLM slot and produces every
-	// chapter's image prompts in one call, so there is a batch to coalesce.
-	TaskKindPrimeImagePrompts TaskKind = "prime_image_prompts"
-	// TaskKindImagePrompts is the per-chapter cache read against that batch.
-	TaskKindImagePrompts TaskKind = "image_prompts"
+	// TaskKindPrimeSlidePrompts occupies a real LLM slot and produces every
+	// chapter's slide prompts in one call, so there is a batch to coalesce.
+	TaskKindPrimeSlidePrompts TaskKind = "prime_slide_prompts"
+	// TaskKindSlidePrompts is the per-chapter cache read against that batch.
+	TaskKindSlidePrompts TaskKind = "slide_prompts"
 	// TaskKindScript writes one chapter's narration.
 	TaskKindScript TaskKind = "script"
 	// TaskKindTTS narrates one chapter.
 	TaskKindTTS TaskKind = "tts"
-	// TaskKindImage generates one still for one chapter.
-	TaskKindImage TaskKind = "image"
-	// TaskKindClip composes one chapter's audio and stills into a clip.
+	// TaskKindSlide generates one slide for one chapter.
+	TaskKindSlide TaskKind = "slide"
+	// TaskKindClip composes one chapter's audio and slides into a clip.
 	TaskKindClip TaskKind = "clip"
 	// TaskKindConcat joins every clip into the final render.
 	TaskKindConcat TaskKind = "concat"
@@ -47,11 +47,11 @@ const (
 // AllTaskKinds lists every TaskKind, for validation, the UI and tests.
 var AllTaskKinds = []TaskKind{
 	TaskKindBlueprint,
-	TaskKindPrimeImagePrompts,
-	TaskKindImagePrompts,
+	TaskKindPrimeSlidePrompts,
+	TaskKindSlidePrompts,
 	TaskKindScript,
 	TaskKindTTS,
-	TaskKindImage,
+	TaskKindSlide,
 	TaskKindClip,
 	TaskKindConcat,
 	TaskKindMetadata,
@@ -64,8 +64,8 @@ var AllTaskKinds = []TaskKind{
 // Valid reports whether the kind is one of the known constants.
 func (k TaskKind) Valid() bool {
 	switch k {
-	case TaskKindBlueprint, TaskKindPrimeImagePrompts, TaskKindImagePrompts,
-		TaskKindScript, TaskKindTTS, TaskKindImage, TaskKindClip,
+	case TaskKindBlueprint, TaskKindPrimeSlidePrompts, TaskKindSlidePrompts,
+		TaskKindScript, TaskKindTTS, TaskKindSlide, TaskKindClip,
 		TaskKindConcat, TaskKindMetadata, TaskKindThumbnailPlan,
 		TaskKindThumbnailIcon, TaskKindThumbnail, TaskKindUpload:
 		return true
@@ -77,14 +77,14 @@ func (k TaskKind) Valid() bool {
 // Pool returns the single pool a task of this kind acquires a slot in.
 func (k TaskKind) Pool() Pool {
 	switch k {
-	case TaskKindBlueprint, TaskKindPrimeImagePrompts, TaskKindScript,
+	case TaskKindBlueprint, TaskKindPrimeSlidePrompts, TaskKindScript,
 		TaskKindMetadata, TaskKindThumbnailPlan:
 		return PoolLLM
-	case TaskKindImagePrompts:
+	case TaskKindSlidePrompts:
 		return PoolCache
 	case TaskKindTTS:
 		return PoolTTS
-	case TaskKindImage, TaskKindThumbnailIcon:
+	case TaskKindSlide, TaskKindThumbnailIcon:
 		return PoolImage
 	case TaskKindClip, TaskKindConcat, TaskKindThumbnail:
 		return PoolCompose
@@ -99,9 +99,9 @@ func (k TaskKind) Pool() Pool {
 // (as opposed to one per video).
 func (k TaskKind) PerChapter() bool {
 	switch k {
-	case TaskKindScript, TaskKindTTS, TaskKindImagePrompts, TaskKindImage, TaskKindClip:
+	case TaskKindScript, TaskKindTTS, TaskKindSlidePrompts, TaskKindSlide, TaskKindClip:
 		return true
-	case TaskKindBlueprint, TaskKindPrimeImagePrompts, TaskKindConcat,
+	case TaskKindBlueprint, TaskKindPrimeSlidePrompts, TaskKindConcat,
 		TaskKindMetadata, TaskKindThumbnailPlan, TaskKindThumbnailIcon,
 		TaskKindThumbnail, TaskKindUpload:
 		return false

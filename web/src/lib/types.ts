@@ -15,11 +15,11 @@ export type TaskState =
 
 export type TaskKind =
   | 'blueprint'
-  | 'prime_image_prompts'
-  | 'image_prompts'
+  | 'prime_slide_prompts'
+  | 'slide_prompts'
   | 'script'
   | 'tts'
-  | 'image'
+  | 'slide'
   | 'clip'
   | 'concat'
   | 'metadata'
@@ -96,7 +96,7 @@ export interface Video {
   topic: string
   state: VideoState
   chapterCount: number
-  imagesPerChapter: number
+  slidesPerChapter: number
   thumbnailCells: number
   targetDurationMinutes: number
   blueprintAssetId?: string
@@ -123,9 +123,9 @@ export interface Chapter {
   title: string
   summary: string
   script: string
-  imagePrompts: string[]
+  slidePrompts: string[]
   audioAssetId?: string
-  imageAssetIds: string[]
+  slideAssetIds: string[]
   clipAssetId?: string
   durationSeconds: number
   estimatedWords: number
@@ -237,7 +237,7 @@ export interface ChapterDelta {
   title: string
   hasScript: boolean
   audioAssetId?: string
-  imageAssetIds?: string[]
+  slideAssetIds?: string[]
   clipAssetId?: string
   updatedAt: string
 }

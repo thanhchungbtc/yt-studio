@@ -9,33 +9,33 @@ import (
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
-// Image serves stills from the sample set, rotated across chapters.
-type Image struct {
+// Slide serves slides from the sample set, rotated across chapters.
+type Slide struct {
 	lib   *Library
 	store provider.AssetStore
 	png   pngCache
 }
 
-var _ provider.ImageProvider = (*Image)(nil)
+var _ provider.SlideProvider = (*Slide)(nil)
 
-// NewImage wires the backend to the shared library.
-func NewImage(lib *Library, store provider.AssetStore) *Image {
-	return &Image{lib: lib, store: store}
+// NewSlide wires the backend to the shared library.
+func NewSlide(lib *Library, store provider.AssetStore) *Slide {
+	return &Slide{lib: lib, store: store}
 }
 
-// Generate stores one still and returns its content address.
+// Generate stores one slide and returns its content address.
 //
 // The file is chosen by ordinal and index together, so a chapter always gets
-// distinct stills — a dissolve between two copies of one image is not a
+// distinct slides — a dissolve between two copies of one image is not a
 // dissolve — and consecutive chapters start at different points in the set
 // rather than repeating the same pair down the whole video.
-func (i *Image) Generate(ctx context.Context, req provider.ImageRequest) (entity.AssetID, error) {
+func (i *Slide) Generate(ctx context.Context, req provider.SlideRequest) (entity.AssetID, error) {
 	if err := i.lib.Check(); err != nil {
 		return "", err
 	}
-	path := i.lib.images[(req.Ordinal+req.Index)%len(i.lib.images)]
+	path := i.lib.slides[(req.Ordinal+req.Index)%len(i.lib.slides)]
 
-	// Stills go in at their native size: the composer builds the slideshow from
+	// Slides go in at their native size: the composer builds the slideshow from
 	// them and is the one that decides how they are framed.
 	encoded, err := i.png.bytes(path, path, nil)
 	if err != nil {
@@ -43,7 +43,7 @@ func (i *Image) Generate(ctx context.Context, req provider.ImageRequest) (entity
 	}
 	stored, err := i.store.Put(ctx, entity.AssetKindImage, bytes.NewReader(encoded))
 	if err != nil {
-		return "", fmt.Errorf("store still: %w", err)
+		return "", fmt.Errorf("store slide: %w", err)
 	}
 	return stored.ID, nil
 }

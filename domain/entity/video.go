@@ -149,7 +149,7 @@ type Video struct {
 	State VideoState
 
 	ChapterCount     int
-	ImagesPerChapter int
+	SlidesPerChapter int
 	// ThumbnailCells is how many tiles the thumbnail's grid has. It is on the row
 	// rather than read from settings at expansion because the DAG gets one icon
 	// task per cell and can never grow after: a video's graph has to be
@@ -181,7 +181,7 @@ type Video struct {
 // NewVideo validates and constructs a Video in the draft state.
 //
 //nolint:revive // the parameter list is the video's shape
-func NewVideo(id VideoID, channelID ChannelID, ref Ref, title, topic string, chapterCount, imagesPerChapter, thumbnailCells, targetDurationMinutes int, now time.Time) (Video, error) {
+func NewVideo(id VideoID, channelID ChannelID, ref Ref, title, topic string, chapterCount, slidesPerChapter, thumbnailCells, targetDurationMinutes int, now time.Time) (Video, error) {
 	if strings.TrimSpace(string(id)) == "" {
 		return Video{}, fmt.Errorf("%w: id must not be empty", ErrInvalidVideo)
 	}
@@ -199,9 +199,9 @@ func NewVideo(id VideoID, channelID ChannelID, ref Ref, title, topic string, cha
 		return Video{}, fmt.Errorf("%w: chapter count must be %d..%d, got %d",
 			ErrInvalidVideo, MinChapterCount, MaxChapterCount, chapterCount)
 	}
-	if imagesPerChapter < MinImagesPerChapter || imagesPerChapter > MaxImagesPerChapter {
-		return Video{}, fmt.Errorf("%w: images per chapter must be %d..%d, got %d",
-			ErrInvalidVideo, MinImagesPerChapter, MaxImagesPerChapter, imagesPerChapter)
+	if slidesPerChapter < MinSlidesPerChapter || slidesPerChapter > MaxSlidesPerChapter {
+		return Video{}, fmt.Errorf("%w: slides per chapter must be %d..%d, got %d",
+			ErrInvalidVideo, MinSlidesPerChapter, MaxSlidesPerChapter, slidesPerChapter)
 	}
 	if thumbnailCells < MinThumbnailCells || thumbnailCells > MaxThumbnailCells {
 		return Video{}, fmt.Errorf("%w: thumbnail cells must be %d..%d, got %d",
@@ -219,7 +219,7 @@ func NewVideo(id VideoID, channelID ChannelID, ref Ref, title, topic string, cha
 		Topic:                 strings.TrimSpace(topic),
 		State:                 VideoStateDraft,
 		ChapterCount:          chapterCount,
-		ImagesPerChapter:      imagesPerChapter,
+		SlidesPerChapter:      slidesPerChapter,
 		ThumbnailCells:        thumbnailCells,
 		TargetDurationMinutes: targetDurationMinutes,
 		CreatedAt:             now,
@@ -231,8 +231,8 @@ func NewVideo(id VideoID, channelID ChannelID, ref Ref, title, topic string, cha
 const (
 	MinChapterCount     = 1
 	MaxChapterCount     = 500
-	MinImagesPerChapter = 1
-	MaxImagesPerChapter = 20
+	MinSlidesPerChapter = 1
+	MaxSlidesPerChapter = 20
 	// The thumbnail's grid. The ceiling is what still reads at 1280x720 on a
 	// phone: past two dozen tiles nobody can tell what any of them are.
 	MinThumbnailCells = 1

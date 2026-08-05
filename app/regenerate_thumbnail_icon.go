@@ -11,7 +11,7 @@ import (
 
 // RegenerateThumbnailIcon rewrites one cell's prompt and redraws that cell.
 //
-// The icon counterpart of RegenerateChapterStill, and welded together for the
+// The icon counterpart of RegenerateChapterSlide, and welded together for the
 // same reason: a prompt saved without generating from it would leave the words
 // disagreeing with the tile beside them. It is the narrow alternative to
 // re-running thumbnail_plan, which rewrites every caption and every cell prompt

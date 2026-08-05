@@ -7,11 +7,11 @@ import type { PoolName, Task, TaskKind, TaskState, VideoState } from './types'
  */
 export const TASK_KIND_ORDER: TaskKind[] = [
   'blueprint',
-  'prime_image_prompts',
-  'image_prompts',
+  'prime_slide_prompts',
+  'slide_prompts',
   'script',
   'tts',
-  'image',
+  'slide',
   'clip',
   'concat',
   'metadata',
@@ -85,11 +85,11 @@ export function formatAbsolute(iso: string | undefined): string {
 
 const TASK_LABELS: Record<TaskKind, string> = {
   blueprint: 'Blueprint',
-  prime_image_prompts: 'Prime prompts',
-  image_prompts: 'Prompts',
+  prime_slide_prompts: 'Prime prompts',
+  slide_prompts: 'Prompts',
   script: 'Script',
   tts: 'Narration',
-  image: 'Still',
+  slide: 'Slide',
   clip: 'Clip',
   concat: 'Concat',
   metadata: 'Metadata',

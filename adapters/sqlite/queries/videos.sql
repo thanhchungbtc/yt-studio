@@ -18,7 +18,7 @@ WHERE (CAST(sqlc.arg(channel_id) AS TEXT) = '' OR channel_id = sqlc.arg(channel_
 
 -- name: CreateVideo :exec
 INSERT INTO videos (
-    id, channel_id, ref, title, topic, state, chapter_count, images_per_chapter,
+    id, channel_id, ref, title, topic, state, chapter_count, slides_per_chapter,
     target_duration_minutes, thumbnail_cells, blueprint_asset_id, final_asset_id,
     thumbnail_asset_id, thumbnail_plan_json, thumbnail_icon_ids_json,
     metadata_json, upload_json, error, created_at, updated_at, started_at, completed_at
@@ -26,7 +26,7 @@ INSERT INTO videos (
 
 -- name: UpdateVideo :exec
 UPDATE videos
-SET title = ?, topic = ?, state = ?, chapter_count = ?, images_per_chapter = ?,
+SET title = ?, topic = ?, state = ?, chapter_count = ?, slides_per_chapter = ?,
     target_duration_minutes = ?, thumbnail_cells = ?,
     blueprint_asset_id = ?, final_asset_id = ?, thumbnail_asset_id = ?,
     thumbnail_plan_json = ?, thumbnail_icon_ids_json = ?,

@@ -63,7 +63,7 @@ func newTestComposer(t *testing.T) (*Composer, *assetstore.FS) {
 
 // seedChapter generates one chapter's worth of input with the mock backends,
 // which produce genuinely valid PNG and WAV files.
-func seedChapter(t *testing.T, store provider.AssetStore, ordinal, stills int) (entity.AssetID, []entity.AssetID) {
+func seedChapter(t *testing.T, store provider.AssetStore, ordinal, slides int) (entity.AssetID, []entity.AssetID) {
 	t.Helper()
 	ctx := t.Context()
 
@@ -76,17 +76,17 @@ func seedChapter(t *testing.T, store provider.AssetStore, ordinal, stills int) (
 		t.Fatalf("mock narration: %v", err)
 	}
 
-	images := mockprovider.NewImage(store, nil)
-	ids := make([]entity.AssetID, 0, stills)
-	for i := range stills {
-		id, err := images.Generate(ctx, provider.ImageRequest{
+	gen := mockprovider.NewSlide(store, nil)
+	ids := make([]entity.AssetID, 0, slides)
+	for i := range slides {
+		id, err := gen.Generate(ctx, provider.SlideRequest{
 			VideoID: "video-1",
 			Ordinal: ordinal,
 			Index:   i,
-			Prompt:  fmt.Sprintf("chapter %d still %d", ordinal, i),
+			Prompt:  fmt.Sprintf("chapter %d slide %d", ordinal, i),
 		})
 		if err != nil {
-			t.Fatalf("mock still: %v", err)
+			t.Fatalf("mock slide: %v", err)
 		}
 		ids = append(ids, id)
 	}
@@ -119,7 +119,7 @@ func TestClipComposesARealChapter(t *testing.T) {
 	requireFFmpeg(t)
 
 	composer, store := newTestComposer(t)
-	audio, stills := seedChapter(t, store, 1, 2)
+	audio, slides := seedChapter(t, store, 1, 2)
 
 	id, err := composer.Clip(t.Context(), provider.ClipRequest{
 		VideoID:       "video-1",
@@ -128,7 +128,7 @@ func TestClipComposesARealChapter(t *testing.T) {
 		ChapterTitle:  "The Rise and Fall",
 		VideoTitle:    "A History of Rome",
 		AudioAssetID:  audio,
-		ImageAssetIDs: stills,
+		SlideAssetIDs: slides,
 	})
 	if err != nil {
 		t.Fatalf("compose clip: %v", err)
@@ -165,7 +165,7 @@ func TestConcatComposesTheFinalRender(t *testing.T) {
 	clips := make([]entity.AssetID, 0, 2)
 	clipTotal := 0.0
 	for ordinal := 1; ordinal <= 2; ordinal++ {
-		audio, stills := seedChapter(t, store, ordinal, 2)
+		audio, slides := seedChapter(t, store, ordinal, 2)
 		id, err := composer.Clip(ctx, provider.ClipRequest{
 			VideoID:       "video-1",
 			ChapterID:     entity.ChapterID(fmt.Sprintf("chapter-%d", ordinal)),
@@ -173,7 +173,7 @@ func TestConcatComposesTheFinalRender(t *testing.T) {
 			ChapterTitle:  fmt.Sprintf("Chapter %d", ordinal),
 			VideoTitle:    "A History of Rome",
 			AudioAssetID:  audio,
-			ImageAssetIDs: stills,
+			SlideAssetIDs: slides,
 		})
 		if err != nil {
 			t.Fatalf("compose clip %d: %v", ordinal, err)
@@ -213,17 +213,17 @@ func TestClipRejectsIncompleteRequests(t *testing.T) {
 	requireFFmpeg(t)
 
 	composer, store := newTestComposer(t)
-	audio, stills := seedChapter(t, store, 1, 1)
+	audio, slides := seedChapter(t, store, 1, 1)
 
 	tests := []struct {
 		name string
 		req  provider.ClipRequest
 	}{
-		{name: "no stills", req: provider.ClipRequest{AudioAssetID: audio}},
-		{name: "no narration", req: provider.ClipRequest{ImageAssetIDs: stills}},
-		{name: "missing still", req: provider.ClipRequest{
+		{name: "no slides", req: provider.ClipRequest{AudioAssetID: audio}},
+		{name: "no narration", req: provider.ClipRequest{SlideAssetIDs: slides}},
+		{name: "missing slide", req: provider.ClipRequest{
 			AudioAssetID:  audio,
-			ImageAssetIDs: []entity.AssetID{entity.AssetID(strings.Repeat("0", 64))},
+			SlideAssetIDs: []entity.AssetID{entity.AssetID(strings.Repeat("0", 64))},
 		}},
 	}
 	for _, tc := range tests {

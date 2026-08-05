@@ -28,7 +28,7 @@ type LLM struct {
 	// deduplicates only calls that overlap in time.
 	prompts singleflight.Group
 	cacheMu sync.RWMutex
-	cache   map[entity.VideoID][]provider.ImagePrompt
+	cache   map[entity.VideoID][]provider.SlidePrompt
 }
 
 var _ provider.LLMProvider = (*LLM)(nil)
@@ -39,7 +39,7 @@ func NewLLM(store provider.AssetStore, lookup ContextLookup, tuning Tuning) *LLM
 		store:  store,
 		lookup: lookup,
 		tuning: tuning,
-		cache:  make(map[entity.VideoID][]provider.ImagePrompt, 8),
+		cache:  make(map[entity.VideoID][]provider.SlidePrompt, 8),
 	}
 }
 
@@ -122,17 +122,17 @@ func (l *LLM) Script(ctx context.Context, req provider.ScriptRequest) (provider.
 	}, nil
 }
 
-// ImagePrompts returns every chapter's prompts for one video.
+// SlidePrompts returns every chapter's prompts for one video.
 //
 // All prompts come from one generation — better cross-chapter visual
 // coherence, and it avoids re-sending blueprint context N times. The DAG still
 // holds N individually retryable per-chapter tasks; singleflight is what
 // collapses them onto one production and serves the rest from cache.
-func (l *LLM) ImagePrompts(ctx context.Context, videoID entity.VideoID) ([]provider.ImagePrompt, error) {
+func (l *LLM) SlidePrompts(ctx context.Context, videoID entity.VideoID) ([]provider.SlidePrompt, error) {
 	if cached, ok := l.cached(videoID); ok {
 		return cached, nil
 	}
-	key := string(videoID) + "|image_prompts"
+	key := string(videoID) + "|slide_prompts"
 	v, err, _ := l.prompts.Do(key, func() (any, error) {
 		// A caller that queued behind the production must not trigger another.
 		if cached, ok := l.cached(videoID); ok {
@@ -145,18 +145,18 @@ func (l *LLM) ImagePrompts(ctx context.Context, videoID entity.VideoID) ([]provi
 		if err := simulate(ctx, l.tuning, 3); err != nil {
 			return nil, err
 		}
-		perChapter := vc.ImagesPerChapter
+		perChapter := vc.SlidesPerChapter
 		if perChapter <= 0 {
 			perChapter = 1
 		}
-		out := make([]provider.ImagePrompt, 0, len(vc.Chapters)*perChapter)
+		out := make([]provider.SlidePrompt, 0, len(vc.Chapters)*perChapter)
 		for _, ch := range vc.Chapters {
 			for j := range perChapter {
 				seed := seedOf(string(videoID), strconv.Itoa(ch.Ordinal), strconv.Itoa(j))
-				out = append(out, provider.ImagePrompt{
+				out = append(out, provider.SlidePrompt{
 					Ordinal: ch.Ordinal,
 					Index:   j,
-					Prompt:  imagePrompt(seed, ch.Title, ch.Summary),
+					Prompt:  slidePrompt(seed, ch.Title, ch.Summary),
 				})
 			}
 		}
@@ -168,7 +168,7 @@ func (l *LLM) ImagePrompts(ctx context.Context, videoID entity.VideoID) ([]provi
 	if err != nil {
 		return nil, err
 	}
-	prompts, ok := v.([]provider.ImagePrompt)
+	prompts, ok := v.([]provider.SlidePrompt)
 	if !ok {
 		return nil, fmt.Errorf("mock provider: unexpected prompt cache type %T", v)
 	}
@@ -176,7 +176,7 @@ func (l *LLM) ImagePrompts(ctx context.Context, videoID entity.VideoID) ([]provi
 }
 
 // cached returns a caller-owned copy of the batch if it has been produced.
-func (l *LLM) cached(videoID entity.VideoID) ([]provider.ImagePrompt, bool) {
+func (l *LLM) cached(videoID entity.VideoID) ([]provider.SlidePrompt, bool) {
 	l.cacheMu.RLock()
 	prompts, ok := l.cache[videoID]
 	l.cacheMu.RUnlock()
@@ -187,8 +187,8 @@ func (l *LLM) cached(videoID entity.VideoID) ([]provider.ImagePrompt, bool) {
 }
 
 // cloneprompts hands every caller its own slice; the cached one never escapes.
-func cloneprompts(in []provider.ImagePrompt) []provider.ImagePrompt {
-	out := make([]provider.ImagePrompt, len(in))
+func cloneprompts(in []provider.SlidePrompt) []provider.SlidePrompt {
+	out := make([]provider.SlidePrompt, len(in))
 	copy(out, in)
 	return out
 }
@@ -199,7 +199,7 @@ func (l *LLM) Forget(videoID entity.VideoID) {
 	l.cacheMu.Lock()
 	delete(l.cache, videoID)
 	l.cacheMu.Unlock()
-	l.prompts.Forget(string(videoID) + "|image_prompts")
+	l.prompts.Forget(string(videoID) + "|slide_prompts")
 }
 
 // Metadata writes the YouTube-facing listing.

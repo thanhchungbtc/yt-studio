@@ -8,15 +8,15 @@ type Pool string
 // The complete set of pools. A task acquires exactly one slot in exactly one
 // pool and holds it for the duration of the provider call.
 const (
-	// PoolLLM covers blueprint, script, image-prompt priming and metadata.
+	// PoolLLM covers blueprint, script, slide-prompt priming and metadata.
 	PoolLLM Pool = "llm"
 	// PoolTTS covers narration synthesis.
 	PoolTTS Pool = "tts"
-	// PoolImage covers still generation — the longest pole in the pipeline.
+	// PoolImage covers slide generation — the longest pole in the pipeline.
 	PoolImage Pool = "image"
 	// PoolCompose covers per-chapter clips and the final concat.
 	PoolCompose Pool = "compose"
-	// PoolCache covers the per-chapter image-prompt tasks, which are cache reads
+	// PoolCache covers the per-chapter slide-prompt tasks, which are cache reads
 	// against the coalesced batch and must not occupy a real LLM slot.
 	PoolCache Pool = "cache"
 	// PoolUpload covers the YouTube upload.

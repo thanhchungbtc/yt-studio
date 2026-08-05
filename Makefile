@@ -97,11 +97,11 @@ demo: build
 		-H 'content-type: application/json' -d '{"value":"$(DEMO_FAILURES)"}'; \
 	first=$$(curl -sf -X POST $$base/api/videos -H 'content-type: application/json' \
 		-H 'Idempotency-Key: demo-1' \
-		-d '{"channel":"deep-sleep-stories","title":"The Long Winter of the Harbour","topic":"a northern port town over one winter, told through its shipping ledgers","chapterCount":$(DEMO_CHAPTERS),"imagesPerChapter":2,"start":true}' \
+		-d '{"channel":"deep-sleep-stories","title":"The Long Winter of the Harbour","topic":"a northern port town over one winter, told through its shipping ledgers","chapterCount":$(DEMO_CHAPTERS),"slidesPerChapter":2,"start":true}' \
 		| sed -n 's/.*"ref":"\([^"]*\)".*/\1/p'); \
 	second=$$(curl -sf -X POST $$base/api/videos -H 'content-type: application/json' \
 		-H 'Idempotency-Key: demo-2' \
-		-d '{"channel":"history-explained","title":"The Salt Roads of the Adriatic","topic":"the medieval salt trade and the towns it made","chapterCount":$(DEMO_CHAPTERS),"imagesPerChapter":2,"start":true}' \
+		-d '{"channel":"history-explained","title":"The Salt Roads of the Adriatic","topic":"the medieval salt trade and the towns it made","chapterCount":$(DEMO_CHAPTERS),"slidesPerChapter":2,"start":true}' \
 		| sed -n 's/.*"ref":"\([^"]*\)".*/\1/p'); \
 	sleep $$(( ($(DEMO_LATENCY) * 4) / 1000 + 2 )); \
 	curl -sf -o /dev/null -X POST $$base/api/videos/$$first/approve \

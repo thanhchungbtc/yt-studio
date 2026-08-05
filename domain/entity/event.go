@@ -76,7 +76,7 @@ type ChapterDelta struct {
 	Title         string    `json:"title"`
 	HasScript     bool      `json:"hasScript"`
 	AudioAssetID  *AssetID  `json:"audioAssetId,omitempty"`
-	ImageAssetIDs []AssetID `json:"imageAssetIds,omitempty"`
+	SlideAssetIDs []AssetID `json:"slideAssetIds,omitempty"`
 	ClipAssetID   *AssetID  `json:"clipAssetId,omitempty"`
 	UpdatedAt     time.Time `json:"updatedAt"`
 }

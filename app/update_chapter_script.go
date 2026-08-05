@@ -67,7 +67,7 @@ func chapterDelta(c entity.Chapter) entity.ChapterDelta {
 		Title:         c.Title,
 		HasScript:     c.Script != "",
 		AudioAssetID:  c.AudioAssetID,
-		ImageAssetIDs: c.ImageAssetIDs,
+		SlideAssetIDs: c.SlideAssetIDs,
 		ClipAssetID:   c.ClipAssetID,
 		UpdatedAt:     c.UpdatedAt,
 	}

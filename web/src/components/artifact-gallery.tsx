@@ -58,15 +58,15 @@ import { usePersisted } from '@/lib/workspace'
 
   Every artifact a video has produced, as pictures rather than as hashes. A hash
   is the right *identity* for a content-addressed store and the wrong thing to
-  show an operator asking whether the stills came out well — so the image leads
+  show an operator asking whether the slides came out well — so the image leads
   and the address moves into the viewer.
 
   The shape is a tree, because that is the shape of the thing: a video owns a
-  blueprint and a listing, each chapter owns a script, a narration, its stills
+  blueprint and a listing, each chapter owns a script, a narration, its slides
   and the clip they were composed into. Two rules keep it from becoming a filing
   cabinet — a kind with one artifact is drawn as that artifact rather than as a
   folder holding it, and the kinds run in pipeline order rather than
-  alphabetically, so a chapter reads script, narration, stills, clip.
+  alphabetically, so a chapter reads script, narration, slides, clip.
 
   At fifty chapters this is several hundred images, which is why every row is
   virtualised: the browser is asked for the dozen thumbnails on screen, not for
@@ -683,7 +683,7 @@ function buildRows({
         first: ordered.length,
       })
       if (folded.has(kindKey)) continue
-      // Stills are numbered by their slot and are worth naming; thumbnail icons
+      // Slides are numbered by their slot and are worth naming; thumbnail icons
       // all carry the same name, and eleven copies of it say nothing the header
       // has not.
       const named = new Set(group.map((item) => item.title)).size > 1

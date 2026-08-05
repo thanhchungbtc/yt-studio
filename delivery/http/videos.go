@@ -48,7 +48,7 @@ type CreateVideoInput struct {
 		Title            string `json:"title" required:"true" minLength:"1" maxLength:"200"`
 		Topic            string `json:"topic,omitempty" maxLength:"500"`
 		ChapterCount     int    `json:"chapterCount,omitempty" minimum:"0" maximum:"500" doc:"Defaults to the video.default_chapter_count setting"`
-		ImagesPerChapter int    `json:"imagesPerChapter,omitempty" minimum:"0" maximum:"20" doc:"Defaults to the video.default_images_per_chapter setting"`
+		SlidesPerChapter int    `json:"slidesPerChapter,omitempty" minimum:"0" maximum:"20" doc:"Defaults to the video.default_slides_per_chapter setting"`
 		//nolint:lll // one field, one line
 		ThumbnailCells int `json:"thumbnailCells,omitempty" minimum:"0" maximum:"24" doc:"Tiles in the thumbnail grid; defaults to the video.default_thumbnail_cells setting"`
 		//nolint:lll // one field, one line
@@ -125,14 +125,14 @@ func postVideo(
 	return func(ctx context.Context, in *CreateVideoInput) (*VideoOutput, error) {
 		v, err := app.CreateVideo(ctx, channels, channelWriter, videoWriter, newID, now(),
 			settings.Int(entity.SettingVideoDefaultChapters),
-			settings.Int(entity.SettingVideoDefaultImages),
+			settings.Int(entity.SettingVideoDefaultSlides),
 			settings.Int(entity.SettingVideoDefaultThumbnailCells),
 			app.CreateVideoInput{
 				ChannelKey:            in.Body.Channel,
 				Title:                 in.Body.Title,
 				Topic:                 in.Body.Topic,
 				ChapterCount:          in.Body.ChapterCount,
-				ImagesPerChapter:      in.Body.ImagesPerChapter,
+				SlidesPerChapter:      in.Body.SlidesPerChapter,
 				ThumbnailCells:        in.Body.ThumbnailCells,
 				TargetDurationMinutes: in.Body.TargetDurationMinutes,
 			})

@@ -5,7 +5,7 @@
 // because a task is not finished until the file is in the asset store, and a
 // URL that expires is not an artifact.
 //
-// Two backends are built on the same call — stills (provider.ImageProvider) and
+// Two backends are built on the same call — slides (provider.SlideProvider) and
 // thumbnail icons (provider.ThumbnailIconGenerator) — because they differ only
 // in geometry and in which asset kind the bytes land under. They stay separate
 // types because the ports are selected independently, so the two can be pointed
@@ -58,7 +58,7 @@ const outputFormat = "PNG"
 // defaultNegativePrompt is what every generation is steered away from.
 //
 // It is a constant rather than a settings row because it is the other half of
-// one style decision rather than a knob: it describes the register the stills
+// one style decision rather than a knob: it describes the register the slides
 // and the icons are drawn in, and the positive half of that decision already
 // lives in the prompts. Promoting it to a row is a one-line change if the style
 // ever needs to differ per channel.
@@ -83,7 +83,7 @@ type Config struct {
 	// resolves its backend per call: a model picked on the settings screen has to
 	// apply to the next generation instead of the next restart.
 	Model func() string
-	// StillSize is the geometry stills are generated at. Icons are square by the
+	// StillSize is the geometry slides are generated at. Icons are square by the
 	// port's definition and carry their own size on the request, so only the
 	// still half needs this.
 	StillSize func() (width, height int)
@@ -114,7 +114,7 @@ func New(cfg Config, store provider.AssetStore, log *slog.Logger) (*Client, erro
 		return nil, fmt.Errorf("%w: no model resolver was given", ErrUnavailable)
 	}
 	if cfg.StillSize == nil {
-		return nil, fmt.Errorf("%w: no still size resolver was given", ErrUnavailable)
+		return nil, fmt.Errorf("%w: no slide size resolver was given", ErrUnavailable)
 	}
 	if store == nil {
 		return nil, fmt.Errorf("%w: asset store must not be nil", ErrUnavailable)

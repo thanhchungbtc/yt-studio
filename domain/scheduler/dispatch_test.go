@@ -233,7 +233,7 @@ func TestPermanentFailureBlocksOnlyItsTail(t *testing.T) {
 		return s.Failed == 1 && s.Running == 0 && s.Ready == 0 && s.RetryPending == 0
 	})
 
-	// Every other chapter's stills and narration still completed: a failure in one
+	// Every other chapter's slides and narration still completed: a failure in one
 	// chapter must not stop the rest.
 	failedTail := len(g.Downstream(mustIndex(t, g, entity.NewTaskID("v1", entity.TaskKindScript, 2, -1))))
 	snap := r.sched.Snapshot()
@@ -634,8 +634,8 @@ func TestResumeContinuesFromPersistedState(t *testing.T) {
 	g := testGraph(t, "v1", 8, 2, false)
 	gate := make(chan struct{})
 	first := newRig(t, nil, g, func(task entity.Task) entity.TaskOutcome {
-		if task.Kind == entity.TaskKindImage {
-			<-gate // stall the image branch so the run is genuinely partial
+		if task.Kind == entity.TaskKindSlide {
+			<-gate // stall the slide branch so the run is genuinely partial
 		}
 		return entity.Success{}
 	})

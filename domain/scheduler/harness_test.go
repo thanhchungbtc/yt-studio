@@ -284,12 +284,12 @@ func startScheduler(t *testing.T, s *Scheduler) context.Context {
 // is a test that is reading the default.
 const testCells = 3
 
-func testGraph(t *testing.T, videoID entity.VideoID, chapters, images int, gates bool) *Graph {
+func testGraph(t *testing.T, videoID entity.VideoID, chapters, slides int, gates bool) *Graph {
 	t.Helper()
 	g, err := BuildGraph(BuildSpec{
 		VideoID:          videoID,
 		ChapterCount:     chapters,
-		ImagesPerChapter: images,
+		SlidesPerChapter: slides,
 		ThumbnailCells:   testCells,
 		MaxAttempts:      3,
 		BlueprintGate:    gates,

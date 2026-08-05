@@ -19,7 +19,7 @@ func benchGraph(b *testing.B) *Graph {
 	g, err := BuildGraph(BuildSpec{
 		VideoID:          "bench",
 		ChapterCount:     benchChapters,
-		ImagesPerChapter: 2,
+		SlidesPerChapter: 2,
 		ThumbnailCells:   testCells,
 		MaxAttempts:      3,
 		Now:              time.Unix(0, 0),
@@ -36,7 +36,7 @@ func BenchmarkBuildGraph(b *testing.B) {
 		g, err := BuildGraph(BuildSpec{
 			VideoID:          "bench",
 			ChapterCount:     benchChapters,
-			ImagesPerChapter: 2,
+			SlidesPerChapter: 2,
 			ThumbnailCells:   testCells,
 			MaxAttempts:      3,
 			Now:              time.Unix(0, 0),
@@ -57,7 +57,7 @@ func BenchmarkGraphEdges(b *testing.B) {
 	}
 }
 
-// dispatchFixture builds a saturated ready set: one video's whole image branch
+// dispatchFixture builds a saturated ready set: one video's whole slide branch
 // queued behind a pool with free slots, which is the steady state the dispatch
 // decision runs in.
 func dispatchFixture(tb testing.TB) (*ReadySet, *Pools, []entity.Task) {
@@ -70,7 +70,7 @@ func dispatchFixture(tb testing.TB) (*ReadySet, *Pools, []entity.Task) {
 	rs := NewReadySet()
 	for i := range tasks {
 		tasks[i] = entity.Task{
-			ID:    entity.NewTaskID("bench", entity.TaskKindImage, i, 0),
+			ID:    entity.NewTaskID("bench", entity.TaskKindSlide, i, 0),
 			Pool:  entity.PoolImage,
 			State: entity.TaskStateReady,
 		}
@@ -196,10 +196,10 @@ func BenchmarkTaskDeltaJSON(b *testing.B) {
 	now := time.Unix(1_700_000_000, 0).UTC()
 	chapterID := entity.NewChapterID("v1", 7)
 	delta := entity.TaskDelta{
-		ID:        entity.NewTaskID("v1", entity.TaskKindImage, 7, 1),
+		ID:        entity.NewTaskID("v1", entity.TaskKindSlide, 7, 1),
 		VideoID:   "v1",
 		ChapterID: &chapterID,
-		Kind:      entity.TaskKindImage,
+		Kind:      entity.TaskKindSlide,
 		Ordinal:   7,
 		Index:     1,
 		State:     entity.TaskStateRunning,

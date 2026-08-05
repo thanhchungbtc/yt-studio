@@ -78,19 +78,19 @@ func (s *Store) UpdateChapter(ctx context.Context, c entity.Chapter) error {
 }
 
 func chapterParams(c entity.Chapter) (sqlcgen.UpsertChapterParams, error) {
-	prompts := c.ImagePrompts
+	prompts := c.SlidePrompts
 	if prompts == nil {
 		prompts = []string{}
 	}
-	images := c.ImageAssetIDs
-	if images == nil {
-		images = []entity.AssetID{}
+	slides := c.SlideAssetIDs
+	if slides == nil {
+		slides = []entity.AssetID{}
 	}
 	promptsJSON, err := encodeJSON(prompts)
 	if err != nil {
-		return sqlcgen.UpsertChapterParams{}, fmt.Errorf("encode image prompts: %w", err)
+		return sqlcgen.UpsertChapterParams{}, fmt.Errorf("encode slide prompts: %w", err)
 	}
-	imagesJSON, err := encodeJSON(images)
+	slidesJSON, err := encodeJSON(slides)
 	if err != nil {
 		return sqlcgen.UpsertChapterParams{}, fmt.Errorf("encode image asset ids: %w", err)
 	}
@@ -101,9 +101,9 @@ func chapterParams(c entity.Chapter) (sqlcgen.UpsertChapterParams, error) {
 		Title:             c.Title,
 		Summary:           c.Summary,
 		Script:            c.Script,
-		ImagePromptsJson:  promptsJSON,
+		SlidePromptsJson:  promptsJSON,
 		AudioAssetID:      assetIDPtr(c.AudioAssetID),
-		ImageAssetIdsJson: imagesJSON,
+		SlideAssetIdsJson: slidesJSON,
 		ClipAssetID:       assetIDPtr(c.ClipAssetID),
 		DurationSeconds:   c.DurationSeconds,
 		EstimatedWords:    int64(c.EstimatedWords),
@@ -133,11 +133,11 @@ func (s *Store) SetChapterPrompts(ctx context.Context, id entity.ChapterID, prom
 	}
 	encoded, err := encodeJSON(prompts)
 	if err != nil {
-		return fmt.Errorf("encode image prompts: %w", err)
+		return fmt.Errorf("encode slide prompts: %w", err)
 	}
 	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
 		return q.SetChapterPrompts(ctx, sqlcgen.SetChapterPromptsParams{
-			ImagePromptsJson: encoded,
+			SlidePromptsJson: encoded,
 			UpdatedAt:        toUnix(time.Now()),
 			ID:               string(id),
 		})
@@ -145,7 +145,7 @@ func (s *Store) SetChapterPrompts(ctx context.Context, id entity.ChapterID, prom
 }
 
 // SetChapterPrompt replaces one prompt at its index, for an operator redrawing
-// a single still. Indexed like SetChapterImage so it cannot carry back a stale
+// a single slide. Indexed like SetChapterSlide so it cannot carry back a stale
 // copy of its siblings.
 func (s *Store) SetChapterPrompt(ctx context.Context, id entity.ChapterID, index int, prompt string) error {
 	if index < 0 {
@@ -174,16 +174,16 @@ func (s *Store) SetChapterAudio(ctx context.Context, id entity.ChapterID, assetI
 	})
 }
 
-// SetChapterImage records one still at its index. json_set makes this a single
-// atomic statement, so two concurrent image tasks cannot lose each other's
+// SetChapterSlide records one slide at its index. json_set makes this a single
+// atomic statement, so two concurrent slide tasks cannot lose each other's
 // write.
-func (s *Store) SetChapterImage(ctx context.Context, id entity.ChapterID, index int, assetID entity.AssetID) error {
+func (s *Store) SetChapterSlide(ctx context.Context, id entity.ChapterID, index int, assetID entity.AssetID) error {
 	if index < 0 {
-		return fmt.Errorf("%w: image index must not be negative", entity.ErrInvalidChapter)
+		return fmt.Errorf("%w: slide index must not be negative", entity.ErrInvalidChapter)
 	}
 	path := "$[" + strconv.Itoa(index) + "]"
 	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
-		return q.SetChapterImage(ctx, sqlcgen.SetChapterImageParams{
+		return q.SetChapterSlide(ctx, sqlcgen.SetChapterSlideParams{
 			Path:      path,
 			AssetID:   string(assetID),
 			UpdatedAt: toUnix(time.Now()),

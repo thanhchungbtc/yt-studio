@@ -32,7 +32,7 @@ export function CreateVideoDialog({
   const [topic, setTopic] = useState('')
   const [chapterCount, setChapterCount] = useState('50')
   const [durationMinutes, setDurationMinutes] = useState('180')
-  const [imagesPerChapter, setImagesPerChapter] = useState('2')
+  const [slidesPerChapter, setSlidesPerChapter] = useState('2')
   // Kept in step with video.default_thumbnail_cells by hand, as the other
   // defaults in this form are: the field is always sent, so the server's own
   // default only applies to callers that omit it.
@@ -55,7 +55,7 @@ export function CreateVideoDialog({
           topic,
           chapterCount: Number(chapterCount) || 0,
           targetDurationMinutes: Number(durationMinutes) || 0,
-          imagesPerChapter: Number(imagesPerChapter) || 0,
+          slidesPerChapter: Number(slidesPerChapter) || 0,
           thumbnailCells: Number(thumbnailCells) || 0,
           start,
         },
@@ -72,12 +72,12 @@ export function CreateVideoDialog({
   })
 
   const chapters = Number(chapterCount) || 0
-  const stills = Number(imagesPerChapter) || 0
+  const slides = Number(slidesPerChapter) || 0
   const minutes = Number(durationMinutes) || 0
   const cells = Number(thumbnailCells) || 0
   // Mirrors scheduler.NodeCountFor: the seven video-level tasks, four per
-  // chapter, one per still and one icon per thumbnail tile.
-  const taskEstimate = 7 + 4 * chapters + chapters * stills + cells
+  // chapter, one per slide and one icon per thumbnail tile.
+  const taskEstimate = 7 + 4 * chapters + chapters * slides + cells
 
   return (
     <Modal
@@ -141,7 +141,7 @@ export function CreateVideoDialog({
           )}
         </Field>
 
-        <Field label="Topic" hint="Steers the blueprint, the scripts and the image prompts.">
+        <Field label="Topic" hint="Steers the blueprint, the scripts and the slide prompts.">
           {(id) => (
             <Textarea
               id={id}
@@ -182,15 +182,15 @@ export function CreateVideoDialog({
               />
             )}
           </Field>
-          <Field label="Stills per chapter" hint="1–20">
+          <Field label="Slides per chapter" hint="1–20">
             {(id) => (
               <Input
                 id={id}
                 type="number"
                 min={1}
                 max={20}
-                value={imagesPerChapter}
-                onChange={(e) => setImagesPerChapter(e.target.value)}
+                value={slidesPerChapter}
+                onChange={(e) => setSlidesPerChapter(e.target.value)}
               />
             )}
           </Field>

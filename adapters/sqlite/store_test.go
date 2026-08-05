@@ -322,9 +322,9 @@ func TestSetVideoThumbnailIconIsIndexed(t *testing.T) {
 	}
 }
 
-// Two image tasks for the same chapter write concurrently; each must land
+// Two slide tasks for the same chapter write concurrently; each must land
 // without clobbering the other.
-func TestSetChapterImageIsIndexed(t *testing.T) {
+func TestSetChapterSlideIsIndexed(t *testing.T) {
 	t.Parallel()
 	store, ch := seeded(t)
 	ctx := context.Background()
@@ -341,19 +341,19 @@ func TestSetChapterImageIsIndexed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.ImageAssetIDs = make([]entity.AssetID, 3)
+	c.SlideAssetIDs = make([]entity.AssetID, 3)
 	if err := store.ReplaceChapters(ctx, "v1", []entity.Chapter{c}); err != nil {
 		t.Fatal(err)
 	}
 
 	// Deliberately out of order, as concurrent tasks would arrive.
-	if err := store.SetChapterImage(ctx, c.ID, 2, "cc"); err != nil {
+	if err := store.SetChapterSlide(ctx, c.ID, 2, "cc"); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.SetChapterImage(ctx, c.ID, 0, "aa"); err != nil {
+	if err := store.SetChapterSlide(ctx, c.ID, 0, "aa"); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.SetChapterImage(ctx, c.ID, 1, "bb"); err != nil {
+	if err := store.SetChapterSlide(ctx, c.ID, 1, "bb"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -362,12 +362,12 @@ func TestSetChapterImageIsIndexed(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []entity.AssetID{"aa", "bb", "cc"}
-	if len(got.ImageAssetIDs) != len(want) {
-		t.Fatalf("images = %v, want %v", got.ImageAssetIDs, want)
+	if len(got.SlideAssetIDs) != len(want) {
+		t.Fatalf("slides = %v, want %v", got.SlideAssetIDs, want)
 	}
 	for i := range want {
-		if got.ImageAssetIDs[i] != want[i] {
-			t.Fatalf("images = %v, want %v", got.ImageAssetIDs, want)
+		if got.SlideAssetIDs[i] != want[i] {
+			t.Fatalf("slides = %v, want %v", got.SlideAssetIDs, want)
 		}
 	}
 }
@@ -386,7 +386,7 @@ func TestGraphPersistenceRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	g, err := scheduler.BuildGraph(scheduler.BuildSpec{
-		VideoID: "v1", ChapterCount: 4, ImagesPerChapter: 2, ThumbnailCells: 2, MaxAttempts: 3,
+		VideoID: "v1", ChapterCount: 4, SlidesPerChapter: 2, ThumbnailCells: 2, MaxAttempts: 3,
 		BlueprintGate: true, UploadGate: true, Now: now,
 	})
 	if err != nil {

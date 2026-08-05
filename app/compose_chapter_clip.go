@@ -10,10 +10,10 @@ import (
 	"github.com/tbui/yt-studio/domain/repository"
 )
 
-// ComposeChapterClip joins one chapter's narration and stills into a clip.
+// ComposeChapterClip joins one chapter's narration and slides into a clip.
 //
 // It is the join point of the DAG's two independent branches: the script/TTS
-// branch and the prompt/image branch.
+// branch and the prompt/slide branch.
 //
 //nolint:revive // the parameter list is the dependency list
 func ComposeChapterClip(
@@ -41,15 +41,15 @@ func ComposeChapterClip(
 			Retryable: true,
 		}
 	}
-	stills := make([]entity.AssetID, 0, len(chapter.ImageAssetIDs))
-	for _, id := range chapter.ImageAssetIDs {
+	slides := make([]entity.AssetID, 0, len(chapter.SlideAssetIDs))
+	for _, id := range chapter.SlideAssetIDs {
 		if id != "" {
-			stills = append(stills, id)
+			slides = append(slides, id)
 		}
 	}
-	if len(stills) == 0 {
+	if len(slides) == 0 {
 		return entity.Failed{
-			Err:       fmt.Errorf("%w: chapter %d has no stills", ErrValidation, chapter.Ordinal),
+			Err:       fmt.Errorf("%w: chapter %d has no slides", ErrValidation, chapter.Ordinal),
 			Retryable: true,
 		}
 	}
@@ -68,7 +68,7 @@ func ComposeChapterClip(
 		ChapterTitle:  chapter.Title,
 		VideoTitle:    video.Title,
 		AudioAssetID:  *chapter.AudioAssetID,
-		ImageAssetIDs: stills,
+		SlideAssetIDs: slides,
 	})
 	if err != nil {
 		return classify(fmt.Errorf("compose clip for chapter %d: %w", chapter.Ordinal, err))

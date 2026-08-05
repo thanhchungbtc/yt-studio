@@ -47,7 +47,7 @@ func RerunTasks(
 	// Re-priming the batch is the point of re-running either prompt task.
 	if prompts != nil && !dryRun {
 		for _, t := range seeds {
-			if t.Kind == entity.TaskKindPrimeImagePrompts || t.Kind == entity.TaskKindImagePrompts {
+			if t.Kind == entity.TaskKindPrimeSlidePrompts || t.Kind == entity.TaskKindSlidePrompts {
 				prompts.Forget(videoID)
 				break
 			}

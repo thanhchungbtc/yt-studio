@@ -9,11 +9,11 @@ import (
 
 func TestBuildGraphShape(t *testing.T) {
 	t.Parallel()
-	const chapters, images = 50, 2
+	const chapters, slides = 50, 2
 
-	g := testGraph(t, "v1", chapters, images, true)
+	g := testGraph(t, "v1", chapters, slides, true)
 
-	if got, want := g.NodeCount(), NodeCountFor(chapters, images, testCells); got != want {
+	if got, want := g.NodeCount(), NodeCountFor(chapters, slides, testCells); got != want {
 		t.Fatalf("node count = %d, want %d", got, want)
 	}
 
@@ -23,11 +23,11 @@ func TestBuildGraphShape(t *testing.T) {
 	}
 	want := map[entity.TaskKind]int{
 		entity.TaskKindBlueprint:         1,
-		entity.TaskKindPrimeImagePrompts: 1,
-		entity.TaskKindImagePrompts:      chapters,
+		entity.TaskKindPrimeSlidePrompts: 1,
+		entity.TaskKindSlidePrompts:      chapters,
 		entity.TaskKindScript:            chapters,
 		entity.TaskKindTTS:               chapters,
-		entity.TaskKindImage:             chapters * images,
+		entity.TaskKindSlide:             chapters * slides,
 		entity.TaskKindClip:              chapters,
 		entity.TaskKindConcat:            1,
 		entity.TaskKindMetadata:          1,
@@ -41,21 +41,21 @@ func TestBuildGraphShape(t *testing.T) {
 	}
 }
 
-// Image prompts depend on the blueprint alone, not on the chapter script. That
+// Slide prompts depend on the blueprint alone, not on the chapter script. That
 // is what gives the graph two independent branches and starts the longest pole
 // early.
-func TestImagePromptsDoNotDependOnScripts(t *testing.T) {
+func TestSlidePromptsDoNotDependOnScripts(t *testing.T) {
 	t.Parallel()
 	g := testGraph(t, "v1", 8, 2, false)
 
 	for i := range g.NodeCount() {
 		task := g.Task(i)
-		if task.Kind != entity.TaskKindImagePrompts && task.Kind != entity.TaskKindImage {
+		if task.Kind != entity.TaskKindSlidePrompts && task.Kind != entity.TaskKindSlide {
 			continue
 		}
 		for _, dep := range g.dependencies[i] {
 			if g.Task(int(dep)).Kind == entity.TaskKindScript || g.Task(int(dep)).Kind == entity.TaskKindTTS {
-				t.Fatalf("%s depends on %s, which serialises the image branch behind narration",
+				t.Fatalf("%s depends on %s, which serialises the slide branch behind narration",
 					task.Kind, g.Task(int(dep)).Kind)
 			}
 		}
@@ -127,11 +127,11 @@ func TestEveryTaskAcquiresExactlyOnePool(t *testing.T) {
 // point in the priming task.
 func TestPromptFanOutUsesTheCachePool(t *testing.T) {
 	t.Parallel()
-	if got := entity.TaskKindImagePrompts.Pool(); got != entity.PoolCache {
-		t.Fatalf("image_prompts pool = %q, want cache", got)
+	if got := entity.TaskKindSlidePrompts.Pool(); got != entity.PoolCache {
+		t.Fatalf("slide_prompts pool = %q, want cache", got)
 	}
-	if got := entity.TaskKindPrimeImagePrompts.Pool(); got != entity.PoolLLM {
-		t.Fatalf("prime_image_prompts pool = %q, want llm", got)
+	if got := entity.TaskKindPrimeSlidePrompts.Pool(); got != entity.PoolLLM {
+		t.Fatalf("prime_slide_prompts pool = %q, want llm", got)
 	}
 }
 
@@ -179,8 +179,8 @@ func TestDownstreamCoversTheWholeTail(t *testing.T) {
 			t.Errorf("%s is not downstream of a chapter script", kind)
 		}
 	}
-	if reached[entity.TaskKindImage] != 0 {
-		t.Errorf("stills are downstream of a script, which would serialise the branches")
+	if reached[entity.TaskKindSlide] != 0 {
+		t.Errorf("slides are downstream of a script, which would serialise the branches")
 	}
 }
 
@@ -190,13 +190,13 @@ func TestBuildGraphRejectsBadSpecs(t *testing.T) {
 		name string
 		spec BuildSpec
 	}{
-		{"no video", BuildSpec{ChapterCount: 1, ImagesPerChapter: 1}},
-		{"zero chapters", BuildSpec{VideoID: "v", ChapterCount: 0, ImagesPerChapter: 1}},
-		{"too many chapters", BuildSpec{VideoID: "v", ChapterCount: entity.MaxChapterCount + 1, ImagesPerChapter: 1}},
-		{"zero images", BuildSpec{VideoID: "v", ChapterCount: 1, ImagesPerChapter: 0}},
-		{"too many images", BuildSpec{VideoID: "v", ChapterCount: 1, ImagesPerChapter: entity.MaxImagesPerChapter + 1}},
-		{"zero cells", BuildSpec{VideoID: "v", ChapterCount: 1, ImagesPerChapter: 1, ThumbnailCells: 0}},
-		{"too many cells", BuildSpec{VideoID: "v", ChapterCount: 1, ImagesPerChapter: 1, ThumbnailCells: entity.MaxThumbnailCells + 1}},
+		{"no video", BuildSpec{ChapterCount: 1, SlidesPerChapter: 1}},
+		{"zero chapters", BuildSpec{VideoID: "v", ChapterCount: 0, SlidesPerChapter: 1}},
+		{"too many chapters", BuildSpec{VideoID: "v", ChapterCount: entity.MaxChapterCount + 1, SlidesPerChapter: 1}},
+		{"zero slides", BuildSpec{VideoID: "v", ChapterCount: 1, SlidesPerChapter: 0}},
+		{"too many slides", BuildSpec{VideoID: "v", ChapterCount: 1, SlidesPerChapter: entity.MaxSlidesPerChapter + 1}},
+		{"zero cells", BuildSpec{VideoID: "v", ChapterCount: 1, SlidesPerChapter: 1, ThumbnailCells: 0}},
+		{"too many cells", BuildSpec{VideoID: "v", ChapterCount: 1, SlidesPerChapter: 1, ThumbnailCells: entity.MaxThumbnailCells + 1}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -212,7 +212,7 @@ func TestBuildGraphRejectsBadSpecs(t *testing.T) {
 // fixtures stable.
 func TestGraphIsDeterministic(t *testing.T) {
 	t.Parallel()
-	spec := BuildSpec{VideoID: "v1", ChapterCount: 6, ImagesPerChapter: 2,
+	spec := BuildSpec{VideoID: "v1", ChapterCount: 6, SlidesPerChapter: 2,
 		ThumbnailCells: testCells, MaxAttempts: 3, Now: time.Unix(0, 0)}
 	a, err := BuildGraph(spec)
 	if err != nil {

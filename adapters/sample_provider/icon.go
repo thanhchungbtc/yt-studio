@@ -49,7 +49,7 @@ func (i *Icon) Icon(ctx context.Context, req provider.ThumbnailIconRequest) (ent
 	}
 	path := icons[req.Index%len(icons)]
 
-	// Unlike a still, an icon is square by the port's definition, and the
+	// Unlike a slide, an icon is square by the port's definition, and the
 	// renderer scales whatever it is handed into a square tile. A 16:9 sample
 	// passed through untouched would arrive there stretched, so the crop happens
 	// here where the aspect is still known to be wrong.

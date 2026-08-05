@@ -86,9 +86,9 @@ func TestGenerateStoresDecodablePNG(t *testing.T) {
 	t.Parallel()
 	lib := sampleprovider.NewLibrary(resourcesDir(t))
 	store := newStore(t)
-	images := sampleprovider.NewImage(lib, store)
+	slides := sampleprovider.NewSlide(lib, store)
 
-	id, err := images.Generate(context.Background(), provider.ImageRequest{Ordinal: 1, Index: 0})
+	id, err := slides.Generate(context.Background(), provider.SlideRequest{Ordinal: 1, Index: 0})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,24 +106,24 @@ func TestGenerateStoresDecodablePNG(t *testing.T) {
 	// nowhere else.
 	decoded, err := png.Decode(bytes.NewReader(raw))
 	if err != nil {
-		t.Fatalf("stored still is not a PNG: %v", err)
+		t.Fatalf("stored slide is not a PNG: %v", err)
 	}
 	if got := decoded.Bounds().Size(); got != (image.Point{X: 1344, Y: 768}) {
-		t.Fatalf("still is %v; expected the composer's native 1344x768", got)
+		t.Fatalf("slide is %v; expected the composer's native 1344x768", got)
 	}
 }
 
-func TestStillsRotateAndDifferWithinAChapter(t *testing.T) {
+func TestSlidesRotateAndDifferWithinAChapter(t *testing.T) {
 	t.Parallel()
 	lib := sampleprovider.NewLibrary(resourcesDir(t))
-	images := sampleprovider.NewImage(lib, newStore(t))
+	slides := sampleprovider.NewSlide(lib, newStore(t))
 
 	ids := make([][]entity.AssetID, 0, 4)
 	for ordinal := 1; ordinal <= 4; ordinal++ {
 		pair := make([]entity.AssetID, 0, 2)
 		for index := range 2 {
-			id, err := images.Generate(context.Background(),
-				provider.ImageRequest{Ordinal: ordinal, Index: index})
+			id, err := slides.Generate(context.Background(),
+				provider.SlideRequest{Ordinal: ordinal, Index: index})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -131,14 +131,14 @@ func TestStillsRotateAndDifferWithinAChapter(t *testing.T) {
 		}
 		// A dissolve between two copies of one image is not a dissolve.
 		if pair[0] == pair[1] {
-			t.Fatalf("chapter %d got the same still twice", ordinal)
+			t.Fatalf("chapter %d got the same slide twice", ordinal)
 		}
 		ids = append(ids, pair)
 	}
 
 	// Consecutive chapters must not repeat the same pair all the way down.
 	if ids[0][0] == ids[1][0] {
-		t.Fatal("consecutive chapters lead with the same still")
+		t.Fatal("consecutive chapters lead with the same slide")
 	}
 }
 
@@ -207,9 +207,9 @@ func TestIconsDifferAcrossTheGrid(t *testing.T) {
 	}
 }
 
-// The icons arrived after the narration and the stills, so a library without
+// The icons arrived after the narration and the slides, so a library without
 // them still serves those. Only asking for one reports the absence.
-func TestLibraryWithoutIconsStillServesStills(t *testing.T) {
+func TestLibraryWithoutIconsStillServesSlides(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	sample := filepath.Join(dir, "sample")
@@ -231,9 +231,9 @@ func TestLibraryWithoutIconsStillServesStills(t *testing.T) {
 	if _, err := lib.Icons(); !errors.Is(err, provider.ErrUnavailable) {
 		t.Fatalf("Icons() = %v, want ErrUnavailable", err)
 	}
-	if _, err := sampleprovider.NewImage(lib, newStore(t)).Generate(context.Background(),
-		provider.ImageRequest{Ordinal: 1}); err != nil {
-		t.Fatalf("stills stopped working without icons: %v", err)
+	if _, err := sampleprovider.NewSlide(lib, newStore(t)).Generate(context.Background(),
+		provider.SlideRequest{Ordinal: 1}); err != nil {
+		t.Fatalf("slides stopped working without icons: %v", err)
 	}
 }
 
@@ -266,7 +266,7 @@ func TestMissingMediaIsUnavailableAndNotRetryable(t *testing.T) {
 	if _, err := sampleprovider.NewTTS(lib, store).Speak(context.Background(), provider.SpeakRequest{}); !errors.Is(err, provider.ErrUnavailable) {
 		t.Fatalf("Speak() = %v, want ErrUnavailable", err)
 	}
-	if _, err := sampleprovider.NewImage(lib, store).Generate(context.Background(), provider.ImageRequest{}); !errors.Is(err, provider.ErrUnavailable) {
+	if _, err := sampleprovider.NewSlide(lib, store).Generate(context.Background(), provider.SlideRequest{}); !errors.Is(err, provider.ErrUnavailable) {
 		t.Fatalf("Generate() = %v, want ErrUnavailable", err)
 	}
 	if _, err := sampleprovider.NewIcon(lib, store).Icon(context.Background(), provider.ThumbnailIconRequest{}); !errors.Is(err, provider.ErrUnavailable) {

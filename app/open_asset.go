@@ -18,7 +18,7 @@ type OpenedAsset struct {
 // OpenAsset resolves an asset by content address and opens it for streaming.
 //
 // The caller serves it with immutable cache headers: the hash is the cache key,
-// so a still caches forever for free.
+// so a slide caches forever for free.
 func OpenAsset(
 	ctx context.Context,
 	assets repository.AssetReader,

@@ -35,7 +35,7 @@ const (
 
 	SettingProviderLLM           SettingKey = "provider.llm"
 	SettingProviderTTS           SettingKey = "provider.tts"
-	SettingProviderImage         SettingKey = "provider.image"
+	SettingProviderSlide         SettingKey = "provider.slide"
 	SettingProviderComposer      SettingKey = "provider.composer"
 	SettingProviderThumbnail     SettingKey = "provider.thumbnail"
 	SettingProviderThumbnailIcon SettingKey = "provider.thumbnail_icon"
@@ -48,15 +48,15 @@ const (
 	// as an AIR identifier. A row for the same reason as the model above: it is
 	// the knob that gets turned while a look is being found.
 	SettingRunwareModel SettingKey = "runware.model"
-	// SettingRunwareWidth and SettingRunwareHeight are the geometry stills are
-	// generated at. They exist because provider.ImageRequest carries a size that
-	// no use case fills in: the still's dimensions are a property of the backend
+	// SettingRunwareWidth and SettingRunwareHeight are the geometry slides are
+	// generated at. They exist because provider.SlideRequest carries a size that
+	// no use case fills in: the slide's dimensions are a property of the backend
 	// drawing it, not of the chapter asking for it.
 	SettingRunwareWidth  SettingKey = "runware.width"
 	SettingRunwareHeight SettingKey = "runware.height"
 
 	SettingVideoDefaultChapters SettingKey = "video.default_chapter_count"
-	SettingVideoDefaultImages   SettingKey = "video.default_images_per_chapter"
+	SettingVideoDefaultSlides   SettingKey = "video.default_slides_per_chapter"
 	// SettingVideoDefaultThumbnailCells seeds a new video's grid width. It is a
 	// default rather than the live value: the DAG holds one icon task per cell
 	// from expansion onward, so a video keeps the width it was created with.
@@ -252,9 +252,9 @@ func DefaultSettings() []Setting {
 	return []Setting{
 		{Key: SettingPoolLLMLimit, Value: "2", Type: SettingTypeInt, Group: "pools", Min: 1, Max: MaxPoolLimit, Description: "Concurrent LLM calls across all videos and channels."},
 		{Key: SettingPoolTTSLimit, Value: "2", Type: SettingTypeInt, Group: "pools", Min: 1, Max: MaxPoolLimit, Description: "Concurrent narration syntheses."},
-		{Key: SettingPoolImageLimit, Value: "2", Type: SettingTypeInt, Group: "pools", Min: 1, Max: MaxPoolLimit, Description: "Concurrent still generations — usually the binding constraint."},
+		{Key: SettingPoolImageLimit, Value: "2", Type: SettingTypeInt, Group: "pools", Min: 1, Max: MaxPoolLimit, Description: "Concurrent slide generations — usually the binding constraint."},
 		{Key: SettingPoolComposeLimit, Value: "2", Type: SettingTypeInt, Group: "pools", Min: 1, Max: MaxPoolLimit, Description: "Concurrent clip and concat compositions."},
-		{Key: SettingPoolCacheLimit, Value: "32", Type: SettingTypeInt, Group: "pools", Min: 1, Max: MaxPoolLimit, Description: "Concurrent image-prompt cache reads; must never be the bottleneck."},
+		{Key: SettingPoolCacheLimit, Value: "32", Type: SettingTypeInt, Group: "pools", Min: 1, Max: MaxPoolLimit, Description: "Concurrent slide-prompt cache reads; must never be the bottleneck."},
 		{Key: SettingPoolUploadLimit, Value: "1", Type: SettingTypeInt, Group: "pools", Min: 1, Max: MaxPoolLimit, Description: "Concurrent uploads."},
 
 		{Key: SettingGateBlueprintEnabled, Value: "true", Type: SettingTypeBool, Group: "gates", Description: "Pause after the blueprint for human review."},
@@ -262,20 +262,20 @@ func DefaultSettings() []Setting {
 
 		{Key: SettingProviderLLM, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for blueprint, script, prompts and metadata."},
 		{Key: SettingProviderTTS, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for narration."},
-		{Key: SettingProviderImage, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for stills."},
+		{Key: SettingProviderSlide, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for slides."},
 		{Key: SettingProviderComposer, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for clip and concat composition."},
 		{Key: SettingProviderThumbnail, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend that renders the thumbnail image."},
-		{Key: SettingProviderThumbnailIcon, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for the thumbnail's grid icons; selected apart from stills."},
+		{Key: SettingProviderThumbnailIcon, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for the thumbnail's grid icons; selected apart from slides."},
 		{Key: SettingProviderUploader, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for publishing."},
 		//nolint:lll // one row, one line
 		{Key: SettingNineRouterModel, Value: "ag/gemini-3-flash", Type: SettingTypeString, Group: "providers", Description: "Which upstream the 9router backend routes to, e.g. ag/gemini-3-flash. See GET /v1/models on the gateway."},
 
 		{Key: SettingRunwareModel, Value: "runware:100@1", Type: SettingTypeString, Group: "providers", Description: "Checkpoint the Runware backend draws with, as an AIR identifier, e.g. runware:100@1."},
-		{Key: SettingRunwareWidth, Value: "1344", Type: SettingTypeInt, Group: "providers", Min: 128, Max: 2048, Description: "Width stills are generated at. The composer frames them at 1344x768, so anything else is resampled."},
-		{Key: SettingRunwareHeight, Value: "768", Type: SettingTypeInt, Group: "providers", Min: 128, Max: 2048, Description: "Height stills are generated at. Most checkpoints require both edges to be a multiple of 64."},
+		{Key: SettingRunwareWidth, Value: "1344", Type: SettingTypeInt, Group: "providers", Min: 128, Max: 2048, Description: "Width slides are generated at. The composer frames them at 1344x768, so anything else is resampled."},
+		{Key: SettingRunwareHeight, Value: "768", Type: SettingTypeInt, Group: "providers", Min: 128, Max: 2048, Description: "Height slides are generated at. Most checkpoints require both edges to be a multiple of 64."},
 
 		{Key: SettingVideoDefaultChapters, Value: "50", Type: SettingTypeInt, Group: "video", Min: MinChapterCount, Max: MaxChapterCount, Description: "Chapters created for a new video when unspecified."},
-		{Key: SettingVideoDefaultImages, Value: "2", Type: SettingTypeInt, Group: "video", Min: MinImagesPerChapter, Max: MaxImagesPerChapter, Description: "Stills generated per chapter when unspecified."},
+		{Key: SettingVideoDefaultSlides, Value: "2", Type: SettingTypeInt, Group: "video", Min: MinSlidesPerChapter, Max: MaxSlidesPerChapter, Description: "Slides generated per chapter when unspecified."},
 		{Key: SettingThumbnailIconStyle, Value: "thick-stroke white line art on a pure black background, flat, no shading, no text, centred with a generous margin", Type: SettingTypeString, Group: "video", Description: "Appended to every thumbnail icon prompt; what makes ten icons look like one set."},
 		{Key: SettingThumbnailIconSize, Value: "512", Type: SettingTypeInt, Group: "video", Min: 64, Max: 2048, Description: "Square edge, in pixels, each thumbnail icon is generated at."},
 		{Key: SettingThumbnailFont, Value: "CabinSketch-Bold.ttf", Type: SettingTypeString, Group: "video", Description: "Typeface for the thumbnail headline and captions, from the resources fonts directory."},

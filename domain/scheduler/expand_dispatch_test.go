@@ -16,7 +16,7 @@ import (
 // chaptersReturned is what the "model" comes back with, deliberately unequal to
 // anything the video was briefed with: the whole point of the two-phase build
 // is that the DAG is shaped by the outline rather than by the brief.
-func newExpandingScheduler(t *testing.T, videoID entity.VideoID, chaptersReturned, images int) (*Scheduler, *recordingStore, *noopLifecycle) {
+func newExpandingScheduler(t *testing.T, videoID entity.VideoID, chaptersReturned, slides int) (*Scheduler, *recordingStore, *noopLifecycle) {
 	t.Helper()
 	store := newRecordingStore()
 	lifecycle := newNoopLifecycle()
@@ -33,7 +33,7 @@ func newExpandingScheduler(t *testing.T, videoID entity.VideoID, chaptersReturne
 		tail, err := BuildTail(BuildSpec{
 			VideoID:          videoID,
 			ChapterCount:     chaptersReturned,
-			ImagesPerChapter: images,
+			SlidesPerChapter: slides,
 			ThumbnailCells:   testCells,
 			MaxAttempts:      3,
 			Now:              time.Unix(0, 0).UTC(),
@@ -70,8 +70,8 @@ func submitHead(t *testing.T, ctx context.Context, s *Scheduler, videoID entity.
 // runs to completion with the count its blueprint actually returned.
 func TestUngatedBlueprintExpandsAndRunsToCompletion(t *testing.T) {
 	t.Parallel()
-	const chapters, images = 7, 2
-	s, store, lifecycle := newExpandingScheduler(t, "v1", chapters, images)
+	const chapters, slides = 7, 2
+	s, store, lifecycle := newExpandingScheduler(t, "v1", chapters, slides)
 	ctx := startScheduler(t, s)
 	submitHead(t, ctx, s, "v1", false)
 
@@ -81,8 +81,8 @@ func TestUngatedBlueprintExpandsAndRunsToCompletion(t *testing.T) {
 
 	// Every node of the expanded DAG ran, and the durable view agrees.
 	persisted := store.persisted("v1")
-	if len(persisted.Tasks) != NodeCountFor(chapters, images, testCells) {
-		t.Fatalf("persisted tasks = %d, want %d", len(persisted.Tasks), NodeCountFor(chapters, images, testCells))
+	if len(persisted.Tasks) != NodeCountFor(chapters, slides, testCells) {
+		t.Fatalf("persisted tasks = %d, want %d", len(persisted.Tasks), NodeCountFor(chapters, slides, testCells))
 	}
 	for _, task := range persisted.Tasks {
 		if task.State != entity.TaskStateSucceeded {
@@ -94,8 +94,8 @@ func TestUngatedBlueprintExpandsAndRunsToCompletion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GraphFromPersisted: %v", err)
 	}
-	if restored.NodeCount() != NodeCountFor(chapters, images, testCells) {
-		t.Fatalf("restored node count = %d, want %d", restored.NodeCount(), NodeCountFor(chapters, images, testCells))
+	if restored.NodeCount() != NodeCountFor(chapters, slides, testCells) {
+		t.Fatalf("restored node count = %d, want %d", restored.NodeCount(), NodeCountFor(chapters, slides, testCells))
 	}
 }
 
@@ -103,7 +103,7 @@ func TestUngatedBlueprintExpandsAndRunsToCompletion(t *testing.T) {
 // approves — and the expansion the approval performs is what releases it.
 func TestGatedBlueprintParksBeforeExpanding(t *testing.T) {
 	t.Parallel()
-	const chapters, images = 4, 2
+	const chapters, slides = 4, 2
 	store := newRecordingStore()
 	lifecycle := newNoopLifecycle()
 	pools, err := NewPools(map[entity.Pool]int{})
@@ -130,7 +130,7 @@ func TestGatedBlueprintParksBeforeExpanding(t *testing.T) {
 	// Approval expands first, then releases: the reverse order would let a video
 	// whose whole DAG is one succeeded blueprint report itself completed.
 	tail, err := BuildTail(BuildSpec{
-		VideoID: "v1", ChapterCount: chapters, ImagesPerChapter: images,
+		VideoID: "v1", ChapterCount: chapters, SlidesPerChapter: slides,
 		ThumbnailCells: testCells, MaxAttempts: 3,
 		Now: time.Unix(0, 0).UTC(),
 	})
@@ -146,8 +146,8 @@ func TestGatedBlueprintParksBeforeExpanding(t *testing.T) {
 	waitFor(t, 5*time.Second, "the video to complete", func() bool {
 		return lifecycle.state("v1") == entity.VideoStateCompleted
 	})
-	if got := len(store.persisted("v1").Tasks); got != NodeCountFor(chapters, images, testCells) {
-		t.Fatalf("persisted tasks = %d, want %d", got, NodeCountFor(chapters, images, testCells))
+	if got := len(store.persisted("v1").Tasks); got != NodeCountFor(chapters, slides, testCells) {
+		t.Fatalf("persisted tasks = %d, want %d", got, NodeCountFor(chapters, slides, testCells))
 	}
 }
 
@@ -180,7 +180,7 @@ func TestExpandIsIdempotentForTheSameShape(t *testing.T) {
 		return store.state(blueprint) == entity.TaskStateRunning
 	})
 
-	spec := BuildSpec{VideoID: "v1", ChapterCount: 5, ImagesPerChapter: 2,
+	spec := BuildSpec{VideoID: "v1", ChapterCount: 5, SlidesPerChapter: 2,
 		ThumbnailCells: testCells, MaxAttempts: 3, Now: time.Unix(0, 0).UTC()}
 	tail, err := BuildTail(spec)
 	if err != nil {
@@ -207,7 +207,7 @@ func TestExpandRejectsUnknownVideo(t *testing.T) {
 	t.Parallel()
 	s, _, _ := newExpandingScheduler(t, "v1", 3, 2)
 	ctx := startScheduler(t, s)
-	tail, err := BuildTail(BuildSpec{VideoID: "ghost", ChapterCount: 2, ImagesPerChapter: 1,
+	tail, err := BuildTail(BuildSpec{VideoID: "ghost", ChapterCount: 2, SlidesPerChapter: 1,
 		ThumbnailCells: testCells, MaxAttempts: 1})
 	if err != nil {
 		t.Fatalf("BuildTail: %v", err)
@@ -319,8 +319,8 @@ func TestRejectedBlueprintCanBeRerun(t *testing.T) {
 // committed thing it is.
 func TestExpandedBlueprintIsReclaimedAsCommitted(t *testing.T) {
 	t.Parallel()
-	const chapters, images = 3, 2
-	head, tail := headAndTail(t, "v1", chapters, images, false)
+	const chapters, slides = 3, 2
+	head, tail := headAndTail(t, "v1", chapters, slides, false)
 	if err := head.Expand(tail); err != nil {
 		t.Fatalf("Expand: %v", err)
 	}

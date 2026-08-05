@@ -30,7 +30,7 @@ import { Textarea } from '@/components/ui/field'
 import { CopyButton, ErrorNotice, Kbd, Skeleton, Tooltip } from '@/components/ui/primitives'
 import { RerunDialog } from '@/components/stale'
 import { api, assetUrl, qk } from '@/lib/api'
-import { downloadName, mediaTypeOf, pendingIconId, pendingStillId, shortId } from '@/lib/assets'
+import { downloadName, mediaTypeOf, pendingIconId, pendingSlideId, shortId } from '@/lib/assets'
 import type { MediaType, ViewerItem } from '@/lib/assets'
 import { formatAbsolute, formatBytes } from '@/lib/format'
 import { useHotkeys } from '@/lib/hotkeys'
@@ -94,7 +94,7 @@ export function assetKindTone(kind: string): Tone {
 /**
  * The visual stand-in for one artifact, at any size: the image itself where
  * there is one, and a tinted, typed tile where there is not. Used by the
- * gallery, the filmstrip and the chapter grid, so a still looks the same
+ * gallery, the filmstrip and the chapter grid, so a slide looks the same
  * wherever it is shown.
  */
 export function AssetPreview({ item, className }: { item: ViewerItem; className?: string }) {
@@ -141,7 +141,7 @@ export function useAssetViewer(): OpenViewer {
 }
 
 /**
- * One viewer for the whole pane. Every still, clip and blueprint opens into the
+ * One viewer for the whole pane. Every slide, clip and blueprint opens into the
  * same surface, so the operator learns its keys once — and a chapter card does
  * not have to carry modal state per row.
  *
@@ -226,7 +226,7 @@ function useLiveTask(
  * The viewer is handed a snapshot of items, but anything redrawn from the
  * inspector lands under a *different* content address — so the artifact the
  * snapshot names stops being the one in that position. Re-resolving by the
- * coordinate that does not change (chapter and slot for a still, cell for an
+ * coordinate that does not change (chapter and slot for a slide, cell for an
  * icon) means the operator watches the new picture arrive in place instead of
  * looking at the old one until they close and reopen the panel.
  *
@@ -237,7 +237,7 @@ function useLiveTile(
   videoRef: string | undefined,
   videoId: string | undefined,
 ): ViewerItem | undefined {
-  const isStill = item?.chapterId !== undefined && item.slot !== undefined
+  const isSlide = item?.chapterId !== undefined && item.slot !== undefined
   const isIcon = item?.cell !== undefined
   const keyed = Boolean(videoRef) && Boolean(videoId)
 
@@ -246,7 +246,7 @@ function useLiveTile(
   const chapters = useQuery({
     queryKey: qk.chapters(videoId ?? ''),
     queryFn: () => api.listChapters(videoRef ?? ''),
-    enabled: isStill && keyed,
+    enabled: isSlide && keyed,
   })
   const video = useQuery({
     queryKey: qk.video(videoRef ?? ''),
@@ -259,10 +259,10 @@ function useLiveTile(
     if (item.chapterId !== undefined && item.slot !== undefined) {
       const chapter = chapters.data?.find((c) => c.id === item.chapterId)
       if (!chapter) return item
-      const id = chapter.imageAssetIds[item.slot] ?? ''
-      const prompt = chapter.imagePrompts[item.slot]
+      const id = chapter.slideAssetIds[item.slot] ?? ''
+      const prompt = chapter.slidePrompts[item.slot]
       if (id === item.id && prompt === item.prompt) return item
-      return { ...item, id: id || pendingStillId(chapter.id, item.slot), pending: !id, prompt }
+      return { ...item, id: id || pendingSlideId(chapter.id, item.slot), pending: !id, prompt }
     }
     if (item.cell !== undefined && video.data) {
       const id = video.data.thumbnailIconIds[item.cell] ?? ''
@@ -600,7 +600,7 @@ function Stage({
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
         <ImageIcon className="h-8 w-8 text-subtle" strokeWidth={1.5} />
         <p className="text-[12.5px] text-muted">
-          This still has not been drawn yet.
+          This slide has not been drawn yet.
           <br />
           Edit the prompt beside it and generate.
         </p>
@@ -739,20 +739,20 @@ function Inspector({
       {chapterId !== undefined && slot !== undefined && videoRef && videoId && (
         <PromptEditor
           key={`${chapterId}:${slot}`}
-          label="Image prompt"
-          ariaLabel={`Prompt for still ${slot + 1}`}
-          noun="still"
+          label="Slide prompt"
+          ariaLabel={`Prompt for slide ${slot + 1}`}
+          noun="slide"
           task={task}
           prompt={item.prompt}
           missing="The prompt step has not run for this chapter yet, so there is nothing to edit here."
           hint={
             (item.pending
-              ? 'Generating saves this prompt and draws this still. '
-              : 'Generating saves this prompt and redraws this still only. ') +
+              ? 'Generating saves this prompt and draws this slide. '
+              : 'Generating saves this prompt and redraws this slide only. ') +
             'What it fed — this chapter’s clip, and the render below it — keeps its artifact and is flagged for you to decide on.'
           }
           generate={async (prompt) => {
-            const updated = await api.regenerateStill(chapterId, slot, prompt)
+            const updated = await api.regenerateSlide(chapterId, slot, prompt)
             queryClient.setQueryData<Chapter[]>(qk.chapters(videoId), (prev) =>
               prev?.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)),
             )
@@ -853,13 +853,13 @@ function Inspector({
 }
 
 /**
- * The prompt a still was drawn from, and the button that draws it again.
+ * The prompt a slide was drawn from, and the button that draws it again.
  *
  * Editing and generating are one action deliberately. A prompt that could be
  * saved on its own would let the text drift from the picture beside it with
  * nothing on screen to say which of the two was current; because Generate is
  * the only way to write one, what the server holds is always what drew the
- * still — or what is drawing it right now.
+ * slide — or what is drawing it right now.
  */
 function PromptEditor({
   label,
@@ -873,7 +873,7 @@ function PromptEditor({
 }: {
   label: string
   ariaLabel: string
-  /** What is being drawn, for the status line: "still", "cell". */
+  /** What is being drawn, for the status line: "slide", "cell". */
   noun: string
   /** Undefined where the step that writes prompts has not run. */
   prompt: string | undefined

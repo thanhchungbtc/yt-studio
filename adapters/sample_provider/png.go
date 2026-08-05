@@ -20,7 +20,7 @@ import (
 // Normalising on the way in keeps every consumer downstream — the browser, the
 // composer, the thumbnail renderer — able to trust what the asset row says.
 //
-// A video asks for a hundred stills and ten icons from a handful of files, so
+// A video asks for a hundred slides and ten icons from a handful of files, so
 // each conversion happens once and is then handed out by content address.
 type pngCache struct {
 	mu      sync.Mutex
@@ -29,7 +29,7 @@ type pngCache struct {
 
 // bytes returns the PNG for a key, converting through prepare on first ask.
 // prepare is given the decoded source and returns what should be encoded, which
-// is what lets the icon backend crop and the still backend pass through.
+// is what lets the icon backend crop and the slide backend pass through.
 func (c *pngCache) bytes(key, path string, prepare func(image.Image) image.Image) ([]byte, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

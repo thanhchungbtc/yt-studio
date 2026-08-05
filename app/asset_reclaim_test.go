@@ -209,7 +209,7 @@ func TestDeleteVideoRemovesWhatItOwns(t *testing.T) {
 	ctx := context.Background()
 
 	v, chapter := f.video("DSS-1", "Only")
-	id := f.put("a still", entity.AssetKindImage, v, &chapter.ID)
+	id := f.put("a slide", entity.AssetKindImage, v, &chapter.ID)
 
 	f.delete("DSS-1")
 
@@ -353,7 +353,7 @@ func TestSweepReclaimsOnlyWhatNothingReferences(t *testing.T) {
 	ctx := context.Background()
 
 	v, chapter := f.video("DSS-1", "First")
-	referenced := f.put("a still that is still needed", entity.AssetKindImage, v, &chapter.ID)
+	referenced := f.put("a slide that is still needed", entity.AssetKindImage, v, &chapter.ID)
 
 	// A file with no row at all: exactly what a pre-cleanup delete left behind.
 	stored, err := f.assets.Put(ctx, entity.AssetKindImage, bytes.NewReader([]byte("nobody owns this")))

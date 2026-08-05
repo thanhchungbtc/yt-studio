@@ -21,7 +21,7 @@ type ChapterWriter interface {
 
 // ChapterFieldWriter narrows writes to a single field.
 //
-// Two image tasks for the same chapter run concurrently by design, so a
+// Two slide tasks for the same chapter run concurrently by design, so a
 // read-modify-write of the whole row would lose one of them. Each method here
 // is one atomic statement, which removes the race rather than locking around
 // it.
@@ -30,6 +30,6 @@ type ChapterFieldWriter interface {
 	SetChapterPrompts(ctx context.Context, id entity.ChapterID, prompts []string) error
 	SetChapterPrompt(ctx context.Context, id entity.ChapterID, index int, prompt string) error
 	SetChapterAudio(ctx context.Context, id entity.ChapterID, assetID entity.AssetID) error
-	SetChapterImage(ctx context.Context, id entity.ChapterID, index int, assetID entity.AssetID) error
+	SetChapterSlide(ctx context.Context, id entity.ChapterID, index int, assetID entity.AssetID) error
 	SetChapterClip(ctx context.Context, id entity.ChapterID, assetID entity.AssetID) error
 }

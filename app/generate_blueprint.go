@@ -89,10 +89,10 @@ func GenerateBlueprint(
 		if err != nil {
 			return classify(err)
 		}
-		// The still slots are pre-sized so that the two image tasks of a chapter can
+		// The slide slots are pre-sized so that the two slide tasks of a chapter can
 		// each write their own index atomically.
-		c.ImageAssetIDs = make([]entity.AssetID, video.ImagesPerChapter)
-		c.ImagePrompts = make([]string, 0, video.ImagesPerChapter)
+		c.SlideAssetIDs = make([]entity.AssetID, video.SlidesPerChapter)
+		c.SlidePrompts = make([]string, 0, video.SlidesPerChapter)
 		// The budget the outline assigned this chapter, carried as a field so the
 		// script writer reads it rather than recovering it from prose.
 		c.EstimatedWords = bc.EstimatedWords

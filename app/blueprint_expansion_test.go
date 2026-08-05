@@ -66,7 +66,7 @@ func (l *shortLLM) Script(context.Context, provider.ScriptRequest) (provider.Scr
 	return provider.Script{}, errors.New("not used")
 }
 
-func (l *shortLLM) ImagePrompts(context.Context, entity.VideoID) ([]provider.ImagePrompt, error) {
+func (l *shortLLM) SlidePrompts(context.Context, entity.VideoID) ([]provider.SlidePrompt, error) {
 	return nil, errors.New("not used")
 }
 
@@ -94,10 +94,10 @@ func (e *recordingExpander) Expand(_ context.Context, videoID entity.VideoID, ta
 
 // draft creates a video briefed for chapterCount chapters, with no chapters and
 // no tasks: exactly what StartVideo enqueues a blueprint over.
-func (f *fixture) draft(ref string, chapterCount, images int) entity.Video {
+func (f *fixture) draft(ref string, chapterCount, slides int) entity.Video {
 	f.t.Helper()
 	v, err := entity.NewVideo(entity.VideoID(ref), f.channel.ID, entity.Ref(ref),
-		"The Long Winter", "a northern port town", chapterCount, images, testThumbnailCells, 0, testTime)
+		"The Long Winter", "a northern port town", chapterCount, slides, testThumbnailCells, 0, testTime)
 	if err != nil {
 		f.t.Fatalf("NewVideo: %v", err)
 	}
@@ -126,9 +126,9 @@ func TestBlueprintShortfallIsAcceptedAndShapesTheGraph(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	ctx := context.Background()
-	const briefed, returned, images = 50, 45, 2
+	const briefed, returned, slides = 50, 45, 2
 
-	v := f.draft("DSS-1", briefed, images)
+	v := f.draft("DSS-1", briefed, slides)
 	llm := &shortLLM{store: f.assets, chapters: returned}
 
 	outcome := app.GenerateBlueprint(ctx, f.blueprintTask(v, entity.GateBlueprint),
@@ -164,7 +164,7 @@ func TestBlueprintShortfallIsAcceptedAndShapesTheGraph(t *testing.T) {
 		t.Fatalf("ExpandVideoGraph: %v", err)
 	}
 	// The tail is every node but the blueprint, built for what came back.
-	if got, want := len(expander.tail.Tasks), scheduler.NodeCountFor(returned, images, testThumbnailCells)-1; got != want {
+	if got, want := len(expander.tail.Tasks), scheduler.NodeCountFor(returned, slides, testThumbnailCells)-1; got != want {
 		t.Fatalf("tail tasks = %d, want %d (a %d-chapter DAG minus the blueprint)", got, want, returned)
 	}
 	if expander.videoID != v.ID {
@@ -348,9 +348,9 @@ func TestApproveBlueprintGateExpandsBeforeReleasing(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	ctx := context.Background()
-	const briefed, returned, images = 20, 17, 2
+	const briefed, returned, slides = 20, 17, 2
 
-	v := f.draft("DSS-1", briefed, images)
+	v := f.draft("DSS-1", briefed, slides)
 	llm := &shortLLM{store: f.assets, chapters: returned}
 	outcome := app.GenerateBlueprint(ctx, f.blueprintTask(v, entity.GateBlueprint),
 		f.store, f.store, llm, f.store, f.store, f.store, f.assets, nil, 20, testTime)
@@ -388,7 +388,7 @@ func TestApproveBlueprintGateExpandsBeforeReleasing(t *testing.T) {
 	if expander.calls != 1 {
 		t.Fatalf("expansions = %d, want exactly 1", expander.calls)
 	}
-	if got, want := len(expander.tail.Tasks), scheduler.NodeCountFor(returned, images, testThumbnailCells)-1; got != want {
+	if got, want := len(expander.tail.Tasks), scheduler.NodeCountFor(returned, slides, testThumbnailCells)-1; got != want {
 		t.Fatalf("tail tasks = %d, want %d", got, want)
 	}
 	if len(gate.approved) != 1 {
@@ -496,7 +496,7 @@ func TestStartVideoResumesAnExpandedGraphInsteadOfResubmitting(t *testing.T) {
 	v := f.draft("DSS-1", 6, 2)
 
 	full, err := scheduler.BuildGraph(scheduler.BuildSpec{
-		VideoID: v.ID, ChapterCount: 6, ImagesPerChapter: 2,
+		VideoID: v.ID, ChapterCount: 6, SlidesPerChapter: 2,
 		ThumbnailCells: testThumbnailCells, MaxAttempts: 3, Now: testTime,
 	})
 	if err != nil {

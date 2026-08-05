@@ -63,7 +63,7 @@ func New(root string) (*FS, error) {
 func (f *FS) Root() string { return f.root }
 
 // RelPath is the on-disk layout: kind/aa/<sha256><ext>. Sharding by the first
-// byte of the digest keeps directory sizes sane at tens of thousands of stills.
+// byte of the digest keeps directory sizes sane at tens of thousands of slides.
 func RelPath(id entity.AssetID, kind entity.AssetKind) string {
 	s := string(id)
 	shard := "00"

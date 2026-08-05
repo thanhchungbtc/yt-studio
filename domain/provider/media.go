@@ -19,8 +19,8 @@ type TTSProvider interface {
 	Speak(ctx context.Context, req SpeakRequest) (entity.AssetID, error)
 }
 
-// ImageRequest asks for exactly one still.
-type ImageRequest struct {
+// SlideRequest asks for exactly one slide.
+type SlideRequest struct {
 	VideoID   entity.VideoID
 	ChapterID entity.ChapterID
 	Ordinal   int
@@ -30,9 +30,9 @@ type ImageRequest struct {
 	Height    int
 }
 
-// ImageProvider generates one still per call.
-type ImageProvider interface {
-	Generate(ctx context.Context, req ImageRequest) (entity.AssetID, error)
+// SlideProvider generates one slide per call.
+type SlideProvider interface {
+	Generate(ctx context.Context, req SlideRequest) (entity.AssetID, error)
 }
 
 // ClipRequest asks for one chapter's composed clip.
@@ -47,7 +47,7 @@ type ClipRequest struct {
 	ChapterTitle  string
 	VideoTitle    string
 	AudioAssetID  entity.AssetID
-	ImageAssetIDs []entity.AssetID
+	SlideAssetIDs []entity.AssetID
 }
 
 // ConcatRequest asks for the final render.
@@ -65,7 +65,7 @@ type VideoComposer interface {
 // ThumbnailIconRequest asks for exactly one tile's icon.
 //
 // It has no chapter and no ordinal: an icon belongs to the video's grid, not to
-// a chapter, and it is square by definition. Reusing ImageRequest here would
+// a chapter, and it is square by definition. Reusing SlideRequest here would
 // leave two thirds of that struct permanently empty.
 type ThumbnailIconRequest struct {
 	VideoID entity.VideoID
@@ -80,9 +80,9 @@ type ThumbnailIconRequest struct {
 }
 
 // ThumbnailIconGenerator generates one icon per call. It is its own port rather
-// than a second use of ImageProvider because icons and chapter stills are
+// than a second use of SlideProvider because icons and chapter slides are
 // selected independently: the cheap fast model that draws clean line art is
-// rarely the one worth pointing at a three-hour video's stills.
+// rarely the one worth pointing at a three-hour video's slides.
 type ThumbnailIconGenerator interface {
 	Icon(ctx context.Context, req ThumbnailIconRequest) (entity.AssetID, error)
 }

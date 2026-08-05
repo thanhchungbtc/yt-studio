@@ -9,16 +9,16 @@ import (
 // The filter graphs live here as pure functions of their inputs, so the exact
 // string handed to ffmpeg can be asserted in a test without a binary.
 
-// imageXfadeGraph dissolves a chapter's still clips into one track.
+// slideXfadeGraph dissolves a chapter's slide clips into one track.
 //
 // Each transition starts fade seconds before the outgoing clip ends, so the
 // offset walks forward by the clip's duration minus the overlap. The durations
-// are the probed ones: a still clip is a whole number of frames, and computing
+// are the probed ones: a slide clip is a whole number of frames, and computing
 // the offsets from the requested length instead would drift a frame per image.
-func imageXfadeGraph(durations []float64) string {
+func slideXfadeGraph(durations []float64) string {
 	parts := make([]string, 0, len(durations)-1)
 	prev := "[0:v]"
-	offset := durations[0] - imageCrossfade
+	offset := durations[0] - slideCrossfade
 	for i := 1; i < len(durations); i++ {
 		last := i == len(durations)-1
 		out := fmt.Sprintf("[v%02d]", i)
@@ -27,10 +27,10 @@ func imageXfadeGraph(durations []float64) string {
 		}
 		parts = append(parts, fmt.Sprintf(
 			"%s[%d:v]xfade=transition=dissolve:duration=%s:offset=%s%s",
-			prev, i, imageCrossfadeArg, f4(offset), out))
+			prev, i, slideCrossfadeArg, f4(offset), out))
 		prev = out
 		if !last {
-			offset += durations[i] - imageCrossfade
+			offset += durations[i] - slideCrossfade
 		}
 	}
 	return strings.Join(parts, ";")
@@ -59,7 +59,7 @@ func layOutTitles(chapterSize int) chapterLayout {
 // the chalkboard below a titled strip, padded for the crossfades that join it
 // to its neighbours.
 //
-// Input 0 is the chalkboard still, input 1 the dissolved slideshow with its
+// Input 0 is the chalkboard background, input 1 the dissolved slideshow with its
 // narration.
 func chapterCompositeGraph(chapterTitle, videoTitle, fontFile string, layout chapterLayout, totalDuration float64) string {
 	contentWidth, contentHeight := imageWidth, imageHeight-titleStripHeight
@@ -74,8 +74,8 @@ func chapterCompositeGraph(chapterTitle, videoTitle, fontFile string, layout cha
 		fmt.Sprintf("[1:v]scale=%d:%d:force_original_aspect_ratio=decrease,"+
 			"pad=%d:%d:(ow-iw)/2:(oh-ih)/2:black,format=yuva420p[scaled]",
 			contentWidth, contentHeight, contentWidth, contentHeight),
-		// The stills are keyed rather than pasted: the chalkboard shows through
-		// wherever the artwork is near-black, which is what makes a still look drawn
+		// The slides are keyed rather than pasted: the chalkboard shows through
+		// wherever the artwork is near-black, which is what makes a slide look drawn
 		// on the board instead of stuck to it.
 		"[scaled]lumakey=threshold=0.1:tolerance=0.15:softness=0.05[keyed]",
 		fmt.Sprintf("[chalk][keyed]overlay=%d:%d[comp]", 0, titleStripHeight),

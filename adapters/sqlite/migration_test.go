@@ -83,7 +83,7 @@ func TestAssetOwnershipMigrationPreservesOwnersAndDropsOrphans(t *testing.T) {
 		}
 	}
 	exec(`INSERT INTO channels (id, slug, name, created_at, updated_at) VALUES ('ch', 'ch', 'Ch', 0, 0)`)
-	exec(`INSERT INTO videos (id, channel_id, ref, title, state, chapter_count, images_per_chapter, created_at, updated_at)
+	exec(`INSERT INTO videos (id, channel_id, ref, title, state, chapter_count, slides_per_chapter, created_at, updated_at)
 	      VALUES ('v-live', 'ch', 'CH-1', 'Alive', 'draft', 1, 1, 0, 0)`)
 	exec(`INSERT INTO assets (id, video_id, kind, path, size, mime, created_at)
 	      VALUES ('aaa', 'v-live', 'image', 'image/aa/aaa.png', 10, 'image/png', 0)`)
@@ -112,7 +112,7 @@ func TestAssetOwnershipMigrationPreservesOwnersAndDropsOrphans(t *testing.T) {
 
 	// The new key admits a second owner of the same address, which the old one
 	// silently discarded.
-	exec(`INSERT INTO videos (id, channel_id, ref, title, state, chapter_count, images_per_chapter, created_at, updated_at)
+	exec(`INSERT INTO videos (id, channel_id, ref, title, state, chapter_count, slides_per_chapter, created_at, updated_at)
 	      VALUES ('v-two', 'ch', 'CH-2', 'Second', 'draft', 1, 1, 0, 0)`)
 	exec(`INSERT INTO assets (id, video_id, kind, path, size, mime, created_at)
 	      VALUES ('aaa', 'v-two', 'image', 'image/aa/aaa.png', 10, 'image/png', 0)

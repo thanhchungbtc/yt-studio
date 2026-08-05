@@ -65,7 +65,7 @@ func NewChapterID(videoID VideoID, ordinal int) ChapterID {
 // NewTaskID derives the deterministic task identifier for a node in the DAG.
 //
 // ordinal is the chapter ordinal (or -1 for video-level tasks) and index
-// distinguishes sibling tasks for the same chapter, such as the two images of a
+// distinguishes sibling tasks for the same chapter, such as the two slides of a
 // chapter (or -1 when there is only one).
 func NewTaskID(videoID VideoID, kind TaskKind, ordinal, index int) TaskID {
 	var b strings.Builder

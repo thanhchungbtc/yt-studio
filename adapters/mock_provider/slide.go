@@ -14,29 +14,29 @@ import (
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
-// Mock still dimensions. Small enough that fifty chapters' worth costs a few
+// Mock slide dimensions. Small enough that fifty chapters' worth costs a few
 // megabytes, large enough to be a real image in the UI's chapter grid.
 const (
 	imageWidth  = 320
 	imageHeight = 180
 )
 
-// Image is the mock still backend. Output is a real PNG encoded by the standard
+// Slide is the mock slide backend. Output is a real PNG encoded by the standard
 // library, derived deterministically from the prompt.
-type Image struct {
+type Slide struct {
 	store  provider.AssetStore
 	tuning Tuning
 }
 
-var _ provider.ImageProvider = (*Image)(nil)
+var _ provider.SlideProvider = (*Slide)(nil)
 
-// NewImage constructs the mock.
-func NewImage(store provider.AssetStore, tuning Tuning) *Image {
-	return &Image{store: store, tuning: tuning}
+// NewSlide constructs the mock.
+func NewSlide(store provider.AssetStore, tuning Tuning) *Slide {
+	return &Slide{store: store, tuning: tuning}
 }
 
-// Generate produces exactly one still.
-func (i *Image) Generate(ctx context.Context, req provider.ImageRequest) (entity.AssetID, error) {
+// Generate produces exactly one slide.
+func (i *Slide) Generate(ctx context.Context, req provider.SlideRequest) (entity.AssetID, error) {
 	if err := simulate(ctx, i.tuning, 2); err != nil {
 		return "", err
 	}
@@ -47,11 +47,11 @@ func (i *Image) Generate(ctx context.Context, req provider.ImageRequest) (entity
 	buf.Grow(imageWidth * imageHeight / 4)
 	enc := png.Encoder{CompressionLevel: png.BestCompression}
 	if err := enc.Encode(&buf, img); err != nil {
-		return "", fmt.Errorf("encode still: %w", err)
+		return "", fmt.Errorf("encode slide: %w", err)
 	}
 	stored, err := i.store.Put(ctx, entity.AssetKindImage, &buf)
 	if err != nil {
-		return "", fmt.Errorf("store still: %w", err)
+		return "", fmt.Errorf("store slide: %w", err)
 	}
 	return stored.ID, nil
 }

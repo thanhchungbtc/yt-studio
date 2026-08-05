@@ -12,7 +12,7 @@ import (
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
-// Composer is the mock composition backend. It muxes a chapter's stills and
+// Composer is the mock composition backend. It muxes a chapter's slides and
 // narration into a real MP4 container, and concatenates chapter clips into the
 // final render by stream copy — never by re-reading a file into memory.
 type Composer struct {
@@ -32,12 +32,12 @@ func (c *Composer) Clip(ctx context.Context, req provider.ClipRequest) (entity.A
 	if err := simulate(ctx, c.tuning, 1); err != nil {
 		return "", err
 	}
-	if len(req.ImageAssetIDs) == 0 {
-		return "", errors.New("mock composer: a clip needs at least one still")
+	if len(req.SlideAssetIDs) == 0 {
+		return "", errors.New("mock composer: a clip needs at least one slide")
 	}
 
-	video := make([]mp4Sample, 0, len(req.ImageAssetIDs))
-	for _, id := range req.ImageAssetIDs {
+	video := make([]mp4Sample, 0, len(req.SlideAssetIDs))
+	for _, id := range req.SlideAssetIDs {
 		s, err := c.sample(ctx, id, entity.AssetKindImage, 0)
 		if err != nil {
 			return "", err

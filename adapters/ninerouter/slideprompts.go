@@ -9,7 +9,7 @@ import (
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
-// VideoContext is what an image-prompt generation needs to know about a video.
+// VideoContext is what an slide-prompt generation needs to know about a video.
 //
 // The port hands this method a video id and nothing else, and a provider may
 // never read the database — so the caller supplies a lookup that resolves one
@@ -17,28 +17,28 @@ import (
 // one whose callers are N per-chapter tasks rather than one.
 type VideoContext struct {
 	provider.BlueprintOutline
-	ImagesPerChapter int
+	SlidesPerChapter int
 }
 
-// ContextLookup resolves a video id into the plan its images illustrate.
+// ContextLookup resolves a video id into the plan its slides illustrate.
 type ContextLookup func(ctx context.Context, videoID entity.VideoID) (VideoContext, error)
 
-// imagePromptsDoc is the shape the model returns, and the type the prompt's
+// slidePromptsDoc is the shape the model returns, and the type the prompt's
 // schema is generated from.
-type imagePromptsDoc struct {
+type slidePromptsDoc struct {
 	//nolint:lll // one field, one line: each tag is this field's line in the prompt
-	Prompts []imagePromptDoc `json:"prompts" doc:"one entry per requested image, in the order the assets were listed"`
+	Prompts []slidePromptDoc `json:"prompts" doc:"one entry per requested image, in the order the assets were listed"`
 }
 
 //nolint:lll // one field, one line: each tag is this field's line in the prompt
-type imagePromptDoc struct {
+type slidePromptDoc struct {
 	Chapter int    `json:"chapter" doc:"the 1-based chapter ordinal this image belongs to"`
 	Index   int    `json:"index" doc:"the 0-based position of this image within its chapter"`
 	Prompt  string `json:"prompt" doc:"a complete self-contained prompt of 2 to 4 sentences, ending with the exact style tag"`
 }
 
-// imageAsset is one image the model is asked to write a prompt for.
-type imageAsset struct {
+// slideAsset is one image the model is asked to write a prompt for.
+type slideAsset struct {
 	Chapter int
 	Index   int
 	Title   string
@@ -51,18 +51,18 @@ type imageAsset struct {
 	Position string
 }
 
-// imagePromptsPrompt is what the templates render against.
-type imagePromptsPrompt struct {
+// slidePromptsPrompt is what the templates render against.
+type slidePromptsPrompt struct {
 	Blueprint            provider.BlueprintOutline
-	Assets               []imageAsset
+	Assets               []slideAsset
 	Total                int
 	ExpectedOutputSchema string
 }
 
-// ImagePrompts returns every chapter's still prompts for one video.
+// SlidePrompts returns every chapter's slide prompts for one video.
 //
 // All of them come from a single generation. The prompt carries the whole
-// outline, so the images of chapter 31 can answer the ones from chapter 12
+// outline, so the slides of chapter 31 can answer the ones from chapter 12
 // instead of repeating them — and asking per chapter would resend that outline
 // a hundred times to get a hundred unrelated answers.
 //
@@ -70,7 +70,7 @@ type imagePromptsPrompt struct {
 // collapses them onto one production and the cache serves the rest; both halves
 // are needed, because singleflight alone only deduplicates calls that overlap
 // in time, and the image pool is capped well below the number of callers.
-func (c *Client) ImagePrompts(ctx context.Context, videoID entity.VideoID) ([]provider.ImagePrompt, error) {
+func (c *Client) SlidePrompts(ctx context.Context, videoID entity.VideoID) ([]provider.SlidePrompt, error) {
 	if cached, ok := c.cached(videoID); ok {
 		return cached, nil
 	}
@@ -83,7 +83,7 @@ func (c *Client) ImagePrompts(ctx context.Context, videoID entity.VideoID) ([]pr
 		if cached, ok := c.cached(videoID); ok {
 			return cached, nil
 		}
-		prompts, err := c.generateImagePrompts(ctx, videoID)
+		prompts, err := c.generateSlidePrompts(ctx, videoID)
 		if err != nil {
 			return nil, err
 		}
@@ -95,10 +95,10 @@ func (c *Client) ImagePrompts(ctx context.Context, videoID entity.VideoID) ([]pr
 	if err != nil {
 		return nil, err
 	}
-	prompts, ok := v.([]provider.ImagePrompt)
+	prompts, ok := v.([]provider.SlidePrompt)
 	if !ok {
 		// Unreachable: the closure above returns only this type.
-		return nil, fmt.Errorf("9router: image prompt cache holds %T", v)
+		return nil, fmt.Errorf("9router: slide prompt cache holds %T", v)
 	}
 	return prompts, nil
 }
@@ -111,20 +111,20 @@ func (c *Client) Forget(videoID entity.VideoID) {
 	c.cacheMu.Unlock()
 }
 
-func (c *Client) cached(videoID entity.VideoID) ([]provider.ImagePrompt, bool) {
+func (c *Client) cached(videoID entity.VideoID) ([]provider.SlidePrompt, bool) {
 	c.cacheMu.RLock()
 	defer c.cacheMu.RUnlock()
 	prompts, ok := c.cache[videoID]
 	return prompts, ok
 }
 
-// generateImagePrompts is the real production, run once per video.
-func (c *Client) generateImagePrompts(ctx context.Context, videoID entity.VideoID) ([]provider.ImagePrompt, error) {
+// generateSlidePrompts is the real production, run once per video.
+func (c *Client) generateSlidePrompts(ctx context.Context, videoID entity.VideoID) ([]provider.SlidePrompt, error) {
 	vc, err := c.lookup(ctx, videoID)
 	if err != nil {
 		return nil, fmt.Errorf("resolve video context: %w", err)
 	}
-	prompt, err := newImagePromptsPrompt(vc)
+	prompt, err := newSlidePromptsPrompt(vc)
 	if err != nil {
 		return nil, err
 	}
@@ -134,11 +134,11 @@ func (c *Client) generateImagePrompts(ctx context.Context, videoID entity.VideoI
 		return nil, fmt.Errorf("%w: %s has no chapters to illustrate", ErrUnavailable, videoID)
 	}
 
-	system, err := render(imagePromptsSystemPrompt, prompt)
+	system, err := render(slidePromptsSystemPrompt, prompt)
 	if err != nil {
 		return nil, err
 	}
-	user, err := render(imagePromptsUserPrompt, prompt)
+	user, err := render(slidePromptsUserPrompt, prompt)
 	if err != nil {
 		return nil, err
 	}
@@ -147,47 +147,47 @@ func (c *Client) generateImagePrompts(ctx context.Context, videoID entity.VideoI
 	if err != nil {
 		return nil, err
 	}
-	var doc imagePromptsDoc
+	var doc slidePromptsDoc
 	if err := json.Unmarshal([]byte(content), &doc); err != nil {
-		return nil, fmt.Errorf("image prompt response is not JSON: %w (%s)", err, snippet(content))
+		return nil, fmt.Errorf("slide prompt response is not JSON: %w (%s)", err, snippet(content))
 	}
 
-	out := make([]provider.ImagePrompt, 0, len(doc.Prompts))
+	out := make([]provider.SlidePrompt, 0, len(doc.Prompts))
 	for _, p := range doc.Prompts {
-		out = append(out, provider.ImagePrompt{Ordinal: p.Chapter, Index: p.Index, Prompt: p.Prompt})
+		out = append(out, provider.SlidePrompt{Ordinal: p.Chapter, Index: p.Index, Prompt: p.Prompt})
 	}
 	// A short batch is a bad roll rather than a misconfiguration: the per-chapter
 	// tasks address this by (ordinal, index) and a missing pair has no prompt to
 	// draw from, so it is worth asking again.
 	if len(out) < prompt.Total {
-		return nil, fmt.Errorf("9router returned %d image prompts, want %d", len(out), prompt.Total)
+		return nil, fmt.Errorf("9router returned %d slide prompts, want %d", len(out), prompt.Total)
 	}
 	return out, nil
 }
 
-func newImagePromptsPrompt(vc VideoContext) (imagePromptsPrompt, error) {
-	perChapter := vc.ImagesPerChapter
+func newSlidePromptsPrompt(vc VideoContext) (slidePromptsPrompt, error) {
+	perChapter := vc.SlidesPerChapter
 	if perChapter <= 0 {
 		perChapter = 1
 	}
-	assets := make([]imageAsset, 0, len(vc.Chapters)*perChapter)
+	assets := make([]slideAsset, 0, len(vc.Chapters)*perChapter)
 	for _, ch := range vc.Chapters {
 		for i := range perChapter {
-			assets = append(assets, imageAsset{
+			assets = append(assets, slideAsset{
 				Chapter:  ch.Ordinal,
 				Index:    i,
 				Title:    ch.Title,
 				Summary:  ch.Summary,
-				Role:     imageRole(i),
+				Role:     slideRole(i),
 				Position: macroPosition(ch.Ordinal, len(vc.Chapters)),
 			})
 		}
 	}
-	schema, err := jsonSchemaOf(imagePromptsDoc{})
+	schema, err := jsonSchemaOf(slidePromptsDoc{})
 	if err != nil {
-		return imagePromptsPrompt{}, err
+		return slidePromptsPrompt{}, err
 	}
-	return imagePromptsPrompt{
+	return slidePromptsPrompt{
 		Blueprint:            vc.BlueprintOutline,
 		Assets:               assets,
 		Total:                len(assets),
@@ -195,9 +195,9 @@ func newImagePromptsPrompt(vc VideoContext) (imagePromptsPrompt, error) {
 	}, nil
 }
 
-// imageRole names an image's job from its position in the chapter, in the
+// slideRole names an image's job from its position in the chapter, in the
 // vocabulary the system prompt defines.
-func imageRole(index int) string {
+func slideRole(index int) string {
 	switch index {
 	case 0:
 		return "ESTABLISHING"

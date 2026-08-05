@@ -11,7 +11,7 @@ import (
 // ErrInvalidChapter is returned by the Chapter constructor for invalid input.
 var ErrInvalidChapter = errors.New("invalid chapter")
 
-// Chapter owns its ordinal, title, script, audio, images and composed clip.
+// Chapter owns its ordinal, title, script, audio, slides and composed clip.
 type Chapter struct {
 	ID      ChapterID
 	VideoID VideoID
@@ -22,9 +22,9 @@ type Chapter struct {
 	Summary string
 	Script  string
 
-	ImagePrompts  []string
+	SlidePrompts  []string
 	AudioAssetID  *AssetID
-	ImageAssetIDs []AssetID
+	SlideAssetIDs []AssetID
 	ClipAssetID   *AssetID
 
 	// DurationSeconds is how long the narration actually came to, measured from
