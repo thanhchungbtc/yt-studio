@@ -67,7 +67,7 @@ func seedChapter(t *testing.T, store provider.AssetStore, ordinal, slides int) (
 	t.Helper()
 	ctx := t.Context()
 
-	audio, err := mock.NewTTS(store, nil).Speak(ctx, provider.SpeakRequest{
+	audio, err := mock.NewTTS(store).Speak(ctx, provider.SpeakRequest{
 		VideoID: "video-1",
 		Ordinal: ordinal,
 		Text:    fmt.Sprintf("narration for chapter %d", ordinal),
@@ -76,7 +76,7 @@ func seedChapter(t *testing.T, store provider.AssetStore, ordinal, slides int) (
 		t.Fatalf("mock narration: %v", err)
 	}
 
-	gen := mock.NewSlide(store, nil)
+	gen := mock.NewSlide(store)
 	ids := make([]entity.AssetID, 0, slides)
 	for i := range slides {
 		id, err := gen.Generate(ctx, provider.SlideRequest{

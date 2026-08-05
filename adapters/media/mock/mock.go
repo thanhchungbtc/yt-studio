@@ -6,21 +6,26 @@
 // fan-out inside a provider, and nothing of the mock leaking outside this
 // package. Swapping in a real backend later is one type implementing one
 // interface, plus a settings row to select it.
-//
-// The seeding and latency machinery is in adapters/mockcore, shared with the
-// LLM mock: one Tuning type so the wiring builds it once, and one
-// ErrInjectedFailure so a test need not know which port raised it.
 package mock
 
 import (
-	"github.com/tbui/yt-studio/adapters/mockcore"
+	"hash/fnv"
+	"math/rand/v2"
 )
 
-// Tuning is re-exported so a caller wiring the mocks names one type rather than
-// reaching into mockcore for it. It is an alias, not a definition: the LLM mock
-// takes the same value.
-type Tuning = mockcore.Tuning
+// seedOf derives a stable 64-bit seed from its parts. Every piece of generated
+// content hangs off one of these, so the same inputs always produce the same
+// bytes and therefore the same content address.
+func seedOf(parts ...string) uint64 {
+	h := fnv.New64a()
+	for _, p := range parts {
+		_, _ = h.Write([]byte(p))
+		_, _ = h.Write([]byte{0})
+	}
+	return h.Sum64()
+}
 
-// ErrInjectedFailure is re-exported for the same reason — a test asserting on an
-// injected failure should not have to know which package raised it.
-var ErrInjectedFailure = mockcore.ErrInjectedFailure
+// deterministic returns a PRNG seeded only by its inputs.
+func deterministic(seed uint64) *rand.Rand {
+	return rand.New(rand.NewPCG(seed, seed^0x9E3779B97F4A7C15))
+}

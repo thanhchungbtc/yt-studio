@@ -10,7 +10,6 @@ import (
 	"image/png"
 	"strings"
 
-	"github.com/tbui/yt-studio/adapters/mockcore"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )
@@ -32,22 +31,18 @@ const (
 // carry what the mock is for: the grid is the right shape, the icons are in the
 // right cells, and a caption that is too long is visibly too long.
 type Thumbnail struct {
-	store  provider.AssetStore
-	tuning Tuning
+	store provider.AssetStore
 }
 
 var _ provider.ThumbnailBuilder = (*Thumbnail)(nil)
 
 // NewThumbnail constructs the mock.
-func NewThumbnail(store provider.AssetStore, tuning Tuning) *Thumbnail {
-	return &Thumbnail{store: store, tuning: tuning}
+func NewThumbnail(store provider.AssetStore) *Thumbnail {
+	return &Thumbnail{store: store}
 }
 
 // Build renders exactly one thumbnail.
 func (b *Thumbnail) Build(ctx context.Context, req provider.ThumbnailRequest) (entity.AssetID, error) {
-	if err := mockcore.Simulate(ctx, b.tuning, 1); err != nil {
-		return "", err
-	}
 
 	img := image.NewRGBA(image.Rect(0, 0, thumbnailWidth, thumbnailHeight))
 	fill(img, color.RGBA{R: 8, G: 8, B: 10, A: 255})

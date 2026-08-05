@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
 	mock "github.com/tbui/yt-studio/adapters/llm/mock"
@@ -49,7 +48,7 @@ func TestIdenticalOutputReusesTheStoredFile(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	store := newStore(t)
-	llm := mock.NewLLM(store, nil, nil)
+	llm := mock.NewLLM(store, nil)
 
 	first, err := llm.Blueprint(ctx, blueprintRequest(2))
 	if err != nil {
@@ -74,7 +73,7 @@ func TestIdenticalOutputReusesTheStoredFile(t *testing.T) {
 func TestBlueprintProducesTheRequestedChapters(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	llm := mock.NewLLM(newStore(t), nil, nil)
+	llm := mock.NewLLM(newStore(t), nil)
 
 	for _, n := range []int{1, 7, 50} {
 		bp, err := llm.Blueprint(ctx, blueprintRequest(n))
@@ -103,7 +102,7 @@ func TestSlidePromptsAreCoalesced(t *testing.T) {
 	store := newStore(t)
 
 	const chapters, slides = 6, 2
-	seed := mock.NewLLM(store, nil, nil)
+	seed := mock.NewLLM(store, nil)
 	bp, err := seed.Blueprint(ctx, blueprintRequest(chapters))
 	if err != nil {
 		t.Fatal(err)
@@ -113,7 +112,7 @@ func TestSlidePromptsAreCoalesced(t *testing.T) {
 	llm := mock.NewLLM(store, func(ctx context.Context, id entity.VideoID) (mock.VideoContext, error) {
 		lookups++
 		return lookupFor(bp, slides)(ctx, id)
-	}, nil)
+	})
 
 	first, err := llm.SlidePrompts(ctx, "v1")
 	if err != nil {
@@ -153,7 +152,7 @@ func TestSlidePromptsAreCoalesced(t *testing.T) {
 func TestThumbnailPlanFillsEveryCell(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	llm := mock.NewLLM(newStore(t), nil, nil)
+	llm := mock.NewLLM(newStore(t), nil)
 
 	bp, err := llm.Blueprint(ctx, blueprintRequest(12))
 	if err != nil {
@@ -201,36 +200,11 @@ func TestThumbnailPlanFillsEveryCell(t *testing.T) {
 // returning ten empty tiles.
 func TestThumbnailPlanNeedsAnOutline(t *testing.T) {
 	t.Parallel()
-	llm := mock.NewLLM(newStore(t), nil, nil)
+	llm := mock.NewLLM(newStore(t), nil)
 
 	if _, err := llm.ThumbnailPlan(context.Background(), provider.ThumbnailPlanRequest{
 		VideoID: "v1", Headline: "50 BROKEN BELIEFS", Cells: 10,
 	}); err == nil {
 		t.Fatal("ThumbnailPlan with no chapters returned no error")
-	}
-}
-
-// A cancelled video's provider calls must stop rather than run to completion.
-func TestProvidersRespectContextCancellation(t *testing.T) {
-	t.Parallel()
-	store := newStore(t)
-	slow := mock.Tuning(func() (time.Duration, int) { return time.Hour, 0 })
-	llm := mock.NewLLM(store, nil, slow)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if _, err := llm.Blueprint(ctx, blueprintRequest(2)); err == nil {
-		t.Fatal("Blueprint ignored a cancelled context")
-	}
-}
-
-func TestFailureInjectionIsExercised(t *testing.T) {
-	t.Parallel()
-	store := newStore(t)
-	always := mock.Tuning(func() (time.Duration, int) { return 0, 100 })
-	llm := mock.NewLLM(store, nil, always)
-
-	if _, err := llm.Blueprint(context.Background(), blueprintRequest(2)); err == nil {
-		t.Fatal("a 100% failure rate produced no error")
 	}
 }

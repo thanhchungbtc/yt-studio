@@ -8,7 +8,6 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/tbui/yt-studio/adapters/mockcore"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )
@@ -17,22 +16,18 @@ import (
 // narration into a real MP4 container, and concatenates chapter clips into the
 // final render by stream copy — never by re-reading a file into memory.
 type Composer struct {
-	store  provider.AssetStore
-	tuning Tuning
+	store provider.AssetStore
 }
 
 var _ provider.VideoComposer = (*Composer)(nil)
 
 // NewComposer constructs the mock.
-func NewComposer(store provider.AssetStore, tuning Tuning) *Composer {
-	return &Composer{store: store, tuning: tuning}
+func NewComposer(store provider.AssetStore) *Composer {
+	return &Composer{store: store}
 }
 
 // Clip composes exactly one chapter.
 func (c *Composer) Clip(ctx context.Context, req provider.ClipRequest) (entity.AssetID, error) {
-	if err := mockcore.Simulate(ctx, c.tuning, 1); err != nil {
-		return "", err
-	}
 	if len(req.SlideAssetIDs) == 0 {
 		return "", errors.New("mock composer: a clip needs at least one slide")
 	}
@@ -64,9 +59,6 @@ func (c *Composer) Clip(ctx context.Context, req provider.ClipRequest) (entity.A
 // Concat joins every chapter clip into the final render. Each input is re-read as
 // byte ranges and copied straight through, so no clip is ever held in memory.
 func (c *Composer) Concat(ctx context.Context, req provider.ConcatRequest) (entity.AssetID, error) {
-	if err := mockcore.Simulate(ctx, c.tuning, float64(len(req.ClipAssetIDs))/4); err != nil {
-		return "", err
-	}
 	if len(req.ClipAssetIDs) == 0 {
 		return "", errors.New("mock composer: a concat needs at least one clip")
 	}

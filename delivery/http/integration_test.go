@@ -72,10 +72,6 @@ func newHarness(t *testing.T) *harness {
 	if err := settings.Load(ctx); err != nil {
 		t.Fatalf("settings.Load: %v", err)
 	}
-	// Tests must not wait on simulated provider latency.
-	if _, err := settings.Set(ctx, entity.SettingMockLatencyMillis, "0"); err != nil {
-		t.Fatalf("disable mock latency: %v", err)
-	}
 
 	assets, err := assetstore.New(filepath.Join(t.TempDir(), "assets"))
 	if err != nil {
@@ -83,11 +79,7 @@ func newHarness(t *testing.T) *harness {
 	}
 	broker := eventbus.New(10*time.Millisecond, log)
 
-	tuning := mediamock.Tuning(func() (time.Duration, int) {
-		return settings.Duration(entity.SettingMockLatencyMillis),
-			settings.Int(entity.SettingMockFailureRatePercent)
-	})
-	llm := llmmock.NewLLM(assets, videoContext(store), tuning)
+	llm := llmmock.NewLLM(assets, videoContext(store))
 	// An ungated blueprint expands its own video's DAG, so the runner needs the
 	// scheduler that is built from it. The reference is filled in below, before
 	// the loop starts.
@@ -95,12 +87,12 @@ func newHarness(t *testing.T) *harness {
 	runner := app.NewTaskRunner(
 		store, store, store, store, store, store, store, assets,
 		llm,
-		mediamock.NewTTS(assets, tuning),
-		mediamock.NewSlide(assets, tuning),
-		mediamock.NewComposer(assets, tuning),
-		mediamock.NewThumbnail(assets, tuning),
-		mediamock.NewIcon(assets, tuning),
-		mediamock.NewUploader(assets, tuning, func() time.Time { return time.Unix(1_700_000_000, 0).UTC() }),
+		mediamock.NewTTS(assets),
+		mediamock.NewSlide(assets),
+		mediamock.NewComposer(assets),
+		mediamock.NewThumbnail(assets),
+		mediamock.NewIcon(assets),
+		mediamock.NewUploader(assets, func() time.Time { return time.Unix(1_700_000_000, 0).UTC() }),
 		broker,
 		expander,
 		func() app.BlueprintOptions {

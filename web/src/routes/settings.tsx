@@ -3,7 +3,6 @@ import {
   AlertCircle,
   Check,
   Clapperboard,
-  FlaskConical,
   Gauge,
   Loader2,
   Minus,
@@ -84,11 +83,6 @@ const GROUPS: Record<string, GroupMeta> = {
     title: 'Server',
     blurb: 'Applied live — none of these need a restart.',
     icon: Server,
-  },
-  mock: {
-    title: 'Mock backends',
-    blurb: 'Shapes the mock backends so the scheduler can be exercised at realistic pacing.',
-    icon: FlaskConical,
   },
 }
 

@@ -66,7 +66,7 @@ func newBuilder(t *testing.T, opts thumbnail.Options) (*thumbnail.Builder, *asse
 // icon tasks hand the renderer.
 func grid(t *testing.T, store provider.AssetStore, captions ...string) []provider.ThumbnailIconCell {
 	t.Helper()
-	icons := mock.NewIcon(store, nil)
+	icons := mock.NewIcon(store)
 	cells := make([]provider.ThumbnailIconCell, 0, len(captions))
 	for i, caption := range captions {
 		id, err := icons.Icon(context.Background(), provider.ThumbnailIconRequest{
@@ -132,7 +132,7 @@ var baseline = sync.OnceValues(func() (entity.AssetID, error) {
 	if err != nil {
 		return "", err
 	}
-	icons := mock.NewIcon(store, nil)
+	icons := mock.NewIcon(store)
 	cells := make([]provider.ThumbnailIconCell, 0, len(baselineCaptions))
 	for i, caption := range baselineCaptions {
 		id, iconErr := icons.Icon(context.Background(), provider.ThumbnailIconRequest{

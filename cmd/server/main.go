@@ -289,10 +289,6 @@ func (c *serveCmd) Run() error {
 
 	// Backends are registered before the settings are loaded, so a row naming one
 	// that does not exist fails at startup rather than at first task.
-	tuning := mediamock.Tuning(func() (time.Duration, int) {
-		return settings.Duration(entity.SettingMockLatencyMillis),
-			settings.Int(entity.SettingMockFailureRatePercent)
-	})
 	ffmpegComposer := ffmpeg.New(assets, c.Resources, log)
 	thumbnails := thumbnail.New(assets, c.Resources, func() thumbnail.Options {
 		return thumbnail.Options{
@@ -330,21 +326,21 @@ func (c *serveCmd) Run() error {
 	}
 
 	providers := registry.New(settings.String)
-	providers.RegisterLLM("mock", llmmock.NewLLM(assets, videoContextLookup(store), tuning))
+	providers.RegisterLLM("mock", llmmock.NewLLM(assets, videoContextLookup(store)))
 	providers.RegisterLLM("9router", nineRouter)
-	providers.RegisterTTS("mock", mediamock.NewTTS(assets, tuning))
+	providers.RegisterTTS("mock", mediamock.NewTTS(assets))
 	providers.RegisterTTS("sample", sampleprovider.NewTTS(samples, assets))
-	providers.RegisterSlide("mock", mediamock.NewSlide(assets, tuning))
+	providers.RegisterSlide("mock", mediamock.NewSlide(assets))
 	providers.RegisterSlide("sample", sampleprovider.NewSlide(samples, assets))
 	providers.RegisterSlide("runware", runware.NewSlide(runwareClient))
-	providers.RegisterComposer("mock", mediamock.NewComposer(assets, tuning))
+	providers.RegisterComposer("mock", mediamock.NewComposer(assets))
 	providers.RegisterComposer("ffmpeg", ffmpegComposer)
-	providers.RegisterThumbnail("mock", mediamock.NewThumbnail(assets, tuning))
+	providers.RegisterThumbnail("mock", mediamock.NewThumbnail(assets))
 	providers.RegisterThumbnail("builtin", thumbnails)
-	providers.RegisterThumbnailIcon("mock", mediamock.NewIcon(assets, tuning))
+	providers.RegisterThumbnailIcon("mock", mediamock.NewIcon(assets))
 	providers.RegisterThumbnailIcon("sample", sampleprovider.NewIcon(samples, assets))
 	providers.RegisterThumbnailIcon("runware", runware.NewIcon(runwareClient))
-	providers.RegisterUploader("mock", mediamock.NewUploader(assets, tuning, time.Now))
+	providers.RegisterUploader("mock", mediamock.NewUploader(assets, time.Now))
 
 	settings.Constrain(providers.Options())
 	if err := settings.Load(ctx); err != nil {

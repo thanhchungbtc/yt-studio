@@ -12,8 +12,6 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
-	"github.com/tbui/yt-studio/adapters/mockcore"
-
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )
@@ -23,7 +21,6 @@ import (
 type LLM struct {
 	store  provider.AssetStore
 	lookup ContextLookup
-	tuning Tuning
 
 	// singleflight collapses concurrent callers onto one production; the cache
 	// serves every later caller. Both halves are needed: singleflight alone
@@ -36,21 +33,17 @@ type LLM struct {
 var _ provider.LLMProvider = (*LLM)(nil)
 
 // NewLLM constructs the mock. Every dependency is an explicit parameter.
-func NewLLM(store provider.AssetStore, lookup ContextLookup, tuning Tuning) *LLM {
+func NewLLM(store provider.AssetStore, lookup ContextLookup) *LLM {
 	return &LLM{
 		store:  store,
 		lookup: lookup,
-		tuning: tuning,
 		cache:  make(map[entity.VideoID][]provider.SlidePrompt, 8),
 	}
 }
 
 // Blueprint outlines a whole video: one call, one unit of work.
 func (l *LLM) Blueprint(ctx context.Context, req provider.BlueprintRequest) (provider.Blueprint, error) {
-	if err := mockcore.Simulate(ctx, l.tuning, 4); err != nil {
-		return provider.Blueprint{}, err
-	}
-	seed := mockcore.SeedOf(string(req.VideoID), req.Title, req.Topic, strconv.Itoa(req.ChapterCount))
+	seed := seedOf(string(req.VideoID), req.Title, req.Topic, strconv.Itoa(req.ChapterCount))
 
 	bp := provider.Blueprint{
 		BlueprintOutline: provider.BlueprintOutline{
@@ -61,7 +54,7 @@ func (l *LLM) Blueprint(ctx context.Context, req provider.BlueprintRequest) (pro
 		},
 	}
 	for i := 1; i <= req.ChapterCount; i++ {
-		cr := mockcore.Deterministic(seed ^ uint64(i)*0x100000001B3) //nolint:gosec // deterministic mixing
+		cr := deterministic(seed ^ uint64(i)*0x100000001B3) //nolint:gosec // deterministic mixing
 		bp.Chapters = append(bp.Chapters, provider.BlueprintChapter{
 			Ordinal:        i,
 			Title:          chapterTitle(cr, req.Topic, i),
@@ -93,9 +86,6 @@ func mockChapterWords(provider.BlueprintRequest) int { return entity.DefaultWord
 
 // Script writes exactly one chapter's narration.
 func (l *LLM) Script(ctx context.Context, req provider.ScriptRequest) (provider.Script, error) {
-	if err := mockcore.Simulate(ctx, l.tuning, 1); err != nil {
-		return provider.Script{}, err
-	}
 	// The chapter is read out of the outline rather than passed alongside it, so
 	// the assignment and the entry it points at cannot disagree.
 	ch, ok := req.Blueprint.Chapter(req.Ordinal)
@@ -110,7 +100,7 @@ func (l *LLM) Script(ctx context.Context, req provider.ScriptRequest) (provider.
 	if words <= 0 {
 		words = entity.DefaultWordsPerChapter
 	}
-	seed := mockcore.SeedOf(string(req.VideoID), strconv.Itoa(req.Ordinal), ch.Title)
+	seed := seedOf(string(req.VideoID), strconv.Itoa(req.Ordinal), ch.Title)
 	text := narration(seed, ch.Title, ch.Summary, words)
 
 	stored, err := l.store.Put(ctx, entity.AssetKindScript, strings.NewReader(text))
@@ -144,9 +134,6 @@ func (l *LLM) SlidePrompts(ctx context.Context, videoID entity.VideoID) ([]provi
 		if err != nil {
 			return nil, fmt.Errorf("resolve video context: %w", err)
 		}
-		if err := mockcore.Simulate(ctx, l.tuning, 3); err != nil {
-			return nil, err
-		}
 		perChapter := vc.SlidesPerChapter
 		if perChapter <= 0 {
 			perChapter = 1
@@ -154,7 +141,7 @@ func (l *LLM) SlidePrompts(ctx context.Context, videoID entity.VideoID) ([]provi
 		out := make([]provider.SlidePrompt, 0, len(vc.Chapters)*perChapter)
 		for _, ch := range vc.Chapters {
 			for j := range perChapter {
-				seed := mockcore.SeedOf(string(videoID), strconv.Itoa(ch.Ordinal), strconv.Itoa(j))
+				seed := seedOf(string(videoID), strconv.Itoa(ch.Ordinal), strconv.Itoa(j))
 				out = append(out, provider.SlidePrompt{
 					Ordinal: ch.Ordinal,
 					Index:   j,
@@ -206,11 +193,8 @@ func (l *LLM) Forget(videoID entity.VideoID) {
 
 // Metadata writes the YouTube-facing listing.
 func (l *LLM) Metadata(ctx context.Context, req provider.MetadataRequest) (provider.Metadata, error) {
-	if err := mockcore.Simulate(ctx, l.tuning, 2); err != nil {
-		return provider.Metadata{}, err
-	}
-	seed := mockcore.SeedOf(string(req.VideoID), req.Title, req.Topic)
-	r := mockcore.Deterministic(seed)
+	seed := seedOf(string(req.VideoID), req.Title, req.Topic)
+	r := deterministic(seed)
 
 	var desc strings.Builder
 	desc.WriteString(req.Title)
@@ -249,9 +233,6 @@ func (l *LLM) Metadata(ctx context.Context, req provider.MetadataRequest) (provi
 // from the first N: a grid taken from chapters 1 to 10 of a fifty-chapter video
 // looks like a bug, and the real backend will be choosing, not slicing.
 func (l *LLM) ThumbnailPlan(ctx context.Context, req provider.ThumbnailPlanRequest) (provider.ThumbnailPlan, error) {
-	if err := mockcore.Simulate(ctx, l.tuning, 2); err != nil {
-		return provider.ThumbnailPlan{}, err
-	}
 	if req.Cells < 1 {
 		return provider.ThumbnailPlan{}, errors.New("mock llm: a thumbnail plan needs at least one cell")
 	}
@@ -259,7 +240,7 @@ func (l *LLM) ThumbnailPlan(ctx context.Context, req provider.ThumbnailPlanReque
 		return provider.ThumbnailPlan{}, errors.New("mock llm: a thumbnail plan needs an outline to draw from")
 	}
 
-	seed := mockcore.SeedOf(string(req.VideoID), req.Headline, strconv.Itoa(req.Cells))
+	seed := seedOf(string(req.VideoID), req.Headline, strconv.Itoa(req.Cells))
 	plan := entity.ThumbnailPlan{Cells: make([]entity.ThumbnailCell, 0, req.Cells)}
 	for i := range req.Cells {
 		// Spread, with a wrap that only bites if a caller asked for more cells than

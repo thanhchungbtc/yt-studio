@@ -11,7 +11,6 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/tbui/yt-studio/adapters/mockcore"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )
@@ -23,22 +22,18 @@ const defaultIconSize = 256
 // which is the register the real grid is drawn in — a mock that returned the
 // landscape slides use would make a wrong layout look right.
 type Icon struct {
-	store  provider.AssetStore
-	tuning Tuning
+	store provider.AssetStore
 }
 
 var _ provider.ThumbnailIconGenerator = (*Icon)(nil)
 
 // NewIcon constructs the mock.
-func NewIcon(store provider.AssetStore, tuning Tuning) *Icon {
-	return &Icon{store: store, tuning: tuning}
+func NewIcon(store provider.AssetStore) *Icon {
+	return &Icon{store: store}
 }
 
 // Icon generates exactly one tile's icon.
 func (i *Icon) Icon(ctx context.Context, req provider.ThumbnailIconRequest) (entity.AssetID, error) {
-	if err := mockcore.Simulate(ctx, i.tuning, 2); err != nil {
-		return "", err
-	}
 	if req.Prompt == "" {
 		return "", errors.New("mock icon: an icon needs a prompt")
 	}
@@ -49,7 +44,7 @@ func (i *Icon) Icon(ctx context.Context, req provider.ThumbnailIconRequest) (ent
 
 	// The index is deliberately out of the seed: two cells that asked for the
 	// same thing are the same picture, and content addressing should say so.
-	img := renderIcon(mockcore.SeedOf(req.Prompt, strconv.Itoa(size)), size)
+	img := renderIcon(seedOf(req.Prompt, strconv.Itoa(size)), size)
 
 	var buf bytes.Buffer
 	buf.Grow(size * size / 8)
@@ -69,7 +64,7 @@ func (i *Icon) Icon(ctx context.Context, req provider.ThumbnailIconRequest) (ent
 // no mock could be — but it is the right shape, weight and palette, so a grid
 // of them shows whether the layout works.
 func renderIcon(seed uint64, size int) *image.RGBA {
-	r := mockcore.Deterministic(seed)
+	r := deterministic(seed)
 	img := image.NewRGBA(image.Rect(0, 0, size, size))
 	black := color.RGBA{A: 255}
 	for y := range size {

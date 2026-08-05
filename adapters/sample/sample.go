@@ -3,9 +3,8 @@
 // without a GPU or a network call.
 //
 // It is a real backend, not a mock: it does real work, takes as long as that
-// work takes, and fails only when something is genuinely wrong. There is no
-// simulated latency and no injected failure here — those belong to the mocks,
-// and a video composed from these files is one you can actually watch.
+// work takes, and fails only when something is genuinely wrong. A video
+// composed from these files is one you can actually watch.
 //
 // The files are operator-supplied and sit beside the other fixed production
 // assets under the resources directory, discovered by pattern at first use:

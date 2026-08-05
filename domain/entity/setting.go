@@ -88,13 +88,6 @@ const (
 	SettingSSECoalesceMillis SettingKey = "sse.coalesce_ms"
 	SettingLogLevel          SettingKey = "log.level"
 	SettingUploadDryRun      SettingKey = "upload.dry_run"
-
-	// SettingMockLatencyMillis scales the mock providers' simulated work so the
-	// scheduler can be exercised at realistic pacing without a GPU.
-	SettingMockLatencyMillis SettingKey = "mock.latency_ms"
-	// SettingMockFailureRatePercent injects transient provider failures so the
-	// retry path is exercised end to end.
-	SettingMockFailureRatePercent SettingKey = "mock.failure_rate_percent"
 )
 
 // SettingType is the declared type of a setting's text value. Every value is
@@ -291,8 +284,5 @@ func DefaultSettings() []Setting {
 		{Key: SettingSSECoalesceMillis, Value: "50", Type: SettingTypeInt, Group: "server", Min: 1, Max: 5000, Description: "Minimum interval between event batches per video."},
 		{Key: SettingLogLevel, Value: "info", Type: SettingTypeString, Group: "server", Description: "debug, info, warn or error; applied without a restart."},
 		{Key: SettingUploadDryRun, Value: "true", Type: SettingTypeBool, Group: "server", Description: "Uploads are simulated and produce a local receipt."},
-
-		{Key: SettingMockLatencyMillis, Value: "40", Type: SettingTypeInt, Group: "mock", Min: 0, Max: 600000, Description: "Simulated provider work per unit, scaled per task kind."},
-		{Key: SettingMockFailureRatePercent, Value: "0", Type: SettingTypeInt, Group: "mock", Min: 0, Max: 100, Description: "Injected transient failure rate, to exercise retries."},
 	}
 }
