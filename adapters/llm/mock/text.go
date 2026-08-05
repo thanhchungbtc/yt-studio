@@ -1,10 +1,12 @@
-package mockprovider
+package mock
 
 import (
 	"math/rand/v2"
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/tbui/yt-studio/adapters/mockcore"
 )
 
 // Deterministic prose generation. Every phrase is chosen by a PRNG seeded only
@@ -139,7 +141,7 @@ func chapterSummary(r *rand.Rand, topic string, ordinal int) string {
 // length, using a strings.Builder with reserved capacity rather than repeated
 // concatenation.
 func narration(seed uint64, title, summary string, wordTarget int) string {
-	r := deterministic(seed)
+	r := mockcore.Deterministic(seed)
 	var b strings.Builder
 	b.Grow(wordTarget * 7)
 
@@ -193,7 +195,7 @@ func countWords(s string) int {
 }
 
 func slidePrompt(seed uint64, chapterTitle, chapterSummary string) string {
-	r := deterministic(seed)
+	r := mockcore.Deterministic(seed)
 	var b strings.Builder
 	b.Grow(192)
 	b.WriteString(pick(r, slideSubjects))
@@ -214,7 +216,7 @@ func slidePrompt(seed uint64, chapterTitle, chapterSummary string) string {
 // iconPrompt describes one tile's subject. It is the subject alone: the shared
 // style clause is the server's to append.
 func iconPrompt(seed uint64) string {
-	r := deterministic(seed)
+	r := mockcore.Deterministic(seed)
 	return pick(r, iconSubjects) + ", " + pick(r, iconViews)
 }
 

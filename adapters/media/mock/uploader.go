@@ -1,4 +1,4 @@
-package mockprovider
+package mock
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/tbui/yt-studio/adapters/mockcore"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )
@@ -32,7 +33,7 @@ func NewUploader(store provider.AssetStore, tuning Tuning, now func() time.Time)
 
 // Upload publishes one finished render.
 func (u *Uploader) Upload(ctx context.Context, req provider.UploadRequest) (entity.UploadRecord, error) {
-	if err := simulate(ctx, u.tuning, 3); err != nil {
+	if err := mockcore.Simulate(ctx, u.tuning, 3); err != nil {
 		return entity.UploadRecord{}, err
 	}
 	info, err := u.store.Stat(ctx, req.FinalAssetID, entity.AssetKindFinal)
@@ -53,7 +54,7 @@ func (u *Uploader) Upload(ctx context.Context, req provider.UploadRequest) (enti
 
 	// A stable pseudo-video-id derived from the content address, so re-running an
 	// upload of identical bytes yields an identical receipt.
-	seed := seedOf(string(req.FinalAssetID), string(req.VideoRef))
+	seed := mockcore.SeedOf(string(req.FinalAssetID), string(req.VideoRef))
 	remoteID := "mock-" + strconv.FormatUint(seed, 36)
 
 	return entity.UploadRecord{

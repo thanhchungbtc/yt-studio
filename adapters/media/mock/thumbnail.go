@@ -1,4 +1,4 @@
-package mockprovider
+package mock
 
 import (
 	"bytes"
@@ -10,6 +10,7 @@ import (
 	"image/png"
 	"strings"
 
+	"github.com/tbui/yt-studio/adapters/mockcore"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )
@@ -44,7 +45,7 @@ func NewThumbnail(store provider.AssetStore, tuning Tuning) *Thumbnail {
 
 // Build renders exactly one thumbnail.
 func (b *Thumbnail) Build(ctx context.Context, req provider.ThumbnailRequest) (entity.AssetID, error) {
-	if err := simulate(ctx, b.tuning, 1); err != nil {
+	if err := mockcore.Simulate(ctx, b.tuning, 1); err != nil {
 		return "", err
 	}
 

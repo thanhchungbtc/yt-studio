@@ -1,4 +1,4 @@
-package mockprovider
+package mock
 
 import (
 	"encoding/binary"

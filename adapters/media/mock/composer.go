@@ -1,4 +1,4 @@
-package mockprovider
+package mock
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/tbui/yt-studio/adapters/mockcore"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )
@@ -29,7 +30,7 @@ func NewComposer(store provider.AssetStore, tuning Tuning) *Composer {
 
 // Clip composes exactly one chapter.
 func (c *Composer) Clip(ctx context.Context, req provider.ClipRequest) (entity.AssetID, error) {
-	if err := simulate(ctx, c.tuning, 1); err != nil {
+	if err := mockcore.Simulate(ctx, c.tuning, 1); err != nil {
 		return "", err
 	}
 	if len(req.SlideAssetIDs) == 0 {
@@ -63,7 +64,7 @@ func (c *Composer) Clip(ctx context.Context, req provider.ClipRequest) (entity.A
 // Concat joins every chapter clip into the final render. Each input is re-read as
 // byte ranges and copied straight through, so no clip is ever held in memory.
 func (c *Composer) Concat(ctx context.Context, req provider.ConcatRequest) (entity.AssetID, error) {
-	if err := simulate(ctx, c.tuning, float64(len(req.ClipAssetIDs))/4); err != nil {
+	if err := mockcore.Simulate(ctx, c.tuning, float64(len(req.ClipAssetIDs))/4); err != nil {
 		return "", err
 	}
 	if len(req.ClipAssetIDs) == 0 {

@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
-	mockprovider "github.com/tbui/yt-studio/adapters/mock"
+	mock "github.com/tbui/yt-studio/adapters/media/mock"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )
@@ -67,7 +67,7 @@ func seedChapter(t *testing.T, store provider.AssetStore, ordinal, slides int) (
 	t.Helper()
 	ctx := t.Context()
 
-	audio, err := mockprovider.NewTTS(store, nil).Speak(ctx, provider.SpeakRequest{
+	audio, err := mock.NewTTS(store, nil).Speak(ctx, provider.SpeakRequest{
 		VideoID: "video-1",
 		Ordinal: ordinal,
 		Text:    fmt.Sprintf("narration for chapter %d", ordinal),
@@ -76,7 +76,7 @@ func seedChapter(t *testing.T, store provider.AssetStore, ordinal, slides int) (
 		t.Fatalf("mock narration: %v", err)
 	}
 
-	gen := mockprovider.NewSlide(store, nil)
+	gen := mock.NewSlide(store, nil)
 	ids := make([]entity.AssetID, 0, slides)
 	for i := range slides {
 		id, err := gen.Generate(ctx, provider.SlideRequest{

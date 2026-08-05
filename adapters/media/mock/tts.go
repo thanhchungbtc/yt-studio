@@ -1,4 +1,4 @@
-package mockprovider
+package mock
 
 import (
 	"bytes"
@@ -8,6 +8,7 @@ import (
 	"math"
 	"strconv"
 
+	"github.com/tbui/yt-studio/adapters/mockcore"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )
@@ -37,12 +38,12 @@ func NewTTS(store provider.AssetStore, tuning Tuning) *TTS {
 
 // Speak narrates exactly one chapter and returns the audio's content address.
 func (t *TTS) Speak(ctx context.Context, req provider.SpeakRequest) (entity.AssetID, error) {
-	if err := simulate(ctx, t.tuning, 2); err != nil {
+	if err := mockcore.Simulate(ctx, t.tuning, 2); err != nil {
 		return "", err
 	}
 	// The tone is derived from the request, so two chapters never produce the same
 	// bytes and the content addressing is genuinely exercised.
-	seed := seedOf(string(req.VideoID), strconv.Itoa(req.Ordinal), req.Text)
+	seed := mockcore.SeedOf(string(req.VideoID), strconv.Itoa(req.Ordinal), req.Text)
 	buf := renderWAV(seed)
 
 	stored, err := t.store.Put(ctx, entity.AssetKindAudio, bytes.NewReader(buf))
@@ -55,7 +56,7 @@ func (t *TTS) Speak(ctx context.Context, req provider.SpeakRequest) (entity.Asse
 // renderWAV builds a complete 16-bit PCM RIFF/WAVE file: a two-tone chord with
 // a short fade, so the waveform is non-trivial and the file is genuinely valid.
 func renderWAV(seed uint64) []byte {
-	r := deterministic(seed)
+	r := mockcore.Deterministic(seed)
 	// Continuous rather than integer parameters: fifty chapters drawing from a few
 	// hundred discrete tones collide often enough that two chapters would share a
 	// content address.

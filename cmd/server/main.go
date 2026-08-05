@@ -19,19 +19,22 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/google/uuid"
-	"github.com/tbui/yt-studio/adapters/media/ffmpeg"
-	runware2 "github.com/tbui/yt-studio/adapters/media/runware"
-	"github.com/tbui/yt-studio/adapters/media/thumbnail"
-	"github.com/tbui/yt-studio/cmd/server/internal/registry"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
 	"github.com/tbui/yt-studio/adapters/eventbus"
-	mockprovider "github.com/tbui/yt-studio/adapters/mock"
-	"github.com/tbui/yt-studio/adapters/ninerouter"
+	// The two mock halves are one backend split by capability, so they are named
+	// for the half rather than left to collide on "mock".
+	llmmock "github.com/tbui/yt-studio/adapters/llm/mock"
+	"github.com/tbui/yt-studio/adapters/llm/ninerouter"
+	"github.com/tbui/yt-studio/adapters/media/ffmpeg"
+	mediamock "github.com/tbui/yt-studio/adapters/media/mock"
+	"github.com/tbui/yt-studio/adapters/media/runware"
+	"github.com/tbui/yt-studio/adapters/media/thumbnail"
 	sampleprovider "github.com/tbui/yt-studio/adapters/sample"
 	"github.com/tbui/yt-studio/adapters/sqlite"
 	"github.com/tbui/yt-studio/app"
+	"github.com/tbui/yt-studio/cmd/server/internal/registry"
 	deliveryhttp "github.com/tbui/yt-studio/delivery/http"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
@@ -286,7 +289,7 @@ func (c *serveCmd) Run() error {
 
 	// Backends are registered before the settings are loaded, so a row naming one
 	// that does not exist fails at startup rather than at first task.
-	tuning := mockprovider.Tuning(func() (time.Duration, int) {
+	tuning := mediamock.Tuning(func() (time.Duration, int) {
 		return settings.Duration(entity.SettingMockLatencyMillis),
 			settings.Int(entity.SettingMockFailureRatePercent)
 	})
@@ -315,7 +318,7 @@ func (c *serveCmd) Run() error {
 
 	// Same closure treatment, and for the same reason: nothing here may read a
 	// settings value before Load, and the size is picked on the settings screen.
-	runwareClient, err := runware2.New(runware2.Config{
+	runwareClient, err := runware.New(runware.Config{
 		APIKey: c.RunwareKey,
 		Model:  func() string { return settings.String(entity.SettingRunwareModel) },
 		StillSize: func() (int, int) {
@@ -327,21 +330,21 @@ func (c *serveCmd) Run() error {
 	}
 
 	providers := registry.New(settings.String)
-	providers.RegisterLLM("mock", mockprovider.NewLLM(assets, videoContextLookup(store), tuning))
+	providers.RegisterLLM("mock", llmmock.NewLLM(assets, videoContextLookup(store), tuning))
 	providers.RegisterLLM("9router", nineRouter)
-	providers.RegisterTTS("mock", mockprovider.NewTTS(assets, tuning))
+	providers.RegisterTTS("mock", mediamock.NewTTS(assets, tuning))
 	providers.RegisterTTS("sample", sampleprovider.NewTTS(samples, assets))
-	providers.RegisterSlide("mock", mockprovider.NewSlide(assets, tuning))
+	providers.RegisterSlide("mock", mediamock.NewSlide(assets, tuning))
 	providers.RegisterSlide("sample", sampleprovider.NewSlide(samples, assets))
-	providers.RegisterSlide("runware", runware2.NewSlide(runwareClient))
-	providers.RegisterComposer("mock", mockprovider.NewComposer(assets, tuning))
+	providers.RegisterSlide("runware", runware.NewSlide(runwareClient))
+	providers.RegisterComposer("mock", mediamock.NewComposer(assets, tuning))
 	providers.RegisterComposer("ffmpeg", ffmpegComposer)
-	providers.RegisterThumbnail("mock", mockprovider.NewThumbnail(assets, tuning))
+	providers.RegisterThumbnail("mock", mediamock.NewThumbnail(assets, tuning))
 	providers.RegisterThumbnail("builtin", thumbnails)
-	providers.RegisterThumbnailIcon("mock", mockprovider.NewIcon(assets, tuning))
+	providers.RegisterThumbnailIcon("mock", mediamock.NewIcon(assets, tuning))
 	providers.RegisterThumbnailIcon("sample", sampleprovider.NewIcon(samples, assets))
-	providers.RegisterThumbnailIcon("runware", runware2.NewIcon(runwareClient))
-	providers.RegisterUploader("mock", mockprovider.NewUploader(assets, tuning, time.Now))
+	providers.RegisterThumbnailIcon("runware", runware.NewIcon(runwareClient))
+	providers.RegisterUploader("mock", mediamock.NewUploader(assets, tuning, time.Now))
 
 	settings.Constrain(providers.Options())
 	if err := settings.Load(ctx); err != nil {
@@ -575,17 +578,17 @@ func chapterOutline(
 	return out, nil
 }
 
-func videoContextLookup(store *sqlite.Store) mockprovider.ContextLookup {
-	return func(ctx context.Context, videoID entity.VideoID) (mockprovider.VideoContext, error) {
+func videoContextLookup(store *sqlite.Store) llmmock.ContextLookup {
+	return func(ctx context.Context, videoID entity.VideoID) (llmmock.VideoContext, error) {
 		v, err := store.VideoByID(ctx, videoID)
 		if err != nil {
-			return mockprovider.VideoContext{}, err
+			return llmmock.VideoContext{}, err
 		}
 		outline, err := chapterOutline(ctx, store, videoID)
 		if err != nil {
-			return mockprovider.VideoContext{}, err
+			return llmmock.VideoContext{}, err
 		}
-		return mockprovider.VideoContext{
+		return llmmock.VideoContext{
 			Ref:              v.Ref,
 			Title:            v.Title,
 			Topic:            v.Topic,

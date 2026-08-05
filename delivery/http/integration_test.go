@@ -20,7 +20,8 @@ import (
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
 	"github.com/tbui/yt-studio/adapters/eventbus"
-	mockprovider "github.com/tbui/yt-studio/adapters/mock"
+	llmmock "github.com/tbui/yt-studio/adapters/llm/mock"
+	mediamock "github.com/tbui/yt-studio/adapters/media/mock"
 	"github.com/tbui/yt-studio/adapters/sqlite"
 	"github.com/tbui/yt-studio/app"
 	deliveryhttp "github.com/tbui/yt-studio/delivery/http"
@@ -82,11 +83,11 @@ func newHarness(t *testing.T) *harness {
 	}
 	broker := eventbus.New(10*time.Millisecond, log)
 
-	tuning := mockprovider.Tuning(func() (time.Duration, int) {
+	tuning := mediamock.Tuning(func() (time.Duration, int) {
 		return settings.Duration(entity.SettingMockLatencyMillis),
 			settings.Int(entity.SettingMockFailureRatePercent)
 	})
-	llm := mockprovider.NewLLM(assets, videoContext(store), tuning)
+	llm := llmmock.NewLLM(assets, videoContext(store), tuning)
 	// An ungated blueprint expands its own video's DAG, so the runner needs the
 	// scheduler that is built from it. The reference is filled in below, before
 	// the loop starts.
@@ -94,12 +95,12 @@ func newHarness(t *testing.T) *harness {
 	runner := app.NewTaskRunner(
 		store, store, store, store, store, store, store, assets,
 		llm,
-		mockprovider.NewTTS(assets, tuning),
-		mockprovider.NewSlide(assets, tuning),
-		mockprovider.NewComposer(assets, tuning),
-		mockprovider.NewThumbnail(assets, tuning),
-		mockprovider.NewIcon(assets, tuning),
-		mockprovider.NewUploader(assets, tuning, func() time.Time { return time.Unix(1_700_000_000, 0).UTC() }),
+		mediamock.NewTTS(assets, tuning),
+		mediamock.NewSlide(assets, tuning),
+		mediamock.NewComposer(assets, tuning),
+		mediamock.NewThumbnail(assets, tuning),
+		mediamock.NewIcon(assets, tuning),
+		mediamock.NewUploader(assets, tuning, func() time.Time { return time.Unix(1_700_000_000, 0).UTC() }),
 		broker,
 		expander,
 		func() app.BlueprintOptions {
@@ -180,21 +181,21 @@ func (e *lateExpander) Expand(ctx context.Context, videoID entity.VideoID, tail 
 	return e.sched.Expand(ctx, videoID, tail)
 }
 
-func videoContext(store *sqlite.Store) mockprovider.ContextLookup {
-	return func(ctx context.Context, videoID entity.VideoID) (mockprovider.VideoContext, error) {
+func videoContext(store *sqlite.Store) llmmock.ContextLookup {
+	return func(ctx context.Context, videoID entity.VideoID) (llmmock.VideoContext, error) {
 		v, err := store.VideoByID(ctx, videoID)
 		if err != nil {
-			return mockprovider.VideoContext{}, err
+			return llmmock.VideoContext{}, err
 		}
 		rows, err := store.ListChaptersByVideo(ctx, videoID)
 		if err != nil {
-			return mockprovider.VideoContext{}, err
+			return llmmock.VideoContext{}, err
 		}
 		outline := make([]provider.BlueprintChapter, 0, len(rows))
 		for _, c := range rows {
 			outline = append(outline, provider.BlueprintChapter{Ordinal: c.Ordinal, Title: c.Title, Summary: c.Summary})
 		}
-		return mockprovider.VideoContext{
+		return llmmock.VideoContext{
 			Ref: v.Ref, Title: v.Title, Topic: v.Topic,
 			Chapters: outline, SlidesPerChapter: v.SlidesPerChapter,
 		}, nil

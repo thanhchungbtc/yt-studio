@@ -1,4 +1,4 @@
-package mockprovider
+package mock
 
 import (
 	"bytes"
@@ -10,6 +10,7 @@ import (
 	"math"
 	"strconv"
 
+	"github.com/tbui/yt-studio/adapters/mockcore"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )
@@ -37,10 +38,10 @@ func NewSlide(store provider.AssetStore, tuning Tuning) *Slide {
 
 // Generate produces exactly one slide.
 func (i *Slide) Generate(ctx context.Context, req provider.SlideRequest) (entity.AssetID, error) {
-	if err := simulate(ctx, i.tuning, 2); err != nil {
+	if err := mockcore.Simulate(ctx, i.tuning, 2); err != nil {
 		return "", err
 	}
-	seed := seedOf(string(req.VideoID), strconv.Itoa(req.Ordinal), strconv.Itoa(req.Index), req.Prompt)
+	seed := mockcore.SeedOf(string(req.VideoID), strconv.Itoa(req.Ordinal), strconv.Itoa(req.Index), req.Prompt)
 	img := renderStill(seed, imageWidth, imageHeight)
 
 	var buf bytes.Buffer
@@ -63,7 +64,7 @@ func (i *Slide) Generate(ctx context.Context, req provider.SlideRequest) (entity
 // The size is a parameter because a thumbnail is the same picture at YouTube's
 // dimensions rather than a second painter.
 func renderStill(seed uint64, width, height int) *image.RGBA {
-	r := deterministic(seed)
+	r := mockcore.Deterministic(seed)
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
 
 	skyTop := color.RGBA{
