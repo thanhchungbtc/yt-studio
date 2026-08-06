@@ -130,7 +130,7 @@ func newClient(t *testing.T, a *api, key string, width, height int) *runware2.Cl
 	client, err := runware2.New(runware2.Config{
 		APIKey:           key,
 		Model:            func() string { return testModel },
-		StillSize:        func() (int, int) { return width, height },
+		SlideSize:        func() (int, int) { return width, height },
 		BaseURL:          a.server.URL,
 		InferenceTimeout: 5 * time.Second,
 		DownloadTimeout:  5 * time.Second,
@@ -151,7 +151,7 @@ func TestNewRejectsIncompleteConfig(t *testing.T) {
 	}
 
 	for name, cfg := range map[string]runware2.Config{
-		"no model resolver": {APIKey: testKey, StillSize: size},
+		"no model resolver": {APIKey: testKey, SlideSize: size},
 		"no size resolver":  {APIKey: testKey, Model: model},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -164,7 +164,7 @@ func TestNewRejectsIncompleteConfig(t *testing.T) {
 
 	t.Run("no store", func(t *testing.T) {
 		t.Parallel()
-		cfg := runware2.Config{APIKey: testKey, Model: model, StillSize: size}
+		cfg := runware2.Config{APIKey: testKey, Model: model, SlideSize: size}
 		if _, err := runware2.New(cfg, nil, nil); !errors.Is(err, provider.ErrUnavailable) {
 			t.Fatalf("expected ErrUnavailable, got %v", err)
 		}
@@ -298,7 +298,7 @@ func TestStoredAssetsAreAddressedByKind(t *testing.T) {
 	client, err := runware2.New(runware2.Config{
 		APIKey:    testKey,
 		Model:     func() string { return testModel },
-		StillSize: func() (int, int) { return 512, 512 },
+		SlideSize: func() (int, int) { return 512, 512 },
 		BaseURL:   a.server.URL,
 	}, store, nil)
 	if err != nil {
@@ -454,7 +454,7 @@ func TestCancellationAbortsInFlight(t *testing.T) {
 	client, err := runware2.New(runware2.Config{
 		APIKey:    testKey,
 		Model:     func() string { return testModel },
-		StillSize: func() (int, int) { return 512, 512 },
+		SlideSize: func() (int, int) { return 512, 512 },
 		BaseURL:   server.URL,
 	}, newStore(t), nil)
 	if err != nil {

@@ -169,7 +169,7 @@ type SetChapterScriptParams struct {
 	ID              string
 }
 
-// Field-scoped updates. Two image tasks for the same chapter run concurrently,
+// Field-scoped updates. Two slide tasks for the same chapter run concurrently,
 // so a read-modify-write of the whole row would lose one of them; each of these
 // is a single atomic statement instead.
 func (q *Queries) SetChapterScript(ctx context.Context, arg SetChapterScriptParams) error {

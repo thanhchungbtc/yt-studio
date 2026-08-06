@@ -1,0 +1,23 @@
+## Full Video Blueprint
+
+Title: {{ .Blueprint.Title }}
+{{- with .Blueprint.Summary }}
+Brief: {{ . }}
+{{- end }}
+
+Chapter structure (in order):
+{{ range .Blueprint.Chapters }}
+{{ .Ordinal }}. {{ .Title }}
+{{- end }}
+
+---
+
+Generate exactly {{ .Cells }} distinct thumbnail icon generation prompts.
+Each prompt is a complete self-contained string of 2 to 4 sentences describing a single iconic symbol.
+
+Ensure that:
+1. You return exactly {{ .Cells }} unique icon candidates — each a visually distinct symbol, silhouette, and metaphor that a viewer recognises in under one second.
+2. Every prompt describes the icon in literal, concrete, physical terms (no abstract vocabulary like "represents vulnerability"). Any chalk grain, powder, or texture language must be scoped to the icon's fill only — the background stays absolute pure black with zero grain, gradient, or glow.
+3. Every single generated prompt strictly adheres to the Channel Visual Identity rules and ends with the exact STYLE TAG: "minimalist 2D hand-drawn chalk illustration, pure black background, bold white filled chalk icon, high-contrast, clean solid white chalk texture, flat design, no shading, tight composition, conceptual symbolic visual, 1:1"
+
+Structured JSON output containing a list of exactly {{ .Cells }} unique thumbnail icon prompts, each with its caption.

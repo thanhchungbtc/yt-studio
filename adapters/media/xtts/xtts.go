@@ -1,3 +1,12 @@
+// Package xtts is the narration backend for an AllTalk/XTTS server.
+//
+// It is unfinished and deliberately unwired: nothing in main.go registers it,
+// so no settings row can select it. What is written is the audio work that has
+// nothing to do with the transport -- sentence chunking, WAV concatenation, the
+// tail trim and fade -- because that is the part ported from the Python this
+// replaces and the part worth having under test before a server is involved.
+// What is stubbed is every call that touches the network, and each stub carries
+// the TODO describing what it owes.
 package xtts
 
 import (
@@ -25,7 +34,11 @@ var ErrUnavailable = fmt.Errorf("xtts: %w", provider.ErrUnavailable)
 // noticed the silence.
 var errNotImplemented = errors.New("xtts: not implemented")
 
-// The two endpoints this package uses, relative to Config.BaseURL.
+// The two endpoints this package uses, relative to Config.BaseURL. They are
+// named here rather than inline in the stubs that owe them, so the surface this
+// package needs from a server is one list rather than a search.
+//
+//nolint:unused // consumed by synthesize and Check once those are written
 const (
 	endpointGenerate = "/api/tts-generate"
 	endpointReady    = "/api/ready"
@@ -123,8 +136,9 @@ func (c *Client) Check(_ context.Context) error {
 
 // Speak narrates exactly one chapter and returns the audio's content address.
 //
-// The body below is the order of operations, ported from the Python; every step
-// it calls is still a stub.
+// The body below is the order of operations, ported from the Python. Every step
+// but synthesize is written; that one call is what stands between this and a
+// working backend.
 func (c *Client) Speak(ctx context.Context, req provider.SpeakRequest) (entity.AssetID, error) {
 	opts := c.options()
 
@@ -181,6 +195,8 @@ func (c *Client) synthesize(_ context.Context, _ string, _ Options) ([]byte, err
 // written against, but absolute URLs come back from others. Parse it: absolute
 // is used as it stands, relative is joined onto BaseURL. String concatenation
 // works until the day it silently does not.
+//
+//nolint:unused // consumed by synthesize once it is written
 func (c *Client) audioURL(_ string) (string, error) {
 	return "", errNotImplemented
 }

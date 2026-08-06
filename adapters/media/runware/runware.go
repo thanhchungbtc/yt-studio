@@ -83,10 +83,10 @@ type Config struct {
 	// resolves its backend per call: a model picked on the settings screen has to
 	// apply to the next generation instead of the next restart.
 	Model func() string
-	// StillSize is the geometry slides are generated at. Icons are square by the
+	// SlideSize is the geometry slides are generated at. Icons are square by the
 	// port's definition and carry their own size on the request, so only the
-	// still half needs this.
-	StillSize func() (width, height int)
+	// slide half needs this.
+	SlideSize func() (width, height int)
 	// BaseURL overrides the public endpoint. Empty means defaultBaseURL.
 	BaseURL string
 	// InferenceTimeout and DownloadTimeout bound the two halves of one
@@ -113,7 +113,7 @@ func New(cfg Config, store provider.AssetStore, log *slog.Logger) (*Client, erro
 	if cfg.Model == nil {
 		return nil, fmt.Errorf("%w: no model resolver was given", ErrUnavailable)
 	}
-	if cfg.StillSize == nil {
+	if cfg.SlideSize == nil {
 		return nil, fmt.Errorf("%w: no slide size resolver was given", ErrUnavailable)
 	}
 	if store == nil {

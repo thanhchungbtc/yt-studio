@@ -1,4 +1,4 @@
-// Package sampleprovider serves narration and slides from real media files on
+// Package sample serves narration and slides from real media files on
 // disk, so the pipeline can be exercised against production-shaped input
 // without a GPU or a network call.
 //
@@ -17,7 +17,7 @@
 // without them still serves narration and slides. Selecting this backend for
 // the icon port without them is what reports the absence, rather than a
 // startup check failing over a file an operator may never have wanted.
-package sampleprovider
+package sample
 
 import (
 	"fmt"

@@ -28,16 +28,29 @@ type Settings struct {
 	// only afterwards.
 	options map[entity.SettingKey][]string
 
+	// optional carries the keys an empty value is legal for. Like options, it is
+	// a property of the code rather than of the database, so it is stamped onto
+	// each row at load rather than stored.
+	optional map[entity.SettingKey]bool
+
 	mu    sync.RWMutex
 	cache map[entity.SettingKey]entity.Setting
 }
 
 // NewSettings wires the service to both halves of the settings port.
 func NewSettings(reader repository.SettingReader, writer repository.SettingWriter) *Settings {
+	defaults := entity.DefaultSettings()
+	optional := make(map[entity.SettingKey]bool, len(defaults))
+	for _, d := range defaults {
+		if d.Optional {
+			optional[d.Key] = true
+		}
+	}
 	return &Settings{
-		reader: reader,
-		writer: writer,
-		cache:  make(map[entity.SettingKey]entity.Setting, len(entity.DefaultSettings())),
+		reader:   reader,
+		writer:   writer,
+		optional: optional,
+		cache:    make(map[entity.SettingKey]entity.Setting, len(defaults)),
 	}
 }
 
@@ -52,6 +65,7 @@ func (s *Settings) Constrain(options map[entity.SettingKey][]string) {
 // screen both see them without the database having to store them.
 func (s *Settings) constrain(row entity.Setting) entity.Setting {
 	row.Options = s.options[row.Key]
+	row.Optional = s.optional[row.Key]
 	return row
 }
 

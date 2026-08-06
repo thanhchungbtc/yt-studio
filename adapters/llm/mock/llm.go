@@ -236,7 +236,7 @@ func (l *LLM) ThumbnailPlan(ctx context.Context, req provider.ThumbnailPlanReque
 	if req.Cells < 1 {
 		return provider.ThumbnailPlan{}, errors.New("mock llm: a thumbnail plan needs at least one cell")
 	}
-	if len(req.Chapters) == 0 {
+	if len(req.Blueprint.Chapters) == 0 {
 		return provider.ThumbnailPlan{}, errors.New("mock llm: a thumbnail plan needs an outline to draw from")
 	}
 
@@ -245,7 +245,7 @@ func (l *LLM) ThumbnailPlan(ctx context.Context, req provider.ThumbnailPlanReque
 	for i := range req.Cells {
 		// Spread, with a wrap that only bites if a caller asked for more cells than
 		// the video has chapters. The server clamps before it gets here.
-		ch := req.Chapters[i*len(req.Chapters)/req.Cells%len(req.Chapters)]
+		ch := req.Blueprint.Chapters[i*len(req.Blueprint.Chapters)/req.Cells%len(req.Blueprint.Chapters)]
 		plan.Cells = append(plan.Cells, entity.ThumbnailCell{
 			Caption: caption(ch.Title),
 			Prompt:  iconPrompt(seed ^ uint64(i+1)*0x100000001B3), //nolint:gosec // deterministic mixing

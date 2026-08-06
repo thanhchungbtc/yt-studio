@@ -1,4 +1,4 @@
-package sampleprovider
+package sample
 
 import (
 	"context"

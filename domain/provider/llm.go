@@ -125,14 +125,12 @@ type Metadata struct {
 // ThumbnailPlanRequest asks for the grid that sits under the thumbnail's
 // headline: which ideas from the video earn a tile, and what each tile shows.
 type ThumbnailPlanRequest struct {
-	VideoID  entity.VideoID
-	VideoRef entity.Ref
-	Title    string
-	Topic    string
+	VideoID   entity.VideoID
+	VideoRef  entity.Ref
+	Blueprint BlueprintOutline
 	// Headline is the hook the metadata task wrote. The plan sees it so the
 	// captions say something the headline does not already say.
 	Headline string
-	Chapters []BlueprintChapter
 	// Cells is exactly how many tiles to write, not a target. The DAG already
 	// holds one icon task per cell by the time this is called, so a plan that
 	// comes back short leaves tasks with no prompt to read.

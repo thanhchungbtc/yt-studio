@@ -24,7 +24,7 @@ func (i *Slide) Generate(ctx context.Context, req provider.SlideRequest) (entity
 	// the fallback rather than the rule: the port declares the fields, so a use
 	// case that starts filling them must be obeyed rather than overridden here.
 	if width <= 0 || height <= 0 {
-		width, height = i.c.cfg.StillSize()
+		width, height = i.c.cfg.SlideSize()
 	}
 
 	image, err := i.c.generate(ctx, req.Prompt, width, height, defaultNegativePrompt)

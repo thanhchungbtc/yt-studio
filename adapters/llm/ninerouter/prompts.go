@@ -31,6 +31,9 @@ const (
 
 	metadataSystemPrompt = "metadata.system.tmpl"
 	metadataUserPrompt   = "metadata.user.tmpl"
+
+	thumbnailPlanSystemPrompt = "thumbnailplan.system.tmpl"
+	thumbnailPlanUserPrompt   = "thumbnailplan.user.tmpl"
 )
 
 // render executes one template against its request.

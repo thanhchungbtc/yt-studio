@@ -54,10 +54,12 @@ func GenerateThumbnailPlan(
 	plan, err := llm.ThumbnailPlan(ctx, provider.ThumbnailPlanRequest{
 		VideoID:  video.ID,
 		VideoRef: video.Ref,
-		Title:    video.Metadata.Title,
-		Topic:    video.Topic,
+		Blueprint: provider.BlueprintOutline{
+			Title:    video.Metadata.Title,
+			Summary:  video.Topic,
+			Chapters: outline,
+		},
 		Headline: video.Metadata.ThumbnailText,
-		Chapters: outline,
 		Cells:    video.ThumbnailCells,
 	})
 	if err != nil {

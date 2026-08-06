@@ -37,7 +37,7 @@ func NewSlide(store provider.AssetStore) *Slide {
 // Generate produces exactly one slide.
 func (i *Slide) Generate(ctx context.Context, req provider.SlideRequest) (entity.AssetID, error) {
 	seed := seedOf(string(req.VideoID), strconv.Itoa(req.Ordinal), strconv.Itoa(req.Index), req.Prompt)
-	img := renderStill(seed, imageWidth, imageHeight)
+	img := renderSlide(seed, imageWidth, imageHeight)
 
 	var buf bytes.Buffer
 	buf.Grow(imageWidth * imageHeight / 4)
@@ -52,13 +52,13 @@ func (i *Slide) Generate(ctx context.Context, req provider.SlideRequest) (entity
 	return stored.ID, nil
 }
 
-// renderStill paints a deterministic landscape: a two-stop sky gradient, a
+// renderSlide paints a deterministic landscape: a two-stop sky gradient, a
 // horizon, a ridge line and a light source. It is recognisably an image rather
 // than noise, which makes the chapter grid in the UI genuinely reviewable.
 //
 // The size is a parameter because a thumbnail is the same picture at YouTube's
 // dimensions rather than a second painter.
-func renderStill(seed uint64, width, height int) *image.RGBA {
+func renderSlide(seed uint64, width, height int) *image.RGBA {
 	r := deterministic(seed)
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
 

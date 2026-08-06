@@ -1,4 +1,4 @@
-package sampleprovider_test
+package sample_test
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
-	sampleprovider "github.com/tbui/yt-studio/adapters/sample"
+	sample "github.com/tbui/yt-studio/adapters/sample"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )
@@ -42,9 +42,9 @@ func newStore(t *testing.T) *assetstore.FS {
 
 func TestSpeakStoresRealAudio(t *testing.T) {
 	t.Parallel()
-	lib := sampleprovider.NewLibrary(resourcesDir(t))
+	lib := sample.NewLibrary(resourcesDir(t))
 	store := newStore(t)
-	tts := sampleprovider.NewTTS(lib, store)
+	tts := sample.NewTTS(lib, store)
 
 	id, err := tts.Speak(context.Background(), provider.SpeakRequest{Ordinal: 1, Text: "anything"})
 	if err != nil {
@@ -84,9 +84,9 @@ func TestSpeakStoresRealAudio(t *testing.T) {
 
 func TestGenerateStoresDecodablePNG(t *testing.T) {
 	t.Parallel()
-	lib := sampleprovider.NewLibrary(resourcesDir(t))
+	lib := sample.NewLibrary(resourcesDir(t))
 	store := newStore(t)
-	slides := sampleprovider.NewSlide(lib, store)
+	slides := sample.NewSlide(lib, store)
 
 	id, err := slides.Generate(context.Background(), provider.SlideRequest{Ordinal: 1, Index: 0})
 	if err != nil {
@@ -115,8 +115,8 @@ func TestGenerateStoresDecodablePNG(t *testing.T) {
 
 func TestSlidesRotateAndDifferWithinAChapter(t *testing.T) {
 	t.Parallel()
-	lib := sampleprovider.NewLibrary(resourcesDir(t))
-	slides := sampleprovider.NewSlide(lib, newStore(t))
+	lib := sample.NewLibrary(resourcesDir(t))
+	slides := sample.NewSlide(lib, newStore(t))
 
 	ids := make([][]entity.AssetID, 0, 4)
 	for ordinal := 1; ordinal <= 4; ordinal++ {
@@ -147,9 +147,9 @@ func TestSlidesRotateAndDifferWithinAChapter(t *testing.T) {
 // scales whatever it is given into a square tile.
 func TestIconIsStoredSquareAtTheRequestedSize(t *testing.T) {
 	t.Parallel()
-	lib := sampleprovider.NewLibrary(resourcesDir(t))
+	lib := sample.NewLibrary(resourcesDir(t))
 	store := newStore(t)
-	icons := sampleprovider.NewIcon(lib, store)
+	icons := sample.NewIcon(lib, store)
 
 	id, err := icons.Icon(context.Background(), provider.ThumbnailIconRequest{
 		VideoID: "v1", Index: 0, Prompt: "a pocket watch", Size: 256,
@@ -189,8 +189,8 @@ func TestIconIsStoredSquareAtTheRequestedSize(t *testing.T) {
 // works, which is the only reason to run the pipeline on samples.
 func TestIconsDifferAcrossTheGrid(t *testing.T) {
 	t.Parallel()
-	lib := sampleprovider.NewLibrary(resourcesDir(t))
-	icons := sampleprovider.NewIcon(lib, newStore(t))
+	lib := sample.NewLibrary(resourcesDir(t))
+	icons := sample.NewIcon(lib, newStore(t))
 
 	seen := make(map[entity.AssetID]int, 4)
 	for index := range 4 {
@@ -212,26 +212,26 @@ func TestIconsDifferAcrossTheGrid(t *testing.T) {
 func TestLibraryWithoutIconsStillServesSlides(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	sample := filepath.Join(dir, "sample")
-	if err := os.MkdirAll(sample, 0o755); err != nil {
+	sampleDir := filepath.Join(dir, "sample")
+	if err := os.MkdirAll(sampleDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	// A bare RIFF header rather than a copy of the real narration: the scan only
 	// reads the first twelve bytes, and the sample is five megabytes.
-	if err := os.WriteFile(filepath.Join(sample, "audio.wav"),
+	if err := os.WriteFile(filepath.Join(sampleDir, "audio.wav"),
 		[]byte("RIFF\x00\x00\x00\x00WAVEfmt "), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	copyFile(t, filepath.Join(resourcesDir(t), "sample", "img0.jpg"), filepath.Join(sample, "img0.jpg"))
+	copyFile(t, filepath.Join(resourcesDir(t), "sample", "img0.jpg"), filepath.Join(sampleDir, "img0.jpg"))
 
-	lib := sampleprovider.NewLibrary(dir)
+	lib := sample.NewLibrary(dir)
 	if err := lib.Check(); err != nil {
 		t.Fatalf("Check() = %v, want a usable library", err)
 	}
 	if _, err := lib.Icons(); !errors.Is(err, provider.ErrUnavailable) {
 		t.Fatalf("Icons() = %v, want ErrUnavailable", err)
 	}
-	if _, err := sampleprovider.NewSlide(lib, newStore(t)).Generate(context.Background(),
+	if _, err := sample.NewSlide(lib, newStore(t)).Generate(context.Background(),
 		provider.SlideRequest{Ordinal: 1}); err != nil {
 		t.Fatalf("slides stopped working without icons: %v", err)
 	}
@@ -250,10 +250,10 @@ func copyFile(t *testing.T, from, to string) {
 
 func TestMissingMediaIsUnavailableAndNotRetryable(t *testing.T) {
 	t.Parallel()
-	lib := sampleprovider.NewLibrary(t.TempDir())
+	lib := sample.NewLibrary(t.TempDir())
 
 	err := lib.Check()
-	if !errors.Is(err, sampleprovider.ErrUnavailable) {
+	if !errors.Is(err, sample.ErrUnavailable) {
 		t.Fatalf("Check() = %v, want ErrUnavailable", err)
 	}
 	// The port's sentinel is what app.classify reads to decide against retrying a
@@ -263,13 +263,13 @@ func TestMissingMediaIsUnavailableAndNotRetryable(t *testing.T) {
 	}
 
 	store := newStore(t)
-	if _, err := sampleprovider.NewTTS(lib, store).Speak(context.Background(), provider.SpeakRequest{}); !errors.Is(err, provider.ErrUnavailable) {
+	if _, err := sample.NewTTS(lib, store).Speak(context.Background(), provider.SpeakRequest{}); !errors.Is(err, provider.ErrUnavailable) {
 		t.Fatalf("Speak() = %v, want ErrUnavailable", err)
 	}
-	if _, err := sampleprovider.NewSlide(lib, store).Generate(context.Background(), provider.SlideRequest{}); !errors.Is(err, provider.ErrUnavailable) {
+	if _, err := sample.NewSlide(lib, store).Generate(context.Background(), provider.SlideRequest{}); !errors.Is(err, provider.ErrUnavailable) {
 		t.Fatalf("Generate() = %v, want ErrUnavailable", err)
 	}
-	if _, err := sampleprovider.NewIcon(lib, store).Icon(context.Background(), provider.ThumbnailIconRequest{}); !errors.Is(err, provider.ErrUnavailable) {
+	if _, err := sample.NewIcon(lib, store).Icon(context.Background(), provider.ThumbnailIconRequest{}); !errors.Is(err, provider.ErrUnavailable) {
 		t.Fatalf("Icon() = %v, want ErrUnavailable", err)
 	}
 }
@@ -277,19 +277,19 @@ func TestMissingMediaIsUnavailableAndNotRetryable(t *testing.T) {
 func TestNonWAVMediaIsRejectedUpFront(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	sample := filepath.Join(dir, "sample")
-	if err := os.MkdirAll(sample, 0o755); err != nil {
+	sampleDir := filepath.Join(dir, "sample")
+	if err := os.MkdirAll(sampleDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(sample, "audio.wav"), []byte("not audio at all"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(sampleDir, "audio.wav"), []byte("not audio at all"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(sample, "img0.jpg"), []byte("nor this"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(sampleDir, "img0.jpg"), []byte("nor this"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	err := sampleprovider.NewLibrary(dir).Check()
-	if !errors.Is(err, sampleprovider.ErrUnavailable) {
+	err := sample.NewLibrary(dir).Check()
+	if !errors.Is(err, sample.ErrUnavailable) {
 		t.Fatalf("Check() = %v, want a rejection naming the file", err)
 	}
 }

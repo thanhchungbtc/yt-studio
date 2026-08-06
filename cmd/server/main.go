@@ -31,7 +31,7 @@ import (
 	mediamock "github.com/tbui/yt-studio/adapters/media/mock"
 	"github.com/tbui/yt-studio/adapters/media/runware"
 	"github.com/tbui/yt-studio/adapters/media/thumbnail"
-	sampleprovider "github.com/tbui/yt-studio/adapters/sample"
+	sample "github.com/tbui/yt-studio/adapters/sample"
 	"github.com/tbui/yt-studio/adapters/sqlite"
 	"github.com/tbui/yt-studio/app"
 	"github.com/tbui/yt-studio/cmd/server/internal/registry"
@@ -296,7 +296,7 @@ func (c *serveCmd) Run() error {
 			Rows: settings.Int(entity.SettingThumbnailGridRows),
 		}
 	}, log)
-	samples := sampleprovider.NewLibrary(c.Resources)
+	samples := sample.NewLibrary(c.Resources)
 
 	// The model is read through a closure rather than captured: settings are not
 	// loaded until after every backend has registered, and a model picked on the
@@ -317,7 +317,7 @@ func (c *serveCmd) Run() error {
 	runwareClient, err := runware.New(runware.Config{
 		APIKey: c.RunwareKey,
 		Model:  func() string { return settings.String(entity.SettingRunwareModel) },
-		StillSize: func() (int, int) {
+		SlideSize: func() (int, int) {
 			return settings.Int(entity.SettingRunwareWidth), settings.Int(entity.SettingRunwareHeight)
 		},
 	}, assets, log)
@@ -329,16 +329,16 @@ func (c *serveCmd) Run() error {
 	providers.RegisterLLM("mock", llmmock.NewLLM(assets, videoContextLookup(store)))
 	providers.RegisterLLM("9router", nineRouter)
 	providers.RegisterTTS("mock", mediamock.NewTTS(assets))
-	providers.RegisterTTS("sample", sampleprovider.NewTTS(samples, assets))
+	providers.RegisterTTS("sample", sample.NewTTS(samples, assets))
 	providers.RegisterSlide("mock", mediamock.NewSlide(assets))
-	providers.RegisterSlide("sample", sampleprovider.NewSlide(samples, assets))
+	providers.RegisterSlide("sample", sample.NewSlide(samples, assets))
 	providers.RegisterSlide("runware", runware.NewSlide(runwareClient))
 	providers.RegisterComposer("mock", mediamock.NewComposer(assets))
 	providers.RegisterComposer("ffmpeg", ffmpegComposer)
 	providers.RegisterThumbnail("mock", mediamock.NewThumbnail(assets))
 	providers.RegisterThumbnail("builtin", thumbnails)
 	providers.RegisterThumbnailIcon("mock", mediamock.NewIcon(assets))
-	providers.RegisterThumbnailIcon("sample", sampleprovider.NewIcon(samples, assets))
+	providers.RegisterThumbnailIcon("sample", sample.NewIcon(samples, assets))
 	providers.RegisterThumbnailIcon("runware", runware.NewIcon(runwareClient))
 	providers.RegisterUploader("mock", mediamock.NewUploader(assets, time.Now))
 

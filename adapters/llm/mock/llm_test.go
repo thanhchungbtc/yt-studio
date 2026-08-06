@@ -159,8 +159,8 @@ func TestThumbnailPlanFillsEveryCell(t *testing.T) {
 		t.Fatal(err)
 	}
 	req := provider.ThumbnailPlanRequest{
-		VideoID: "v1", VideoRef: "DSS-1", Title: bp.Title,
-		Headline: "50 BROKEN BELIEFS", Chapters: bp.Chapters, Cells: 10,
+		VideoID: "v1", VideoRef: "DSS-1", Blueprint: bp.BlueprintOutline,
+		Headline: "50 BROKEN BELIEFS", Cells: 10,
 	}
 	plan, err := llm.ThumbnailPlan(ctx, req)
 	if err != nil {
