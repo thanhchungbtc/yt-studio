@@ -1,4 +1,4 @@
-// Package mock implements the media and upload ports with local,
+// Package media implements the media and upload ports with local,
 // deterministic backends that produce real files.
 //
 // The mocks are the deliverable for this version, so they are held to real

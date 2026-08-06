@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
-	"github.com/tbui/yt-studio/adapters/ninerouter"
+	"github.com/tbui/yt-studio/adapters/provider/ninerouter"
 	"github.com/tbui/yt-studio/domain/provider"
 )
 

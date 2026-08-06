@@ -19,18 +19,17 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/google/uuid"
-	"github.com/tbui/yt-studio/adapters/ffmpeg"
-	mockllm2 "github.com/tbui/yt-studio/adapters/mock/llm"
-	"github.com/tbui/yt-studio/adapters/mock/media"
-	runware2 "github.com/tbui/yt-studio/adapters/runware"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
 	"github.com/tbui/yt-studio/adapters/eventbus"
-
-	"github.com/tbui/yt-studio/adapters/media/thumbnail"
-	"github.com/tbui/yt-studio/adapters/ninerouter"
-	sample "github.com/tbui/yt-studio/adapters/sample"
+	"github.com/tbui/yt-studio/adapters/provider/ffmpeg"
+	llmmock "github.com/tbui/yt-studio/adapters/provider/mock/llm"
+	mediamock "github.com/tbui/yt-studio/adapters/provider/mock/media"
+	"github.com/tbui/yt-studio/adapters/provider/ninerouter"
+	"github.com/tbui/yt-studio/adapters/provider/runware"
+	"github.com/tbui/yt-studio/adapters/provider/sample"
+	"github.com/tbui/yt-studio/adapters/provider/thumbnail"
 	"github.com/tbui/yt-studio/adapters/sqlite"
 	"github.com/tbui/yt-studio/app"
 	"github.com/tbui/yt-studio/cmd/server/internal/registry"
@@ -313,7 +312,7 @@ func (c *serveCmd) Run() error {
 
 	// Same closure treatment, and for the same reason: nothing here may read a
 	// settings value before Load, and the size is picked on the settings screen.
-	runwareClient, err := runware2.New(runware2.Config{
+	runwareClient, err := runware.New(runware.Config{
 		APIKey: c.RunwareKey,
 		Model:  func() string { return settings.String(entity.SettingRunwareModel) },
 		SlideSize: func() (int, int) {
@@ -325,21 +324,21 @@ func (c *serveCmd) Run() error {
 	}
 
 	providers := registry.New(settings.String)
-	providers.RegisterLLM("mock", mockllm2.NewLLM(assets, videoContextLookup(store)))
+	providers.RegisterLLM("mock", llmmock.NewLLM(assets, videoContextLookup(store)))
 	providers.RegisterLLM("9router", nineRouter)
-	providers.RegisterTTS("mock", media.NewTTS(assets))
+	providers.RegisterTTS("mock", mediamock.NewTTS(assets))
 	providers.RegisterTTS("sample", sample.NewTTS(samples, assets))
-	providers.RegisterSlide("mock", media.NewSlide(assets))
+	providers.RegisterSlide("mock", mediamock.NewSlide(assets))
 	providers.RegisterSlide("sample", sample.NewSlide(samples, assets))
-	providers.RegisterSlide("runware", runware2.NewSlide(runwareClient))
-	providers.RegisterComposer("mock", media.NewComposer(assets))
+	providers.RegisterSlide("runware", runware.NewSlide(runwareClient))
+	providers.RegisterComposer("mock", mediamock.NewComposer(assets))
 	providers.RegisterComposer("ffmpeg", ffmpegComposer)
-	providers.RegisterThumbnail("mock", media.NewThumbnail(assets))
+	providers.RegisterThumbnail("mock", mediamock.NewThumbnail(assets))
 	providers.RegisterThumbnail("builtin", thumbnails)
-	providers.RegisterThumbnailIcon("mock", media.NewIcon(assets))
+	providers.RegisterThumbnailIcon("mock", mediamock.NewIcon(assets))
 	providers.RegisterThumbnailIcon("sample", sample.NewIcon(samples, assets))
-	providers.RegisterThumbnailIcon("runware", runware2.NewIcon(runwareClient))
-	providers.RegisterUploader("mock", media.NewUploader(assets, time.Now))
+	providers.RegisterThumbnailIcon("runware", runware.NewIcon(runwareClient))
+	providers.RegisterUploader("mock", mediamock.NewUploader(assets, time.Now))
 
 	settings.Constrain(providers.Options())
 	if err := settings.Load(ctx); err != nil {
@@ -573,17 +572,17 @@ func chapterOutline(
 	return out, nil
 }
 
-func videoContextLookup(store *sqlite.Store) mockllm2.ContextLookup {
-	return func(ctx context.Context, videoID entity.VideoID) (mockllm2.VideoContext, error) {
+func videoContextLookup(store *sqlite.Store) llmmock.ContextLookup {
+	return func(ctx context.Context, videoID entity.VideoID) (llmmock.VideoContext, error) {
 		v, err := store.VideoByID(ctx, videoID)
 		if err != nil {
-			return mockllm2.VideoContext{}, err
+			return llmmock.VideoContext{}, err
 		}
 		outline, err := chapterOutline(ctx, store, videoID)
 		if err != nil {
-			return mockllm2.VideoContext{}, err
+			return llmmock.VideoContext{}, err
 		}
-		return mockllm2.VideoContext{
+		return llmmock.VideoContext{
 			Ref:              v.Ref,
 			Title:            v.Title,
 			Topic:            v.Topic,

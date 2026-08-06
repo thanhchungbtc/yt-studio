@@ -1,6 +1,6 @@
-// Package sample serves narration and slides from real media files on
-// disk, so the pipeline can be exercised against production-shaped input
-// without a GPU or a network call.
+// Package sample serves narration, slides and thumbnail icons from real media
+// files on disk, so the pipeline can be exercised against production-shaped
+// input without a GPU or a network call.
 //
 // It is a real backend, not a mock: it does real work, takes as long as that
 // work takes, and fails only when something is genuinely wrong. A video

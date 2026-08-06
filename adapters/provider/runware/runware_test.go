@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
-	"github.com/tbui/yt-studio/adapters/runware"
+	"github.com/tbui/yt-studio/adapters/provider/runware"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )

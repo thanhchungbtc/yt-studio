@@ -1,4 +1,4 @@
-// Package mock implements the LLM port with a local, deterministic backend that
+// Package llm implements the LLM port with a local, deterministic backend that
 // writes real assets.
 //
 // It is held to the same standards as a paid backend: valid JSON and text

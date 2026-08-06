@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
-	"github.com/tbui/yt-studio/adapters/mock/llm"
+	"github.com/tbui/yt-studio/adapters/provider/mock/llm"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )
