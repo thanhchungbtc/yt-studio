@@ -99,24 +99,31 @@ const (
 	// whatever it says at the moment the blueprint lands.
 	SettingBlueprintChapterTolerancePercent SettingKey = "blueprint.chapter_tolerance_percent"
 
-	// How a chapter should sound. These three cross the TTS port in the request
-	// rather than being read by a backend: a voice belongs to whoever the video
-	// is for, and the day a channel wants its own, these become its default
-	// rather than a row that has to be renamed.
+	// How a chapter should sound, named for the engine that speaks it. A voice is
+	// an opaque handle scoped to one server — `female_01.wav` means nothing to a
+	// backend that keys voices by UUID — and a range or a code that one engine
+	// accepts is not one another does, so every narration row belongs to its
+	// backend rather than to narration in general. A second engine brings its
+	// own set and neither has to be renamed.
 	//
-	// SettingTTSVoice names a voice file on the narration server, e.g.
+	// They still cross the port on the request rather than being read behind it:
+	// which rows to read is a question about the selected backend, which the
+	// composition root can answer and a use case must not have to.
+	//
+	// SettingXTTSVoice names a voice file on the AllTalk server, e.g.
 	// female_01.wav. Empty is meaningful — it lets the server use its own default
 	// rather than failing a chapter over a name this end cannot verify.
-	SettingTTSVoice SettingKey = "tts.voice"
-	// SettingTTSLanguage is the two-letter code the model is asked to speak in.
-	SettingTTSLanguage SettingKey = "tts.language"
-	// SettingTTSSpeed is the playback rate asked of the server; 1.0 is unmodified.
-	// It is the one float in the table: the useful range is 0.5..2.0 and the
-	// interesting steps inside it are tenths, which an integer cannot express.
-	SettingTTSSpeed SettingKey = "tts.speed"
-	// The chunking pair is xtts's own, and named for it: a chapter is split
+	SettingXTTSVoice SettingKey = "xtts.voice"
+	// SettingXTTSLanguage is the two-letter code the model is asked to speak in.
+	SettingXTTSLanguage SettingKey = "xtts.language"
+	// SettingXTTSSpeed is the playback rate asked of the server; 1.0 is
+	// unmodified. It is the one float in the table: the useful range is 0.5..2.0
+	// and the interesting steps inside it are tenths, which an integer cannot
+	// express.
+	SettingXTTSSpeed SettingKey = "xtts.speed"
+	// The chunking pair is the least portable of the five: a chapter is split
 	// because XTTS degrades on long inputs, which is a fact about that server and
-	// not about narration. No other backend inherits these.
+	// not about narration.
 	//
 	// SettingXTTSChunkMinChars is the floor on a chunk's length in characters.
 	// The chunk count follows from it, so it sets the size of the pieces a
@@ -396,9 +403,11 @@ func DefaultSettings() []Setting {
 		{Key: SettingBlueprintChapterTolerancePercent, Value: "20", Type: SettingTypeInt, Group: GroupWriting, Min: 0, Max: 100, Description: "How far an accepted blueprint's chapter count may fall from the target, as a percentage. A roll outside it is rejected and written again."},
 
 		//nolint:lll // one row, one line
-		{Key: SettingTTSVoice, Value: "", Type: SettingTypeString, Group: GroupNarration, Optional: true, Description: "Voice file on the narration server, e.g. female_01.wav. Empty lets the server pick its own default."},
-		{Key: SettingTTSLanguage, Value: "en", Type: SettingTypeString, Group: GroupNarration, Description: "Two-letter code the narration model is asked to speak."},
-		{Key: SettingTTSSpeed, Value: "1.0", Type: SettingTypeFloat, Group: GroupNarration, Min: 0.5, Max: 2.0, Description: "Playback rate asked of the narration server; 1.0 is unmodified."},
+		{Key: SettingXTTSVoice, Value: "", Type: SettingTypeString, Group: GroupNarration, Backend: BackendXTTS, Optional: true, Description: "Voice file on the AllTalk server, e.g. female_01.wav. Empty lets the server pick its own default."},
+		//nolint:lll // one row, one line
+		{Key: SettingXTTSLanguage, Value: "en", Type: SettingTypeString, Group: GroupNarration, Backend: BackendXTTS, Description: "Two-letter code the narration model is asked to speak."},
+		//nolint:lll // one row, one line
+		{Key: SettingXTTSSpeed, Value: "1.0", Type: SettingTypeFloat, Group: GroupNarration, Backend: BackendXTTS, Min: 0.5, Max: 2.0, Description: "Playback rate asked of the narration server; 1.0 is unmodified."},
 		//nolint:lll // one row, one line
 		{Key: SettingXTTSChunkMinChars, Value: "250", Type: SettingTypeInt, Group: GroupNarration, Backend: BackendXTTS, Min: 50, Max: 5000, Description: "Floor on a narration chunk's length in characters. A chapter is synthesised in pieces at least this long, because XTTS degrades on long inputs."},
 		//nolint:lll // one row, one line

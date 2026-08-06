@@ -410,8 +410,8 @@ func (c *serveCmd) Run() error {
 	} else {
 		log.Info("xtts narration is available",
 			slog.String("url", c.XTTSURL),
-			slog.String("voice", settings.String(entity.SettingTTSVoice)),
-			slog.Float64("speed", settings.Float(entity.SettingTTSSpeed)))
+			slog.String("voice", settings.String(entity.SettingXTTSVoice)),
+			slog.Float64("speed", settings.Float(entity.SettingXTTSSpeed)))
 	}
 
 	// --- scheduler ----------------------------------------------------------
@@ -436,13 +436,7 @@ func (c *serveCmd) Run() error {
 				UploadGate:              settings.GateEnabled(entity.GateUpload),
 			}
 		},
-		func() app.NarrationOptions {
-			return app.NarrationOptions{
-				Voice:    settings.String(entity.SettingTTSVoice),
-				Language: settings.String(entity.SettingTTSLanguage),
-				Speed:    settings.Float(entity.SettingTTSSpeed),
-			}
-		},
+		func() app.NarrationOptions { return narrationOptions(settings) },
 		func() app.IconOptions {
 			return app.IconOptions{
 				Style: settings.String(entity.SettingThumbnailIconStyle),
@@ -559,6 +553,24 @@ func (c *serveCmd) Run() error {
 	}
 	log.Info("yt-studio stopped")
 	return nil
+}
+
+// narrationOptions reads how a chapter should sound from the rows belonging to
+// the narration backend currently selected.
+//
+// Which rows those are is the one question that has to be answered by name, and
+// this is the only place that may: a use case must not know that `xtts` exists,
+// and a backend reading its own rows could never be given a channel's voice
+// instead. Resolving by prefix here keeps both true, and a key the running
+// build does not seed reads as empty — which for a voice already means "let the
+// server pick".
+func narrationOptions(settings *service.Settings) app.NarrationOptions {
+	backend := settings.String(entity.SettingProviderTTS)
+	return app.NarrationOptions{
+		Voice:    settings.String(entity.SettingKey(backend + ".voice")),
+		Language: settings.String(entity.SettingKey(backend + ".language")),
+		Speed:    settings.Float(entity.SettingKey(backend + ".speed")),
+	}
 }
 
 // videoContextLookup gives the sample LLM the blueprint context its coalesced

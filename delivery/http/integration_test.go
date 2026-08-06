@@ -101,9 +101,9 @@ func newHarness(t *testing.T) *harness {
 		},
 		func() app.NarrationOptions {
 			return app.NarrationOptions{
-				Voice:    settings.String(entity.SettingTTSVoice),
-				Language: settings.String(entity.SettingTTSLanguage),
-				Speed:    settings.Float(entity.SettingTTSSpeed),
+				Voice:    settings.String(entity.SettingXTTSVoice),
+				Language: settings.String(entity.SettingXTTSLanguage),
+				Speed:    settings.Float(entity.SettingXTTSSpeed),
 			}
 		},
 		func() app.IconOptions {
