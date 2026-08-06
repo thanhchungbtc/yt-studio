@@ -835,13 +835,31 @@ type ControlKind = 'switch' | 'segmented' | 'select' | 'stepper' | 'number' | 't
  * is worth a pair of nudge buttons, and a paragraph-length string needs room to
  * be read before it is edited.
  */
+/**
+ * The backend that runs on this machine sits leftmost on every row it appears
+ * on, whatever the alphabet says.
+ *
+ * The server hands these back sorted by name, which is right for an error
+ * message and wrong for a row of tabs: `9router | sample` beside `sample | xtts`
+ * puts the local option on a different side of two rows an operator reads as one
+ * question. Reading left to right should mean the same thing every time — here,
+ * nothing leaves the machine, then the things that do.
+ */
+const LOCAL_BACKEND = 'sample'
+
+function orderedOptions(options: string[]): string[] {
+  if (!options.includes(LOCAL_BACKEND)) return options
+  return [LOCAL_BACKEND, ...options.filter((option) => option !== LOCAL_BACKEND)]
+}
+
 function controlKind(setting: Setting): ControlKind {
   if (setting.options.length > 0) {
-    const short = setting.options.every((option) => option.length <= 9)
-    const count = setting.options.length
-    // One registered backend is a statement, not a choice, and a segmented
-    // control of one reads as a disabled label; leave it a dropdown.
-    return count >= 2 && count <= 3 && short ? 'segmented' : 'select'
+    // A fixed set is always the segmented control, including a set of one: the
+    // single registered thumbnail renderer is still the answer to "who draws
+    // it", and a row that changes shape depending on how many backends happen to
+    // be compiled in makes the screen read as though the rows differ in kind.
+    // The dropdown is kept only for a list too long to lay out flat.
+    return setting.options.length <= 5 ? 'segmented' : 'select'
   }
   if (setting.type === 'bool') return 'switch'
   if (setting.type === 'int') {
@@ -1014,7 +1032,7 @@ const SettingRow = memo(function SettingRow({
  * Says which backend reads a row, for the rows only one does.
  *
  * It earns its place on the idle case: a `runware.width` that changes nothing
- * because the slide port is pointed at `mock` is the kind of thing an operator
+ * because the slide port is pointed at `sample` is the kind of thing an operator
  * otherwise diagnoses by rebuilding the binary.
  */
 function BackendTag({ name, idle }: { name: string; idle: boolean }) {
@@ -1164,8 +1182,16 @@ function SettingControl({
           aria-label={setting.key}
           className="w-full"
           value={value}
-          onChange={onSet}
-          options={setting.options.map((option) => ({ value: option, label: option }))}
+          // Re-selecting what is already selected is not a change. Without this
+          // the only segment of a one-option row would PUT the same value on
+          // every click, and every one of those would bump updatedAt.
+          onChange={(next) => {
+            if (next !== value) onSet(next)
+          }}
+          options={orderedOptions(setting.options).map((option) => ({
+            value: option,
+            label: option,
+          }))}
         />
       )
 
@@ -1183,7 +1209,7 @@ function SettingControl({
               {value || '—'}
             </option>
           )}
-          {setting.options.map((option) => (
+          {orderedOptions(setting.options).map((option) => (
             <option key={option} value={option}>
               {option}
             </option>

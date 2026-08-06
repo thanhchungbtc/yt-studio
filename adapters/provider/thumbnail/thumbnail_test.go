@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"image"
+	"image/color"
+	"image/draw"
 	"image/png"
 	"io"
 	"log/slog"
@@ -14,7 +16,6 @@ import (
 	"testing"
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
-	mediamock "github.com/tbui/yt-studio/adapters/provider/mock/media"
 	"github.com/tbui/yt-studio/adapters/provider/thumbnail"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
@@ -62,20 +63,27 @@ func newBuilder(t *testing.T, opts thumbnail.Options) (*thumbnail.Renderer, *ass
 	return thumbnail.New(store, repoResources(t), func() thumbnail.Options { return opts }, log), store
 }
 
-// grid generates real icons through the mock backend, which is the shape the
-// icon tasks hand the renderer.
+// grid stores one real PNG per cell, which is the shape the icon tasks hand the
+// renderer. The pictures are written here rather than taken from a backend: the
+// renderer under test only needs decodable square tiles, and a distinct shade
+// per cell is what makes a tile drawn in the wrong place visible.
 func grid(t *testing.T, store provider.AssetStore, captions ...string) []provider.IconCell {
 	t.Helper()
-	icons := mediamock.NewIcon(store)
 	cells := make([]provider.IconCell, 0, len(captions))
 	for i, caption := range captions {
-		id, err := icons.Generate(context.Background(), provider.IconRequest{
-			VideoID: "v1", Index: i, Prompt: "a stone archway — " + caption, Size: 96,
-		})
+		img := image.NewRGBA(image.Rect(0, 0, 96, 96))
+		shade := uint8(40 + i*30) //nolint:gosec // small, bounded by the grid
+		draw.Draw(img, img.Bounds(), &image.Uniform{C: color.RGBA{R: shade, G: shade, B: shade, A: 255}},
+			image.Point{}, draw.Src)
+		var buf bytes.Buffer
+		if err := png.Encode(&buf, img); err != nil {
+			t.Fatal(err)
+		}
+		stored, err := store.Put(context.Background(), entity.AssetKindThumbnailIcon, &buf)
 		if err != nil {
 			t.Fatal(err)
 		}
-		cells = append(cells, provider.IconCell{Caption: caption, IconAssetID: id})
+		cells = append(cells, provider.IconCell{Caption: caption, IconAssetID: stored.ID})
 	}
 	return cells
 }
@@ -132,16 +140,21 @@ var baseline = sync.OnceValues(func() (entity.AssetID, error) {
 	if err != nil {
 		return "", err
 	}
-	icons := mediamock.NewIcon(store)
 	cells := make([]provider.IconCell, 0, len(baselineCaptions))
 	for i, caption := range baselineCaptions {
-		id, iconErr := icons.Generate(context.Background(), provider.IconRequest{
-			VideoID: "v1", Index: i, Prompt: "a stone archway — " + caption, Size: 96,
-		})
-		if iconErr != nil {
-			return "", iconErr
+		img := image.NewRGBA(image.Rect(0, 0, 96, 96))
+		shade := uint8(40 + i*30) //nolint:gosec // small, bounded by the grid
+		draw.Draw(img, img.Bounds(), &image.Uniform{C: color.RGBA{R: shade, G: shade, B: shade, A: 255}},
+			image.Point{}, draw.Src)
+		var buf bytes.Buffer
+		if encErr := png.Encode(&buf, img); encErr != nil {
+			return "", encErr
 		}
-		cells = append(cells, provider.IconCell{Caption: caption, IconAssetID: id})
+		stored, putErr := store.Put(context.Background(), entity.AssetKindThumbnailIcon, &buf)
+		if putErr != nil {
+			return "", putErr
+		}
+		cells = append(cells, provider.IconCell{Caption: caption, IconAssetID: stored.ID})
 	}
 	b := thumbnail.New(store, dir,
 		func() thumbnail.Options { return thumbnail.Options{Rows: 2} },

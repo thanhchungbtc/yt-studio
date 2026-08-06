@@ -70,13 +70,13 @@ func (s *settingsStore) UpsertSettings(context.Context, []entity.Setting) error 
 // registered is what main.go's registry reports: the backends this build has.
 func registered() map[entity.SettingKey][]string {
 	return map[entity.SettingKey][]string{
-		entity.SettingProviderLLM:           {"9router", "mock", "sample"},
-		entity.SettingProviderTTS:           {"mock", "sample", "xtts"},
-		entity.SettingProviderSlide:         {"mock", "runware", "sample"},
-		entity.SettingProviderComposer:      {"ffmpeg", "mock"},
-		entity.SettingProviderThumbnail:     {"builtin", "mock"},
-		entity.SettingProviderThumbnailIcon: {"mock", "runware", "sample"},
-		entity.SettingProviderUploader:      {"mock"},
+		entity.SettingProviderLLM:           {"9router", "sample"},
+		entity.SettingProviderTTS:           {"sample", "xtts"},
+		entity.SettingProviderSlide:         {"runware", "sample"},
+		entity.SettingProviderComposer:      {"ffmpeg", "sample"},
+		entity.SettingProviderThumbnail:     {"builtin"},
+		entity.SettingProviderThumbnailIcon: {"runware", "sample"},
+		entity.SettingProviderUploader:      {"sample"},
 	}
 }
 
@@ -107,7 +107,7 @@ func TestCheckPresetsRejectsAnUnregisteredBackend(t *testing.T) {
 	t.Parallel()
 
 	options := registered()
-	options[entity.SettingProviderSlide] = []string{"mock", "sample"} // runware, removed
+	options[entity.SettingProviderSlide] = []string{"sample"} // runware, removed
 	settings := loadedSettings(t, newSettingsStore(), options)
 
 	err := app.CheckPresets(settings)
@@ -122,23 +122,23 @@ func TestApplyPresetWritesEveryRowItNames(t *testing.T) {
 	store := newSettingsStore()
 	settings := loadedSettings(t, store, registered())
 
-	changed, err := app.ApplyPreset(context.Background(), settings, nil, nil, nil, "sample")
+	changed, err := app.ApplyPreset(context.Background(), settings, nil, nil, nil, "live")
 	if err != nil {
 		t.Fatalf("ApplyPreset: %v", err)
 	}
-	// The table seeds every provider at mock, so sample moves all but the
-	// uploader, which is the one port it has no backend of its own for.
-	if len(changed) != 6 {
-		t.Fatalf("changed %d rows, want 6: %v", len(changed), changed)
+	// The seeded table is the sample preset in force, so live moves the four
+	// ports that have an external backend and leaves the other three alone.
+	if len(changed) != 4 {
+		t.Fatalf("changed %d rows, want 4: %v", len(changed), changed)
 	}
 	for _, want := range [][2]string{
-		{"provider.tts", "sample"},
-		{"provider.slide", "sample"},
+		{"provider.llm", "9router"},
+		{"provider.tts", "xtts"},
+		{"provider.slide", "runware"},
 		{"provider.composer", "ffmpeg"},
 		{"provider.thumbnail", "builtin"},
-		{"provider.thumbnail_icon", "sample"},
-		{"provider.llm", "sample"},
-		{"provider.uploader", "mock"},
+		{"provider.thumbnail_icon", "runware"},
+		{"provider.uploader", "sample"},
 	} {
 		if got := settings.String(entity.SettingKey(want[0])); got != want[1] {
 			t.Errorf("%s = %q, want %q", want[0], got, want[1])
@@ -177,25 +177,25 @@ func TestApplyPresetSkipsRowsAlreadyAtTheTarget(t *testing.T) {
 func TestApplyPresetWritesNothingWhenOneValueIsIllegal(t *testing.T) {
 	t.Parallel()
 
-	// The sample icon backend goes away. "mock" stays legal, so the seeded table
-	// still loads and the preset is the only thing that breaks.
+	// The runware icon backend goes away. "sample" stays legal, so the seeded
+	// table still loads and the preset is the only thing that breaks.
 	options := registered()
-	options[entity.SettingProviderThumbnailIcon] = []string{"mock", "runware"}
+	options[entity.SettingProviderThumbnailIcon] = []string{"sample"}
 	store := newSettingsStore()
 	settings := loadedSettings(t, store, options)
 
-	// provider.thumbnail_icon is the sixth of the seven rows "sample" names, so
+	// provider.thumbnail_icon is the sixth of the seven rows "live" names, so
 	// four earlier rows would already be written by a loop that validated as it
 	// went — which is the state this test exists to prove unreachable.
-	_, err := app.ApplyPreset(context.Background(), settings, nil, nil, nil, "sample")
+	_, err := app.ApplyPreset(context.Background(), settings, nil, nil, nil, "live")
 	if !errors.Is(err, app.ErrValidation) {
 		t.Fatalf("err = %v, want ErrValidation", err)
 	}
 	if len(store.writes) != 0 {
 		t.Fatalf("wrote %v, want nothing", store.writes)
 	}
-	if got := settings.String(entity.SettingProviderComposer); got != "mock" {
-		t.Errorf("provider.composer = %q, want the untouched mock", got)
+	if got := settings.String(entity.SettingProviderLLM); got != "sample" {
+		t.Errorf("provider.llm = %q, want the untouched sample", got)
 	}
 }
 

@@ -68,7 +68,7 @@ type PresetsOutput struct {
 
 // ApplyPresetInput names the preset to write.
 type ApplyPresetInput struct {
-	Name string `path:"name" doc:"Preset name, e.g. mock"`
+	Name string `path:"name" doc:"Preset name, e.g. sample"`
 }
 
 // ApplyPresetOutput is the rows the preset changed.

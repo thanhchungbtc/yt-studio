@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -20,8 +21,7 @@ import (
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
 	"github.com/tbui/yt-studio/adapters/eventbus"
-	llmmock "github.com/tbui/yt-studio/adapters/provider/mock/llm"
-	mediamock "github.com/tbui/yt-studio/adapters/provider/mock/media"
+	"github.com/tbui/yt-studio/adapters/provider/sample"
 	"github.com/tbui/yt-studio/adapters/sqlite"
 	"github.com/tbui/yt-studio/app"
 	deliveryhttp "github.com/tbui/yt-studio/delivery/http"
@@ -79,7 +79,7 @@ func newHarness(t *testing.T) *harness {
 	}
 	broker := eventbus.New(10*time.Millisecond, log)
 
-	llm := llmmock.NewLLM(assets, videoContext(store))
+	llm := sample.NewLLM(assets, videoContext(store))
 	// An ungated blueprint expands its own video's DAG, so the runner needs the
 	// scheduler that is built from it. The reference is filled in below, before
 	// the loop starts.
@@ -87,12 +87,9 @@ func newHarness(t *testing.T) *harness {
 	runner := app.NewTaskRunner(
 		store, store, store, store, store, store, store, assets,
 		llm,
-		mediamock.NewTTS(assets),
-		mediamock.NewSlide(assets),
-		mediamock.NewComposer(assets),
-		mediamock.NewThumbnail(assets),
-		mediamock.NewIcon(assets),
-		mediamock.NewUploader(assets, func() time.Time { return time.Unix(1_700_000_000, 0).UTC() }),
+		stubMedia{assets}, stubMedia{assets}, stubMedia{assets}, stubMedia{assets},
+		stubIcons{stubMedia{assets}},
+		sample.NewUploader(assets, func() time.Time { return time.Unix(1_700_000_000, 0).UTC() }),
 		broker,
 		expander,
 		func() app.BlueprintOptions {
@@ -170,6 +167,72 @@ func newHarness(t *testing.T) *harness {
 	return h
 }
 
+// stubMedia stands in for every media port that would otherwise need files on
+// disk: the sample backends read operator-supplied media, and this test has to
+// run on a bare checkout. It writes bytes derived from the request, which is all
+// the pipeline above it needs — a distinct, non-empty, content-addressed asset
+// per unit of work.
+//
+// Deriving them from the prompt as well as the position is load-bearing: an
+// edited prompt has to produce a different content address, which is how the
+// tests see that one slide was redrawn and its sibling was not.
+//
+// It lives here rather than in adapters because it is a test double, not a
+// backend: nothing selects it from a settings row, and nothing else needs it.
+type stubMedia struct{ store provider.AssetStore }
+
+var (
+	_ provider.TTS               = stubMedia{}
+	_ provider.SlideGenerator    = stubMedia{}
+	_ provider.VideoComposer     = stubMedia{}
+	_ provider.ThumbnailRenderer = stubMedia{}
+)
+
+// stubBytes is how big one stub artifact is. Padded rather than minimal because
+// the tests assert a served artifact is a real body and not an empty file, which
+// a dozen bytes of descriptor would not prove.
+const stubBytes = 4096
+
+func (m stubMedia) put(ctx context.Context, kind entity.AssetKind, parts ...any) (entity.AssetID, error) {
+	body := fmt.Sprint(append([]any{kind, "|"}, parts...)...)
+	body += strings.Repeat(".", stubBytes-len(body)%stubBytes)
+	stored, err := m.store.Put(ctx, kind, strings.NewReader(body))
+	if err != nil {
+		return "", fmt.Errorf("store %s: %w", kind, err)
+	}
+	return stored.ID, nil
+}
+
+func (m stubMedia) Speak(ctx context.Context, req provider.SpeakRequest) (entity.AssetID, error) {
+	return m.put(ctx, entity.AssetKindAudio, req.VideoID, req.Ordinal, req.Text)
+}
+
+func (m stubMedia) Generate(ctx context.Context, req provider.SlideRequest) (entity.AssetID, error) {
+	return m.put(ctx, entity.AssetKindImage, req.VideoID, req.Ordinal, req.Index, req.Prompt)
+}
+
+func (m stubMedia) Clip(ctx context.Context, req provider.ClipRequest) (entity.AssetID, error) {
+	return m.put(ctx, entity.AssetKindClip, req.VideoID, req.Ordinal)
+}
+
+func (m stubMedia) Concat(ctx context.Context, req provider.ConcatRequest) (entity.AssetID, error) {
+	return m.put(ctx, entity.AssetKindFinal, req.VideoID, len(req.ClipAssetIDs))
+}
+
+func (m stubMedia) Render(ctx context.Context, req provider.ThumbnailRequest) (entity.AssetID, error) {
+	return m.put(ctx, entity.AssetKindThumbnail, req.VideoID, req.Headline)
+}
+
+// stubIcons is separate because a slide and an icon are both Generate: one type
+// cannot answer two methods of the same name with different requests.
+type stubIcons struct{ stubMedia }
+
+var _ provider.IconGenerator = stubIcons{}
+
+func (m stubIcons) Generate(ctx context.Context, req provider.IconRequest) (entity.AssetID, error) {
+	return m.put(ctx, entity.AssetKindThumbnailIcon, req.VideoID, req.Index, req.Prompt)
+}
+
 // lateExpander breaks the cycle between the task runner and the scheduler. It
 // mirrors the production wiring in cmd/server.
 type lateExpander struct{ sched *scheduler.Scheduler }
@@ -180,21 +243,21 @@ func (e *lateExpander) Expand(ctx context.Context, videoID entity.VideoID, tail 
 	return e.sched.Expand(ctx, videoID, tail)
 }
 
-func videoContext(store *sqlite.Store) llmmock.ContextLookup {
-	return func(ctx context.Context, videoID entity.VideoID) (llmmock.VideoContext, error) {
+func videoContext(store *sqlite.Store) sample.ContextLookup {
+	return func(ctx context.Context, videoID entity.VideoID) (sample.VideoContext, error) {
 		v, err := store.VideoByID(ctx, videoID)
 		if err != nil {
-			return llmmock.VideoContext{}, err
+			return sample.VideoContext{}, err
 		}
 		rows, err := store.ListChaptersByVideo(ctx, videoID)
 		if err != nil {
-			return llmmock.VideoContext{}, err
+			return sample.VideoContext{}, err
 		}
 		outline := make([]provider.BlueprintChapter, 0, len(rows))
 		for _, c := range rows {
 			outline = append(outline, provider.BlueprintChapter{Ordinal: c.Ordinal, Title: c.Title, Summary: c.Summary})
 		}
-		return llmmock.VideoContext{
+		return sample.VideoContext{
 			Ref: v.Ref, Title: v.Title, Topic: v.Topic,
 			Chapters: outline, SlidesPerChapter: v.SlidesPerChapter,
 		}, nil
@@ -980,14 +1043,15 @@ func TestSettingsPresets(t *testing.T) {
 			Value string `json:"value"`
 		} `json:"settings"`
 	}
-	h.json(http.MethodPost, "/api/settings/presets/sample/apply", nil, http.StatusOK, &applied)
+	// The seed is the sample preset in force, so live is what moves rows here.
+	h.json(http.MethodPost, "/api/settings/presets/live/apply", nil, http.StatusOK, &applied)
 	if len(applied.Settings) == 0 {
-		t.Fatal("applying sample over the seeded mocks changed nothing")
+		t.Fatal("applying live over the seeded local backends changed nothing")
 	}
 
 	// Only the rows that moved come back, so the second application is empty
 	// rather than a rewrite of every row the preset names.
-	h.json(http.MethodPost, "/api/settings/presets/sample/apply", nil, http.StatusOK, &applied)
+	h.json(http.MethodPost, "/api/settings/presets/live/apply", nil, http.StatusOK, &applied)
 	if len(applied.Settings) != 0 {
 		t.Errorf("re-applying the preset in force changed %d rows", len(applied.Settings))
 	}
@@ -1001,8 +1065,8 @@ func TestSettingsPresets(t *testing.T) {
 	}
 	h.json(http.MethodGet, "/api/settings", nil, http.StatusOK, &table)
 	for _, row := range table.Settings {
-		if row.Key == "provider.tts" && row.Value != "sample" {
-			t.Errorf("provider.tts = %q, want sample", row.Value)
+		if row.Key == "provider.tts" && row.Value != "xtts" {
+			t.Errorf("provider.tts = %q, want xtts", row.Value)
 		}
 	}
 

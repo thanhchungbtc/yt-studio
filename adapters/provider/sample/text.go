@@ -220,7 +220,7 @@ func iconPrompt(seed uint64) string {
 
 // caption compresses a chapter title into the two words a tile has room for.
 //
-// Stop words go first, then the trailing ordinal the mock's own titles carry.
+// Stop words go first, then the trailing ordinal the generated titles carry.
 // What is left is Title Case, because that is what the reference thumbnails
 // use — the headline shouts, the captions label.
 func caption(title string) string {

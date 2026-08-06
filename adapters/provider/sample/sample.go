@@ -12,11 +12,13 @@
 //	<resources>/sample/*.wav       narration, reused by every chapter
 //	<resources>/sample/img*.jpg    slides, rotated across chapters
 //	<resources>/sample/icon*.jpg   thumbnail tiles, one per grid cell
+//	<resources>/sample/video.mp4   the composed clip, and the final render
 //
-// The icons are optional: they arrived after the other two, and a library
-// without them still serves narration and slides. Selecting this backend for
-// the icon port without them is what reports the absence, rather than a
-// startup check failing over a file an operator may never have wanted.
+// The icons and the video are optional: they arrived after the first three, and
+// a library without them still serves narration and slides. Selecting this
+// backend for the icon or composer port without them is what reports the
+// absence, rather than a startup check failing over a file an operator may
+// never have wanted.
 package sample
 
 import (
@@ -49,6 +51,7 @@ type Library struct {
 	audio  string
 	slides []string
 	icons  []string
+	video  string
 }
 
 // NewLibrary points at the sample directory inside a resources root. Sharing
@@ -91,8 +94,15 @@ func (l *Library) scan() error {
 	// Optional, so a missing set is not an error here — Icons is where it is
 	// reported, to whoever actually asked for one.
 	icons, _ := l.glob("icon*.jpg")
+	// Optional for the same reason, and reported by Video. The convention is
+	// video.mp4; the glob is what lets an operator keep the take they are using
+	// beside the ones they are not.
+	video, _ := l.glob("*.mp4")
 
 	l.audio, l.slides, l.icons = audio[0], slides, icons
+	if len(video) > 0 {
+		l.video = video[0]
+	}
 	return nil
 }
 
@@ -105,6 +115,19 @@ func (l *Library) Icons() ([]string, error) {
 		return nil, fmt.Errorf("%w: no icon*.jpg in %s", ErrUnavailable, l.dir)
 	}
 	return l.icons, nil
+}
+
+// Video returns the sample render, or says why there is none. Optional for the
+// same reason as the icons: a library assembled before this backend existed
+// still serves the three ports it was assembled for.
+func (l *Library) Video() (string, error) {
+	if err := l.Check(); err != nil {
+		return "", err
+	}
+	if l.video == "" {
+		return "", fmt.Errorf("%w: no video.mp4 in %s", ErrUnavailable, l.dir)
+	}
+	return l.video, nil
 }
 
 // glob returns the matching files, sorted so the rotation follows the order the

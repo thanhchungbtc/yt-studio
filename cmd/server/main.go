@@ -24,8 +24,6 @@ import (
 	"github.com/tbui/yt-studio/adapters/assetstore"
 	"github.com/tbui/yt-studio/adapters/eventbus"
 	"github.com/tbui/yt-studio/adapters/provider/ffmpeg"
-	llmmock "github.com/tbui/yt-studio/adapters/provider/mock/llm"
-	mediamock "github.com/tbui/yt-studio/adapters/provider/mock/media"
 	"github.com/tbui/yt-studio/adapters/provider/ninerouter"
 	"github.com/tbui/yt-studio/adapters/provider/runware"
 	"github.com/tbui/yt-studio/adapters/provider/sample"
@@ -342,24 +340,18 @@ func (c *serveCmd) Run() error {
 	}
 
 	providers := registry.New(settings.String)
-	lookup := videoContextLookup(store)
-	providers.RegisterLLM("mock", llmmock.NewLLM(assets, mockLookup(lookup)))
-	providers.RegisterLLM("sample", sample.NewLLM(assets, lookup))
+	providers.RegisterLLM("sample", sample.NewLLM(assets, videoContextLookup(store)))
 	providers.RegisterLLM("9router", nineRouter)
-	providers.RegisterTTS("mock", mediamock.NewTTS(assets))
 	providers.RegisterTTS("sample", sample.NewTTS(samples, assets))
 	providers.RegisterTTS("xtts", xttsClient)
-	providers.RegisterSlide("mock", mediamock.NewSlide(assets))
 	providers.RegisterSlide("sample", sample.NewSlide(samples, assets))
 	providers.RegisterSlide("runware", runware.NewSlide(runwareClient))
-	providers.RegisterComposer("mock", mediamock.NewComposer(assets))
+	providers.RegisterComposer("sample", sample.NewComposer(samples, assets))
 	providers.RegisterComposer("ffmpeg", ffmpegComposer)
-	providers.RegisterThumbnail("mock", mediamock.NewThumbnail(assets))
 	providers.RegisterThumbnail("builtin", thumbnails)
-	providers.RegisterThumbnailIcon("mock", mediamock.NewIcon(assets))
 	providers.RegisterThumbnailIcon("sample", sample.NewIcon(samples, assets))
 	providers.RegisterThumbnailIcon("runware", runware.NewIcon(runwareClient))
-	providers.RegisterUploader("mock", mediamock.NewUploader(assets, time.Now))
+	providers.RegisterUploader("sample", sample.NewUploader(assets, time.Now))
 
 	settings.Constrain(providers.Options())
 	if err := settings.Load(ctx); err != nil {
@@ -569,7 +561,7 @@ func (c *serveCmd) Run() error {
 	return nil
 }
 
-// videoContextLookup gives the mock LLM the blueprint context its coalesced
+// videoContextLookup gives the sample LLM the blueprint context its coalesced
 // prompt call needs, without the provider itself touching the database.
 // nineRouterContextLookup resolves a video id into the plan its slides
 // illustrate. Only SlidePrompts needs it: the port hands that method an id and
@@ -633,16 +625,6 @@ func videoContextLookup(store *sqlite.Store) sample.ContextLookup {
 			Chapters:         outline,
 			SlidesPerChapter: v.SlidesPerChapter,
 		}, nil
-	}
-}
-
-// mockLookup adapts the lookup to the mock's own context type. The two structs
-// are field for field the same, so the conversion costs nothing; this exists
-// only while both backends are registered, and goes when the mock does.
-func mockLookup(f sample.ContextLookup) llmmock.ContextLookup {
-	return func(ctx context.Context, videoID entity.VideoID) (llmmock.VideoContext, error) {
-		vc, err := f(ctx, videoID)
-		return llmmock.VideoContext(vc), err
 	}
 }
 

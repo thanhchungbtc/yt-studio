@@ -23,7 +23,7 @@ type PresetValue struct {
 //
 // A patch rather than a snapshot. A snapshot of the whole table would carry the
 // log level, the pool limits and the retry policy along with it, so switching to
-// the mock backends would also reset how loudly the server logs — and it would
+// the local backends would also reset how loudly the server logs — and it would
 // make a preset undeclarable for any port whose backend this build does not
 // register. Naming only what it means to change is both.
 //
@@ -94,45 +94,28 @@ func (p Preset) Validate() error {
 func BuiltinPresets() []Preset {
 	return []Preset{
 		{
-			Name:  "mock",
-			Title: "Mock",
-			//nolint:lll // one description, one line
-			Description: "Every port on its mock backend. Nothing leaves the machine and nothing costs a generation; each answer is derived from the request, so re-running a task dedupes onto the asset it produced last time.",
-			Values: []PresetValue{
-				{SettingProviderLLM, "mock"},
-				{SettingProviderTTS, "mock"},
-				{SettingProviderSlide, "mock"},
-				{SettingProviderComposer, "mock"},
-				{SettingProviderThumbnail, "mock"},
-				{SettingProviderThumbnailIcon, "mock"},
-				{SettingProviderUploader, "mock"},
-			},
-		},
-		{
 			Name:  "sample",
 			Title: "Sample",
 			//nolint:lll // one description, one line
-			Description: "The real compose and render path over canned content: ffmpeg cuts the clips and the built-in renderer draws the thumbnail, from sample narration and stills. This is what exercises the layout and the encoder without spending anything.",
+			Description: "Everything local: ffmpeg cuts the clips and the built-in renderer draws the thumbnail, over operator-supplied narration and stills. Nothing leaves the machine and nothing costs a generation.",
 			Values: []PresetValue{
-				// The sample LLM is the generated one under a second name: the words
-				// are the cheap part, and a canned blueprint would not have the
-				// chapter count the graph is built from. Named `sample` rather than
-				// `mock` so this preset reads as one answer instead of six plus an
-				// exception.
+				// The sample LLM generates rather than reads: the words are the cheap
+				// part, and a canned blueprint would not have the chapter count the
+				// graph is built from.
 				{SettingProviderLLM, "sample"},
 				{SettingProviderTTS, "sample"},
 				{SettingProviderSlide, "sample"},
 				{SettingProviderComposer, "ffmpeg"},
 				{SettingProviderThumbnail, "builtin"},
 				{SettingProviderThumbnailIcon, "sample"},
-				{SettingProviderUploader, "mock"},
+				{SettingProviderUploader, "sample"},
 			},
 		},
 		{
 			Name:  "live",
 			Title: "Live",
 			//nolint:lll // one description, one line
-			Description: "The paid and external backends: words through the 9router gateway, narration on the AllTalk server, images from Runware. Publishing is still simulated, because mock is the only uploader this build registers — flip upload.dry_run yourself when that changes.",
+			Description: "The paid and external backends: words through the 9router gateway, narration on the AllTalk server, images from Runware. Publishing is still simulated, because this build registers no real uploader — flip upload.dry_run yourself when that changes.",
 			Values: []PresetValue{
 				{SettingProviderLLM, "9router"},
 				{SettingProviderTTS, "xtts"},
@@ -141,8 +124,9 @@ func BuiltinPresets() []Preset {
 				{SettingProviderThumbnail, "builtin"},
 				{SettingProviderThumbnailIcon, "runware"},
 				// Named rather than omitted so the preset stays a complete answer for
-				// all seven ports; it is the only uploader there is.
-				{SettingProviderUploader, "mock"},
+				// all seven ports. It is the local one either way: no build here
+				// registers an uploader that publishes.
+				{SettingProviderUploader, "sample"},
 			},
 		},
 	}

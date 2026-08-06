@@ -101,7 +101,7 @@ func (b *Renderer) Render(ctx context.Context, req provider.ThumbnailRequest) (e
 	buf.Grow(frameWidth * frameHeight / 2)
 	// Default compression, not best. On a photographic frame this size, best
 	// costs roughly seven times the CPU to save six percent of the bytes — half
-	// a megabyte either way, against YouTube's two megabyte ceiling. The mock's
+	// a megabyte either way, against YouTube's two megabyte ceiling. The sample
 	// flat colours are a different case and it still asks for best.
 	enc := png.Encoder{CompressionLevel: png.DefaultCompression}
 	if err := enc.Encode(&buf, canvas); err != nil {

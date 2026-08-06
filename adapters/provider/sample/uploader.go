@@ -1,4 +1,4 @@
-package media
+package sample
 
 import (
 	"context"
@@ -10,18 +10,19 @@ import (
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
-// Uploader is the mock publishing backend. It reads the final render through
+// Uploader is the local publishing backend. It reads the final render through
 // the asset store so the upload path genuinely touches the bytes, and returns a
-// receipt. Dry run is the default and stays the default.
+// receipt. There is nothing to sample here — a publish has no artifact to serve
+// from disk — so this is the one port where local means simulated.
 type Uploader struct {
 	store provider.AssetStore
-	// now is injectable so golden-file tests get a stable receipt.
+	// now is injectable so a golden-file test gets a stable receipt.
 	now func() time.Time
 }
 
 var _ provider.Uploader = (*Uploader)(nil)
 
-// NewUploader constructs the mock.
+// NewUploader constructs the backend.
 func NewUploader(store provider.AssetStore, now func() time.Time) *Uploader {
 	if now == nil {
 		now = time.Now
@@ -39,8 +40,8 @@ func (u *Uploader) Upload(ctx context.Context, req provider.UploadRequest) (enti
 		return entity.UploadRecord{}, fmt.Errorf("final render %s is empty", req.FinalAssetID.Short())
 	}
 	// The thumbnail is read for the same reason the render is: a real backend
-	// sets it in a second call, and a mock that never touched the file would hide
-	// a thumbnail that was recorded but never stored.
+	// sets it in a second call, and a backend that never touched the file would
+	// hide a thumbnail that was recorded but never stored.
 	if req.ThumbnailAssetID != "" {
 		if _, err := u.store.Stat(ctx, req.ThumbnailAssetID, entity.AssetKindThumbnail); err != nil {
 			return entity.UploadRecord{}, fmt.Errorf("stat thumbnail: %w", err)
@@ -50,7 +51,7 @@ func (u *Uploader) Upload(ctx context.Context, req provider.UploadRequest) (enti
 	// A stable pseudo-video-id derived from the content address, so re-running an
 	// upload of identical bytes yields an identical receipt.
 	seed := seedOf(string(req.FinalAssetID), string(req.VideoRef))
-	remoteID := "mock-" + strconv.FormatUint(seed, 36)
+	remoteID := "sample-" + strconv.FormatUint(seed, 36)
 
 	return entity.UploadRecord{
 		VideoID: remoteID,

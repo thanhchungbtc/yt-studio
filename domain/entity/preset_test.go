@@ -81,16 +81,16 @@ func TestPresetValidateRejectsMalformedPresets(t *testing.T) {
 		name   string
 		preset entity.Preset
 	}{
-		{"no name", entity.Preset{Values: []entity.PresetValue{{Key: entity.SettingProviderLLM, Value: "mock"}}}},
+		{"no name", entity.Preset{Values: []entity.PresetValue{{Key: entity.SettingProviderLLM, Value: "sample"}}}},
 		{"writes nothing", entity.Preset{Name: "empty"}},
 		{
 			"unknown key",
-			entity.Preset{Name: "x", Values: []entity.PresetValue{{Key: "provider.telepathy", Value: "mock"}}},
+			entity.Preset{Name: "x", Values: []entity.PresetValue{{Key: "provider.telepathy", Value: "sample"}}},
 		},
 		{
 			"same key twice",
 			entity.Preset{Name: "x", Values: []entity.PresetValue{
-				{Key: entity.SettingProviderLLM, Value: "mock"},
+				{Key: entity.SettingProviderLLM, Value: "sample"},
 				{Key: entity.SettingProviderLLM, Value: "9router"},
 			}},
 		},
@@ -108,8 +108,8 @@ func TestPresetValidateRejectsMalformedPresets(t *testing.T) {
 func TestPresetByNameReportsUnknownNames(t *testing.T) {
 	t.Parallel()
 
-	if _, err := entity.PresetByName("mock"); err != nil {
-		t.Fatalf("mock: %v", err)
+	if _, err := entity.PresetByName("sample"); err != nil {
+		t.Fatalf("sample: %v", err)
 	}
 	if _, err := entity.PresetByName("nonesuch"); !errors.Is(err, entity.ErrPresetNotFound) {
 		t.Fatalf("err = %v, want ErrPresetNotFound", err)

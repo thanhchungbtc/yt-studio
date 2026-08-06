@@ -1,7 +1,12 @@
 package ffmpeg
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
+	"image"
+	"image/color"
+	"image/draw"
 	"image/png"
 	"io"
 	"log/slog"
@@ -11,9 +16,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
-	mediamock "github.com/tbui/yt-studio/adapters/provider/mock/media"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )
@@ -61,36 +66,72 @@ func newTestComposer(t *testing.T) (*Composer, *assetstore.FS) {
 	return New(store, repoResources(t), log), store
 }
 
-// seedChapter generates one chapter's worth of input with the mock backends,
-// which produce genuinely valid PNG and WAV files.
+// seedChapter writes one chapter's worth of input straight into the store.
+//
+// The files are built here rather than taken from a backend: ffmpeg is what is
+// under test, so what it is fed has to be a genuinely valid WAV and a genuinely
+// valid PNG and nothing more interesting than that.
 func seedChapter(t *testing.T, store provider.AssetStore, ordinal, slides int) (entity.AssetID, []entity.AssetID) {
 	t.Helper()
 	ctx := t.Context()
 
-	audio, err := mediamock.NewTTS(store).Speak(ctx, provider.SpeakRequest{
-		VideoID: "video-1",
-		Ordinal: ordinal,
-		Text:    fmt.Sprintf("narration for chapter %d", ordinal),
-	})
+	audio, err := store.Put(ctx, entity.AssetKindAudio, bytes.NewReader(silentWAV(time.Second)))
 	if err != nil {
-		t.Fatalf("mock narration: %v", err)
+		t.Fatalf("store narration: %v", err)
 	}
 
-	gen := mediamock.NewSlide(store)
 	ids := make([]entity.AssetID, 0, slides)
 	for i := range slides {
-		id, err := gen.Generate(ctx, provider.SlideRequest{
-			VideoID: "video-1",
-			Ordinal: ordinal,
-			Index:   i,
-			Prompt:  fmt.Sprintf("chapter %d slide %d", ordinal, i),
-		})
+		// Distinct per slide, so a graph that dropped one would show as a shorter
+		// render rather than as the same picture twice.
+		stored, err := store.Put(ctx, entity.AssetKindImage,
+			bytes.NewReader(solidPNG(t, 320, 180, uint8(ordinal*40+i*20))))
 		if err != nil {
-			t.Fatalf("mock slide: %v", err)
+			t.Fatalf("store slide: %v", err)
 		}
-		ids = append(ids, id)
+		ids = append(ids, stored.ID)
 	}
-	return audio, ids
+	return audio.ID, ids
+}
+
+// silentWAV is d of 16-bit mono PCM silence at 8kHz: the smallest thing ffmpeg
+// will accept as narration and read a duration from.
+func silentWAV(d time.Duration) []byte {
+	const rate, bits, channels = 8000, 16, 1
+	samples := int(d.Seconds() * rate)
+	dataLen := samples * channels * bits / 8
+
+	var b bytes.Buffer
+	b.Grow(44 + dataLen)
+	write := func(v any) { _ = binary.Write(&b, binary.LittleEndian, v) }
+
+	b.WriteString("RIFF")
+	write(uint32(36 + dataLen)) //nolint:gosec // fixed, small
+	b.WriteString("WAVEfmt ")
+	write(uint32(16))                  // PCM header length
+	write(uint16(1))                   // PCM, uncompressed
+	write(uint16(channels))            //nolint:gosec // constant
+	write(uint32(rate))                //nolint:gosec // constant
+	write(uint32(rate * channels * 2)) //nolint:gosec // byte rate
+	write(uint16(channels * 2))        //nolint:gosec // block align
+	write(uint16(bits))                //nolint:gosec // constant
+	b.WriteString("data")
+	write(uint32(dataLen)) //nolint:gosec // fixed, small
+	b.Write(make([]byte, dataLen))
+	return b.Bytes()
+}
+
+// solidPNG is one flat colour, encoded by the standard library.
+func solidPNG(t *testing.T, w, h int, shade uint8) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	draw.Draw(img, img.Bounds(), &image.Uniform{C: color.RGBA{R: shade, G: shade, B: shade, A: 255}},
+		image.Point{}, draw.Src)
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("encode slide: %v", err)
+	}
+	return buf.Bytes()
 }
 
 // probeField reads one ffprobe field, so a test can assert on the container

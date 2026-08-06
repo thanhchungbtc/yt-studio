@@ -84,8 +84,8 @@ const (
 	// because it is an argument to that backend rather than a rail of its own:
 	// provider.uploader says who publishes, this says whether the publish is
 	// real. A backend asked for a dry run does everything but the irreversible
-	// call, which is the rehearsal the mock cannot give — the mock runs none of
-	// the code and records every upload as dry whatever this says.
+	// call, which is the rehearsal a local backend cannot give — sample runs none
+	// of the code and records every upload as dry whatever this says.
 	SettingUploadDryRun SettingKey = "upload.dry_run"
 
 	// SettingNineRouterModel picks which upstream the 9router backend routes to.
@@ -380,13 +380,13 @@ func DefaultSettings() []Setting {
 		{Key: SettingGateBlueprintEnabled, Value: "true", Type: SettingTypeBool, Group: GroupGates, Description: "Pause after the blueprint for human review."},
 		{Key: SettingGateUploadEnabled, Value: "true", Type: SettingTypeBool, Group: GroupGates, Description: "Pause before upload for human review."},
 
-		{Key: SettingProviderLLM, Value: "mock", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for blueprint, script, prompts and metadata."},
-		{Key: SettingProviderTTS, Value: "mock", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for narration."},
-		{Key: SettingProviderSlide, Value: "mock", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for slides."},
-		{Key: SettingProviderComposer, Value: "mock", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for clip and concat composition."},
-		{Key: SettingProviderThumbnail, Value: "mock", Type: SettingTypeString, Group: GroupProviders, Description: "Backend that renders the thumbnail image."},
-		{Key: SettingProviderThumbnailIcon, Value: "mock", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for the thumbnail's grid icons; selected apart from slides."},
-		{Key: SettingProviderUploader, Value: "mock", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for publishing."},
+		{Key: SettingProviderLLM, Value: "sample", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for blueprint, script, prompts and metadata."},
+		{Key: SettingProviderTTS, Value: "sample", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for narration."},
+		{Key: SettingProviderSlide, Value: "sample", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for slides."},
+		{Key: SettingProviderComposer, Value: "ffmpeg", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for clip and concat composition."},
+		{Key: SettingProviderThumbnail, Value: "builtin", Type: SettingTypeString, Group: GroupProviders, Description: "Backend that renders the thumbnail image."},
+		{Key: SettingProviderThumbnailIcon, Value: "sample", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for the thumbnail's grid icons; selected apart from slides."},
+		{Key: SettingProviderUploader, Value: "sample", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for publishing."},
 		//nolint:lll // one row, one line
 		{Key: SettingUploadDryRun, Value: "true", Type: SettingTypeBool, Group: GroupProviders, Description: "The uploader does everything but the irreversible call, and produces a local receipt. Turning this off is what makes a publish real."},
 
