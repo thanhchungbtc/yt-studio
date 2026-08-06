@@ -478,8 +478,10 @@ function RailItem({
       aria-current={active ? 'true' : undefined}
       className={cn(
         'relative flex shrink-0 items-center gap-2 rounded-[var(--radius-sm)] py-1.5 pl-2.5 pr-2 text-left text-[12px] transition-colors lg:w-full',
+        // The selected section is the pane: it carries the accent outright, so
+        // which one is open is answered without comparing two greys.
         active
-          ? 'bg-[hsl(var(--bg-active))] font-medium text-fg'
+          ? 'bg-[hsl(var(--accent-soft))] font-semibold text-[hsl(var(--accent))]'
           : 'text-muted hover:bg-[hsl(var(--bg-hover))] hover:text-fg',
         empty && 'pointer-events-none opacity-40',
       )}
@@ -487,10 +489,12 @@ function RailItem({
       {active && (
         <span
           aria-hidden
-          className="absolute left-[-6px] top-1/2 hidden h-4 w-[2px] -translate-y-1/2 rounded-full bg-[hsl(var(--accent))] lg:block"
+          className="absolute inset-y-1 left-0 hidden w-[2.5px] rounded-full bg-[hsl(var(--accent))] lg:block"
         />
       )}
-      <Icon className={cn('h-3.5 w-3.5 shrink-0', active ? 'text-[hsl(var(--accent))]' : '')} />
+      <Icon
+        className={cn('h-3.5 w-3.5 shrink-0', active ? 'text-[hsl(var(--accent))]' : 'text-subtle')}
+      />
       <span className="min-w-0 flex-1 truncate">{title}</span>
       {dirty ? (
         <span
@@ -498,7 +502,14 @@ function RailItem({
           aria-label="unsaved changes"
         />
       ) : (
-        <span className="tabular text-[10.5px] text-subtle">{count}</span>
+        <span
+          className={cn(
+            'tabular text-[10.5px]',
+            active ? 'text-[hsl(var(--accent)/0.8)]' : 'text-subtle',
+          )}
+        >
+          {count}
+        </span>
       )}
     </button>
   )
@@ -818,7 +829,7 @@ const SettingRow = memo(function SettingRow({
     <li
       className={cn(
         'group/row relative px-4 py-3 transition-colors',
-        dirty ? 'bg-[hsl(var(--accent)/0.045)]' : 'hover:bg-[hsl(var(--bg-hover)/0.45)]',
+        dirty ? 'bg-[hsl(var(--accent)/0.09)]' : 'hover:bg-[hsl(var(--bg-hover)/0.45)]',
       )}
     >
       {dirty && (
@@ -1015,7 +1026,7 @@ function SettingControl({
           <span
             className={cn(
               'text-[12px] tabular-nums',
-              value === 'true' ? 'font-medium text-fg' : 'text-subtle',
+              value === 'true' ? 'font-semibold text-[hsl(var(--accent))]' : 'text-subtle',
             )}
           >
             {value === 'true' ? 'Enabled' : 'Disabled'}
@@ -1045,6 +1056,7 @@ function SettingControl({
         <Select
           id={id}
           aria-describedby={describedBy}
+          className="font-medium"
           value={setting.options.includes(value) ? value : ''}
           onChange={(event) => onSet(event.target.value)}
         >

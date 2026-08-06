@@ -171,6 +171,12 @@ export interface SegmentedOption<T extends string> {
  * A segmented control: the tab metaphor for a pane that swaps its whole body.
  * The moving indicator is a single absolutely positioned element rather than a
  * per-item border, so it slides rather than jumps.
+ *
+ * The indicator is filled with the accent rather than raised out of the track.
+ * A raised surface reads as selection only where the surrounding elevation is
+ * already understood, and this control is also how a settings row states which
+ * backend is in force — there the selection is the value, and a value has to be
+ * legible at a glance rather than inferred from a shadow.
  */
 export function Segmented<T extends string>({
   options,
@@ -195,13 +201,13 @@ export function Segmented<T extends string>({
       role="tablist"
       aria-label={ariaLabel}
       className={cn(
-        'relative inline-flex h-7 items-center rounded-[var(--radius-sm)] bg-[hsl(var(--bg-hover))] p-[2px] no-select',
+        'relative inline-flex h-7 items-center rounded-[var(--radius-sm)] border border-[hsl(var(--border))] bg-[hsl(var(--bg-hover))] p-[2px] no-select',
         className,
       )}
     >
       <span
         aria-hidden
-        className="absolute inset-y-[2px] rounded-[var(--radius-xs)] bg-[hsl(var(--bg-elevated))] elev-1 transition-[left,width] duration-150 ease-out"
+        className="absolute inset-y-[2px] rounded-[var(--radius-xs)] bg-[hsl(var(--accent))] elev-1 transition-[left,width] duration-150 ease-out"
         style={{
           width: `calc((100% - 4px) / ${options.length})`,
           left: `calc(2px + (100% - 4px) * ${index} / ${options.length})`,
@@ -215,8 +221,10 @@ export function Segmented<T extends string>({
           aria-selected={option.value === value}
           onClick={() => onChange(option.value)}
           className={cn(
-            'relative z-10 flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap px-2.5 text-[12px] transition-colors',
-            option.value === value ? 'font-medium text-fg' : 'text-muted hover:text-fg',
+            'relative z-10 flex h-full flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-[var(--radius-xs)] px-2.5 text-[12px] transition-colors',
+            option.value === value
+              ? 'font-semibold text-[hsl(var(--accent-fg))]'
+              : 'text-muted hover:text-fg',
           )}
         >
           {option.label}
@@ -225,7 +233,7 @@ export function Segmented<T extends string>({
               className={cn(
                 'tabular rounded-full px-1 text-[10px] leading-[15px]',
                 option.value === value
-                  ? 'bg-[hsl(var(--accent)/0.15)] text-[hsl(var(--accent))]'
+                  ? 'bg-[hsl(var(--accent-fg)/0.2)] text-[hsl(var(--accent-fg))]'
                   : 'bg-[hsl(var(--fg)/0.08)] text-subtle',
               )}
             >
