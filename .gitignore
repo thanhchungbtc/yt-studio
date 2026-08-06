@@ -1,5 +1,7 @@
 # Everything generated lives here: the binary, the database, the asset store,
-# coverage and benchmark output.
+# coverage and benchmark output. Also var/resources, which is untracked for a
+# different reason — too large to commit, supplied by the operator — which is
+# why `make clean` deletes around it rather than through it.
 /var/
 
 # The frontend build overwrites web/dist. A placeholder index.html is committed

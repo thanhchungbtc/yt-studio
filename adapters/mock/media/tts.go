@@ -1,4 +1,4 @@
-package mock
+package media
 
 import (
 	"bytes"

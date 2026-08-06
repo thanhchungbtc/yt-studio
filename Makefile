@@ -2,8 +2,13 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
 # Everything generated — the binary, the database, the asset store, coverage —
-# lives under var/. One directory to ignore, one directory to delete.
+# lives under var/. One directory to ignore.
 VAR     := var
+# KEEP is the exception: var/resources is operator-supplied media, not output.
+# It sits under var/ because it is equally untracked, but deleting it costs
+# files that no build step can put back — bg.mp4 alone is a gigabyte that came
+# from somewhere else. clean removes var/'s contents around it.
+KEEP    := resources
 BINARY  := $(VAR)/bin/yt-studio
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 # Where the server will be listening. The Makefile needs this only to poll for
@@ -85,9 +90,10 @@ generate:
 	$(GOBIN)/sqlc generate
 	go build ./...
 
-## clean: delete everything generated
+## clean: delete everything generated, keeping var/resources
 clean:
-	rm -rf $(VAR) web/dist
+	@if [ -d $(VAR) ]; then find $(VAR) -mindepth 1 -maxdepth 1 ! -name $(KEEP) -exec rm -rf {} +; fi
+	rm -rf web/dist
 	@mkdir -p web/dist && cp web/placeholder.html web/dist/index.html
 	go clean -testcache
 

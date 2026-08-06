@@ -1,4 +1,4 @@
-package mock_test
+package media_test
 
 import (
 	"bytes"
@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
-	llmmock "github.com/tbui/yt-studio/adapters/llm/mock"
-	mock "github.com/tbui/yt-studio/adapters/media/mock"
+	llmmock "github.com/tbui/yt-studio/adapters/mock/llm"
+	mock2 "github.com/tbui/yt-studio/adapters/mock/media"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )
@@ -58,14 +58,14 @@ func TestProvidersAreDeterministic(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		tts := mock.NewTTS(store)
+		tts := mock2.NewTTS(store)
 		audio, err := tts.Speak(ctx, provider.SpeakRequest{
 			VideoID: "v1", ChapterID: "v1:ch:1", Ordinal: 1, Text: script.Text,
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		gen := mock.NewSlide(store)
+		gen := mock2.NewSlide(store)
 		slide, err := gen.Generate(ctx, provider.SlideRequest{
 			VideoID: "v1", ChapterID: "v1:ch:1", Ordinal: 1, Index: 0,
 			Prompt: "a wide harbour at low tide",
@@ -88,7 +88,7 @@ func TestGeneratedStillIsAValidPNG(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	store := newStore(t)
-	gen := mock.NewSlide(store)
+	gen := mock2.NewSlide(store)
 
 	id, err := gen.Generate(ctx, provider.SlideRequest{
 		VideoID: "v1", ChapterID: "v1:ch:1", Ordinal: 1, Index: 0, Prompt: "a stone bridge in thin fog",
@@ -115,7 +115,7 @@ func TestGeneratedStillIsAValidPNG(t *testing.T) {
 // caption, which is the shape the icon tasks will hand the builder.
 func grid(t *testing.T, store provider.AssetStore, captions ...string) []provider.ThumbnailIconCell {
 	t.Helper()
-	icons := mock.NewIcon(store)
+	icons := mock2.NewIcon(store)
 	cells := make([]provider.ThumbnailIconCell, 0, len(captions))
 	for i, caption := range captions {
 		id, err := icons.Icon(context.Background(), provider.ThumbnailIconRequest{
@@ -135,7 +135,7 @@ func TestThumbnailIsAValidPNGAtYouTubeSize(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	store := newStore(t)
-	thumbnails := mock.NewThumbnail(store)
+	thumbnails := mock2.NewThumbnail(store)
 	cells := grid(t, store, "Mind Control", "Split Personality", "Inner Critic", "False Memory")
 
 	id, err := thumbnails.Build(ctx, provider.ThumbnailRequest{
@@ -178,7 +178,7 @@ func TestThumbnailRendersEveryCell(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	store := newStore(t)
-	thumbnails := mock.NewThumbnail(store)
+	thumbnails := mock2.NewThumbnail(store)
 
 	base := provider.ThumbnailRequest{
 		VideoID: "v1", VideoRef: "DSS-1", Headline: "REAL CHEAT CODES",
@@ -205,7 +205,7 @@ func TestThumbnailRendersEveryCell(t *testing.T) {
 // A cell whose icon never landed is a caller error, not a hole in the grid.
 func TestThumbnailRejectsACellWithNoIcon(t *testing.T) {
 	t.Parallel()
-	thumbnails := mock.NewThumbnail(newStore(t))
+	thumbnails := mock2.NewThumbnail(newStore(t))
 
 	if _, err := thumbnails.Build(context.Background(), provider.ThumbnailRequest{
 		VideoID: "v1", VideoRef: "DSS-1", Headline: "50 BROKEN BELIEFS",
@@ -221,7 +221,7 @@ func TestIconIsASquarePNG(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	store := newStore(t)
-	icons := mock.NewIcon(store)
+	icons := mock2.NewIcon(store)
 
 	req := provider.ThumbnailIconRequest{
 		VideoID: "v1", Index: 3, Prompt: "a pocket watch, side view", Size: 256,
@@ -271,7 +271,7 @@ func TestGeneratedAudioIsAValidWAV(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	store := newStore(t)
-	tts := mock.NewTTS(store)
+	tts := mock2.NewTTS(store)
 
 	id, err := tts.Speak(ctx, provider.SpeakRequest{
 		VideoID: "v1", ChapterID: "v1:ch:1", Ordinal: 1, Text: "hello there",
@@ -313,9 +313,9 @@ func TestComposedMP4IsStructurallyValid(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	store := newStore(t)
-	tts := mock.NewTTS(store)
-	gen := mock.NewSlide(store)
-	composer := mock.NewComposer(store)
+	tts := mock2.NewTTS(store)
+	gen := mock2.NewSlide(store)
+	composer := mock2.NewComposer(store)
 
 	makeClip := func(ordinal int) entity.AssetID {
 		audio, err := tts.Speak(ctx, provider.SpeakRequest{
@@ -424,7 +424,7 @@ func TestUploaderProducesAStableReceipt(t *testing.T) {
 		t.Fatal(err)
 	}
 	at := time.Unix(1_700_000_000, 0).UTC()
-	uploader := mock.NewUploader(store, func() time.Time { return at })
+	uploader := mock2.NewUploader(store, func() time.Time { return at })
 
 	req := provider.UploadRequest{
 		VideoID: "v1", VideoRef: "DSS-1", ChannelSlug: "deep-sleep-stories",

@@ -10,7 +10,7 @@
 // The prose generators in text.go live here rather than anywhere shared because
 // nothing outside the LLM port produces text: an image backend needs the seed,
 // not the vocabulary.
-package mock
+package llm
 
 import (
 	"context"

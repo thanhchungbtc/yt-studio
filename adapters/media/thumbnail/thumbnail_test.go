@@ -14,8 +14,8 @@ import (
 	"testing"
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
-	mock "github.com/tbui/yt-studio/adapters/media/mock"
 	"github.com/tbui/yt-studio/adapters/media/thumbnail"
+	"github.com/tbui/yt-studio/adapters/mock/media"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )
@@ -66,7 +66,7 @@ func newBuilder(t *testing.T, opts thumbnail.Options) (*thumbnail.Builder, *asse
 // icon tasks hand the renderer.
 func grid(t *testing.T, store provider.AssetStore, captions ...string) []provider.ThumbnailIconCell {
 	t.Helper()
-	icons := mock.NewIcon(store)
+	icons := media.NewIcon(store)
 	cells := make([]provider.ThumbnailIconCell, 0, len(captions))
 	for i, caption := range captions {
 		id, err := icons.Icon(context.Background(), provider.ThumbnailIconRequest{
@@ -132,7 +132,7 @@ var baseline = sync.OnceValues(func() (entity.AssetID, error) {
 	if err != nil {
 		return "", err
 	}
-	icons := mock.NewIcon(store)
+	icons := media.NewIcon(store)
 	cells := make([]provider.ThumbnailIconCell, 0, len(baselineCaptions))
 	for i, caption := range baselineCaptions {
 		id, iconErr := icons.Icon(context.Background(), provider.ThumbnailIconRequest{

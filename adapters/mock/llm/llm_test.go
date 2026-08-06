@@ -1,4 +1,4 @@
-package mock_test
+package llm_test
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
-	mock "github.com/tbui/yt-studio/adapters/llm/mock"
+	"github.com/tbui/yt-studio/adapters/mock/llm"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )
@@ -31,9 +31,9 @@ func blueprintRequest(chapters int) provider.BlueprintRequest {
 	}
 }
 
-func lookupFor(bp provider.Blueprint, slides int) mock.ContextLookup {
-	return func(context.Context, entity.VideoID) (mock.VideoContext, error) {
-		return mock.VideoContext{
+func lookupFor(bp provider.Blueprint, slides int) llm.ContextLookup {
+	return func(context.Context, entity.VideoID) (llm.VideoContext, error) {
+		return llm.VideoContext{
 			Ref:              "DSS-1",
 			Title:            bp.Title,
 			Topic:            "a northern port town",
@@ -48,7 +48,7 @@ func TestIdenticalOutputReusesTheStoredFile(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	store := newStore(t)
-	llm := mock.NewLLM(store, nil)
+	llm := llm.NewLLM(store, nil)
 
 	first, err := llm.Blueprint(ctx, blueprintRequest(2))
 	if err != nil {
@@ -73,7 +73,7 @@ func TestIdenticalOutputReusesTheStoredFile(t *testing.T) {
 func TestBlueprintProducesTheRequestedChapters(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	llm := mock.NewLLM(newStore(t), nil)
+	llm := llm.NewLLM(newStore(t), nil)
 
 	for _, n := range []int{1, 7, 50} {
 		bp, err := llm.Blueprint(ctx, blueprintRequest(n))
@@ -102,14 +102,14 @@ func TestSlidePromptsAreCoalesced(t *testing.T) {
 	store := newStore(t)
 
 	const chapters, slides = 6, 2
-	seed := mock.NewLLM(store, nil)
+	seed := llm.NewLLM(store, nil)
 	bp, err := seed.Blueprint(ctx, blueprintRequest(chapters))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	var lookups int
-	llm := mock.NewLLM(store, func(ctx context.Context, id entity.VideoID) (mock.VideoContext, error) {
+	llm := llm.NewLLM(store, func(ctx context.Context, id entity.VideoID) (llm.VideoContext, error) {
 		lookups++
 		return lookupFor(bp, slides)(ctx, id)
 	})
@@ -152,7 +152,7 @@ func TestSlidePromptsAreCoalesced(t *testing.T) {
 func TestThumbnailPlanFillsEveryCell(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	llm := mock.NewLLM(newStore(t), nil)
+	llm := llm.NewLLM(newStore(t), nil)
 
 	bp, err := llm.Blueprint(ctx, blueprintRequest(12))
 	if err != nil {
@@ -200,7 +200,7 @@ func TestThumbnailPlanFillsEveryCell(t *testing.T) {
 // returning ten empty tiles.
 func TestThumbnailPlanNeedsAnOutline(t *testing.T) {
 	t.Parallel()
-	llm := mock.NewLLM(newStore(t), nil)
+	llm := llm.NewLLM(newStore(t), nil)
 
 	if _, err := llm.ThumbnailPlan(context.Background(), provider.ThumbnailPlanRequest{
 		VideoID: "v1", Headline: "50 BROKEN BELIEFS", Cells: 10,

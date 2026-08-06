@@ -20,8 +20,8 @@ import (
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
 	"github.com/tbui/yt-studio/adapters/eventbus"
-	llmmock "github.com/tbui/yt-studio/adapters/llm/mock"
-	mediamock "github.com/tbui/yt-studio/adapters/media/mock"
+	mockllm2 "github.com/tbui/yt-studio/adapters/mock/llm"
+	"github.com/tbui/yt-studio/adapters/mock/media"
 	"github.com/tbui/yt-studio/adapters/sqlite"
 	"github.com/tbui/yt-studio/app"
 	deliveryhttp "github.com/tbui/yt-studio/delivery/http"
@@ -79,7 +79,7 @@ func newHarness(t *testing.T) *harness {
 	}
 	broker := eventbus.New(10*time.Millisecond, log)
 
-	llm := llmmock.NewLLM(assets, videoContext(store))
+	llm := mockllm2.NewLLM(assets, videoContext(store))
 	// An ungated blueprint expands its own video's DAG, so the runner needs the
 	// scheduler that is built from it. The reference is filled in below, before
 	// the loop starts.
@@ -87,12 +87,12 @@ func newHarness(t *testing.T) *harness {
 	runner := app.NewTaskRunner(
 		store, store, store, store, store, store, store, assets,
 		llm,
-		mediamock.NewTTS(assets),
-		mediamock.NewSlide(assets),
-		mediamock.NewComposer(assets),
-		mediamock.NewThumbnail(assets),
-		mediamock.NewIcon(assets),
-		mediamock.NewUploader(assets, func() time.Time { return time.Unix(1_700_000_000, 0).UTC() }),
+		media.NewTTS(assets),
+		media.NewSlide(assets),
+		media.NewComposer(assets),
+		media.NewThumbnail(assets),
+		media.NewIcon(assets),
+		media.NewUploader(assets, func() time.Time { return time.Unix(1_700_000_000, 0).UTC() }),
 		broker,
 		expander,
 		func() app.BlueprintOptions {
@@ -173,21 +173,21 @@ func (e *lateExpander) Expand(ctx context.Context, videoID entity.VideoID, tail 
 	return e.sched.Expand(ctx, videoID, tail)
 }
 
-func videoContext(store *sqlite.Store) llmmock.ContextLookup {
-	return func(ctx context.Context, videoID entity.VideoID) (llmmock.VideoContext, error) {
+func videoContext(store *sqlite.Store) mockllm2.ContextLookup {
+	return func(ctx context.Context, videoID entity.VideoID) (mockllm2.VideoContext, error) {
 		v, err := store.VideoByID(ctx, videoID)
 		if err != nil {
-			return llmmock.VideoContext{}, err
+			return mockllm2.VideoContext{}, err
 		}
 		rows, err := store.ListChaptersByVideo(ctx, videoID)
 		if err != nil {
-			return llmmock.VideoContext{}, err
+			return mockllm2.VideoContext{}, err
 		}
 		outline := make([]provider.BlueprintChapter, 0, len(rows))
 		for _, c := range rows {
 			outline = append(outline, provider.BlueprintChapter{Ordinal: c.Ordinal, Title: c.Title, Summary: c.Summary})
 		}
-		return llmmock.VideoContext{
+		return mockllm2.VideoContext{
 			Ref: v.Ref, Title: v.Title, Topic: v.Topic,
 			Chapters: outline, SlidesPerChapter: v.SlidesPerChapter,
 		}, nil

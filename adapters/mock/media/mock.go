@@ -6,7 +6,7 @@
 // fan-out inside a provider, and nothing of the mock leaking outside this
 // package. Swapping in a real backend later is one type implementing one
 // interface, plus a settings row to select it.
-package mock
+package media
 
 import (
 	"hash/fnv"
