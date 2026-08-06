@@ -1,13 +1,4 @@
-// Package xtts is the narration backend for an AllTalk/XTTS server.
-//
-// It is unfinished and deliberately unwired: nothing in main.go registers it,
-// so no settings row can select it. What is written is the audio work that has
-// nothing to do with the transport -- sentence chunking, WAV concatenation, the
-// tail trim and fade -- because that is the part ported from the Python this
-// replaces and the part worth having under test before a server is involved.
-// What is stubbed is every call that touches the network, and each stub carries
-// the TODO describing what it owes.
-package xtts
+package tts
 
 import (
 	"bytes"

@@ -1,4 +1,4 @@
-package xtts
+package tts
 
 import (
 	"fmt"
