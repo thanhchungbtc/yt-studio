@@ -326,7 +326,7 @@ func DefaultSettings() []Setting {
 
 		{Key: SettingVideoDefaultChapters, Value: "50", Type: SettingTypeInt, Group: "video", Min: MinChapterCount, Max: MaxChapterCount, Description: "Chapters created for a new video when unspecified."},
 		{Key: SettingVideoDefaultSlides, Value: "2", Type: SettingTypeInt, Group: "video", Min: MinSlidesPerChapter, Max: MaxSlidesPerChapter, Description: "Slides generated per chapter when unspecified."},
-		{Key: SettingThumbnailIconStyle, Value: "", Type: SettingTypeString, Group: "video", Optional: true, Description: "Appended to every thumbnail icon prompt. Empty when the prompt already ends each cell with the style tag, which is what the 9router backend does."},
+		{Key: SettingThumbnailIconStyle, Value: "", Type: SettingTypeString, Group: "video", Optional: true, Description: "Appended to every thumbnail icon prompt."},
 		{Key: SettingThumbnailIconSize, Value: "512", Type: SettingTypeInt, Group: "video", Min: 64, Max: 2048, Description: "Square edge, in pixels, each thumbnail icon is generated at."},
 		{Key: SettingThumbnailFont, Value: "CabinSketch-Bold.ttf", Type: SettingTypeString, Group: "video", Description: "Typeface for the thumbnail headline and captions, from the resources fonts directory."},
 		{Key: SettingThumbnailGridRows, Value: "2", Type: SettingTypeInt, Group: "video", Min: 1, Max: 4, Description: "Rows the thumbnail's icon grid is laid out in; the columns follow from the tile count."},

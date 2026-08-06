@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertCircle,
+  ArrowRight,
   Check,
   Clapperboard,
   Gauge,
@@ -14,6 +15,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Timer,
+  Wand2,
   type LucideIcon,
 } from 'lucide-react'
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
@@ -36,7 +38,7 @@ import { Switch } from '@/components/ui/switch'
 import { api, qk } from '@/lib/api'
 import { formatRelative, poolLabel } from '@/lib/format'
 import { useHotkeys } from '@/lib/hotkeys'
-import type { PoolStat, Setting } from '@/lib/types'
+import type { PoolStat, Preset, PresetValue, Setting } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 interface GroupMeta {
@@ -356,6 +358,10 @@ export function SettingsRoute() {
             />
           )}
 
+          {!settings.isPending && !settings.isError && (
+            <PresetBar rows={rows} running={status?.running ?? 0} />
+          )}
+
           {groups.length > 0 && (
             <div className="grid gap-6 lg:grid-cols-[184px_minmax(0,1fr)]">
               <nav aria-label="Setting groups" className="hidden lg:block">
@@ -459,6 +465,174 @@ function RailItem({
         <span className="tabular text-[10.5px] text-subtle">{count}</span>
       )}
     </button>
+  )
+}
+
+/* ----------------------------------------------------------------- presets */
+
+/**
+ * The presets strip: one click that moves every provider row at once.
+ *
+ * Which preset is in force is derived here rather than read from the server. A
+ * stored "current preset" would start lying the moment one backend was changed
+ * by hand, and this page holds both sides of the comparison already — so a
+ * preset is in force exactly when every row it names already holds the value it
+ * would write, and the same computation gives the diff to show before applying.
+ */
+function PresetBar({ rows, running }: { rows: Setting[]; running: number }) {
+  const queryClient = useQueryClient()
+  const presets = useQuery({ queryKey: qk.presets, queryFn: api.listPresets })
+  const [pending, setPending] = useState('')
+  const [error, setError] = useState<unknown>()
+
+  const current = useMemo(() => new Map(rows.map((row) => [row.key, row.value])), [rows])
+
+  const diffs = useMemo(
+    () =>
+      (presets.data ?? []).map((preset) => ({
+        preset,
+        changes: preset.values.filter((value) => current.get(value.key) !== value.value),
+      })),
+    [presets.data, current],
+  )
+
+  const apply = useCallback(
+    async (name: string) => {
+      setPending(name)
+      setError(undefined)
+      try {
+        const changed = await api.applyPreset(name)
+        queryClient.setQueryData<Setting[]>(qk.settings, (prev) =>
+          prev?.map((row) => changed.find((next) => next.key === row.key) ?? row),
+        )
+        void queryClient.invalidateQueries({ queryKey: qk.scheduler })
+      } catch (failure) {
+        setError(failure)
+      } finally {
+        setPending('')
+      }
+    },
+    [queryClient],
+  )
+
+  // Nothing to say if the server has no presets, and an unreachable list is
+  // already reported by the settings query above it.
+  if (diffs.length === 0) return null
+
+  return (
+    <section className="mb-6" aria-labelledby="heading-presets">
+      <div className="mb-2.5 flex items-start gap-2.5 px-0.5">
+        <span className="mt-[1px] flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[hsl(var(--accent-soft))] text-[hsl(var(--accent))]">
+          <Wand2 className="h-[15px] w-[15px]" />
+        </span>
+        <div className="min-w-0">
+          <h2 id="heading-presets" className="text-[13.5px] font-semibold text-fg">
+            Presets
+          </h2>
+          <p className="mt-0.5 max-w-2xl text-[11.5px] leading-[1.5] text-subtle">
+            One click across every provider row. A preset writes only the rows it names — the gates
+            and the upload dry run are never among them.
+          </p>
+        </div>
+      </div>
+
+      {running > 0 && (
+        <p className="mb-2 flex items-center gap-1.5 px-0.5 text-[11.5px] text-[hsl(var(--warning))]">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          {running} task{running === 1 ? ' is' : 's are'} running. A backend is resolved when a task
+          is dispatched, so the work already in flight finishes on the old one and the rest starts
+          on the new.
+        </p>
+      )}
+
+      {error !== undefined && <ErrorNotice error={error} className="mb-2" />}
+
+      <ul className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+        {diffs.map(({ preset, changes }) => (
+          <PresetCard
+            key={preset.name}
+            preset={preset}
+            changes={changes}
+            current={current}
+            saving={pending === preset.name}
+            disabled={pending !== '' && pending !== preset.name}
+            onApply={() => void apply(preset.name)}
+          />
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+function PresetCard({
+  preset,
+  changes,
+  current,
+  saving,
+  disabled,
+  onApply,
+}: {
+  preset: Preset
+  changes: PresetValue[]
+  current: Map<string, string>
+  saving: boolean
+  disabled: boolean
+  onApply: () => void
+}) {
+  const inForce = changes.length === 0
+  return (
+    <li
+      className={cn(
+        'flex flex-col rounded-[var(--radius-md)] border bg-[hsl(var(--bg-elevated))] p-3 elev-1 transition-colors',
+        inForce ? 'border-[hsl(var(--accent))]' : 'border-[hsl(var(--border))]',
+      )}
+    >
+      <div className="flex items-center gap-1.5">
+        <h3 className="text-[12.5px] font-semibold text-fg">{preset.title}</h3>
+        <span className="font-mono text-[11px] text-subtle">{preset.name}</span>
+        {inForce && (
+          <span className="ml-auto shrink-0">
+            <Pill tone="success">
+              <Check className="h-3 w-3" aria-hidden />
+              In force
+            </Pill>
+          </span>
+        )}
+      </div>
+
+      <p className="mt-1 text-[11.5px] leading-[1.5] text-muted">{preset.description}</p>
+
+      {!inForce && (
+        <ul className="mt-2 space-y-0.5">
+          {changes.map((change) => (
+            <li key={change.key} className="flex items-center gap-1 font-mono text-[10.5px]">
+              <span className="min-w-0 flex-1 truncate text-subtle">{change.key}</span>
+              <span className="shrink-0 text-subtle line-through">
+                {current.get(change.key) || '—'}
+              </span>
+              <ArrowRight className="h-3 w-3 shrink-0 text-subtle" aria-hidden />
+              <span className="shrink-0 font-medium text-fg">{change.value}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="mt-2.5 flex items-center gap-2 pt-0.5">
+        <Button
+          variant={inForce ? 'outline' : 'primary'}
+          size="sm"
+          disabled={inForce || saving || disabled}
+          onClick={onApply}
+        >
+          {saving ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          ) : (
+            <Wand2 className="h-3.5 w-3.5" aria-hidden />
+          )}
+          {inForce ? 'Applied' : `Apply ${changes.length} change${changes.length === 1 ? '' : 's'}`}
+        </Button>
+      </div>
+    </li>
   )
 }
 
@@ -648,11 +822,12 @@ const SettingRow = memo(function SettingRow({
           </p>
 
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-subtle">
-            {(setting.type === 'int' || setting.type === 'float') && setting.min !== setting.max && (
-              <span className="tabular">
-                {setting.min}–{setting.max}
-              </span>
-            )}
+            {(setting.type === 'int' || setting.type === 'float') &&
+              setting.min !== setting.max && (
+                <span className="tabular">
+                  {setting.min}–{setting.max}
+                </span>
+              )}
             {pool && <PoolNote stat={pool} />}
             <span className="tabular opacity-0 transition-opacity group-hover/row:opacity-100">
               written {formatRelative(setting.updatedAt)}

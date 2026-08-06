@@ -940,6 +940,71 @@ func TestSettingsApplyWithoutRestart(t *testing.T) {
 	t.Fatal("the new pool limit never reached the scheduler")
 }
 
+// A preset is one click that moves several provider rows at once, and the route
+// that does it lives under the settings it writes.
+func TestSettingsPresets(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+
+	var listed struct {
+		Presets []struct {
+			Name        string `json:"name"`
+			Title       string `json:"title"`
+			Description string `json:"description"`
+			Values      []struct {
+				Key   string `json:"key"`
+				Value string `json:"value"`
+			} `json:"values"`
+		} `json:"presets"`
+	}
+	h.json(http.MethodGet, "/api/settings/presets", nil, http.StatusOK, &listed)
+	if len(listed.Presets) == 0 {
+		t.Fatal("no presets were listed")
+	}
+	for _, p := range listed.Presets {
+		if p.Title == "" || len(p.Values) == 0 {
+			t.Errorf("preset %q arrived empty", p.Name)
+		}
+	}
+
+	var applied struct {
+		Settings []struct {
+			Key   string `json:"key"`
+			Value string `json:"value"`
+		} `json:"settings"`
+	}
+	h.json(http.MethodPost, "/api/settings/presets/sample/apply", nil, http.StatusOK, &applied)
+	if len(applied.Settings) == 0 {
+		t.Fatal("applying sample over the seeded mocks changed nothing")
+	}
+
+	// Only the rows that moved come back, so the second application is empty
+	// rather than a rewrite of every row the preset names.
+	h.json(http.MethodPost, "/api/settings/presets/sample/apply", nil, http.StatusOK, &applied)
+	if len(applied.Settings) != 0 {
+		t.Errorf("re-applying the preset in force changed %d rows", len(applied.Settings))
+	}
+
+	// And it really landed in the table the settings screen reads.
+	var table struct {
+		Settings []struct {
+			Key   string `json:"key"`
+			Value string `json:"value"`
+		} `json:"settings"`
+	}
+	h.json(http.MethodGet, "/api/settings", nil, http.StatusOK, &table)
+	for _, row := range table.Settings {
+		if row.Key == "provider.tts" && row.Value != "sample" {
+			t.Errorf("provider.tts = %q, want sample", row.Value)
+		}
+	}
+
+	resp, _ := h.do(http.MethodPost, "/api/settings/presets/nonesuch/apply", nil)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", resp.StatusCode)
+	}
+}
+
 func TestSettingsRejectBadValues(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)

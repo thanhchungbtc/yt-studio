@@ -1,5 +1,5 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
   Activity,
@@ -13,6 +13,7 @@ import {
   Settings as SettingsIcon,
   Sun,
   Tv,
+  Wand2,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -51,6 +52,7 @@ export function CommandPalette({
   onOpenChange: (open: boolean) => void
 }) {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { openCreateVideo } = useAppCommands()
   const [theme, toggleTheme] = useTheme()
   const { toggle: toggleSidebar } = useSidebar()
@@ -65,6 +67,7 @@ export function CommandPalette({
     enabled: open,
   })
   const channels = useQuery({ queryKey: qk.channels, queryFn: api.listChannels, enabled: open })
+  const presets = useQuery({ queryKey: qk.presets, queryFn: api.listPresets, enabled: open })
 
   const commands = useMemo<Command[]>(() => {
     const close = (run: () => void) => () => {
@@ -139,6 +142,24 @@ export function CommandPalette({
       },
     ]
 
+    // Switching every provider at once is the settings edit most worth reaching
+    // without going to the settings screen for it.
+    for (const preset of presets.data ?? []) {
+      items.push({
+        id: `preset-${preset.name}`,
+        group: 'Presets',
+        label: `Switch backends to ${preset.title}`,
+        detail: `preset providers ${preset.name}`,
+        icon: <Wand2 className="h-4 w-4" />,
+        run: close(() => {
+          void api.applyPreset(preset.name).then(() => {
+            void queryClient.invalidateQueries({ queryKey: qk.settings })
+            void queryClient.invalidateQueries({ queryKey: qk.scheduler })
+          })
+        }),
+      })
+    }
+
     const channelName = new Map(channels.data?.map((c) => [c.id, c.name]))
     for (const video of videos.data?.videos ?? []) {
       items.push({
@@ -173,6 +194,8 @@ export function CommandPalette({
     navigate,
     onOpenChange,
     openCreateVideo,
+    presets.data,
+    queryClient,
     theme,
     toggleSidebar,
     toggleTheme,
@@ -314,7 +337,7 @@ export function CommandPalette({
 
 /* --------------------------------------------------------------- matching */
 
-const GROUP_ORDER = ['Go to', 'Actions', 'Videos', 'Channels']
+const GROUP_ORDER = ['Go to', 'Actions', 'Presets', 'Videos', 'Channels']
 
 /**
  * Scores each command against the query and returns the survivors, best first

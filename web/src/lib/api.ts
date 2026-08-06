@@ -2,6 +2,7 @@ import type {
   Asset,
   Channel,
   Chapter,
+  Preset,
   RerunPlan,
   SchedulerStatus,
   Setting,
@@ -189,6 +190,13 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ value }),
     }),
+
+  listPresets: () => request<{ presets: Preset[] }>('/api/settings/presets').then((r) => r.presets),
+  /** Resolves to the rows that actually moved; an empty list means it was already in force. */
+  applyPreset: (name: string) =>
+    post<{ settings: Setting[] }>(`/api/settings/presets/${encodeURIComponent(name)}/apply`).then(
+      (r) => r.settings,
+    ),
 }
 
 /** Query keys, centralised so an event delta can invalidate precisely. */
@@ -203,6 +211,7 @@ export const qk = {
   recentTasks: ['tasks', 'recent'] as const,
   scheduler: ['scheduler'] as const,
   settings: ['settings'] as const,
+  presets: ['settings', 'presets'] as const,
 }
 
 /** The content-addressed URL of an asset; the hash is the cache key. */

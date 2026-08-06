@@ -388,6 +388,38 @@ func settingFrom(s entity.Setting) SettingDTO {
 	}
 }
 
+// PresetValueDTO is one row a preset writes.
+type PresetValueDTO struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+// PresetDTO is a named patch over the settings table.
+//
+// It carries the values it would write and no judgement about whether it is the
+// one in force: the client holds the settings table already, so "active" is a
+// comparison it makes rather than a field that could arrive stale.
+type PresetDTO struct {
+	Name        string `json:"name"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	//nolint:lll // one field, one line
+	Values []PresetValueDTO `json:"values" doc:"The rows this preset writes, in the order it writes them; rows it does not name are left alone"`
+}
+
+func presetFrom(p entity.Preset) PresetDTO {
+	values := make([]PresetValueDTO, 0, len(p.Values))
+	for _, v := range p.Values {
+		values = append(values, PresetValueDTO{Key: string(v.Key), Value: v.Value})
+	}
+	return PresetDTO{
+		Name:        p.Name,
+		Title:       p.Title,
+		Description: p.Description,
+		Values:      values,
+	}
+}
+
 // AssetDTO is a stored artifact's metadata.
 type AssetDTO struct {
 	ID        string    `json:"id" doc:"Content address; also the immutable cache key of its URL"`

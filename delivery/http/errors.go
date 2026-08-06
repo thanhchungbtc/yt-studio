@@ -25,6 +25,7 @@ func mapError(err error) error {
 	case errors.Is(err, repository.ErrNotFound),
 		errors.Is(err, entity.ErrAssetNotFound),
 		errors.Is(err, entity.ErrSettingNotFound),
+		errors.Is(err, entity.ErrPresetNotFound),
 		errors.Is(err, entity.ErrTaskNotFound),
 		errors.Is(err, scheduler.ErrUnknownVideo),
 		errors.Is(err, scheduler.ErrUnknownTask):
@@ -33,6 +34,7 @@ func mapError(err error) error {
 		errors.Is(err, entity.ErrInvalidSlug),
 		errors.Is(err, entity.ErrInvalidRef),
 		errors.Is(err, entity.ErrInvalidSetting),
+		errors.Is(err, entity.ErrInvalidPreset),
 		errors.Is(err, entity.ErrInvalidChannel),
 		errors.Is(err, entity.ErrInvalidVideo),
 		errors.Is(err, entity.ErrInvalidChapter),

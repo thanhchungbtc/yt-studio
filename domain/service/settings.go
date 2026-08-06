@@ -192,18 +192,37 @@ func (s *Settings) GateEnabled(g entity.GateKind) bool {
 	return s.Bool(key)
 }
 
-// Set validates, persists and caches a new value.
+// Check reports whether a value would be accepted for a key, without writing it.
+//
+// It exists for the writes that come in a batch: a preset names half a dozen
+// rows, and applying four of them before the fifth turns out to be illegal
+// leaves the pipeline half on one set of backends and half on another. Because
+// validation is pure, the whole patch can be proved first and only then written.
+func (s *Settings) Check(key entity.SettingKey, value string) error {
+	_, err := s.candidate(key, value)
+	return err
+}
+
+// candidate builds the row a write would produce and validates it.
 //
 // The constraint is checked here rather than in the store, because the store
 // reads its row from the database and the legal values are not in there.
-func (s *Settings) Set(ctx context.Context, key entity.SettingKey, value string) (entity.Setting, error) {
+func (s *Settings) candidate(key entity.SettingKey, value string) (entity.Setting, error) {
 	current, err := s.Get(key)
 	if err != nil {
 		return entity.Setting{}, err
 	}
-	candidate := s.constrain(current)
-	candidate.Value = value
-	if err := candidate.Validate(); err != nil {
+	row := s.constrain(current)
+	row.Value = value
+	if err := row.Validate(); err != nil {
+		return entity.Setting{}, err
+	}
+	return row, nil
+}
+
+// Set validates, persists and caches a new value.
+func (s *Settings) Set(ctx context.Context, key entity.SettingKey, value string) (entity.Setting, error) {
+	if _, err := s.candidate(key, value); err != nil {
 		return entity.Setting{}, err
 	}
 

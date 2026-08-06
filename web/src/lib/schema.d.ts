@@ -129,6 +129,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List settings presets
+         * @description Named patches over the settings table, one per set of provider backends this build can serve.
+         */
+        get: operations["listPresets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/presets/{name}/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply a settings preset
+         * @description Writes every row the preset names, after validating all of them; returns only the rows that changed. Applies to the next task, so a video already running finishes on whichever backend each of its remaining tasks resolves at dispatch.
+         */
+        post: operations["applyPreset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/{key}": {
         parameters: {
             query?: never;
@@ -442,6 +482,15 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ApplyPresetOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ApplyPresetOutputBody.json
+             */
+            readonly $schema?: string;
+            settings: components["schemas"]["SettingDTO"][];
+        };
         AssetDTO: {
             chapterId?: string;
             /** Format: date-time */
@@ -679,6 +728,26 @@ export interface components {
             pool: "llm" | "tts" | "image" | "compose" | "cache" | "upload";
             /** Format: int64 */
             queued: number;
+        };
+        PresetDTO: {
+            description: string;
+            name: string;
+            title: string;
+            /** @description The rows this preset writes, in the order it writes them; rows it does not name are left alone */
+            values: components["schemas"]["PresetValueDTO"][];
+        };
+        PresetValueDTO: {
+            key: string;
+            value: string;
+        };
+        PresetsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/PresetsOutputBody.json
+             */
+            readonly $schema?: string;
+            presets: components["schemas"]["PresetDTO"][];
         };
         RegenerateIconInputBody: {
             /**
@@ -1296,6 +1365,67 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SettingsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    listPresets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresetsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    applyPreset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Preset name, e.g. mock */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplyPresetOutputBody"];
                 };
             };
             /** @description Error */

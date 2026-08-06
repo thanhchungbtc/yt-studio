@@ -366,6 +366,12 @@ func (c *serveCmd) Run() error {
 	if err := settings.Load(ctx); err != nil {
 		return err
 	}
+	// Every built-in preset is proved against what was just registered, so one
+	// naming a backend that has since been renamed fails here rather than when an
+	// operator clicks it and half the ports move.
+	if err := app.CheckPresets(settings); err != nil {
+		return err
+	}
 	if parsed, err := app.ParseLogLevel(settings.String(entity.SettingLogLevel)); err == nil {
 		level.Set(parsed)
 	}

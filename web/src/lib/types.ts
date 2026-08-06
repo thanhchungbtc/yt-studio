@@ -188,6 +188,23 @@ export interface Setting {
   updatedAt: string
 }
 
+export interface PresetValue {
+  key: string
+  value: string
+}
+
+/**
+ * A named patch over the settings table. It carries the rows it would write and
+ * says nothing about whether it is the one in force — that is a comparison
+ * against the settings table, made where both sides are already in hand.
+ */
+export interface Preset {
+  name: string
+  title: string
+  description: string
+  values: PresetValue[]
+}
+
 export interface Asset {
   id: string
   videoId: string

@@ -5,6 +5,8 @@ import type {
   Chapter,
   Metadata,
   PoolStat,
+  Preset,
+  PresetValue,
   SchedulerStatus,
   Setting,
   Style,
@@ -43,6 +45,8 @@ type Assertions = [
   Matches<Schemas['PoolStatDTO'], PoolStat>,
   Matches<Schemas['SchedulerStatusDTO'], SchedulerStatus>,
   Matches<Schemas['SettingDTO'], Setting>,
+  Matches<Schemas['PresetValueDTO'], PresetValue>,
+  Matches<Schemas['PresetDTO'], Preset>,
   Matches<Schemas['AssetDTO'], Asset>,
 ]
 
