@@ -40,8 +40,8 @@ type Options struct {
 	Rows int
 }
 
-// Builder implements provider.ThumbnailBuilder.
-type Builder struct {
+// Renderer implements provider.ThumbnailRenderer.
+type Renderer struct {
 	store provider.AssetStore
 	dir   string
 	opts  func() Options
@@ -50,16 +50,16 @@ type Builder struct {
 	fonts fontCache
 }
 
-var _ provider.ThumbnailBuilder = (*Builder)(nil)
+var _ provider.ThumbnailRenderer = (*Renderer)(nil)
 
 // New wires the renderer against a resources directory.
-func New(store provider.AssetStore, resources string, opts func() Options, log *slog.Logger) *Builder {
-	return &Builder{store: store, dir: resources, opts: opts, log: log}
+func New(store provider.AssetStore, resources string, opts func() Options, log *slog.Logger) *Renderer {
+	return &Renderer{store: store, dir: resources, opts: opts, log: log}
 }
 
 // Check reports whether the fixed resources are in place, so an operator learns
 // at startup rather than from a parked task forty minutes in.
-func (b *Builder) Check() error {
+func (b *Renderer) Check() error {
 	opts := b.options()
 	if _, err := b.background(); err != nil {
 		return err
@@ -70,8 +70,8 @@ func (b *Builder) Check() error {
 	return nil
 }
 
-// Build renders exactly one thumbnail.
-func (b *Builder) Build(ctx context.Context, req provider.ThumbnailRequest) (entity.AssetID, error) {
+// Render renders exactly one thumbnail.
+func (b *Renderer) Render(ctx context.Context, req provider.ThumbnailRequest) (entity.AssetID, error) {
 	opts := b.options()
 	font, err := b.face(opts.Font)
 	if err != nil {
@@ -114,7 +114,7 @@ func (b *Builder) Build(ctx context.Context, req provider.ThumbnailRequest) (ent
 	return stored.ID, nil
 }
 
-func (b *Builder) options() Options {
+func (b *Renderer) options() Options {
 	opts := Options{}
 	if b.opts != nil {
 		opts = b.opts()
@@ -137,7 +137,7 @@ func (b *Builder) options() Options {
 // resampling a quarter-megabyte photograph is by far the most expensive thing
 // here and the answer never differs: one backdrop, one frame, for the life of
 // the process.
-func (b *Builder) background() (*image.RGBA, error) {
+func (b *Renderer) background() (*image.RGBA, error) {
 	path := filepath.Join(b.dir, backgroundFileName)
 
 	backdropsMu.Lock()
@@ -182,7 +182,7 @@ func loadBackground(path string) (*image.RGBA, error) {
 
 // face parses the configured typeface. A font that will not parse is the
 // operator's to fix, so it is unavailable rather than retryable.
-func (b *Builder) face(name string) (*sfnt.Font, error) {
+func (b *Renderer) face(name string) (*sfnt.Font, error) {
 	path := filepath.Join(b.dir, "fonts", name)
 	parsed, err := b.fonts.load(path)
 	if err != nil {
@@ -192,11 +192,11 @@ func (b *Builder) face(name string) (*sfnt.Font, error) {
 }
 
 // drawGrid places every cell and paints its icon and caption.
-func (b *Builder) drawGrid(
+func (b *Renderer) drawGrid(
 	ctx context.Context,
 	canvas *image.RGBA,
 	font *sfnt.Font,
-	cells []provider.ThumbnailIconCell,
+	cells []provider.IconCell,
 	grid grid,
 ) error {
 	if len(cells) == 0 {
@@ -228,7 +228,7 @@ func (b *Builder) drawGrid(
 
 // icon decodes one stored icon. Each is a small square, so this is the one
 // place here where reading a whole file into memory is the honest thing to do.
-func (b *Builder) icon(ctx context.Context, id entity.AssetID) (image.Image, error) {
+func (b *Renderer) icon(ctx context.Context, id entity.AssetID) (image.Image, error) {
 	if id == "" {
 		return nil, errors.New("thumbnail: a cell has no icon")
 	}

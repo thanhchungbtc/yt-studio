@@ -32,7 +32,7 @@ type shortLLM struct {
 	asked    int
 }
 
-var _ provider.LLMProvider = (*shortLLM)(nil)
+var _ provider.LLM = (*shortLLM)(nil)
 
 func (l *shortLLM) Blueprint(ctx context.Context, req provider.BlueprintRequest) (provider.Blueprint, error) {
 	l.asked = req.ChapterCount

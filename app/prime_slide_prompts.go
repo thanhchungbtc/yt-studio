@@ -17,7 +17,7 @@ import (
 func PrimeSlidePrompts(
 	ctx context.Context,
 	t entity.Task,
-	llm provider.LLMProvider,
+	llm provider.LLM,
 ) entity.TaskOutcome {
 	prompts, err := llm.SlidePrompts(ctx, t.VideoID)
 	if err != nil {

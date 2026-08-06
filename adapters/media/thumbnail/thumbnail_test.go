@@ -55,7 +55,7 @@ func sharedStore(t *testing.T) *assetstore.FS {
 	return store
 }
 
-func newBuilder(t *testing.T, opts thumbnail.Options) (*thumbnail.Builder, *assetstore.FS) {
+func newBuilder(t *testing.T, opts thumbnail.Options) (*thumbnail.Renderer, *assetstore.FS) {
 	t.Helper()
 	store := sharedStore(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -64,23 +64,23 @@ func newBuilder(t *testing.T, opts thumbnail.Options) (*thumbnail.Builder, *asse
 
 // grid generates real icons through the mock backend, which is the shape the
 // icon tasks hand the renderer.
-func grid(t *testing.T, store provider.AssetStore, captions ...string) []provider.ThumbnailIconCell {
+func grid(t *testing.T, store provider.AssetStore, captions ...string) []provider.IconCell {
 	t.Helper()
 	icons := media.NewIcon(store)
-	cells := make([]provider.ThumbnailIconCell, 0, len(captions))
+	cells := make([]provider.IconCell, 0, len(captions))
 	for i, caption := range captions {
-		id, err := icons.Icon(context.Background(), provider.ThumbnailIconRequest{
+		id, err := icons.Generate(context.Background(), provider.IconRequest{
 			VideoID: "v1", Index: i, Prompt: "a stone archway — " + caption, Size: 96,
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		cells = append(cells, provider.ThumbnailIconCell{Caption: caption, IconAssetID: id})
+		cells = append(cells, provider.IconCell{Caption: caption, IconAssetID: id})
 	}
 	return cells
 }
 
-func tenCells(t *testing.T, store provider.AssetStore) []provider.ThumbnailIconCell {
+func tenCells(t *testing.T, store provider.AssetStore) []provider.IconCell {
 	t.Helper()
 	return grid(t, store,
 		"Unconscious Rules", "Mind Control", "Self Birth", "Trauma Embodied", "Self Needs",
@@ -89,7 +89,7 @@ func tenCells(t *testing.T, store provider.AssetStore) []provider.ThumbnailIconC
 
 // A builder over its own empty store, for the cases that are about a builder
 // rather than about an image.
-func bareBuilder(t *testing.T, dir string) *thumbnail.Builder {
+func bareBuilder(t *testing.T, dir string) *thumbnail.Renderer {
 	t.Helper()
 	store, err := assetstore.New(t.TempDir())
 	if err != nil {
@@ -133,20 +133,20 @@ var baseline = sync.OnceValues(func() (entity.AssetID, error) {
 		return "", err
 	}
 	icons := media.NewIcon(store)
-	cells := make([]provider.ThumbnailIconCell, 0, len(baselineCaptions))
+	cells := make([]provider.IconCell, 0, len(baselineCaptions))
 	for i, caption := range baselineCaptions {
-		id, iconErr := icons.Icon(context.Background(), provider.ThumbnailIconRequest{
+		id, iconErr := icons.Generate(context.Background(), provider.IconRequest{
 			VideoID: "v1", Index: i, Prompt: "a stone archway — " + caption, Size: 96,
 		})
 		if iconErr != nil {
 			return "", iconErr
 		}
-		cells = append(cells, provider.ThumbnailIconCell{Caption: caption, IconAssetID: id})
+		cells = append(cells, provider.IconCell{Caption: caption, IconAssetID: id})
 	}
 	b := thumbnail.New(store, dir,
 		func() thumbnail.Options { return thumbnail.Options{Rows: 2} },
 		slog.New(slog.NewTextHandler(io.Discard, nil)))
-	return b.Build(context.Background(), provider.ThumbnailRequest{
+	return b.Render(context.Background(), provider.ThumbnailRequest{
 		VideoID: "v1", VideoRef: "DSS-1", Title: "The Long Winter",
 		Headline: "BIGGEST PSYCHOLOGY IDEAS", Cells: cells,
 	})
@@ -179,7 +179,7 @@ func TestRendersAtYouTubeSize(t *testing.T) {
 func TestRenderIsDeterministic(t *testing.T) {
 	t.Parallel()
 	b, _ := newBuilder(t, thumbnail.Options{Rows: 2})
-	again, err := b.Build(context.Background(), baselineRequest(t))
+	again, err := b.Render(context.Background(), baselineRequest(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +201,7 @@ func TestEveryInputReachesTheImage(t *testing.T) {
 	changedHeadline.Headline = "REAL CHEAT CODEX"
 
 	changedCaption := base
-	changedCaption.Cells = append([]provider.ThumbnailIconCell(nil), cells...)
+	changedCaption.Cells = append([]provider.IconCell(nil), cells...)
 	changedCaption.Cells[len(cells)-1].Caption = "Something Else"
 
 	fewerCells := base
@@ -212,7 +212,7 @@ func TestEveryInputReachesTheImage(t *testing.T) {
 		"caption":  changedCaption,
 		"cells":    fewerCells,
 	} {
-		id, err := b.Build(context.Background(), req)
+		id, err := b.Render(context.Background(), req)
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
@@ -230,7 +230,7 @@ func TestRowsChangeTheLayout(t *testing.T) {
 	one := thumbnail.New(store, repoResources(t),
 		func() thumbnail.Options { return thumbnail.Options{Rows: 1} },
 		slog.New(slog.NewTextHandler(io.Discard, nil)))
-	single, err := one.Build(context.Background(), baselineRequest(t))
+	single, err := one.Render(context.Background(), baselineRequest(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +247,7 @@ func TestEmptyHeadlineStillRenders(t *testing.T) {
 
 	bare := baselineRequest(t)
 	bare.Headline = ""
-	id, err := b.Build(context.Background(), bare)
+	id, err := b.Render(context.Background(), bare)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +262,7 @@ func TestMissingFontIsUnavailable(t *testing.T) {
 	t.Parallel()
 	b, store := newBuilder(t, thumbnail.Options{Font: "NoSuchFont.ttf", Rows: 2})
 
-	_, err := b.Build(context.Background(), provider.ThumbnailRequest{
+	_, err := b.Render(context.Background(), provider.ThumbnailRequest{
 		VideoID: "v1", Headline: "ANYTHING", Cells: tenCells(t, store),
 	})
 	if !errors.Is(err, provider.ErrUnavailable) {
@@ -287,9 +287,9 @@ func TestCellWithNoIconIsRejected(t *testing.T) {
 	t.Parallel()
 	b, _ := newBuilder(t, thumbnail.Options{Rows: 2})
 
-	if _, err := b.Build(context.Background(), provider.ThumbnailRequest{
+	if _, err := b.Render(context.Background(), provider.ThumbnailRequest{
 		VideoID: "v1", Headline: "ANYTHING",
-		Cells: []provider.ThumbnailIconCell{{Caption: "Mind Control"}},
+		Cells: []provider.IconCell{{Caption: "Mind Control"}},
 	}); err == nil {
 		t.Fatal("Build with an iconless cell returned no error")
 	}
@@ -302,7 +302,7 @@ func TestLongHeadlineWraps(t *testing.T) {
 
 	long := baselineRequest(t)
 	long.Headline = "FIFTY BROKEN BELIEFS ABOUT THE MIND AND EVERYTHING ELSE"
-	id, err := b.Build(context.Background(), long)
+	id, err := b.Render(context.Background(), long)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +338,7 @@ func TestDump(t *testing.T) {
 		t.Skip("set YTS_THUMB_DUMP to write a sample thumbnail")
 	}
 	b, store := newBuilder(t, thumbnail.Options{Rows: 2})
-	id, err := b.Build(context.Background(), provider.ThumbnailRequest{
+	id, err := b.Render(context.Background(), provider.ThumbnailRequest{
 		VideoID: "v1", VideoRef: "DSS-1", Title: "The Long Winter",
 		Headline: "BIGGEST PSYCHOLOGY IDEAS", Cells: tenCells(t, store),
 	})

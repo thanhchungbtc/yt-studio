@@ -91,7 +91,7 @@ type Client struct {
 	cache    map[entity.VideoID][]provider.SlidePrompt
 }
 
-var _ provider.LLMProvider = (*Client)(nil)
+var _ provider.LLM = (*Client)(nil)
 
 // New validates the configuration and wires the client. It touches no network:
 // wiring cannot fail because a gateway is down, and Check is what reports that.

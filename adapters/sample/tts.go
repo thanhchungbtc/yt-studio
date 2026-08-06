@@ -22,7 +22,7 @@ type TTS struct {
 	store provider.AssetStore
 }
 
-var _ provider.TTSProvider = (*TTS)(nil)
+var _ provider.TTS = (*TTS)(nil)
 
 // NewTTS wires the backend to the shared library.
 func NewTTS(lib *Library, store provider.AssetStore) *TTS {

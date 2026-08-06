@@ -258,7 +258,7 @@ func TestGenerateIconIsSquare(t *testing.T) {
 	a := newAPI(t)
 	client := newClient(t, a, testKey, 1344, 768)
 
-	id, err := runware.NewIcon(client).Icon(context.Background(), provider.ThumbnailIconRequest{
+	id, err := runware.NewIcon(client).Generate(context.Background(), provider.IconRequest{
 		Index:  3,
 		Prompt: "a lever, thick-stroke white line art",
 		Size:   768,
@@ -280,7 +280,7 @@ func TestGenerateIconFallsBackToADefaultSize(t *testing.T) {
 	a := newAPI(t)
 	client := newClient(t, a, testKey, 1344, 768)
 
-	if _, err := runware.NewIcon(client).Icon(context.Background(), provider.ThumbnailIconRequest{
+	if _, err := runware.NewIcon(client).Generate(context.Background(), provider.IconRequest{
 		Prompt: "a lever",
 	}); err != nil {
 		t.Fatalf("Icon: %v", err)
@@ -310,8 +310,8 @@ func TestStoredAssetsAreAddressedByKind(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
-	icon, err := runware.NewIcon(client).Icon(context.Background(),
-		provider.ThumbnailIconRequest{Prompt: "a lever", Size: 512})
+	icon, err := runware.NewIcon(client).Generate(context.Background(),
+		provider.IconRequest{Prompt: "a lever", Size: 512})
 	if err != nil {
 		t.Fatalf("Icon: %v", err)
 	}

@@ -41,12 +41,12 @@ type TaskRunner struct {
 	chapterFields repository.ChapterFieldWriter
 	assets        repository.AssetWriter
 	store         provider.AssetStore
-	llm           provider.LLMProvider
-	tts           provider.TTSProvider
-	slides        provider.SlideProvider
+	llm           provider.LLM
+	tts           provider.TTS
+	slides        provider.SlideGenerator
 	composer      provider.VideoComposer
-	thumbnails    provider.ThumbnailBuilder
-	icons         provider.ThumbnailIconGenerator
+	thumbnails    provider.ThumbnailRenderer
+	icons         provider.IconGenerator
 	uploader      provider.Uploader
 	notifier      ChapterNotifier
 	expander      GraphExpander
@@ -71,12 +71,12 @@ func NewTaskRunner(
 	chapterFields repository.ChapterFieldWriter,
 	assets repository.AssetWriter,
 	store provider.AssetStore,
-	llm provider.LLMProvider,
-	tts provider.TTSProvider,
-	slides provider.SlideProvider,
+	llm provider.LLM,
+	tts provider.TTS,
+	slides provider.SlideGenerator,
 	composer provider.VideoComposer,
-	thumbnails provider.ThumbnailBuilder,
-	icons provider.ThumbnailIconGenerator,
+	thumbnails provider.ThumbnailRenderer,
+	icons provider.IconGenerator,
 	uploader provider.Uploader,
 	notifier ChapterNotifier,
 	expander GraphExpander,

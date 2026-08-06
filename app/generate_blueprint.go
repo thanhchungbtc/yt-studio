@@ -28,7 +28,7 @@ func GenerateBlueprint(
 	t entity.Task,
 	videos repository.VideoReader,
 	channels repository.ChannelReader,
-	llm provider.LLMProvider,
+	llm provider.LLM,
 	chapterWriter repository.ChapterWriter,
 	videoFields repository.VideoFieldWriter,
 	assets repository.AssetWriter,

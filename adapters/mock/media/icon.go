@@ -25,15 +25,15 @@ type Icon struct {
 	store provider.AssetStore
 }
 
-var _ provider.ThumbnailIconGenerator = (*Icon)(nil)
+var _ provider.IconGenerator = (*Icon)(nil)
 
 // NewIcon constructs the mock.
 func NewIcon(store provider.AssetStore) *Icon {
 	return &Icon{store: store}
 }
 
-// Icon generates exactly one tile's icon.
-func (i *Icon) Icon(ctx context.Context, req provider.ThumbnailIconRequest) (entity.AssetID, error) {
+// Generate generates exactly one tile's icon.
+func (i *Icon) Generate(ctx context.Context, req provider.IconRequest) (entity.AssetID, error) {
 	if req.Prompt == "" {
 		return "", errors.New("mock icon: an icon needs a prompt")
 	}

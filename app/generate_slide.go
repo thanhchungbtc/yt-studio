@@ -21,7 +21,7 @@ func GenerateSlide(
 	t entity.Task,
 	videos repository.VideoReader,
 	chapters repository.ChapterReader,
-	slides provider.SlideProvider,
+	slides provider.SlideGenerator,
 	fields repository.ChapterFieldWriter,
 	assets repository.AssetWriter,
 	store provider.AssetStore,

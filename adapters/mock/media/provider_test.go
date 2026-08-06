@@ -113,18 +113,18 @@ func TestGeneratedStillIsAValidPNG(t *testing.T) {
 
 // grid builds the cells a thumbnail is assembled from: one generated icon per
 // caption, which is the shape the icon tasks will hand the builder.
-func grid(t *testing.T, store provider.AssetStore, captions ...string) []provider.ThumbnailIconCell {
+func grid(t *testing.T, store provider.AssetStore, captions ...string) []provider.IconCell {
 	t.Helper()
 	icons := mock2.NewIcon(store)
-	cells := make([]provider.ThumbnailIconCell, 0, len(captions))
+	cells := make([]provider.IconCell, 0, len(captions))
 	for i, caption := range captions {
-		id, err := icons.Icon(context.Background(), provider.ThumbnailIconRequest{
+		id, err := icons.Generate(context.Background(), provider.IconRequest{
 			VideoID: "v1", Index: i, Prompt: "a stone archway, side view — " + caption, Size: 256,
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		cells = append(cells, provider.ThumbnailIconCell{Caption: caption, IconAssetID: id})
+		cells = append(cells, provider.IconCell{Caption: caption, IconAssetID: id})
 	}
 	return cells
 }
@@ -138,7 +138,7 @@ func TestThumbnailIsAValidPNGAtYouTubeSize(t *testing.T) {
 	thumbnails := mock2.NewThumbnail(store)
 	cells := grid(t, store, "Mind Control", "Split Personality", "Inner Critic", "False Memory")
 
-	id, err := thumbnails.Build(ctx, provider.ThumbnailRequest{
+	id, err := thumbnails.Render(ctx, provider.ThumbnailRequest{
 		VideoID: "v1", VideoRef: "DSS-1", Title: "The Long Winter",
 		Headline: "50 BROKEN BELIEFS", Cells: cells,
 	})
@@ -161,7 +161,7 @@ func TestThumbnailIsAValidPNGAtYouTubeSize(t *testing.T) {
 
 	// The headline is the reason the task exists: a thumbnail built without it
 	// must not land on the same content address as one built with it.
-	plain, err := thumbnails.Build(ctx, provider.ThumbnailRequest{
+	plain, err := thumbnails.Render(ctx, provider.ThumbnailRequest{
 		VideoID: "v1", VideoRef: "DSS-1", Title: "The Long Winter", Cells: cells,
 	})
 	if err != nil {
@@ -184,16 +184,16 @@ func TestThumbnailRendersEveryCell(t *testing.T) {
 		VideoID: "v1", VideoRef: "DSS-1", Headline: "REAL CHEAT CODES",
 		Cells: grid(t, store, "Mirroring", "Give First", "Speak Slow", "Smile First"),
 	}
-	first, err := thumbnails.Build(ctx, base)
+	first, err := thumbnails.Render(ctx, base)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Only the last cell's caption differs.
 	changed := base
-	changed.Cells = append([]provider.ThumbnailIconCell(nil), base.Cells...)
+	changed.Cells = append([]provider.IconCell(nil), base.Cells...)
 	changed.Cells[len(changed.Cells)-1].Caption = "Smile Very Much First"
-	second, err := thumbnails.Build(ctx, changed)
+	second, err := thumbnails.Render(ctx, changed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,9 +207,9 @@ func TestThumbnailRejectsACellWithNoIcon(t *testing.T) {
 	t.Parallel()
 	thumbnails := mock2.NewThumbnail(newStore(t))
 
-	if _, err := thumbnails.Build(context.Background(), provider.ThumbnailRequest{
+	if _, err := thumbnails.Render(context.Background(), provider.ThumbnailRequest{
 		VideoID: "v1", VideoRef: "DSS-1", Headline: "50 BROKEN BELIEFS",
-		Cells: []provider.ThumbnailIconCell{{Caption: "Mind Control"}},
+		Cells: []provider.IconCell{{Caption: "Mind Control"}},
 	}); err == nil {
 		t.Fatal("Build with an iconless cell returned no error")
 	}
@@ -223,10 +223,10 @@ func TestIconIsASquarePNG(t *testing.T) {
 	store := newStore(t)
 	icons := mock2.NewIcon(store)
 
-	req := provider.ThumbnailIconRequest{
+	req := provider.IconRequest{
 		VideoID: "v1", Index: 3, Prompt: "a pocket watch, side view", Size: 256,
 	}
-	id, err := icons.Icon(ctx, req)
+	id, err := icons.Generate(ctx, req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +248,7 @@ func TestIconIsASquarePNG(t *testing.T) {
 	// are the same file, and content addressing should say so.
 	elsewhere := req
 	elsewhere.Index = 7
-	same, err := icons.Icon(ctx, elsewhere)
+	same, err := icons.Generate(ctx, elsewhere)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +256,7 @@ func TestIconIsASquarePNG(t *testing.T) {
 		t.Fatal("the same prompt at a different index produced different bytes")
 	}
 
-	different, err := icons.Icon(ctx, provider.ThumbnailIconRequest{
+	different, err := icons.Generate(ctx, provider.IconRequest{
 		VideoID: "v1", Index: 3, Prompt: "a coil of rope, top-down view", Size: 256,
 	})
 	if err != nil {

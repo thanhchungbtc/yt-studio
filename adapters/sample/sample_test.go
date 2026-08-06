@@ -151,7 +151,7 @@ func TestIconIsStoredSquareAtTheRequestedSize(t *testing.T) {
 	store := newStore(t)
 	icons := sample.NewIcon(lib, store)
 
-	id, err := icons.Icon(context.Background(), provider.ThumbnailIconRequest{
+	id, err := icons.Generate(context.Background(), provider.IconRequest{
 		VideoID: "v1", Index: 0, Prompt: "a pocket watch", Size: 256,
 	})
 	if err != nil {
@@ -174,7 +174,7 @@ func TestIconIsStoredSquareAtTheRequestedSize(t *testing.T) {
 	}
 
 	// The size is part of what was asked for, so it is part of the address.
-	larger, err := icons.Icon(context.Background(), provider.ThumbnailIconRequest{
+	larger, err := icons.Generate(context.Background(), provider.IconRequest{
 		VideoID: "v1", Index: 0, Prompt: "a pocket watch", Size: 512,
 	})
 	if err != nil {
@@ -194,7 +194,7 @@ func TestIconsDifferAcrossTheGrid(t *testing.T) {
 
 	seen := make(map[entity.AssetID]int, 4)
 	for index := range 4 {
-		id, err := icons.Icon(context.Background(), provider.ThumbnailIconRequest{
+		id, err := icons.Generate(context.Background(), provider.IconRequest{
 			VideoID: "v1", Index: index, Prompt: "anything", Size: 128,
 		})
 		if err != nil {
@@ -269,7 +269,7 @@ func TestMissingMediaIsUnavailableAndNotRetryable(t *testing.T) {
 	if _, err := sample.NewSlide(lib, store).Generate(context.Background(), provider.SlideRequest{}); !errors.Is(err, provider.ErrUnavailable) {
 		t.Fatalf("Generate() = %v, want ErrUnavailable", err)
 	}
-	if _, err := sample.NewIcon(lib, store).Icon(context.Background(), provider.ThumbnailIconRequest{}); !errors.Is(err, provider.ErrUnavailable) {
+	if _, err := sample.NewIcon(lib, store).Generate(context.Background(), provider.IconRequest{}); !errors.Is(err, provider.ErrUnavailable) {
 		t.Fatalf("Icon() = %v, want ErrUnavailable", err)
 	}
 }

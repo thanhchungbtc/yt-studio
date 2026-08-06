@@ -30,7 +30,7 @@ type LLM struct {
 	cache   map[entity.VideoID][]provider.SlidePrompt
 }
 
-var _ provider.LLMProvider = (*LLM)(nil)
+var _ provider.LLM = (*LLM)(nil)
 
 // NewLLM constructs the mock. Every dependency is an explicit parameter.
 func NewLLM(store provider.AssetStore, lookup ContextLookup) *LLM {

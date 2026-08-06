@@ -27,7 +27,7 @@ type TTS struct {
 	store provider.AssetStore
 }
 
-var _ provider.TTSProvider = (*TTS)(nil)
+var _ provider.TTS = (*TTS)(nil)
 
 // NewTTS constructs the mock.
 func NewTTS(store provider.AssetStore) *TTS {

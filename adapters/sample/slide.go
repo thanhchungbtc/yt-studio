@@ -16,7 +16,7 @@ type Slide struct {
 	png   pngCache
 }
 
-var _ provider.SlideProvider = (*Slide)(nil)
+var _ provider.SlideGenerator = (*Slide)(nil)
 
 // NewSlide wires the backend to the shared library.
 func NewSlide(lib *Library, store provider.AssetStore) *Slide {

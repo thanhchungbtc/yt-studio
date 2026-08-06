@@ -1,28 +1,10 @@
-// Package provider declares the ports through which the server reaches
-// generative backends and the store their output lands in.
-//
-// The rule every backend obeys: a provider call never spans more than one unit
-// of work. No multi-chapter calls, no fan-out inside a provider. All
-// orchestration — lifecycle, the cross-chapter DAG, resource pools, retries,
-// persistence, gates — belongs to the server.
-//
-// The one deliberate exception is image prompting, where coalescing happens
-// behind the interface: the DAG still holds N individually retryable
-// per-chapter tasks and the provider serves them from one primed batch.
 package provider
 
 import (
 	"context"
-	"errors"
 
 	"github.com/tbui/yt-studio/domain/entity"
 )
-
-// ErrUnavailable reports a backend that cannot run at all: a missing binary, a
-// missing resource file, an unconfigured credential. It is worth its own
-// sentinel because it is the one provider failure that retrying cannot fix —
-// the operator has to change something first.
-var ErrUnavailable = errors.New("backend unavailable")
 
 // BlueprintRequest asks for the chapter outline of a whole video.
 type BlueprintRequest struct {
@@ -143,8 +125,8 @@ type ThumbnailPlan struct {
 	AssetID entity.AssetID
 }
 
-// LLMProvider covers every text generation step of the pipeline.
-type LLMProvider interface {
+// LLM covers every text generation step of the pipeline.
+type LLM interface {
 	Blueprint(ctx context.Context, req BlueprintRequest) (Blueprint, error)
 	Script(ctx context.Context, req ScriptRequest) (Script, error)
 	// SlidePrompts returns every chapter's prompts for one video. Callers are the

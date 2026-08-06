@@ -18,7 +18,7 @@ func GenerateScript(
 	t entity.Task,
 	videos repository.VideoReader,
 	chapters repository.ChapterReader,
-	llm provider.LLMProvider,
+	llm provider.LLM,
 	fields repository.ChapterFieldWriter,
 	assets repository.AssetWriter,
 	store provider.AssetStore,

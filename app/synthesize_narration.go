@@ -18,7 +18,7 @@ func SynthesizeNarration(
 	t entity.Task,
 	videos repository.VideoReader,
 	chapters repository.ChapterReader,
-	tts provider.TTSProvider,
+	tts provider.TTS,
 	fields repository.ChapterFieldWriter,
 	assets repository.AssetWriter,
 	store provider.AssetStore,

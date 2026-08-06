@@ -5,8 +5,8 @@
 // because a task is not finished until the file is in the asset store, and a
 // URL that expires is not an artifact.
 //
-// Two backends are built on the same call — slides (provider.SlideProvider) and
-// thumbnail icons (provider.ThumbnailIconGenerator) — because they differ only
+// Two backends are built on the same call — slides (provider.SlideGenerator) and
+// thumbnail icons (provider.IconGenerator) — because they differ only
 // in geometry and in which asset kind the bytes land under. They stay separate
 // types because the ports are selected independently, so the two can be pointed
 // at different backends without this package changing shape.

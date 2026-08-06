@@ -27,7 +27,7 @@ type Slide struct {
 	store provider.AssetStore
 }
 
-var _ provider.SlideProvider = (*Slide)(nil)
+var _ provider.SlideGenerator = (*Slide)(nil)
 
 // NewSlide constructs the mock.
 func NewSlide(store provider.AssetStore) *Slide {

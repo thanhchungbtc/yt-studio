@@ -18,7 +18,7 @@ import (
 func ResolveSlidePrompts(
 	ctx context.Context,
 	t entity.Task,
-	llm provider.LLMProvider,
+	llm provider.LLM,
 	chapters repository.ChapterReader,
 	fields repository.ChapterFieldWriter,
 ) entity.TaskOutcome {

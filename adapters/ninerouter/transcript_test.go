@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tbui/yt-studio/adapters/llm/ninerouter"
+	"github.com/tbui/yt-studio/adapters/ninerouter"
 	"github.com/tbui/yt-studio/domain/provider"
 )
 

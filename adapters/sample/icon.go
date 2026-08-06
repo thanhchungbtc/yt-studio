@@ -25,20 +25,20 @@ type Icon struct {
 	png   pngCache
 }
 
-var _ provider.ThumbnailIconGenerator = (*Icon)(nil)
+var _ provider.IconGenerator = (*Icon)(nil)
 
 // NewIcon wires the backend to the shared library.
 func NewIcon(lib *Library, store provider.AssetStore) *Icon {
 	return &Icon{lib: lib, store: store}
 }
 
-// Icon stores one tile's icon and returns its content address.
+// Generate stores one tile's icon and returns its content address.
 //
 // The file is chosen by cell index, so a grid drawn from a set at least as
 // large shows a different picture in every tile — which is the point of running
 // the pipeline on samples at all: a grid of ten copies of one image says
 // nothing about whether the layout works.
-func (i *Icon) Icon(ctx context.Context, req provider.ThumbnailIconRequest) (entity.AssetID, error) {
+func (i *Icon) Generate(ctx context.Context, req provider.IconRequest) (entity.AssetID, error) {
 	icons, err := i.lib.Icons()
 	if err != nil {
 		return "", err

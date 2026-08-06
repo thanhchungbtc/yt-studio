@@ -23,7 +23,7 @@ func GenerateThumbnailPlan(
 	t entity.Task,
 	videos repository.VideoReader,
 	chapters repository.ChapterReader,
-	llm provider.LLMProvider,
+	llm provider.LLM,
 	videoFields repository.VideoFieldWriter,
 	assets repository.AssetWriter,
 	store provider.AssetStore,

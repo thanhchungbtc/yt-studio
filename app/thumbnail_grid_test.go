@@ -25,7 +25,7 @@ type planLLM struct {
 	asked        int
 }
 
-var _ provider.LLMProvider = (*planLLM)(nil)
+var _ provider.LLM = (*planLLM)(nil)
 
 func (l *planLLM) Blueprint(context.Context, provider.BlueprintRequest) (provider.Blueprint, error) {
 	return provider.Blueprint{}, errors.New("not used")
@@ -200,10 +200,10 @@ func TestThumbnailPlanRejectsABlankCaption(t *testing.T) {
 // recordingIcons captures what the icon task asked its backend for.
 type recordingIcons struct {
 	store    provider.AssetStore
-	requests []provider.ThumbnailIconRequest
+	requests []provider.IconRequest
 }
 
-func (r *recordingIcons) Icon(ctx context.Context, req provider.ThumbnailIconRequest) (entity.AssetID, error) {
+func (r *recordingIcons) Generate(ctx context.Context, req provider.IconRequest) (entity.AssetID, error) {
 	r.requests = append(r.requests, req)
 	stored, err := r.store.Put(ctx, entity.AssetKindThumbnailIcon,
 		bytes.NewReader([]byte(req.Prompt)))

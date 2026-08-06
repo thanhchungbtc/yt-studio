@@ -30,7 +30,7 @@ func GenerateThumbnailIcon(
 	ctx context.Context,
 	t entity.Task,
 	videos repository.VideoReader,
-	icons provider.ThumbnailIconGenerator,
+	icons provider.IconGenerator,
 	videoFields repository.VideoFieldWriter,
 	assets repository.AssetWriter,
 	store provider.AssetStore,
@@ -54,7 +54,7 @@ func GenerateThumbnailIcon(
 		}
 	}
 
-	assetID, err := icons.Icon(ctx, provider.ThumbnailIconRequest{
+	assetID, err := icons.Generate(ctx, provider.IconRequest{
 		VideoID: video.ID,
 		Index:   t.Index,
 		Prompt:  joinStyle(cells[t.Index].Prompt, opts.Style),

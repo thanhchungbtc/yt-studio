@@ -68,37 +68,37 @@ func (p *port[T]) names() []string {
 
 // Registry owns every provider port's backends.
 type Registry struct {
-	llm           *port[provider.LLMProvider]
-	tts           *port[provider.TTSProvider]
-	slide         *port[provider.SlideProvider]
+	llm           *port[provider.LLM]
+	tts           *port[provider.TTS]
+	slide         *port[provider.SlideGenerator]
 	composer      *port[provider.VideoComposer]
-	thumbnail     *port[provider.ThumbnailBuilder]
-	thumbnailIcon *port[provider.ThumbnailIconGenerator]
+	thumbnail     *port[provider.ThumbnailRenderer]
+	thumbnailIcon *port[provider.IconGenerator]
 	uploader      *port[provider.Uploader]
 }
 
 // New creates an empty registry bound to a settings reader.
 func New(selected Selected) *Registry {
 	return &Registry{
-		llm:       newPort[provider.LLMProvider](entity.SettingProviderLLM, selected),
-		tts:       newPort[provider.TTSProvider](entity.SettingProviderTTS, selected),
-		slide:     newPort[provider.SlideProvider](entity.SettingProviderSlide, selected),
+		llm:       newPort[provider.LLM](entity.SettingProviderLLM, selected),
+		tts:       newPort[provider.TTS](entity.SettingProviderTTS, selected),
+		slide:     newPort[provider.SlideGenerator](entity.SettingProviderSlide, selected),
 		composer:  newPort[provider.VideoComposer](entity.SettingProviderComposer, selected),
-		thumbnail: newPort[provider.ThumbnailBuilder](entity.SettingProviderThumbnail, selected),
-		thumbnailIcon: newPort[provider.ThumbnailIconGenerator](
+		thumbnail: newPort[provider.ThumbnailRenderer](entity.SettingProviderThumbnail, selected),
+		thumbnailIcon: newPort[provider.IconGenerator](
 			entity.SettingProviderThumbnailIcon, selected),
 		uploader: newPort[provider.Uploader](entity.SettingProviderUploader, selected),
 	}
 }
 
 // RegisterLLM adds a named blueprint, script, prompt and metadata backend.
-func (r *Registry) RegisterLLM(name string, impl provider.LLMProvider) { r.llm.register(name, impl) }
+func (r *Registry) RegisterLLM(name string, impl provider.LLM) { r.llm.register(name, impl) }
 
 // RegisterTTS adds a named narration backend.
-func (r *Registry) RegisterTTS(name string, impl provider.TTSProvider) { r.tts.register(name, impl) }
+func (r *Registry) RegisterTTS(name string, impl provider.TTS) { r.tts.register(name, impl) }
 
 // RegisterSlide adds a named slide backend.
-func (r *Registry) RegisterSlide(name string, impl provider.SlideProvider) {
+func (r *Registry) RegisterSlide(name string, impl provider.SlideGenerator) {
 	r.slide.register(name, impl)
 }
 
@@ -108,12 +108,12 @@ func (r *Registry) RegisterComposer(name string, impl provider.VideoComposer) {
 }
 
 // RegisterThumbnail adds a named thumbnail backend.
-func (r *Registry) RegisterThumbnail(name string, impl provider.ThumbnailBuilder) {
+func (r *Registry) RegisterThumbnail(name string, impl provider.ThumbnailRenderer) {
 	r.thumbnail.register(name, impl)
 }
 
 // RegisterThumbnailIcon adds a named backend for the thumbnail's grid icons.
-func (r *Registry) RegisterThumbnailIcon(name string, impl provider.ThumbnailIconGenerator) {
+func (r *Registry) RegisterThumbnailIcon(name string, impl provider.IconGenerator) {
 	r.thumbnailIcon.register(name, impl)
 }
 
@@ -147,25 +147,25 @@ type PromptCache interface {
 }
 
 // LLM returns the router for the LLM port.
-func (r *Registry) LLM() provider.LLMProvider { return llmRouter{r.llm} }
+func (r *Registry) LLM() provider.LLM { return llmRouter{r.llm} }
 
 // PromptCache returns the invalidator for whichever LLM backend is selected.
 func (r *Registry) PromptCache() PromptCache { return llmRouter{r.llm} }
 
 // TTS returns the router for the narration port.
-func (r *Registry) TTS() provider.TTSProvider { return ttsRouter{r.tts} }
+func (r *Registry) TTS() provider.TTS { return ttsRouter{r.tts} }
 
 // Slide returns the router for the slide port.
-func (r *Registry) Slide() provider.SlideProvider { return slideRouter{r.slide} }
+func (r *Registry) Slide() provider.SlideGenerator { return slideRouter{r.slide} }
 
 // Composer returns the router for the composition port.
 func (r *Registry) Composer() provider.VideoComposer { return composerRouter{r.composer} }
 
 // Thumbnail returns the router for the thumbnail port.
-func (r *Registry) Thumbnail() provider.ThumbnailBuilder { return thumbnailRouter{r.thumbnail} }
+func (r *Registry) Thumbnail() provider.ThumbnailRenderer { return thumbnailRouter{r.thumbnail} }
 
 // ThumbnailIcon returns the router for the thumbnail icon port.
-func (r *Registry) ThumbnailIcon() provider.ThumbnailIconGenerator {
+func (r *Registry) ThumbnailIcon() provider.IconGenerator {
 	return thumbnailIconRouter{r.thumbnailIcon}
 }
 
@@ -175,9 +175,9 @@ func (r *Registry) Uploader() provider.Uploader { return uploaderRouter{r.upload
 // The routers below are the only hand-written glue selection needs: one
 // delegating method per port method, resolving the backend per call.
 
-type llmRouter struct{ p *port[provider.LLMProvider] }
+type llmRouter struct{ p *port[provider.LLM] }
 
-var _ provider.LLMProvider = llmRouter{}
+var _ provider.LLM = llmRouter{}
 
 func (r llmRouter) Blueprint(ctx context.Context, req provider.BlueprintRequest) (provider.Blueprint, error) {
 	impl, err := r.p.pick()
@@ -232,9 +232,9 @@ func (r llmRouter) Forget(videoID entity.VideoID) {
 	}
 }
 
-type ttsRouter struct{ p *port[provider.TTSProvider] }
+type ttsRouter struct{ p *port[provider.TTS] }
 
-var _ provider.TTSProvider = ttsRouter{}
+var _ provider.TTS = ttsRouter{}
 
 func (r ttsRouter) Speak(ctx context.Context, req provider.SpeakRequest) (entity.AssetID, error) {
 	impl, err := r.p.pick()
@@ -244,9 +244,11 @@ func (r ttsRouter) Speak(ctx context.Context, req provider.SpeakRequest) (entity
 	return impl.Speak(ctx, req)
 }
 
-type slideRouter struct{ p *port[provider.SlideProvider] }
+type slideRouter struct {
+	p *port[provider.SlideGenerator]
+}
 
-var _ provider.SlideProvider = slideRouter{}
+var _ provider.SlideGenerator = slideRouter{}
 
 func (r slideRouter) Generate(ctx context.Context, req provider.SlideRequest) (entity.AssetID, error) {
 	impl, err := r.p.pick()
@@ -277,31 +279,29 @@ func (r composerRouter) Concat(ctx context.Context, req provider.ConcatRequest) 
 }
 
 type thumbnailRouter struct {
-	p *port[provider.ThumbnailBuilder]
+	p *port[provider.ThumbnailRenderer]
 }
 
-var _ provider.ThumbnailBuilder = thumbnailRouter{}
+var _ provider.ThumbnailRenderer = thumbnailRouter{}
 
-func (r thumbnailRouter) Build(ctx context.Context, req provider.ThumbnailRequest) (entity.AssetID, error) {
+func (r thumbnailRouter) Render(ctx context.Context, req provider.ThumbnailRequest) (entity.AssetID, error) {
 	impl, err := r.p.pick()
 	if err != nil {
 		return "", err
 	}
-	return impl.Build(ctx, req)
+	return impl.Render(ctx, req)
 }
 
-type thumbnailIconRouter struct {
-	p *port[provider.ThumbnailIconGenerator]
-}
+type thumbnailIconRouter struct{ p *port[provider.IconGenerator] }
 
-var _ provider.ThumbnailIconGenerator = thumbnailIconRouter{}
+var _ provider.IconGenerator = thumbnailIconRouter{}
 
-func (r thumbnailIconRouter) Icon(ctx context.Context, req provider.ThumbnailIconRequest) (entity.AssetID, error) {
+func (r thumbnailIconRouter) Generate(ctx context.Context, req provider.IconRequest) (entity.AssetID, error) {
 	impl, err := r.p.pick()
 	if err != nil {
 		return "", err
 	}
-	return impl.Icon(ctx, req)
+	return impl.Generate(ctx, req)
 }
 
 type uploaderRouter struct{ p *port[provider.Uploader] }

@@ -12,7 +12,7 @@ import (
 // Slide generates one chapter slide per call.
 type Slide struct{ c *Client }
 
-var _ provider.SlideProvider = (*Slide)(nil)
+var _ provider.SlideGenerator = (*Slide)(nil)
 
 // NewSlide wires the slide backend to a client.
 func NewSlide(c *Client) *Slide { return &Slide{c: c} }

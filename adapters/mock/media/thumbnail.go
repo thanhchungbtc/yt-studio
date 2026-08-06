@@ -34,15 +34,15 @@ type Thumbnail struct {
 	store provider.AssetStore
 }
 
-var _ provider.ThumbnailBuilder = (*Thumbnail)(nil)
+var _ provider.ThumbnailRenderer = (*Thumbnail)(nil)
 
 // NewThumbnail constructs the mock.
 func NewThumbnail(store provider.AssetStore) *Thumbnail {
 	return &Thumbnail{store: store}
 }
 
-// Build renders exactly one thumbnail.
-func (b *Thumbnail) Build(ctx context.Context, req provider.ThumbnailRequest) (entity.AssetID, error) {
+// Render renders exactly one thumbnail.
+func (b *Thumbnail) Render(ctx context.Context, req provider.ThumbnailRequest) (entity.AssetID, error) {
 
 	img := image.NewRGBA(image.Rect(0, 0, thumbnailWidth, thumbnailHeight))
 	fill(img, color.RGBA{R: 8, G: 8, B: 10, A: 255})
@@ -118,7 +118,7 @@ func drawHeadline(img *image.RGBA, headline string) int {
 // bars a caption under each. Rows and columns are the mock's own arithmetic:
 // the real layout is CSS, and this only has to be close enough to see whether
 // the icons and captions line up.
-func (b *Thumbnail) drawGrid(ctx context.Context, img *image.RGBA, cells []provider.ThumbnailIconCell, top int) error {
+func (b *Thumbnail) drawGrid(ctx context.Context, img *image.RGBA, cells []provider.IconCell, top int) error {
 	if len(cells) == 0 {
 		// A headline on its own is a thin thumbnail, not a broken one. Whether an
 		// empty grid is worth publishing is the server's judgement, not a

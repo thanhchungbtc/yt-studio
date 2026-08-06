@@ -26,7 +26,7 @@ func BuildThumbnail(
 	ctx context.Context,
 	t entity.Task,
 	videos repository.VideoReader,
-	thumbnails provider.ThumbnailBuilder,
+	thumbnails provider.ThumbnailRenderer,
 	videoFields repository.VideoFieldWriter,
 	assets repository.AssetWriter,
 	store provider.AssetStore,
@@ -44,7 +44,7 @@ func BuildThumbnail(
 		return classify(err)
 	}
 
-	assetID, err := thumbnails.Build(ctx, provider.ThumbnailRequest{
+	assetID, err := thumbnails.Render(ctx, provider.ThumbnailRequest{
 		VideoID:  video.ID,
 		VideoRef: video.Ref,
 		Title:    video.Metadata.Title,
@@ -72,7 +72,7 @@ func BuildThumbnail(
 // them succeeded without recording anything. Another attempt here would read
 // the same empty slot, so it fails permanently and waits: re-running the icon
 // is what fixes it, and that marks this task stale and brings it back.
-func thumbnailCells(video entity.Video) ([]provider.ThumbnailIconCell, error) {
+func thumbnailCells(video entity.Video) ([]provider.IconCell, error) {
 	if video.ThumbnailPlan == nil {
 		return nil, fmt.Errorf("%w: video has no thumbnail plan", ErrValidation)
 	}
@@ -81,12 +81,12 @@ func thumbnailCells(video entity.Video) ([]provider.ThumbnailIconCell, error) {
 		return nil, fmt.Errorf("%w: %d icons for %d cells",
 			ErrValidation, len(video.ThumbnailIconAssetIDs), len(planned))
 	}
-	cells := make([]provider.ThumbnailIconCell, 0, len(planned))
+	cells := make([]provider.IconCell, 0, len(planned))
 	for i, c := range planned {
 		if video.ThumbnailIconAssetIDs[i] == "" {
 			return nil, fmt.Errorf("%w: cell %d has no icon", ErrValidation, i)
 		}
-		cells = append(cells, provider.ThumbnailIconCell{
+		cells = append(cells, provider.IconCell{
 			Caption:     c.Caption,
 			IconAssetID: video.ThumbnailIconAssetIDs[i],
 		})

@@ -105,7 +105,7 @@ type Client struct {
 	store provider.AssetStore
 }
 
-var _ provider.TTSProvider = (*Client)(nil)
+var _ provider.TTS = (*Client)(nil)
 
 // New validates the configuration and wires the client. It touches no network:
 // wiring cannot fail because a server is down, and Check is what reports that.
