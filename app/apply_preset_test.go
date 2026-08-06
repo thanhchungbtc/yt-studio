@@ -70,7 +70,7 @@ func (s *settingsStore) UpsertSettings(context.Context, []entity.Setting) error 
 // registered is what main.go's registry reports: the backends this build has.
 func registered() map[entity.SettingKey][]string {
 	return map[entity.SettingKey][]string{
-		entity.SettingProviderLLM:           {"9router", "mock"},
+		entity.SettingProviderLLM:           {"9router", "mock", "sample"},
 		entity.SettingProviderTTS:           {"mock", "sample", "xtts"},
 		entity.SettingProviderSlide:         {"mock", "runware", "sample"},
 		entity.SettingProviderComposer:      {"ffmpeg", "mock"},
@@ -126,10 +126,10 @@ func TestApplyPresetWritesEveryRowItNames(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ApplyPreset: %v", err)
 	}
-	// The table seeds every provider at mock, so sample moves all but the two it
-	// leaves there.
-	if len(changed) != 5 {
-		t.Fatalf("changed %d rows, want 5: %v", len(changed), changed)
+	// The table seeds every provider at mock, so sample moves all but the
+	// uploader, which is the one port it has no backend of its own for.
+	if len(changed) != 6 {
+		t.Fatalf("changed %d rows, want 6: %v", len(changed), changed)
 	}
 	for _, want := range [][2]string{
 		{"provider.tts", "sample"},
@@ -137,7 +137,7 @@ func TestApplyPresetWritesEveryRowItNames(t *testing.T) {
 		{"provider.composer", "ffmpeg"},
 		{"provider.thumbnail", "builtin"},
 		{"provider.thumbnail_icon", "sample"},
-		{"provider.llm", "mock"},
+		{"provider.llm", "sample"},
 		{"provider.uploader", "mock"},
 	} {
 		if got := settings.String(entity.SettingKey(want[0])); got != want[1] {

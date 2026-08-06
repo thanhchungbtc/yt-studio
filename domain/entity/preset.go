@@ -114,9 +114,12 @@ func BuiltinPresets() []Preset {
 			//nolint:lll // one description, one line
 			Description: "The real compose and render path over canned content: ffmpeg cuts the clips and the built-in renderer draws the thumbnail, from sample narration and stills. This is what exercises the layout and the encoder without spending anything.",
 			Values: []PresetValue{
-				// There is no sample LLM: the words are the cheap part, and a canned
-				// blueprint would not have the chapter count the graph is built from.
-				{SettingProviderLLM, "mock"},
+				// The sample LLM is the generated one under a second name: the words
+				// are the cheap part, and a canned blueprint would not have the
+				// chapter count the graph is built from. Named `sample` rather than
+				// `mock` so this preset reads as one answer instead of six plus an
+				// exception.
+				{SettingProviderLLM, "sample"},
 				{SettingProviderTTS, "sample"},
 				{SettingProviderSlide, "sample"},
 				{SettingProviderComposer, "ffmpeg"},

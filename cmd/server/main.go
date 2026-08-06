@@ -342,7 +342,9 @@ func (c *serveCmd) Run() error {
 	}
 
 	providers := registry.New(settings.String)
-	providers.RegisterLLM("mock", llmmock.NewLLM(assets, videoContextLookup(store)))
+	lookup := videoContextLookup(store)
+	providers.RegisterLLM("mock", llmmock.NewLLM(assets, mockLookup(lookup)))
+	providers.RegisterLLM("sample", sample.NewLLM(assets, lookup))
 	providers.RegisterLLM("9router", nineRouter)
 	providers.RegisterTTS("mock", mediamock.NewTTS(assets))
 	providers.RegisterTTS("sample", sample.NewTTS(samples, assets))
@@ -614,23 +616,33 @@ func chapterOutline(
 	return out, nil
 }
 
-func videoContextLookup(store *sqlite.Store) llmmock.ContextLookup {
-	return func(ctx context.Context, videoID entity.VideoID) (llmmock.VideoContext, error) {
+func videoContextLookup(store *sqlite.Store) sample.ContextLookup {
+	return func(ctx context.Context, videoID entity.VideoID) (sample.VideoContext, error) {
 		v, err := store.VideoByID(ctx, videoID)
 		if err != nil {
-			return llmmock.VideoContext{}, err
+			return sample.VideoContext{}, err
 		}
 		outline, err := chapterOutline(ctx, store, videoID)
 		if err != nil {
-			return llmmock.VideoContext{}, err
+			return sample.VideoContext{}, err
 		}
-		return llmmock.VideoContext{
+		return sample.VideoContext{
 			Ref:              v.Ref,
 			Title:            v.Title,
 			Topic:            v.Topic,
 			Chapters:         outline,
 			SlidesPerChapter: v.SlidesPerChapter,
 		}, nil
+	}
+}
+
+// mockLookup adapts the lookup to the mock's own context type. The two structs
+// are field for field the same, so the conversion costs nothing; this exists
+// only while both backends are registered, and goes when the mock does.
+func mockLookup(f sample.ContextLookup) llmmock.ContextLookup {
+	return func(ctx context.Context, videoID entity.VideoID) (llmmock.VideoContext, error) {
+		vc, err := f(ctx, videoID)
+		return llmmock.VideoContext(vc), err
 	}
 }
 
