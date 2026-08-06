@@ -3,6 +3,7 @@ package entity
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -55,6 +56,28 @@ const (
 	SettingRunwareWidth  SettingKey = "runware.width"
 	SettingRunwareHeight SettingKey = "runware.height"
 
+	// The xtts narration knobs. They are rows rather than flags for the same
+	// reason the models above are: a voice and a speed are found by listening to
+	// a chapter and trying the next value, not by restarting the server.
+	//
+	// SettingTTSVoice names a voice file on the AllTalk server, e.g.
+	// female_01.wav. Empty is meaningful — it lets the server use its own default
+	// rather than failing a chapter over a name this end cannot verify.
+	SettingTTSVoice SettingKey = "tts.voice"
+	// SettingTTSLanguage is the two-letter code the model is asked to speak in.
+	SettingTTSLanguage SettingKey = "tts.language"
+	// SettingTTSSpeed is the playback rate asked of the server; 1.0 is unmodified.
+	// It is the one float in the table: the useful range is 0.5..2.0 and the
+	// interesting steps inside it are tenths, which an integer cannot express.
+	SettingTTSSpeed SettingKey = "tts.speed"
+	// SettingTTSChunkMinChars is the floor on a chunk's length in characters. The
+	// chunk count follows from it, so it sets the size of the pieces a chapter is
+	// synthesised in rather than their number.
+	SettingTTSChunkMinChars SettingKey = "tts.chunk.min_chars"
+	// SettingTTSChunkSilenceMillis is the pause inserted between chunks when they
+	// are rejoined, so a sentence boundary does not become an audible splice.
+	SettingTTSChunkSilenceMillis SettingKey = "tts.chunk.silence_ms"
+
 	SettingVideoDefaultChapters SettingKey = "video.default_chapter_count"
 	SettingVideoDefaultSlides   SettingKey = "video.default_slides_per_chapter"
 	// SettingVideoDefaultThumbnailCells seeds a new video's grid width. It is a
@@ -100,12 +123,13 @@ const (
 	SettingTypeInt    SettingType = "int"
 	SettingTypeBool   SettingType = "bool"
 	SettingTypeString SettingType = "string"
+	SettingTypeFloat  SettingType = "float"
 )
 
 // Valid reports whether the type is one of the known constants.
 func (t SettingType) Valid() bool {
 	switch t {
-	case SettingTypeInt, SettingTypeBool, SettingTypeString:
+	case SettingTypeInt, SettingTypeBool, SettingTypeString, SettingTypeFloat:
 		return true
 	default:
 		return false
@@ -119,10 +143,12 @@ type Setting struct {
 	Type        SettingType
 	Group       string
 	Description string
-	// Min and Max bound integer settings; they are advisory to the UI and enforced
-	// by Validate.
-	Min int
-	Max int
+	// Min and Max bound numeric settings; they are advisory to the UI and enforced
+	// by Validate. They are float64 so one pair of bounds serves both int and
+	// float keys — a speed of 0.5..2.0 has no integer expression, and a second
+	// pair of fields would be one more thing to keep in step.
+	Min float64
+	Max float64
 	// Options constrains the value to a fixed set. It is deliberately not
 	// persisted: which backends exist is a property of the running binary, not of
 	// the database, so it is supplied at load time by whoever registered them. An
@@ -159,8 +185,21 @@ func (s Setting) Validate() error {
 		if err != nil {
 			return fmt.Errorf("%w %q: %q is not an integer", ErrInvalidSetting, s.Key, s.Value)
 		}
-		if s.Min != s.Max && (n < s.Min || n > s.Max) {
-			return fmt.Errorf("%w %q: %d is outside %d..%d", ErrInvalidSetting, s.Key, n, s.Min, s.Max)
+		if s.Min != s.Max && (float64(n) < s.Min || float64(n) > s.Max) {
+			return fmt.Errorf("%w %q: %d is outside %g..%g", ErrInvalidSetting, s.Key, n, s.Min, s.Max)
+		}
+	case SettingTypeFloat:
+		f, err := strconv.ParseFloat(s.Value, 64)
+		if err != nil {
+			return fmt.Errorf("%w %q: %q is not a number", ErrInvalidSetting, s.Key, s.Value)
+		}
+		// NaN fails every comparison below, so it would slip past a bounds check
+		// written as "outside the range" and reach a backend as a speed.
+		if math.IsNaN(f) || math.IsInf(f, 0) {
+			return fmt.Errorf("%w %q: %q is not a finite number", ErrInvalidSetting, s.Key, s.Value)
+		}
+		if s.Min != s.Max && (f < s.Min || f > s.Max) {
+			return fmt.Errorf("%w %q: %g is outside %g..%g", ErrInvalidSetting, s.Key, f, s.Min, s.Max)
 		}
 	case SettingTypeBool:
 		if _, err := strconv.ParseBool(s.Value); err != nil {
@@ -187,6 +226,15 @@ func (s Setting) Int() (int, error) {
 		return 0, fmt.Errorf("%w %q: %q is not an integer", ErrInvalidSetting, s.Key, s.Value)
 	}
 	return n, nil
+}
+
+// Float parses the value as a floating-point number.
+func (s Setting) Float() (float64, error) {
+	f, err := strconv.ParseFloat(s.Value, 64)
+	if err != nil {
+		return 0, fmt.Errorf("%w %q: %q is not a number", ErrInvalidSetting, s.Key, s.Value)
+	}
+	return f, nil
 }
 
 // Bool parses the value as a boolean.
@@ -269,6 +317,12 @@ func DefaultSettings() []Setting {
 		{Key: SettingRunwareModel, Value: "runware:100@1", Type: SettingTypeString, Group: "providers", Description: "Checkpoint the Runware backend draws with, as an AIR identifier, e.g. runware:100@1."},
 		{Key: SettingRunwareWidth, Value: "1344", Type: SettingTypeInt, Group: "providers", Min: 128, Max: 2048, Description: "Width slides are generated at. The composer frames them at 1344x768, so anything else is resampled."},
 		{Key: SettingRunwareHeight, Value: "768", Type: SettingTypeInt, Group: "providers", Min: 128, Max: 2048, Description: "Height slides are generated at. Most checkpoints require both edges to be a multiple of 64."},
+
+		{Key: SettingTTSVoice, Value: "", Type: SettingTypeString, Group: "providers", Optional: true, Description: "Voice file on the AllTalk server, e.g. female_01.wav. Empty lets the server pick its own default."},
+		{Key: SettingTTSLanguage, Value: "en", Type: SettingTypeString, Group: "providers", Description: "Two-letter code the narration model is asked to speak."},
+		{Key: SettingTTSSpeed, Value: "1.0", Type: SettingTypeFloat, Group: "providers", Min: 0.5, Max: 2.0, Description: "Playback rate asked of the narration server; 1.0 is unmodified."},
+		{Key: SettingTTSChunkMinChars, Value: "250", Type: SettingTypeInt, Group: "providers", Min: 50, Max: 5000, Description: "Floor on a narration chunk's length in characters. A chapter is synthesised in pieces at least this long."},
+		{Key: SettingTTSChunkSilenceMillis, Value: "200", Type: SettingTypeInt, Group: "providers", Min: 0, Max: 2000, Description: "Pause inserted between narration chunks when they are rejoined, so a sentence boundary is not an audible splice."},
 
 		{Key: SettingVideoDefaultChapters, Value: "50", Type: SettingTypeInt, Group: "video", Min: MinChapterCount, Max: MaxChapterCount, Description: "Chapters created for a new video when unspecified."},
 		{Key: SettingVideoDefaultSlides, Value: "2", Type: SettingTypeInt, Group: "video", Min: MinSlidesPerChapter, Max: MaxSlidesPerChapter, Description: "Slides generated per chapter when unspecified."},

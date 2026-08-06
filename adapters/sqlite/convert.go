@@ -192,8 +192,8 @@ func settingFromRow(r sqlcgen.Setting) entity.Setting {
 		Type:        entity.SettingType(r.Type),
 		Group:       r.Grp,
 		Description: r.Description,
-		Min:         int(r.MinValue),
-		Max:         int(r.MaxValue),
+		Min:         r.MinValue,
+		Max:         r.MaxValue,
 		UpdatedAt:   fromUnix(r.UpdatedAt),
 	}
 }

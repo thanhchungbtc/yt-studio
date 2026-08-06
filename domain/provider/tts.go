@@ -12,6 +12,8 @@ type SpeakRequest struct {
 	ChapterID entity.ChapterID
 	Ordinal   int
 	Text      string
+
+	ChapterTitle string
 }
 
 // TTS narrates one chapter per call.

@@ -30,6 +30,7 @@ import (
 	"github.com/tbui/yt-studio/adapters/provider/runware"
 	"github.com/tbui/yt-studio/adapters/provider/sample"
 	"github.com/tbui/yt-studio/adapters/provider/thumbnail"
+	"github.com/tbui/yt-studio/adapters/provider/tts"
 	"github.com/tbui/yt-studio/adapters/sqlite"
 	"github.com/tbui/yt-studio/app"
 	"github.com/tbui/yt-studio/cmd/server/internal/registry"
@@ -58,6 +59,8 @@ type bootstrap struct {
 	NineRouterKey string `help:"9router API key. A gateway running with auth off needs none." env:"NINEROUTER_KEY"`
 	//nolint:lll // one flag, one line
 	RunwareKey string `help:"Runware API key, for the runware image and thumbnail-icon backends." env:"RUNWARE_KEY"`
+	//nolint:lll // one flag, one line
+	XTTSURL string `help:"AllTalk/XTTS server root, for the xtts narration backend. The root only: no /api/tts-generate." default:"http://127.0.0.1:7851" env:"XTTS_URL"`
 	//nolint:lll // one flag, one line
 	Transcripts string `help:"Where each LLM prompt and response is written for inspection. Empty disables." default:"var/transcripts" env:"YTS_TRANSCRIPTS" type:"path"`
 	//nolint:lll // one flag, one line
@@ -323,11 +326,30 @@ func (c *serveCmd) Run() error {
 		return err
 	}
 
+	// Same again. A voice and a speed are found by listening to a chapter and
+	// trying the next value, so they are rows read per call rather than flags.
+	xttsClient, err := tts.New(tts.Config{
+		BaseURL: c.XTTSURL,
+		Options: func() tts.Options {
+			return tts.Options{
+				Voice:              settings.String(entity.SettingTTSVoice),
+				Language:           settings.String(entity.SettingTTSLanguage),
+				Speed:              settings.Float(entity.SettingTTSSpeed),
+				ChunkMinChars:      settings.Int(entity.SettingTTSChunkMinChars),
+				ChunkSilenceMillis: settings.Int(entity.SettingTTSChunkSilenceMillis),
+			}
+		},
+	}, assets)
+	if err != nil {
+		return err
+	}
+
 	providers := registry.New(settings.String)
 	providers.RegisterLLM("mock", llmmock.NewLLM(assets, videoContextLookup(store)))
 	providers.RegisterLLM("9router", nineRouter)
 	providers.RegisterTTS("mock", mediamock.NewTTS(assets))
 	providers.RegisterTTS("sample", sample.NewTTS(samples, assets))
+	providers.RegisterTTS("xtts", xttsClient)
 	providers.RegisterSlide("mock", mediamock.NewSlide(assets))
 	providers.RegisterSlide("sample", sample.NewSlide(samples, assets))
 	providers.RegisterSlide("runware", runware.NewSlide(runwareClient))
@@ -383,6 +405,16 @@ func (c *serveCmd) Run() error {
 			slog.String("model", runwareClient.Model()),
 			slog.Int("width", settings.Int(entity.SettingRunwareWidth)),
 			slog.Int("height", settings.Int(entity.SettingRunwareHeight)))
+	}
+	if err := xttsClient.Check(ctx); err != nil {
+		log.Info("xtts narration is not available",
+			slog.String("reason", err.Error()),
+			slog.String("url", c.XTTSURL))
+	} else {
+		log.Info("xtts narration is available",
+			slog.String("url", c.XTTSURL),
+			slog.String("voice", settings.String(entity.SettingTTSVoice)),
+			slog.Float64("speed", settings.Float(entity.SettingTTSSpeed)))
 	}
 
 	// --- scheduler ----------------------------------------------------------

@@ -550,6 +550,9 @@ function controlKind(setting: Setting): ControlKind {
     const bounded = setting.min !== setting.max
     return bounded && setting.max - setting.min <= 256 ? 'stepper' : 'number'
   }
+  // A float never gets the stepper: its useful steps are tenths, and a control
+  // that walks by one would take fifteen clicks to cross 0.5..2.0.
+  if (setting.type === 'float') return 'number'
   return setting.value.length > 44 ? 'textarea' : 'text'
 }
 
@@ -645,7 +648,7 @@ const SettingRow = memo(function SettingRow({
           </p>
 
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-subtle">
-            {setting.type === 'int' && setting.min !== setting.max && (
+            {(setting.type === 'int' || setting.type === 'float') && setting.min !== setting.max && (
               <span className="tabular">
                 {setting.min}–{setting.max}
               </span>
@@ -889,10 +892,11 @@ function SettingControl({
           id={id}
           aria-describedby={describedBy}
           value={value}
-          type={setting.type === 'int' ? 'number' : 'text'}
+          type={setting.type === 'int' || setting.type === 'float' ? 'number' : 'text'}
           spellCheck={false}
           autoComplete="off"
-          {...(setting.type === 'int' && setting.min !== setting.max
+          {...(setting.type === 'float' ? { step: 'any' } : {})}
+          {...((setting.type === 'int' || setting.type === 'float') && setting.min !== setting.max
             ? { min: setting.min, max: setting.max }
             : {})}
           onChange={(event) => onDraft(event.target.value)}

@@ -81,8 +81,8 @@ func (s *Store) UpsertSettings(ctx context.Context, settings []entity.Setting) e
 				Type:        string(st.Type),
 				Grp:         st.Group,
 				Description: st.Description,
-				MinValue:    int64(st.Min),
-				MaxValue:    int64(st.Max),
+				MinValue:    st.Min,
+				MaxValue:    st.Max,
 				UpdatedAt:   now,
 			}); err != nil {
 				return fmt.Errorf("upsert setting %q: %w", st.Key, err)

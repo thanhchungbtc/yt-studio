@@ -358,13 +358,13 @@ func statusFrom(s scheduler.Status) SchedulerStatusDTO {
 
 // SettingDTO is one runtime configuration row.
 type SettingDTO struct {
-	Key         string `json:"key"`
-	Value       string `json:"value"`
-	Type        string `json:"type" enum:"int,bool,string"`
-	Group       string `json:"group"`
-	Description string `json:"description"`
-	Min         int    `json:"min"`
-	Max         int    `json:"max"`
+	Key         string  `json:"key"`
+	Value       string  `json:"value"`
+	Type        string  `json:"type" enum:"int,bool,string,float"`
+	Group       string  `json:"group"`
+	Description string  `json:"description"`
+	Min         float64 `json:"min"`
+	Max         float64 `json:"max"`
 	//nolint:lll // one field, one line
 	Options   []string  `json:"options" doc:"The only accepted values, when the setting is constrained to a fixed set; empty means free-form"`
 	UpdatedAt time.Time `json:"updatedAt"`

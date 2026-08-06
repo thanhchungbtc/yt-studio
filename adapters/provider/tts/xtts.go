@@ -1,11 +1,28 @@
+// Package tts is the narration backend for an AllTalk/XTTS server.
+//
+// A chapter is spoken in pieces: the script is split on sentence boundaries
+// into chunks of at least tts.chunk.min_chars, each chunk is synthesised on its
+// own, and the WAVs are joined with a short silence between them. The splitting
+// is not an optimisation — XTTS degrades on long inputs, and a chapter is
+// thousands of words.
+//
+// The server answers a generation with a URL rather than audio, so every chunk
+// costs two requests: generate, then fetch what the generation reported. The
+// text chunking, WAV concatenation and the tail trim and fade are ported one
+// for one from the Python this replaces, because the output has to keep sounding
+// the same.
 package tts
 
 import (
 	"bytes"
 	"context"
-	"errors"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/tbui/yt-studio/domain/entity"
@@ -19,20 +36,22 @@ import (
 // will not change.
 var ErrUnavailable = fmt.Errorf("xtts: %w", provider.ErrUnavailable)
 
-// errNotImplemented is what every unwritten body returns. It is deliberately an
-// error rather than a zero value: a stub that quietly returned empty audio
-// would be stored, content-addressed and composed into a video before anyone
-// noticed the silence.
-var errNotImplemented = errors.New("xtts: not implemented")
-
 // The two endpoints this package uses, relative to Config.BaseURL. They are
-// named here rather than inline in the stubs that owe them, so the surface this
+// named here rather than inline at their call sites, so the surface this
 // package needs from a server is one list rather than a search.
-//
-//nolint:unused // consumed by synthesize and Check once those are written
 const (
 	endpointGenerate = "/api/tts-generate"
 	endpointReady    = "/api/ready"
+)
+
+// The defaults a half-configured client falls back to, so a missing settings
+// row costs a chapter its tuning rather than its narration. They are the values
+// the Python this replaces shipped with.
+const (
+	defaultLanguage           = "en"
+	defaultSpeed              = 1.0
+	defaultChunkMinChars      = 250
+	defaultChunkSilenceMillis = 200
 )
 
 // introOrdinal is the first chapter. Chapters are 1-based here (the Python this
@@ -101,10 +120,30 @@ var _ provider.TTS = (*Client)(nil)
 // New validates the configuration and wires the client. It touches no network:
 // wiring cannot fail because a server is down, and Check is what reports that.
 //
-// TODO: reject an empty or non-absolute BaseURL and a nil Options as
-// ErrUnavailable, the way ninerouter.New does — a bad flag should fail at
-// startup, not at the first chapter of fifty.
+// A bad BaseURL fails here rather than at the first chapter of fifty, which is
+// the whole value of checking it at startup.
 func New(cfg Config, store provider.AssetStore) (*Client, error) {
+	base := strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")
+	if base == "" {
+		return nil, fmt.Errorf("%w: base URL must not be empty", ErrUnavailable)
+	}
+	parsed, err := url.Parse(base)
+	if err != nil {
+		return nil, fmt.Errorf("%w: base URL %q: %w", ErrUnavailable, cfg.BaseURL, err)
+	}
+	if !parsed.IsAbs() || parsed.Host == "" {
+		return nil, fmt.Errorf("%w: base URL %q must be absolute, e.g. http://127.0.0.1:7851",
+			ErrUnavailable, cfg.BaseURL)
+	}
+	// The server root, not the generate endpoint. The Python this replaces
+	// configured the full endpoint and re-derived the root to resolve the audio
+	// URL against; taking the root means a path here is a mistake to catch, not a
+	// convention to remember.
+	if parsed.Path != "" {
+		return nil, fmt.Errorf("%w: base URL %q must be the server root, without %q",
+			ErrUnavailable, cfg.BaseURL, parsed.Path)
+	}
+	cfg.BaseURL = base
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = defaultTimeout
 	}
@@ -118,11 +157,33 @@ func New(cfg Config, store provider.AssetStore) (*Client, error) {
 // Check probes the server so an operator learns it is unreachable at startup
 // rather than from the first chapter of a fifty-chapter video.
 //
-// TODO: GET BaseURL+endpointReady and require the ready response. Do not cache
-// the result: a server that was down at boot may be up now, and a remembered
-// failure would keep saying otherwise.
-func (c *Client) Check(_ context.Context) error {
-	return errNotImplemented
+// The result is deliberately not cached: a server that was down at boot may be
+// up now, and a remembered failure would keep saying otherwise.
+func (c *Client) Check(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.cfg.BaseURL+endpointReady, http.NoBody)
+	if err != nil {
+		return fmt.Errorf("xtts: build ready request: %w", err)
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("%w: %s is unreachable: %w", ErrUnavailable, c.cfg.BaseURL, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, readyBodyLimit))
+	if err != nil {
+		return fmt.Errorf("xtts: read ready response: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return statusError(resp.StatusCode, resp.Status, body)
+	}
+	// AllTalk answers this endpoint with the bare word "Ready". Anything else
+	// means the process is up but the model is not loaded, which is exactly the
+	// state worth catching before fifty chapters queue behind it.
+	if !strings.EqualFold(strings.TrimSpace(string(body)), "Ready") {
+		return fmt.Errorf("%w: %s answered %q rather than Ready",
+			ErrUnavailable, c.cfg.BaseURL+endpointReady, snippet(string(body)))
+	}
+	return nil
 }
 
 // Speak narrates exactly one chapter and returns the audio's content address.
@@ -135,7 +196,7 @@ func (c *Client) Speak(ctx context.Context, req provider.SpeakRequest) (entity.A
 
 	text := normalize(req.Text)
 
-	text = prependChapterTitle(text, "", req.Ordinal == introOrdinal)
+	text = prependChapterTitle(text, req.ChapterTitle, req.Ordinal == introOrdinal)
 
 	chunks := chunkTextBySentence(text, opts.ChunkMinChars)
 	if len(chunks) == 0 {
@@ -164,51 +225,178 @@ func (c *Client) Speak(ctx context.Context, req provider.SpeakRequest) (entity.A
 	return stored.ID, nil
 }
 
-// synthesize speaks one chunk and returns the WAV bytes.
+// generateResponse is the half of the generate reply this package reads. The
+// server returns more; the audio's location is the only part that matters here.
+type generateResponse struct {
+	OutputFileURL string `json:"output_file_url"`
+}
+
+// synthesize speaks one chunk and returns its WAV bytes.
 //
-// TODO: two requests.
-//
-//  1. POST BaseURL+endpointGenerate, form-encoded, with text_input,
-//     character_voice_gen, language and speed. The response is JSON carrying
-//     output_file_url.
-//  2. GET that URL and read the body — that is the audio.
-//
-// Classify the failures on the way out, the way ninerouter.statusError does:
-// 4xx wraps ErrUnavailable, because a bad voice name is not fixed by a second
-// attempt; 429 and 5xx stay plain errors, which is what backoff is for.
-func (c *Client) synthesize(_ context.Context, _ string, _ Options) ([]byte, error) {
-	return nil, errNotImplemented
+// It is two requests, because the server answers with a URL rather than audio:
+// generate, then fetch what the generation reported.
+func (c *Client) synthesize(ctx context.Context, chunk string, opts Options) ([]byte, error) {
+	form := url.Values{
+		"text_input":          {chunk},
+		"character_voice_gen": {opts.Voice},
+		"language":            {opts.Language},
+		// Formatted without a trailing zero so 1.0 goes over as "1", which is what
+		// the Python sent and what the server's own examples use.
+		"speed": {strconv.FormatFloat(opts.Speed, 'g', -1, 64)},
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		c.cfg.BaseURL+endpointGenerate, strings.NewReader(form.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("xtts: build generate request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("xtts: generate: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, replyBodyLimit))
+	if err != nil {
+		return nil, fmt.Errorf("xtts: read generate response: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, statusError(resp.StatusCode, resp.Status, body)
+	}
+
+	var decoded generateResponse
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		return nil, fmt.Errorf("xtts: generate returned %q, which is not the expected JSON: %w",
+			snippet(string(body)), err)
+	}
+	if decoded.OutputFileURL == "" {
+		// A 200 with no URL is the server telling us it did nothing. Retrying is
+		// pointless until whatever refused the request is changed.
+		return nil, fmt.Errorf("%w: generate returned no output_file_url: %s",
+			ErrUnavailable, snippet(string(body)))
+	}
+
+	audioURL, err := c.audioURL(decoded.OutputFileURL)
+	if err != nil {
+		return nil, err
+	}
+	return c.fetchAudio(ctx, audioURL)
+}
+
+// fetchAudio downloads one generated file.
+func (c *Client) fetchAudio(ctx context.Context, audioURL string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, audioURL, http.NoBody)
+	if err != nil {
+		return nil, fmt.Errorf("xtts: build audio request: %w", err)
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("xtts: fetch audio: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, replyBodyLimit))
+		return nil, statusError(resp.StatusCode, resp.Status, body)
+	}
+	audio, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("xtts: read audio: %w", err)
+	}
+	if len(audio) == 0 {
+		// Empty bytes would store, content-address and compose into a video as
+		// silence, which is the one failure nobody notices until the render.
+		return nil, fmt.Errorf("%w: %s returned no audio", ErrUnavailable, audioURL)
+	}
+	return audio, nil
 }
 
 // audioURL resolves what a generation reported into something fetchable.
 //
-// TODO: output_file_url is a server-root-relative path on the builds this was
-// written against, but absolute URLs come back from others. Parse it: absolute
-// is used as it stands, relative is joined onto BaseURL. String concatenation
+// The builds this was written against answer with a server-root-relative path,
+// but others return an absolute URL. Parsing tells the two apart; concatenation
 // works until the day it silently does not.
-//
-//nolint:unused // consumed by synthesize once it is written
-func (c *Client) audioURL(_ string) (string, error) {
-	return "", errNotImplemented
+func (c *Client) audioURL(reported string) (string, error) {
+	parsed, err := url.Parse(reported)
+	if err != nil {
+		return "", fmt.Errorf("%w: output_file_url %q is not a URL: %w", ErrUnavailable, reported, err)
+	}
+	if parsed.IsAbs() {
+		return parsed.String(), nil
+	}
+	base, err := url.Parse(c.cfg.BaseURL)
+	if err != nil {
+		return "", fmt.Errorf("xtts: base URL %q: %w", c.cfg.BaseURL, err)
+	}
+	return base.ResolveReference(parsed).String(), nil
 }
 
-// options reads the current settings, with the zero value meaning "unset"
-// rather than "zero" for anything a server would reject.
+// options reads the current settings, falling back per field rather than
+// wholesale: a missing row should cost a chapter its tuning, not its narration.
 //
-// TODO: fall back to sane defaults for a nil Options func and for a zero Speed
-// or ChunkMinChars, so a half-configured client still speaks.
+// Voice is the deliberate exception — empty is passed through, because the
+// server picking its own default is better than this end guessing a filename it
+// cannot verify.
 func (c *Client) options() Options {
-	if c.cfg.Options == nil {
-		return Options{}
+	opts := Options{}
+	if c.cfg.Options != nil {
+		opts = c.cfg.Options()
 	}
-	return c.cfg.Options()
+	if opts.Language == "" {
+		opts.Language = defaultLanguage
+	}
+	if opts.Speed <= 0 {
+		opts.Speed = defaultSpeed
+	}
+	if opts.ChunkMinChars <= 0 {
+		opts.ChunkMinChars = defaultChunkMinChars
+	}
+	if opts.ChunkSilenceMillis < 0 {
+		opts.ChunkSilenceMillis = defaultChunkSilenceMillis
+	}
+	return opts
+}
+
+// statusError turns a non-200 into an error of the right retry class.
+//
+// The distinction is whether another attempt could land differently. A voice
+// that does not exist or a rejected language cannot, and three attempts would
+// only take three times as long to say so; a rate limit or a model still
+// loading is exactly what backoff exists for.
+func statusError(code int, status string, body []byte) error {
+	detail := snippet(string(body))
+	switch {
+	case code == http.StatusTooManyRequests, code >= 500:
+		return fmt.Errorf("xtts: %s: %s", status, detail)
+	case code >= 400:
+		return fmt.Errorf("%w: %s: %s", ErrUnavailable, status, detail)
+	default:
+		return fmt.Errorf("xtts: unexpected %s: %s", status, detail)
+	}
+}
+
+// The response-body ceilings. An error body is read to describe the failure,
+// not to be kept, and the ready probe answers with a single word.
+const (
+	replyBodyLimit = 64 << 10
+	readyBodyLimit = 1 << 10
+)
+
+// snippetLimit is how much of a response an error carries: enough to recognise
+// what came back, not so much that a log line becomes a transcript.
+const snippetLimit = 240
+
+// snippet flattens and truncates text for an error message.
+func snippet(s string) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if len(s) <= snippetLimit {
+		return s
+	}
+	return s[:snippetLimit] + "…"
 }
 
 // normalize is the only tidying done to a script before it is spoken: leading
 // and trailing whitespace, nothing else. What the model was told to write is
 // what the narrator reads.
-//
-// TODO: strip.
 func normalize(text string) string {
-	return text
+	return strings.TrimSpace(text)
 }

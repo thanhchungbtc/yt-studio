@@ -134,6 +134,19 @@ func (s *Settings) Int(key entity.SettingKey) int {
 	return n
 }
 
+// Float returns a floating-point setting.
+func (s *Settings) Float(key entity.SettingKey) float64 {
+	v, err := s.Get(key)
+	if err != nil {
+		return defaultFloat(key)
+	}
+	f, err := v.Float()
+	if err != nil {
+		return defaultFloat(key)
+	}
+	return f
+}
+
 // Bool returns a boolean setting.
 func (s *Settings) Bool(key entity.SettingKey) bool {
 	v, err := s.Get(key)
@@ -238,6 +251,18 @@ func defaultInt(key entity.SettingKey) int {
 		return 0
 	}
 	return n
+}
+
+func defaultFloat(key entity.SettingKey) float64 {
+	d, ok := defaultSetting(key)
+	if !ok {
+		return 0
+	}
+	f, err := strconv.ParseFloat(d.Value, 64)
+	if err != nil {
+		return 0
+	}
+	return f
 }
 
 func defaultBool(key entity.SettingKey) bool {

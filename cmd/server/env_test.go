@@ -109,8 +109,8 @@ func TestTheCommittedExampleParses(t *testing.T) {
 	// here would change this process's configuration. Holding them all already
 	// set is what makes the load a no-op.
 	for _, key := range []string{
-		"RUNWARE_KEY", "NINEROUTER_KEY", "NINEROUTER_URL", "YTS_DB", "YTS_ASSETS",
-		"YTS_RESOURCES", "YTS_LISTEN", "YTS_TRANSCRIPTS", "YTS_LOG_LEVEL",
+		"RUNWARE_KEY", "NINEROUTER_KEY", "NINEROUTER_URL", "XTTS_URL", "YTS_DB",
+		"YTS_ASSETS", "YTS_RESOURCES", "YTS_LISTEN", "YTS_TRANSCRIPTS", "YTS_LOG_LEVEL",
 	} {
 		t.Setenv(key, "held")
 	}

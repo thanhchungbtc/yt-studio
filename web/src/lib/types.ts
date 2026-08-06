@@ -178,7 +178,7 @@ export interface SchedulerStatus {
 export interface Setting {
   key: string
   value: string
-  type: 'int' | 'bool' | 'string'
+  type: 'int' | 'bool' | 'string' | 'float'
   group: string
   description: string
   min: number

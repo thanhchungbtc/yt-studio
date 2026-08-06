@@ -97,8 +97,8 @@ type UpsertSettingParams struct {
 	Type        string
 	Grp         string
 	Description string
-	MinValue    int64
-	MaxValue    int64
+	MinValue    float64
+	MaxValue    float64
 	UpdatedAt   int64
 }
 

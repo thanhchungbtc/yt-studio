@@ -762,14 +762,14 @@ export interface components {
             description: string;
             group: string;
             key: string;
-            /** Format: int64 */
+            /** Format: double */
             max: number;
-            /** Format: int64 */
+            /** Format: double */
             min: number;
             /** @description The only accepted values, when the setting is constrained to a fixed set; empty means free-form */
             options: string[];
             /** @enum {string} */
-            type: "int" | "bool" | "string";
+            type: "int" | "bool" | "string" | "float";
             /** Format: date-time */
             updatedAt: string;
             value: string;
