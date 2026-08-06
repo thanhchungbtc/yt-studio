@@ -4,2082 +4,2115 @@
  */
 
 export interface paths {
-    "/api/channels": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List channels */
-        get: operations["listChannels"];
-        put?: never;
-        /** Create a channel */
-        post: operations["createChannel"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/channels/{key}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get a channel by slug or id */
-        get: operations["getChannel"];
-        /** Update a channel */
-        put: operations["updateChannel"];
-        post?: never;
-        /** Delete a channel */
-        delete: operations["deleteChannel"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/chapters/{id}/script": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Edit a chapter's script */
-        put: operations["updateChapterScript"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/chapters/{id}/slides/{index}/generate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Redraw one slide from an edited prompt
-         * @description Writes the prompt at this index and re-runs that one slide task with it. Everything downstream keeps its artifact and is flagged stale, exactly as re-running the slide from the task table would. There is no way to save a prompt without generating from it: the stored prompt is always the one the current slide was drawn from.
-         */
-        post: operations["regenerateChapterSlide"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Liveness */
-        get: operations["getHealth"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/scheduler": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Pool utilisation and queue depth */
-        get: operations["getSchedulerStatus"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/settings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List runtime settings */
-        get: operations["listSettings"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/settings/presets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List settings presets
-         * @description Named patches over the settings table, one per set of provider backends this build can serve.
-         */
-        get: operations["listPresets"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/settings/presets/{name}/apply": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Apply a settings preset
-         * @description Writes every row the preset names, after validating all of them; returns only the rows that changed. Applies to the next task, so a video already running finishes on whichever backend each of its remaining tasks resolves at dispatch.
-         */
-        post: operations["applyPreset"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/settings/{key}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Update a runtime setting
-         * @description Applies immediately; pool limits, the SSE window and the log level need no restart.
-         */
-        put: operations["updateSetting"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/tasks": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List recently updated tasks */
-        get: operations["listRecentTasks"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/tasks/{id}/retry": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Retry a failed task and everything downstream
-         * @description For a task that failed. Everything below it is blocked rather than done, so it cascades and runs immediately. To redo a task that succeeded, use the re-run endpoint instead.
-         */
-        post: operations["retryTask"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/videos": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List videos */
-        get: operations["listVideos"];
-        put?: never;
-        /** Create a video */
-        post: operations["createVideo"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/videos/{key}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get a video by ref or id */
-        get: operations["getVideo"];
-        put?: never;
-        post?: never;
-        /** Delete a video */
-        delete: operations["deleteVideo"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/videos/{key}/approve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Approve the open gate */
-        post: operations["approveGate"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/videos/{key}/assets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List a video's artifacts */
-        get: operations["listVideoAssets"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/videos/{key}/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Cancel a video */
-        post: operations["cancelVideo"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/videos/{key}/chapters": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List a video's chapters */
-        get: operations["listChapters"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/videos/{key}/chapters/{ordinal}/retry": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Retry a failed chapter and everything downstream */
-        post: operations["retryChapter"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/videos/{key}/reject": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Reject the open gate */
-        post: operations["rejectGate"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/videos/{key}/rerun": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Re-run succeeded tasks, flagging their downstream stale
-         * @description Re-runs the named tasks and marks everything downstream of them stale instead of re-running it, so artifacts that may already have been reviewed are not discarded without a decision. Send dryRun to see what would be affected without changing anything.
-         */
-        post: operations["rerunTasks"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/videos/{key}/stale/accept": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Keep stale artifacts as they are
-         * @description Clears the stale flag without re-running anything. Staleness records that an input changed, not that the output is wrong; an operator who has checked the artifact can keep it.
-         */
-        post: operations["acceptStaleTasks"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/videos/{key}/stale/run": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Re-run stale tasks */
-        post: operations["runStaleTasks"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/videos/{key}/start": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Enqueue a video's DAG
-         * @description Enqueues the blueprint of a draft, or requeues whatever a cancelled or failed video stopped on. Idempotent: a video with nothing stopped is left alone.
-         */
-        post: operations["startVideo"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/videos/{key}/tasks": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List a video's whole DAG */
-        get: operations["listVideoTasks"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/videos/{key}/thumbnail/cells/{index}/generate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Redraw one thumbnail cell from an edited prompt
-         * @description Writes the prompt of this grid cell and re-runs that one icon task with it. The cell's caption is left alone, and so is the shared style clause, which is settings-sourced and appended at generation. The composed thumbnail below it keeps its artifact and is flagged stale — and since the upload gate rides on that thumbnail, redrawing a cell reopens the publish decision.
-         */
-        post: operations["regenerateThumbnailIcon"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
+  '/api/channels': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List channels */
+    get: operations['listChannels']
+    put?: never
+    /** Create a channel */
+    post: operations['createChannel']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/channels/{key}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get a channel by slug or id */
+    get: operations['getChannel']
+    /** Update a channel */
+    put: operations['updateChannel']
+    post?: never
+    /** Delete a channel */
+    delete: operations['deleteChannel']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/chapters/{id}/script': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /** Edit a chapter's script */
+    put: operations['updateChapterScript']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/chapters/{id}/slides/{index}/generate': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Redraw one slide from an edited prompt
+     * @description Writes the prompt at this index and re-runs that one slide task with it. Everything downstream keeps its artifact and is flagged stale, exactly as re-running the slide from the task table would. There is no way to save a prompt without generating from it: the stored prompt is always the one the current slide was drawn from.
+     */
+    post: operations['regenerateChapterSlide']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/health': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Liveness */
+    get: operations['getHealth']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/scheduler': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Pool utilisation and queue depth */
+    get: operations['getSchedulerStatus']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/settings': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List runtime settings */
+    get: operations['listSettings']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/settings/presets': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List settings presets
+     * @description Named patches over the settings table, one per set of provider backends this build can serve.
+     */
+    get: operations['listPresets']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/settings/presets/{name}/apply': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Apply a settings preset
+     * @description Writes every row the preset names, after validating all of them; returns only the rows that changed. Applies to the next task, so a video already running finishes on whichever backend each of its remaining tasks resolves at dispatch.
+     */
+    post: operations['applyPreset']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/settings/{key}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Update a runtime setting
+     * @description Applies immediately; pool limits, the SSE window and the log level need no restart.
+     */
+    put: operations['updateSetting']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/tasks': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List recently updated tasks */
+    get: operations['listRecentTasks']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/tasks/{id}/retry': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Retry a failed task and everything downstream
+     * @description For a task that failed. Everything below it is blocked rather than done, so it cascades and runs immediately. To redo a task that succeeded, use the re-run endpoint instead.
+     */
+    post: operations['retryTask']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/videos': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List videos */
+    get: operations['listVideos']
+    put?: never
+    /** Create a video */
+    post: operations['createVideo']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/videos/{key}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get a video by ref or id */
+    get: operations['getVideo']
+    put?: never
+    post?: never
+    /** Delete a video */
+    delete: operations['deleteVideo']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/videos/{key}/approve': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Approve the open gate */
+    post: operations['approveGate']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/videos/{key}/assets': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List a video's artifacts */
+    get: operations['listVideoAssets']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/videos/{key}/cancel': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Cancel a video */
+    post: operations['cancelVideo']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/videos/{key}/chapters': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List a video's chapters */
+    get: operations['listChapters']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/videos/{key}/chapters/{ordinal}/retry': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Retry a failed chapter and everything downstream */
+    post: operations['retryChapter']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/videos/{key}/reject': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Reject the open gate */
+    post: operations['rejectGate']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/videos/{key}/rerun': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Re-run succeeded tasks, flagging their downstream stale
+     * @description Re-runs the named tasks and marks everything downstream of them stale instead of re-running it, so artifacts that may already have been reviewed are not discarded without a decision. Send dryRun to see what would be affected without changing anything.
+     */
+    post: operations['rerunTasks']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/videos/{key}/stale/accept': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Keep stale artifacts as they are
+     * @description Clears the stale flag without re-running anything. Staleness records that an input changed, not that the output is wrong; an operator who has checked the artifact can keep it.
+     */
+    post: operations['acceptStaleTasks']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/videos/{key}/stale/run': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Re-run stale tasks */
+    post: operations['runStaleTasks']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/videos/{key}/start': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Enqueue a video's DAG
+     * @description Enqueues the blueprint of a draft, or requeues whatever a cancelled or failed video stopped on. Idempotent: a video with nothing stopped is left alone.
+     */
+    post: operations['startVideo']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/videos/{key}/tasks': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List a video's whole DAG */
+    get: operations['listVideoTasks']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/videos/{key}/thumbnail/cells/{index}/generate': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Redraw one thumbnail cell from an edited prompt
+     * @description Writes the prompt of this grid cell and re-runs that one icon task with it. The cell's caption is left alone, and so is the shared style clause, which is settings-sourced and appended at generation. The composed thumbnail below it keeps its artifact and is flagged stale — and since the upload gate rides on that thumbnail, redrawing a cell reopens the publish decision.
+     */
+    post: operations['regenerateThumbnailIcon']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
-export type webhooks = Record<string, never>;
+export type webhooks = Record<string, never>
 export interface components {
-    schemas: {
-        ApplyPresetOutputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/ApplyPresetOutputBody.json
-             */
-            readonly $schema?: string;
-            settings: components["schemas"]["SettingDTO"][];
-        };
-        AssetDTO: {
-            chapterId?: string;
-            /** Format: date-time */
-            createdAt: string;
-            /** @description Content address; also the immutable cache key of its URL */
-            id: string;
-            /** @enum {string} */
-            kind: "blueprint" | "script" | "prompt" | "audio" | "image" | "clip" | "final" | "metadata" | "thumbnail" | "thumbnail_plan" | "thumbnail_icon";
-            mime: string;
-            /** Format: int64 */
-            size: number;
-            url: string;
-            videoId: string;
-        };
-        AssetsOutputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/AssetsOutputBody.json
-             */
-            readonly $schema?: string;
-            assets: components["schemas"]["AssetDTO"][];
-        };
-        ChannelDTO: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/ChannelDTO.json
-             */
-            readonly $schema?: string;
-            /** Format: date-time */
-            createdAt: string;
-            /** @enum {string} */
-            credentials: "missing" | "valid" | "expired";
-            description: string;
-            id: string;
-            name: string;
-            /** @description Stable human-readable natural key; immutable */
-            slug: string;
-            style: components["schemas"]["StyleDTO"];
-            /** Format: date-time */
-            updatedAt: string;
-            /**
-             * Format: int64
-             * @description Videos minted so far, which is the next ref's number minus one
-             */
-            videoSeq: number;
-        };
-        ChannelsOutputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/ChannelsOutputBody.json
-             */
-            readonly $schema?: string;
-            channels: components["schemas"]["ChannelDTO"][];
-        };
-        ChapterDTO: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/ChapterDTO.json
-             */
-            readonly $schema?: string;
-            audioAssetId?: string;
-            clipAssetId?: string;
-            /**
-             * Format: double
-             * @description Measured from the script once it exists
-             */
-            durationSeconds: number;
-            /**
-             * Format: int64
-             * @description Spoken-word budget the blueprint assigned this chapter
-             */
-            estimatedWords: number;
-            id: string;
-            /** Format: int64 */
-            ordinal: number;
-            script: string;
-            slideAssetIds: string[];
-            slidePrompts: string[];
-            summary: string;
-            title: string;
-            /** Format: date-time */
-            updatedAt: string;
-            videoId: string;
-        };
-        ChaptersOutputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/ChaptersOutputBody.json
-             */
-            readonly $schema?: string;
-            chapters: components["schemas"]["ChapterDTO"][];
-        };
-        CreateChannelInputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/CreateChannelInputBody.json
-             */
-            readonly $schema?: string;
-            description?: string;
-            name: string;
-            /** @description Lowercase kebab-case; derived from the name when omitted */
-            slug?: string;
-            style?: components["schemas"]["StyleInputDTO"];
-        };
-        CreateVideoInputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/CreateVideoInputBody.json
-             */
-            readonly $schema?: string;
-            /** @description Channel slug or id */
-            channel: string;
-            /**
-             * Format: int64
-             * @description Defaults to the video.default_chapter_count setting
-             */
-            chapterCount?: number;
-            /**
-             * Format: int64
-             * @description Defaults to the video.default_slides_per_chapter setting
-             */
-            slidesPerChapter?: number;
-            /** @description Enqueue the DAG immediately */
-            start?: boolean;
-            /**
-             * Format: int64
-             * @description Planned running time; omit to let it fall out of the chapter count
-             */
-            targetDurationMinutes?: number;
-            /**
-             * Format: int64
-             * @description Tiles in the thumbnail grid; defaults to the video.default_thumbnail_cells setting
-             */
-            thumbnailCells?: number;
-            title: string;
-            topic?: string;
-        };
-        ErrorDetail: {
-            /** @description Where the error occurred, e.g. 'body.items[3].tags' or 'path.thing-id' */
-            location?: string;
-            /** @description Error message text */
-            message?: string;
-            /** @description The value at the given location */
-            value?: unknown;
-        };
-        ErrorModel: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/ErrorModel.json
-             */
-            readonly $schema?: string;
-            /**
-             * @description A human-readable explanation specific to this occurrence of the problem.
-             * @example Property foo is required but is missing.
-             */
-            detail?: string;
-            /** @description Optional list of individual error details */
-            errors?: components["schemas"]["ErrorDetail"][];
-            /**
-             * Format: uri
-             * @description A URI reference that identifies the specific occurrence of the problem.
-             * @example https://example.com/error-log/abc123
-             */
-            instance?: string;
-            /**
-             * Format: int64
-             * @description HTTP status code
-             * @example 400
-             */
-            status?: number;
-            /**
-             * @description A short, human-readable summary of the problem type. This value should not change between occurrences of the error.
-             * @example Bad Request
-             */
-            title?: string;
-            /**
-             * Format: uri
-             * @description A URI reference to human-readable documentation for the error.
-             * @default about:blank
-             * @example https://example.com/errors/example
-             */
-            type: string;
-        };
-        GateInputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/GateInputBody.json
-             */
-            readonly $schema?: string;
-            /**
-             * @description Which gate to act on; omit to act on whichever is open
-             * @enum {string}
-             */
-            gate?: "blueprint" | "upload";
-            reason?: string;
-        };
-        HealthOutputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/HealthOutputBody.json
-             */
-            readonly $schema?: string;
-            /** Format: int64 */
-            sseClients: number;
-            /** Format: date-time */
-            startedAt: string;
-            status: string;
-            version: string;
-        };
-        MetadataDTO: {
-            categoryId: string;
-            description: string;
-            privacy: string;
-            tags: string[];
-            /** @description All-caps hook for the thumbnail overlay */
-            thumbnailText: string;
-            title: string;
-        };
-        PoolStatDTO: {
-            /** Format: int64 */
-            inFlight: number;
-            /** Format: int64 */
-            limit: number;
-            /** @enum {string} */
-            pool: "llm" | "tts" | "image" | "compose" | "cache" | "upload";
-            /** Format: int64 */
-            queued: number;
-        };
-        PresetDTO: {
-            description: string;
-            name: string;
-            title: string;
-            /** @description The rows this preset writes, in the order it writes them; rows it does not name are left alone */
-            values: components["schemas"]["PresetValueDTO"][];
-        };
-        PresetValueDTO: {
-            key: string;
-            value: string;
-        };
-        PresetsOutputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/PresetsOutputBody.json
-             */
-            readonly $schema?: string;
-            presets: components["schemas"]["PresetDTO"][];
-        };
-        RegenerateIconInputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/RegenerateIconInputBody.json
-             */
-            readonly $schema?: string;
-            prompt: string;
-        };
-        RegenerateSlideInputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/RegenerateSlideInputBody.json
-             */
-            readonly $schema?: string;
-            prompt: string;
-        };
-        RerunInputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/RerunInputBody.json
-             */
-            readonly $schema?: string;
-            /** @description Report the blast radius without changing anything */
-            dryRun?: boolean;
-            /** @description Tasks to run again */
-            taskIds: string[];
-        };
-        RerunOutputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/RerunOutputBody.json
-             */
-            readonly $schema?: string;
-            dryRun: boolean;
-            /** @description Tasks that will run again */
-            rerun: components["schemas"]["TaskDTO"][];
-            /** @description Tasks that will be flagged stale rather than run */
-            stale: components["schemas"]["TaskDTO"][];
-        };
-        SchedulerStatusDTO: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/SchedulerStatusDTO.json
-             */
-            readonly $schema?: string;
-            /** Format: int64 */
-            awaitingApproval: number;
-            /** Format: int64 */
-            blocked: number;
-            /** Format: int64 */
-            failed: number;
-            pools: components["schemas"]["PoolStatDTO"][];
-            /** Format: int64 */
-            ready: number;
-            /** Format: int64 */
-            retryPending: number;
-            /** Format: int64 */
-            running: number;
-            /** Format: date-time */
-            startedAt: string;
-            /** Format: int64 */
-            succeeded: number;
-            /** Format: double */
-            uptimeSeconds: number;
-            /** Format: int64 */
-            videos: number;
-        };
-        SettingDTO: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/SettingDTO.json
-             */
-            readonly $schema?: string;
-            description: string;
-            group: string;
-            key: string;
-            /** Format: double */
-            max: number;
-            /** Format: double */
-            min: number;
-            /** @description The only accepted values, when the setting is constrained to a fixed set; empty means free-form */
-            options: string[];
-            /** @enum {string} */
-            type: "int" | "bool" | "string" | "float";
-            /** Format: date-time */
-            updatedAt: string;
-            value: string;
-        };
-        SettingsOutputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/SettingsOutputBody.json
-             */
-            readonly $schema?: string;
-            settings: components["schemas"]["SettingDTO"][];
-        };
-        StaleActionInputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/StaleActionInputBody.json
-             */
-            readonly $schema?: string;
-            /** @description Stale tasks to act on; empty means every stale task */
-            taskIds?: string[];
-        };
-        StaleActionOutputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/StaleActionOutputBody.json
-             */
-            readonly $schema?: string;
-            /** Format: int64 */
-            count: number;
-        };
-        StyleDTO: Record<string, never>;
-        StyleInputDTO: Record<string, never>;
-        TaskCountsDTO: {
-            /** Format: int64 */
-            awaitingApproval: number;
-            /** Format: int64 */
-            blocked: number;
-            /** Format: int64 */
-            cancelled: number;
-            /** Format: int64 */
-            failed: number;
-            /** Format: int64 */
-            ready: number;
-            /** Format: int64 */
-            running: number;
-            /** Format: int64 */
-            stale: number;
-            /** Format: int64 */
-            succeeded: number;
-            /** Format: int64 */
-            total: number;
-        };
-        TaskDTO: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/TaskDTO.json
-             */
-            readonly $schema?: string;
-            /** Format: int64 */
-            attempt: number;
-            chapterId?: string;
-            /** Format: int64 */
-            depsRemaining: number;
-            error?: string;
-            /** Format: date-time */
-            finishedAt?: string;
-            /** @enum {string} */
-            gate?: "blueprint" | "upload";
-            id: string;
-            /** Format: int64 */
-            index: number;
-            /** @enum {string} */
-            kind: "blueprint" | "prime_slide_prompts" | "slide_prompts" | "script" | "tts" | "slide" | "clip" | "concat" | "metadata" | "thumbnail" | "upload";
-            /** Format: int64 */
-            maxAttempts: number;
-            /** Format: date-time */
-            notBefore?: string;
-            /** Format: int64 */
-            ordinal: number;
-            /** @enum {string} */
-            pool: "llm" | "tts" | "image" | "compose" | "cache" | "upload";
-            /** @description An input changed after this task ran; its artifact is intact but unverified */
-            stale: boolean;
-            /** Format: date-time */
-            startedAt?: string;
-            /** @enum {string} */
-            state: "blocked" | "ready" | "running" | "awaiting_approval" | "succeeded" | "failed" | "cancelled";
-            /** Format: date-time */
-            updatedAt: string;
-            videoId: string;
-        };
-        TasksOutputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/TasksOutputBody.json
-             */
-            readonly $schema?: string;
-            tasks: components["schemas"]["TaskDTO"][];
-        };
-        ThumbnailCellDTO: {
-            caption: string;
-            prompt: string;
-        };
-        UpdateChannelInputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/UpdateChannelInputBody.json
-             */
-            readonly $schema?: string;
-            /** @enum {string} */
-            credentials?: "missing" | "valid" | "expired";
-            description?: string;
-            name?: string;
-            style?: components["schemas"]["StyleInputDTO"];
-        };
-        UpdateScriptInputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/UpdateScriptInputBody.json
-             */
-            readonly $schema?: string;
-            script: string;
-        };
-        UpdateSettingInputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/UpdateSettingInputBody.json
-             */
-            readonly $schema?: string;
-            value: string;
-        };
-        UploadDTO: {
-            dryRun: boolean;
-            remoteVideoId: string;
-            /** Format: date-time */
-            uploadedAt: string;
-            url: string;
-        };
-        VideoDTO: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/VideoDTO.json
-             */
-            readonly $schema?: string;
-            blueprintAssetId?: string;
-            channelId: string;
-            /**
-             * Format: int64
-             * @description Chapters asked for; the accepted blueprint decides the real number
-             */
-            chapterCount: number;
-            /** Format: date-time */
-            completedAt?: string;
-            counts: components["schemas"]["TaskCountsDTO"];
-            /** Format: date-time */
-            createdAt: string;
-            error?: string;
-            finalAssetId?: string;
-            id: string;
-            metadata?: components["schemas"]["MetadataDTO"];
-            /** @description Stable human-readable natural key, e.g. DSS-14 */
-            ref: string;
-            /** Format: int64 */
-            slidesPerChapter: number;
-            /** Format: date-time */
-            startedAt?: string;
-            /** @enum {string} */
-            state: "draft" | "running" | "awaiting_approval" | "blocked" | "completed" | "failed" | "cancelled";
-            /**
-             * Format: int64
-             * @description Planned running time; zero means it falls out of the chapter count
-             */
-            targetDurationMinutes: number;
-            thumbnailAssetId?: string;
-            /**
-             * Format: int64
-             * @description Tiles in the thumbnail grid; one icon is generated per tile
-             */
-            thumbnailCells: number;
-            /** @description The icon drawn for each cell, by index; an empty entry is a cell not yet drawn */
-            thumbnailIconIds: string[];
-            /** @description One entry per grid cell, in reading order; empty until the plan has run */
-            thumbnailPlan: components["schemas"]["ThumbnailCellDTO"][];
-            title: string;
-            topic: string;
-            /** Format: date-time */
-            updatedAt: string;
-            upload?: components["schemas"]["UploadDTO"];
-        };
-        VideosOutputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/VideosOutputBody.json
-             */
-            readonly $schema?: string;
-            /** Format: int64 */
-            total: number;
-            videos: components["schemas"]["VideoDTO"][];
-        };
-    };
-    responses: never;
-    parameters: never;
-    requestBodies: never;
-    headers: never;
-    pathItems: never;
+  schemas: {
+    ApplyPresetOutputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/ApplyPresetOutputBody.json
+       */
+      readonly $schema?: string
+      settings: components['schemas']['SettingDTO'][]
+    }
+    AssetDTO: {
+      chapterId?: string
+      /** Format: date-time */
+      createdAt: string
+      /** @description Content address; also the immutable cache key of its URL */
+      id: string
+      /** @enum {string} */
+      kind:
+        | 'blueprint'
+        | 'script'
+        | 'prompt'
+        | 'audio'
+        | 'image'
+        | 'clip'
+        | 'final'
+        | 'metadata'
+        | 'thumbnail'
+        | 'thumbnail_plan'
+        | 'thumbnail_icon'
+      mime: string
+      /** Format: int64 */
+      size: number
+      url: string
+      videoId: string
+    }
+    AssetsOutputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/AssetsOutputBody.json
+       */
+      readonly $schema?: string
+      assets: components['schemas']['AssetDTO'][]
+    }
+    ChannelDTO: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/ChannelDTO.json
+       */
+      readonly $schema?: string
+      /** Format: date-time */
+      createdAt: string
+      /** @enum {string} */
+      credentials: 'missing' | 'valid' | 'expired'
+      description: string
+      id: string
+      name: string
+      /** @description Stable human-readable natural key; immutable */
+      slug: string
+      style: components['schemas']['StyleDTO']
+      /** Format: date-time */
+      updatedAt: string
+      /**
+       * Format: int64
+       * @description Videos minted so far, which is the next ref's number minus one
+       */
+      videoSeq: number
+    }
+    ChannelsOutputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/ChannelsOutputBody.json
+       */
+      readonly $schema?: string
+      channels: components['schemas']['ChannelDTO'][]
+    }
+    ChapterDTO: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/ChapterDTO.json
+       */
+      readonly $schema?: string
+      audioAssetId?: string
+      clipAssetId?: string
+      /**
+       * Format: double
+       * @description Measured from the script once it exists
+       */
+      durationSeconds: number
+      /**
+       * Format: int64
+       * @description Spoken-word budget the blueprint assigned this chapter
+       */
+      estimatedWords: number
+      id: string
+      /** Format: int64 */
+      ordinal: number
+      script: string
+      slideAssetIds: string[]
+      slidePrompts: string[]
+      summary: string
+      title: string
+      /** Format: date-time */
+      updatedAt: string
+      videoId: string
+    }
+    ChaptersOutputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/ChaptersOutputBody.json
+       */
+      readonly $schema?: string
+      chapters: components['schemas']['ChapterDTO'][]
+    }
+    CreateChannelInputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/CreateChannelInputBody.json
+       */
+      readonly $schema?: string
+      description?: string
+      name: string
+      /** @description Lowercase kebab-case; derived from the name when omitted */
+      slug?: string
+      style?: components['schemas']['StyleInputDTO']
+    }
+    CreateVideoInputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/CreateVideoInputBody.json
+       */
+      readonly $schema?: string
+      /** @description Channel slug or id */
+      channel: string
+      /**
+       * Format: int64
+       * @description Defaults to the video.default_chapter_count setting
+       */
+      chapterCount?: number
+      /**
+       * Format: int64
+       * @description Defaults to the video.default_slides_per_chapter setting
+       */
+      slidesPerChapter?: number
+      /** @description Enqueue the DAG immediately */
+      start?: boolean
+      /**
+       * Format: int64
+       * @description Planned running time; omit to let it fall out of the chapter count
+       */
+      targetDurationMinutes?: number
+      /**
+       * Format: int64
+       * @description Tiles in the thumbnail grid; defaults to the video.default_thumbnail_cells setting
+       */
+      thumbnailCells?: number
+      title: string
+      topic?: string
+    }
+    ErrorDetail: {
+      /** @description Where the error occurred, e.g. 'body.items[3].tags' or 'path.thing-id' */
+      location?: string
+      /** @description Error message text */
+      message?: string
+      /** @description The value at the given location */
+      value?: unknown
+    }
+    ErrorModel: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/ErrorModel.json
+       */
+      readonly $schema?: string
+      /**
+       * @description A human-readable explanation specific to this occurrence of the problem.
+       * @example Property foo is required but is missing.
+       */
+      detail?: string
+      /** @description Optional list of individual error details */
+      errors?: components['schemas']['ErrorDetail'][]
+      /**
+       * Format: uri
+       * @description A URI reference that identifies the specific occurrence of the problem.
+       * @example https://example.com/error-log/abc123
+       */
+      instance?: string
+      /**
+       * Format: int64
+       * @description HTTP status code
+       * @example 400
+       */
+      status?: number
+      /**
+       * @description A short, human-readable summary of the problem type. This value should not change between occurrences of the error.
+       * @example Bad Request
+       */
+      title?: string
+      /**
+       * Format: uri
+       * @description A URI reference to human-readable documentation for the error.
+       * @default about:blank
+       * @example https://example.com/errors/example
+       */
+      type: string
+    }
+    GateInputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/GateInputBody.json
+       */
+      readonly $schema?: string
+      /**
+       * @description Which gate to act on; omit to act on whichever is open
+       * @enum {string}
+       */
+      gate?: 'blueprint' | 'upload'
+      reason?: string
+    }
+    HealthOutputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/HealthOutputBody.json
+       */
+      readonly $schema?: string
+      /** Format: int64 */
+      sseClients: number
+      /** Format: date-time */
+      startedAt: string
+      status: string
+      version: string
+    }
+    MetadataDTO: {
+      categoryId: string
+      description: string
+      privacy: string
+      tags: string[]
+      /** @description All-caps hook for the thumbnail overlay */
+      thumbnailText: string
+      title: string
+    }
+    PoolStatDTO: {
+      /** Format: int64 */
+      inFlight: number
+      /** Format: int64 */
+      limit: number
+      /** @enum {string} */
+      pool: 'llm' | 'tts' | 'image' | 'compose' | 'cache' | 'upload'
+      /** Format: int64 */
+      queued: number
+    }
+    PresetDTO: {
+      description: string
+      name: string
+      title: string
+      /** @description The rows this preset writes, in the order it writes them; rows it does not name are left alone */
+      values: components['schemas']['PresetValueDTO'][]
+    }
+    PresetValueDTO: {
+      key: string
+      value: string
+    }
+    PresetsOutputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/PresetsOutputBody.json
+       */
+      readonly $schema?: string
+      presets: components['schemas']['PresetDTO'][]
+    }
+    RegenerateIconInputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/RegenerateIconInputBody.json
+       */
+      readonly $schema?: string
+      prompt: string
+    }
+    RegenerateSlideInputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/RegenerateSlideInputBody.json
+       */
+      readonly $schema?: string
+      prompt: string
+    }
+    RerunInputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/RerunInputBody.json
+       */
+      readonly $schema?: string
+      /** @description Report the blast radius without changing anything */
+      dryRun?: boolean
+      /** @description Tasks to run again */
+      taskIds: string[]
+    }
+    RerunOutputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/RerunOutputBody.json
+       */
+      readonly $schema?: string
+      dryRun: boolean
+      /** @description Tasks that will run again */
+      rerun: components['schemas']['TaskDTO'][]
+      /** @description Tasks that will be flagged stale rather than run */
+      stale: components['schemas']['TaskDTO'][]
+    }
+    SchedulerStatusDTO: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/SchedulerStatusDTO.json
+       */
+      readonly $schema?: string
+      /** Format: int64 */
+      awaitingApproval: number
+      /** Format: int64 */
+      blocked: number
+      /** Format: int64 */
+      failed: number
+      pools: components['schemas']['PoolStatDTO'][]
+      /** Format: int64 */
+      ready: number
+      /** Format: int64 */
+      retryPending: number
+      /** Format: int64 */
+      running: number
+      /** Format: date-time */
+      startedAt: string
+      /** Format: int64 */
+      succeeded: number
+      /** Format: double */
+      uptimeSeconds: number
+      /** Format: int64 */
+      videos: number
+    }
+    SettingDTO: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/SettingDTO.json
+       */
+      readonly $schema?: string
+      /** @description The backend that reads this row, when only one does; empty means the row applies whatever is selected */
+      backend: string
+      description: string
+      group: string
+      key: string
+      /** Format: double */
+      max: number
+      /** Format: double */
+      min: number
+      /** @description The only accepted values, when the setting is constrained to a fixed set; empty means free-form */
+      options: string[]
+      /** @enum {string} */
+      type: 'int' | 'bool' | 'string' | 'float'
+      /** Format: date-time */
+      updatedAt: string
+      value: string
+    }
+    SettingsOutputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/SettingsOutputBody.json
+       */
+      readonly $schema?: string
+      settings: components['schemas']['SettingDTO'][]
+    }
+    StaleActionInputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/StaleActionInputBody.json
+       */
+      readonly $schema?: string
+      /** @description Stale tasks to act on; empty means every stale task */
+      taskIds?: string[]
+    }
+    StaleActionOutputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/StaleActionOutputBody.json
+       */
+      readonly $schema?: string
+      /** Format: int64 */
+      count: number
+    }
+    StyleDTO: Record<string, never>
+    StyleInputDTO: Record<string, never>
+    TaskCountsDTO: {
+      /** Format: int64 */
+      awaitingApproval: number
+      /** Format: int64 */
+      blocked: number
+      /** Format: int64 */
+      cancelled: number
+      /** Format: int64 */
+      failed: number
+      /** Format: int64 */
+      ready: number
+      /** Format: int64 */
+      running: number
+      /** Format: int64 */
+      stale: number
+      /** Format: int64 */
+      succeeded: number
+      /** Format: int64 */
+      total: number
+    }
+    TaskDTO: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/TaskDTO.json
+       */
+      readonly $schema?: string
+      /** Format: int64 */
+      attempt: number
+      chapterId?: string
+      /** Format: int64 */
+      depsRemaining: number
+      error?: string
+      /** Format: date-time */
+      finishedAt?: string
+      /** @enum {string} */
+      gate?: 'blueprint' | 'upload'
+      id: string
+      /** Format: int64 */
+      index: number
+      /** @enum {string} */
+      kind:
+        | 'blueprint'
+        | 'prime_slide_prompts'
+        | 'slide_prompts'
+        | 'script'
+        | 'tts'
+        | 'slide'
+        | 'clip'
+        | 'concat'
+        | 'metadata'
+        | 'thumbnail'
+        | 'upload'
+      /** Format: int64 */
+      maxAttempts: number
+      /** Format: date-time */
+      notBefore?: string
+      /** Format: int64 */
+      ordinal: number
+      /** @enum {string} */
+      pool: 'llm' | 'tts' | 'image' | 'compose' | 'cache' | 'upload'
+      /** @description An input changed after this task ran; its artifact is intact but unverified */
+      stale: boolean
+      /** Format: date-time */
+      startedAt?: string
+      /** @enum {string} */
+      state:
+        'blocked' | 'ready' | 'running' | 'awaiting_approval' | 'succeeded' | 'failed' | 'cancelled'
+      /** Format: date-time */
+      updatedAt: string
+      videoId: string
+    }
+    TasksOutputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/TasksOutputBody.json
+       */
+      readonly $schema?: string
+      tasks: components['schemas']['TaskDTO'][]
+    }
+    ThumbnailCellDTO: {
+      caption: string
+      prompt: string
+    }
+    UpdateChannelInputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/UpdateChannelInputBody.json
+       */
+      readonly $schema?: string
+      /** @enum {string} */
+      credentials?: 'missing' | 'valid' | 'expired'
+      description?: string
+      name?: string
+      style?: components['schemas']['StyleInputDTO']
+    }
+    UpdateScriptInputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/UpdateScriptInputBody.json
+       */
+      readonly $schema?: string
+      script: string
+    }
+    UpdateSettingInputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/UpdateSettingInputBody.json
+       */
+      readonly $schema?: string
+      value: string
+    }
+    UploadDTO: {
+      dryRun: boolean
+      remoteVideoId: string
+      /** Format: date-time */
+      uploadedAt: string
+      url: string
+    }
+    VideoDTO: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/VideoDTO.json
+       */
+      readonly $schema?: string
+      blueprintAssetId?: string
+      channelId: string
+      /**
+       * Format: int64
+       * @description Chapters asked for; the accepted blueprint decides the real number
+       */
+      chapterCount: number
+      /** Format: date-time */
+      completedAt?: string
+      counts: components['schemas']['TaskCountsDTO']
+      /** Format: date-time */
+      createdAt: string
+      error?: string
+      finalAssetId?: string
+      id: string
+      metadata?: components['schemas']['MetadataDTO']
+      /** @description Stable human-readable natural key, e.g. DSS-14 */
+      ref: string
+      /** Format: int64 */
+      slidesPerChapter: number
+      /** Format: date-time */
+      startedAt?: string
+      /** @enum {string} */
+      state:
+        'draft' | 'running' | 'awaiting_approval' | 'blocked' | 'completed' | 'failed' | 'cancelled'
+      /**
+       * Format: int64
+       * @description Planned running time; zero means it falls out of the chapter count
+       */
+      targetDurationMinutes: number
+      thumbnailAssetId?: string
+      /**
+       * Format: int64
+       * @description Tiles in the thumbnail grid; one icon is generated per tile
+       */
+      thumbnailCells: number
+      /** @description The icon drawn for each cell, by index; an empty entry is a cell not yet drawn */
+      thumbnailIconIds: string[]
+      /** @description One entry per grid cell, in reading order; empty until the plan has run */
+      thumbnailPlan: components['schemas']['ThumbnailCellDTO'][]
+      title: string
+      topic: string
+      /** Format: date-time */
+      updatedAt: string
+      upload?: components['schemas']['UploadDTO']
+    }
+    VideosOutputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/VideosOutputBody.json
+       */
+      readonly $schema?: string
+      /** Format: int64 */
+      total: number
+      videos: components['schemas']['VideoDTO'][]
+    }
+  }
+  responses: never
+  parameters: never
+  requestBodies: never
+  headers: never
+  pathItems: never
 }
-export type $defs = Record<string, never>;
+export type $defs = Record<string, never>
 export interface operations {
-    listChannels: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChannelsOutputBody"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    createChannel: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateChannelInputBody"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChannelDTO"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    getChannel: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Channel slug or id */
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChannelDTO"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    updateChannel: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Channel slug or id */
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateChannelInputBody"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChannelDTO"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    deleteChannel: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Channel slug or id */
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    updateChapterScript: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Chapter id */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateScriptInputBody"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChapterDTO"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    regenerateChapterSlide: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Chapter id */
-                id: string;
-                /** @description 0-based slide index within the chapter */
-                index: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RegenerateSlideInputBody"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChapterDTO"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    getHealth: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HealthOutputBody"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    getSchedulerStatus: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SchedulerStatusDTO"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    listSettings: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SettingsOutputBody"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    listPresets: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PresetsOutputBody"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    applyPreset: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Preset name, e.g. mock */
-                name: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApplyPresetOutputBody"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    updateSetting: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Settings key, e.g. pool.image.limit */
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateSettingInputBody"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SettingDTO"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    listRecentTasks: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TasksOutputBody"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    retryTask: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Task id */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TaskDTO"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    listVideos: {
-        parameters: {
-            query?: {
-                /** @description Filter by channel id */
-                channelId?: string;
-                /** @description Filter by lifecycle state */
-                state?: "draft" | "running" | "awaiting_approval" | "blocked" | "completed" | "failed" | "cancelled";
-                limit?: number;
-                offset?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VideosOutputBody"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    createVideo: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description Repeating a request with the same key returns the first result */
-                "Idempotency-Key"?: string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateVideoInputBody"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VideoDTO"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    getVideo: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Video ref (e.g. DSS-14) or id */
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VideoDTO"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    deleteVideo: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Video ref (e.g. DSS-14) or id */
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    approveGate: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Video ref or id */
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GateInputBody"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TaskDTO"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    listVideoAssets: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Video ref (e.g. DSS-14) or id */
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AssetsOutputBody"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    cancelVideo: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Video ref (e.g. DSS-14) or id */
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VideoDTO"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    listChapters: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Video ref (e.g. DSS-14) or id */
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChaptersOutputBody"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    retryChapter: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Video ref or id */
-                key: string;
-                /** @description 1-based chapter ordinal */
-                ordinal: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    rejectGate: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Video ref or id */
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GateInputBody"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TaskDTO"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    rerunTasks: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Video ref or id */
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RerunInputBody"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RerunOutputBody"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    acceptStaleTasks: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Video ref or id */
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["StaleActionInputBody"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StaleActionOutputBody"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    runStaleTasks: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Video ref or id */
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["StaleActionInputBody"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StaleActionOutputBody"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    startVideo: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Video ref (e.g. DSS-14) or id */
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VideoDTO"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    listVideoTasks: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Video ref (e.g. DSS-14) or id */
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TasksOutputBody"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    regenerateThumbnailIcon: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Video ref or id */
-                key: string;
-                /** @description 0-based cell index in the thumbnail grid */
-                index: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RegenerateIconInputBody"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VideoDTO"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
+  listChannels: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ChannelsOutputBody']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  createChannel: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateChannelInputBody']
+      }
+    }
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ChannelDTO']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  getChannel: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Channel slug or id */
+        key: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ChannelDTO']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  updateChannel: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Channel slug or id */
+        key: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateChannelInputBody']
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ChannelDTO']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  deleteChannel: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Channel slug or id */
+        key: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  updateChapterScript: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Chapter id */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateScriptInputBody']
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ChapterDTO']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  regenerateChapterSlide: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Chapter id */
+        id: string
+        /** @description 0-based slide index within the chapter */
+        index: number
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RegenerateSlideInputBody']
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ChapterDTO']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  getHealth: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HealthOutputBody']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  getSchedulerStatus: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SchedulerStatusDTO']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  listSettings: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SettingsOutputBody']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  listPresets: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['PresetsOutputBody']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  applyPreset: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Preset name, e.g. mock */
+        name: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ApplyPresetOutputBody']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  updateSetting: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Settings key, e.g. pool.image.limit */
+        key: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateSettingInputBody']
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SettingDTO']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  listRecentTasks: {
+    parameters: {
+      query?: {
+        limit?: number
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['TasksOutputBody']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  retryTask: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Task id */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['TaskDTO']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  listVideos: {
+    parameters: {
+      query?: {
+        /** @description Filter by channel id */
+        channelId?: string
+        /** @description Filter by lifecycle state */
+        state?:
+          | 'draft'
+          | 'running'
+          | 'awaiting_approval'
+          | 'blocked'
+          | 'completed'
+          | 'failed'
+          | 'cancelled'
+        limit?: number
+        offset?: number
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['VideosOutputBody']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  createVideo: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Repeating a request with the same key returns the first result */
+        'Idempotency-Key'?: string
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateVideoInputBody']
+      }
+    }
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['VideoDTO']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  getVideo: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Video ref (e.g. DSS-14) or id */
+        key: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['VideoDTO']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  deleteVideo: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Video ref (e.g. DSS-14) or id */
+        key: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  approveGate: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Video ref or id */
+        key: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['GateInputBody']
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['TaskDTO']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  listVideoAssets: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Video ref (e.g. DSS-14) or id */
+        key: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AssetsOutputBody']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  cancelVideo: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Video ref (e.g. DSS-14) or id */
+        key: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['VideoDTO']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  listChapters: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Video ref (e.g. DSS-14) or id */
+        key: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ChaptersOutputBody']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  retryChapter: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Video ref or id */
+        key: string
+        /** @description 1-based chapter ordinal */
+        ordinal: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  rejectGate: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Video ref or id */
+        key: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['GateInputBody']
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['TaskDTO']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  rerunTasks: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Video ref or id */
+        key: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RerunInputBody']
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['RerunOutputBody']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  acceptStaleTasks: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Video ref or id */
+        key: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['StaleActionInputBody']
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['StaleActionOutputBody']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  runStaleTasks: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Video ref or id */
+        key: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['StaleActionInputBody']
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['StaleActionOutputBody']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  startVideo: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Video ref (e.g. DSS-14) or id */
+        key: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['VideoDTO']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  listVideoTasks: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Video ref (e.g. DSS-14) or id */
+        key: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['TasksOutputBody']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  regenerateThumbnailIcon: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Video ref or id */
+        key: string
+        /** @description 0-based cell index in the thumbnail grid */
+        index: number
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RegenerateIconInputBody']
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['VideoDTO']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
 }

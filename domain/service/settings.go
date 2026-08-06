@@ -33,6 +33,12 @@ type Settings struct {
 	// each row at load rather than stored.
 	optional map[entity.SettingKey]bool
 
+	// backend carries which registry entry reads a row, for the rows only one
+	// does. Stamped rather than stored for the same reason as the two above: what
+	// reads a row is a fact about this binary, and a persisted copy would go
+	// stale the first time a backend was rewritten.
+	backend map[entity.SettingKey]string
+
 	mu    sync.RWMutex
 	cache map[entity.SettingKey]entity.Setting
 }
@@ -41,15 +47,20 @@ type Settings struct {
 func NewSettings(reader repository.SettingReader, writer repository.SettingWriter) *Settings {
 	defaults := entity.DefaultSettings()
 	optional := make(map[entity.SettingKey]bool, len(defaults))
+	backend := make(map[entity.SettingKey]string, len(defaults))
 	for _, d := range defaults {
 		if d.Optional {
 			optional[d.Key] = true
+		}
+		if d.Backend != "" {
+			backend[d.Key] = d.Backend
 		}
 	}
 	return &Settings{
 		reader:   reader,
 		writer:   writer,
 		optional: optional,
+		backend:  backend,
 		cache:    make(map[entity.SettingKey]entity.Setting, len(defaults)),
 	}
 }
@@ -66,6 +77,7 @@ func (s *Settings) Constrain(options map[entity.SettingKey][]string) {
 func (s *Settings) constrain(row entity.Setting) entity.Setting {
 	row.Options = s.options[row.Key]
 	row.Optional = s.optional[row.Key]
+	row.Backend = s.backend[row.Key]
 	return row
 }
 
@@ -96,8 +108,8 @@ func (s *Settings) Load(ctx context.Context) error {
 	return nil
 }
 
-// All returns every setting, ordered by group then key, for the settings
-// screen.
+// All returns every setting in seeded order — grouped, and within a group in
+// the order the rows were written — for the settings screen.
 func (s *Settings) All() []entity.Setting {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -237,13 +249,21 @@ func (s *Settings) Set(ctx context.Context, key entity.SettingKey, value string)
 	return updated, nil
 }
 
+// sortSettings puts the table in seeded order — which is grouped, and within a
+// group is the order the rows were written rather than the order their keys
+// sort in. Two unseeded rows fall back to their keys so the result is stable.
 func sortSettings(v []entity.Setting) {
 	// Insertion sort: the table is a few dozen rows and this avoids pulling in a
 	// comparator closure allocation on a path called by the settings screen.
 	for i := 1; i < len(v); i++ {
 		cur := v[i]
+		curOrder := entity.SettingOrder(cur.Key)
 		j := i - 1
-		for j >= 0 && (v[j].Group > cur.Group || (v[j].Group == cur.Group && v[j].Key > cur.Key)) {
+		for j >= 0 {
+			order := entity.SettingOrder(v[j].Key)
+			if order < curOrder || (order == curOrder && v[j].Key <= cur.Key) {
+				break
+			}
 			v[j+1] = v[j]
 			j--
 		}

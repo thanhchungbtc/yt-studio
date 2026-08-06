@@ -326,17 +326,14 @@ func (c *serveCmd) Run() error {
 		return err
 	}
 
-	// Same again. A voice and a speed are found by listening to a chapter and
-	// trying the next value, so they are rows read per call rather than flags.
+	// Same again, and only this backend's own knobs: how a chapter should sound
+	// reaches it on the request, from app.NarrationOptions below.
 	xttsClient, err := tts.New(tts.Config{
 		BaseURL: c.XTTSURL,
 		Options: func() tts.Options {
 			return tts.Options{
-				Voice:              settings.String(entity.SettingTTSVoice),
-				Language:           settings.String(entity.SettingTTSLanguage),
-				Speed:              settings.Float(entity.SettingTTSSpeed),
-				ChunkMinChars:      settings.Int(entity.SettingTTSChunkMinChars),
-				ChunkSilenceMillis: settings.Int(entity.SettingTTSChunkSilenceMillis),
+				ChunkMinChars:      settings.Int(entity.SettingXTTSChunkMinChars),
+				ChunkSilenceMillis: settings.Int(entity.SettingXTTSChunkSilenceMillis),
 			}
 		},
 	}, assets)
@@ -440,9 +437,16 @@ func (c *serveCmd) Run() error {
 		expander,
 		func() app.BlueprintOptions {
 			return app.BlueprintOptions{
-				ChapterTolerancePercent: settings.Int(entity.SettingVideoChapterTolerancePercent),
+				ChapterTolerancePercent: settings.Int(entity.SettingBlueprintChapterTolerancePercent),
 				MaxAttempts:             settings.Int(entity.SettingTaskMaxAttempts),
 				UploadGate:              settings.GateEnabled(entity.GateUpload),
+			}
+		},
+		func() app.NarrationOptions {
+			return app.NarrationOptions{
+				Voice:    settings.String(entity.SettingTTSVoice),
+				Language: settings.String(entity.SettingTTSLanguage),
+				Speed:    settings.Float(entity.SettingTTSSpeed),
 			}
 		},
 		func() app.IconOptions {

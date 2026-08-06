@@ -185,6 +185,13 @@ export interface Setting {
   max: number
   /** The only accepted values; empty when the setting is free-form. */
   options: string[]
+  /**
+   * The backend that reads this row, when only one does. Empty means the row
+   * applies whatever is selected. A row whose backend is not the selected one is
+   * shown dimmed rather than hidden: it still holds its value, and "this is why
+   * your edit changed nothing" is the thing worth saying.
+   */
+  backend: string
   updatedAt: string
 }
 

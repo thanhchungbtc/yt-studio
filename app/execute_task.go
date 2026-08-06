@@ -51,6 +51,7 @@ type TaskRunner struct {
 	notifier      ChapterNotifier
 	expander      GraphExpander
 	blueprintOpts func() BlueprintOptions
+	narrationOpts func() NarrationOptions
 	iconOpts      func() IconOptions
 	dryRun        func() bool
 	now           func() time.Time
@@ -81,6 +82,7 @@ func NewTaskRunner(
 	notifier ChapterNotifier,
 	expander GraphExpander,
 	blueprintOpts func() BlueprintOptions,
+	narrationOpts func() NarrationOptions,
 	iconOpts func() IconOptions,
 	dryRun func() bool,
 	now func() time.Time,
@@ -95,7 +97,8 @@ func NewTaskRunner(
 		assets: assets, store: store, llm: llm, tts: tts, slides: slides,
 		composer: composer, thumbnails: thumbnails, icons: icons,
 		uploader: uploader, notifier: notifier,
-		expander: expander, blueprintOpts: blueprintOpts, iconOpts: iconOpts,
+		expander: expander, blueprintOpts: blueprintOpts,
+		narrationOpts: narrationOpts, iconOpts: iconOpts,
 		dryRun: dryRun, now: now, log: log,
 	}
 }
@@ -145,7 +148,7 @@ func (r *TaskRunner) dispatch(ctx context.Context, t entity.Task) entity.TaskOut
 			r.chapterFields, r.assets, r.store, r.notifier, r.now())
 	case entity.TaskKindTTS:
 		return SynthesizeNarration(ctx, t, r.videos, r.chapters, r.tts,
-			r.chapterFields, r.assets, r.store, r.notifier, r.now())
+			r.chapterFields, r.assets, r.store, r.notifier, r.narrationOpts(), r.now())
 	case entity.TaskKindSlide:
 		return GenerateSlide(ctx, t, r.videos, r.chapters, r.slides,
 			r.chapterFields, r.assets, r.store, r.notifier, r.now())

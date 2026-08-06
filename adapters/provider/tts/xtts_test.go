@@ -135,7 +135,14 @@ func newClient(t *testing.T, s *server, opts tts.Options) (*tts.Client, provider
 }
 
 func defaultOptions() tts.Options {
-	return tts.Options{Voice: "female_01.wav", Language: "en", Speed: 1, ChunkMinChars: 250, ChunkSilenceMillis: 200}
+	return tts.Options{ChunkMinChars: 250, ChunkSilenceMillis: 200}
+}
+
+// voiced fills the three fields the use case supplies, so a test about chunking
+// or storage does not have to restate how the chapter sounds.
+func voiced(req provider.SpeakRequest) provider.SpeakRequest {
+	req.Voice, req.Language, req.Speed = "female_01.wav", "en", 1
+	return req
 }
 
 func TestNewRejectsBadBaseURL(t *testing.T) {
@@ -197,9 +204,9 @@ func TestSpeakSendsTheDocumentedForm(t *testing.T) {
 	s := newServer(t)
 	c, _ := newClient(t, s, defaultOptions())
 
-	if _, err := c.Speak(context.Background(), provider.SpeakRequest{
+	if _, err := c.Speak(context.Background(), voiced(provider.SpeakRequest{
 		Ordinal: 2, ChapterTitle: "The Long Winter", Text: "Body text.",
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("Speak: %v", err)
 	}
 
@@ -248,7 +255,7 @@ func TestSpeakStoresTheAudio(t *testing.T) {
 func TestSpeakChunksLongScripts(t *testing.T) {
 	t.Parallel()
 	s := newServer(t)
-	c, _ := newClient(t, s, tts.Options{Voice: "v", Language: "en", Speed: 1, ChunkMinChars: 40})
+	c, _ := newClient(t, s, tts.Options{ChunkMinChars: 40})
 
 	var script strings.Builder
 	for i := 0; i < 12; i++ {
@@ -326,11 +333,12 @@ func TestSpeakRefusesEmptyAudio(t *testing.T) {
 	}
 }
 
-func TestSpeakFallsBackWhenSettingsAreMissing(t *testing.T) {
+func TestSpeakFallsBackWhenTuningIsMissing(t *testing.T) {
 	t.Parallel()
 	s := newServer(t)
-	// A zero Options is what a client with no settings rows sees. It must still
-	// speak: a missing row costs the tuning, not the narration.
+	// A zero Options and a request carrying no voice is what a client with no
+	// settings rows sees, from either side of the port. It must still speak: a
+	// missing row costs the tuning, not the narration.
 	c, _ := newClient(t, s, tts.Options{})
 
 	if _, err := c.Speak(context.Background(), provider.SpeakRequest{Ordinal: 1, Text: "Body."}); err != nil {

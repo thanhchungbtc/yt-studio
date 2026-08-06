@@ -366,7 +366,9 @@ type SettingDTO struct {
 	Min         float64 `json:"min"`
 	Max         float64 `json:"max"`
 	//nolint:lll // one field, one line
-	Options   []string  `json:"options" doc:"The only accepted values, when the setting is constrained to a fixed set; empty means free-form"`
+	Options []string `json:"options" doc:"The only accepted values, when the setting is constrained to a fixed set; empty means free-form"`
+	//nolint:lll // one field, one line
+	Backend   string    `json:"backend" doc:"The backend that reads this row, when only one does; empty means the row applies whatever is selected"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
@@ -384,6 +386,7 @@ func settingFrom(s entity.Setting) SettingDTO {
 		Min:         s.Min,
 		Max:         s.Max,
 		Options:     options,
+		Backend:     s.Backend,
 		UpdatedAt:   s.UpdatedAt,
 	}
 }

@@ -5,10 +5,14 @@ import {
   ArrowRight,
   Check,
   Clapperboard,
+  Frame,
   Gauge,
+  Image as ImageIcon,
   Loader2,
+  Mic,
   Minus,
   Pencil,
+  PenLine,
   Plug,
   Plus,
   RotateCcw,
@@ -46,49 +50,90 @@ interface GroupMeta {
   title: string
   blurb: string
   icon: LucideIcon
+  /** The rail's heading this section files under. */
+  category: string
 }
 
 /**
- * The groups in the order an operator reads them: what the machine may do at
- * once, where it stops for a human, who does the work, and only then the knobs
- * that are tuned once and left alone.
+ * The sections, in the order the rail lists them. A section is a task the
+ * operator is doing rather than a subsystem that reads the rows, which is why
+ * the four in the middle are the pipeline in the order it runs — write,
+ * narrate, draw, package. Backend knobs sit with the stage they shape and are
+ * marked with the backend that reads them, so "Providers" can stay the
+ * seven-line answer to who does each job instead of collecting a backend's
+ * settings every time one is registered.
  */
 const GROUPS: Record<string, GroupMeta> = {
   pools: {
+    category: 'Running',
     title: 'Concurrency',
     blurb:
       'Enforced across every video and channel. Lowering a limit takes effect as running tasks finish; a running provider call is not preemptible.',
     icon: Gauge,
   },
+  retries: {
+    category: 'Running',
+    title: 'Retries',
+    blurb: 'What happens when a task fails for a reason another attempt could survive.',
+    icon: Timer,
+  },
   gates: {
+    category: 'Approval',
     title: 'Approval gates',
-    blurb: 'Where the pipeline pauses for a human. A gate costs nothing while it is open.',
+    blurb:
+      'What stands between a generation and a public video. A gate costs nothing while it is open; the dry run is the one whose failure mode is silent.',
     icon: ShieldCheck,
   },
   presets: {
+    category: 'Backends',
     title: 'Presets',
     blurb:
       'One click across every provider row. A preset writes only the rows it names — the gates and the upload dry run are never among them.',
     icon: Wand2,
   },
   providers: {
+    category: 'Backends',
     title: 'Providers',
     blurb:
-      'Which backend serves each step. Each list holds the backends this build registered; a change applies to the next task.',
+      'One row per port: who does each job. Each list holds the backends this build registered, and a change applies to the next task.',
     icon: Plug,
   },
-  video: {
-    title: 'Video & thumbnail',
+  writing: {
+    category: 'Pipeline',
+    title: 'Writing',
     blurb:
-      'What a new video is created with when the request leaves the field blank, and the shared style the thumbnail is drawn in.',
+      'The model behind the blueprint, the scripts, the prompts and the metadata — and how far off-target a blueprint may land before it is written again.',
+    icon: PenLine,
+  },
+  narration: {
+    category: 'Pipeline',
+    title: 'Narration',
+    blurb:
+      'How a chapter sounds. Voice, language and pace travel with the request, so a channel can be given its own later without any of this moving.',
+    icon: Mic,
+  },
+  slides: {
+    category: 'Pipeline',
+    title: 'Slides',
+    blurb: 'The checkpoint chapter artwork is drawn with, and the geometry it is drawn at.',
+    icon: ImageIcon,
+  },
+  thumbnail: {
+    category: 'Pipeline',
+    title: 'Thumbnail',
+    blurb:
+      'The listing artifact: the shared style its icons are drawn in, and the type and grid they are set under.',
+    icon: Frame,
+  },
+  video: {
+    category: 'New videos',
+    title: 'Defaults',
+    blurb:
+      'What a new video is created with when the request leaves the field blank. Read once, at creation — an existing video keeps what it was made with.',
     icon: Clapperboard,
   },
-  scheduler: {
-    title: 'Retries',
-    blurb: 'Retry policy for transient provider failures.',
-    icon: Timer,
-  },
   server: {
+    category: 'System',
     title: 'Server',
     blurb: 'Applied live — none of these need a restart.',
     icon: Server,
@@ -106,7 +151,7 @@ const GROUP_ORDER = Object.keys(GROUPS)
 const PRESETS = 'presets'
 
 function groupMeta(group: string): GroupMeta {
-  return GROUPS[group] ?? { title: group, blurb: '', icon: SlidersHorizontal }
+  return GROUPS[group] ?? { title: group, blurb: '', icon: SlidersHorizontal, category: 'Other' }
 }
 
 /** What a row is doing right now. Absent means the row is at rest. */
@@ -175,6 +220,16 @@ export function SettingsRoute() {
 
   const needle = query.trim().toLowerCase()
   const hasPresets = (presets.data?.length ?? 0) > 0
+
+  /**
+   * Which backends are actually in service, read off the routing table rather
+   * than asked for: the `provider.*` rows are the whole answer, and a second
+   * endpoint reporting it could only ever disagree with them.
+   */
+  const backends = useMemo(
+    () => new Set(rows.filter((row) => row.key.startsWith('provider.')).map((row) => row.value)),
+    [rows],
+  )
 
   /**
    * Every section the rail offers, with all of its rows. The filter narrows what
@@ -378,15 +433,23 @@ export function SettingsRoute() {
               {/* Vertical beside the pane, a scrolling strip of chips above it
                   when there is no room — hiding it would strand the operator in
                   whichever section happened to be first. */}
+              {/* No "Sections" title above it: the categories are headings
+                  already, and a heading over the headings was the third grey
+                  left-aligned line in a column that only needed two. */}
               <nav aria-label="Setting groups" className="lg:sticky lg:top-0 lg:self-start">
-                <p className="mb-1.5 hidden px-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-subtle lg:block">
-                  Sections
-                </p>
                 <div className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-col lg:gap-0.5 lg:overflow-x-visible lg:px-0 lg:pb-4">
-                  {sections.map(([group, list]) => (
+                  {sections.map(([group, list], i) => (
                     <RailItem
                       key={group}
                       group={group}
+                      // The category heading is drawn by the first section under
+                      // it, so the rail stays one flat list of buttons and the
+                      // horizontal strip can simply drop the headings.
+                      category={
+                        groupMeta(group).category === groupMeta(sections[i - 1]?.[0] ?? '').category
+                          ? undefined
+                          : groupMeta(group).category
+                      }
                       count={
                         group === PRESETS
                           ? (presets.data?.length ?? 0)
@@ -411,6 +474,7 @@ export function SettingsRoute() {
                     group={active}
                     rows={matches.get(active) ?? []}
                     pools={status?.pools}
+                    backends={backends}
                     drafts={drafts}
                     rowStates={rowStates}
                     needle={needle}
@@ -455,6 +519,7 @@ export function SettingsRoute() {
 
 function RailItem({
   group,
+  category,
   count,
   active,
   dirty,
@@ -462,6 +527,8 @@ function RailItem({
   onSelect,
 }: {
   group: string
+  /** Set on the first section of a category, which draws the heading for it. */
+  category: string | undefined
   count: number
   active: boolean
   dirty: boolean
@@ -471,47 +538,61 @@ function RailItem({
 }) {
   const { title, icon: Icon } = groupMeta(group)
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      disabled={empty}
-      aria-current={active ? 'true' : undefined}
-      className={cn(
-        'relative flex shrink-0 items-center gap-2 rounded-[var(--radius-sm)] py-1.5 pl-2.5 pr-2 text-left text-[12px] transition-colors lg:w-full',
-        // The selected section is the pane: it carries the accent outright, so
-        // which one is open is answered without comparing two greys.
-        active
-          ? 'bg-[hsl(var(--accent-soft))] font-semibold text-[hsl(var(--accent))]'
-          : 'text-muted hover:bg-[hsl(var(--bg-hover))] hover:text-fg',
-        empty && 'pointer-events-none opacity-40',
+    <>
+      {/* A label, not an item, and told apart on three axes at once: a rule
+          above it, smaller and wider-tracked type, and a left edge the buttons
+          below are indented past. Any one of the three alone still reads as
+          another row in the list. */}
+      {category !== undefined && (
+        <p className="mt-3 hidden border-t border-[hsl(var(--border))] px-1 pb-1 pt-2.5 text-[9.5px] font-semibold uppercase tracking-[0.13em] text-subtle first:mt-0 first:border-t-0 first:pt-0 lg:block">
+          {category}
+        </p>
       )}
-    >
-      {active && (
-        <span
-          aria-hidden
-          className="absolute inset-y-1 left-0 hidden w-[2.5px] rounded-full bg-[hsl(var(--accent))] lg:block"
-        />
-      )}
-      <Icon
-        className={cn('h-3.5 w-3.5 shrink-0', active ? 'text-[hsl(var(--accent))]' : 'text-subtle')}
-      />
-      <span className="min-w-0 flex-1 truncate">{title}</span>
-      {dirty ? (
-        <span
-          className="h-1.5 w-1.5 shrink-0 rounded-full bg-[hsl(var(--warning))]"
-          aria-label="unsaved changes"
-        />
-      ) : (
-        <span
+      <button
+        type="button"
+        onClick={onSelect}
+        disabled={empty}
+        aria-current={active ? 'true' : undefined}
+        className={cn(
+          'relative flex shrink-0 items-center gap-2 rounded-[var(--radius-sm)] py-1.5 pl-2.5 pr-2 text-left text-[12.5px] transition-colors lg:w-full lg:pl-3',
+          // The selected section is the pane: it carries the accent outright, so
+          // which one is open is answered without comparing two greys.
+          active
+            ? 'bg-[hsl(var(--accent-soft))] font-semibold text-[hsl(var(--accent))]'
+            : 'text-muted hover:bg-[hsl(var(--bg-hover))] hover:text-fg',
+          empty && 'pointer-events-none opacity-40',
+        )}
+      >
+        {active && (
+          <span
+            aria-hidden
+            className="absolute inset-y-1 left-[1px] hidden w-[2.5px] rounded-full bg-[hsl(var(--accent))] lg:block"
+          />
+        )}
+        <Icon
           className={cn(
-            'tabular text-[10.5px]',
-            active ? 'text-[hsl(var(--accent)/0.8)]' : 'text-subtle',
+            'h-3.5 w-3.5 shrink-0',
+            active ? 'text-[hsl(var(--accent))]' : 'text-subtle',
           )}
-        >
-          {count}
-        </span>
-      )}
-    </button>
+        />
+        <span className="min-w-0 flex-1 truncate">{title}</span>
+        {dirty ? (
+          <span
+            className="h-1.5 w-1.5 shrink-0 rounded-full bg-[hsl(var(--warning))]"
+            aria-label="unsaved changes"
+          />
+        ) : (
+          <span
+            className={cn(
+              'tabular text-[10.5px]',
+              active ? 'text-[hsl(var(--accent)/0.8)]' : 'text-subtle',
+            )}
+          >
+            {count}
+          </span>
+        )}
+      </button>
+    </>
   )
 }
 
@@ -683,6 +764,7 @@ function GroupSection({
   group,
   rows,
   pools,
+  backends,
   drafts,
   rowStates,
   needle,
@@ -691,6 +773,7 @@ function GroupSection({
   group: string
   rows: Setting[]
   pools: PoolStat[] | undefined
+  backends: Set<string>
   drafts: Record<string, string>
   rowStates: Record<string, RowState>
   needle: string
@@ -707,6 +790,7 @@ function GroupSection({
             draft={drafts[setting.key]}
             state={rowStates[setting.key]}
             pool={poolFor(setting.key, pools)}
+            idle={setting.backend !== '' && !backends.has(setting.backend)}
             needle={needle}
             {...handlers}
           />
@@ -777,6 +861,7 @@ const SettingRow = memo(function SettingRow({
   draft,
   state,
   pool,
+  idle,
   needle,
   onDraft,
   onSet,
@@ -787,6 +872,8 @@ const SettingRow = memo(function SettingRow({
   draft: string | undefined
   state: RowState | undefined
   pool: PoolStat | undefined
+  /** This row's backend is not the one selected, so nothing reads it today. */
+  idle: boolean
   needle: string
 }) {
   const value = draft ?? setting.value
@@ -830,6 +917,9 @@ const SettingRow = memo(function SettingRow({
       className={cn(
         'group/row relative px-4 py-3 transition-colors',
         dirty ? 'bg-[hsl(var(--accent)/0.09)]' : 'hover:bg-[hsl(var(--bg-hover)/0.45)]',
+        // Parked, not hidden: the row still holds a value and still saves, and
+        // coming back to full strength under the cursor says so.
+        idle && 'opacity-55 transition-opacity focus-within:opacity-100 hover:opacity-100',
       )}
     >
       {dirty && (
@@ -850,6 +940,7 @@ const SettingRow = memo(function SettingRow({
                 <Highlight text={setting.key} needle={needle} />
               </label>
             )}
+            {setting.backend !== '' && <BackendTag name={setting.backend} idle={idle} />}
             <CopyButton
               value={setting.key}
               label="Copy key"
@@ -919,6 +1010,34 @@ const SettingRow = memo(function SettingRow({
     </li>
   )
 })
+
+/**
+ * Says which backend reads a row, for the rows only one does.
+ *
+ * It earns its place on the idle case: a `runware.width` that changes nothing
+ * because the slide port is pointed at `mock` is the kind of thing an operator
+ * otherwise diagnoses by rebuilding the binary.
+ */
+function BackendTag({ name, idle }: { name: string; idle: boolean }) {
+  return (
+    <span
+      title={
+        idle
+          ? `Not in use: no port is pointed at ${name}. The value is kept and applies when one is.`
+          : `Read by ${name}, the backend selected for this step.`
+      }
+      className={cn(
+        'shrink-0 whitespace-nowrap rounded-full px-1.5 py-[1px] text-[10px] font-medium',
+        idle
+          ? 'bg-[hsl(var(--fg)/0.07)] text-subtle'
+          : 'bg-[hsl(var(--accent-soft))] text-[hsl(var(--accent))]',
+      )}
+    >
+      {name}
+      {idle ? ' · idle' : ''}
+    </span>
+  )
+}
 
 function RowStatus({ dirty, state }: { dirty: boolean; state: RowState | undefined }) {
   if (state?.saving) {

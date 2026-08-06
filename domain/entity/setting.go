@@ -21,6 +21,41 @@ type SettingKey string
 // String returns the underlying text of the key.
 func (k SettingKey) String() string { return string(k) }
 
+// The groups the settings screen renders as sections, in the order it renders
+// them: how much runs at once, where the machine stops for a human, who does
+// the work, then the pipeline in the order it runs — write, narrate, draw,
+// package — then what a new video starts as, and last the knobs that are set
+// once and left alone.
+//
+// A group is a task the operator is doing, not the subsystem that reads the
+// row. Those two disagree in exactly one place and the task wins: the thumbnail
+// section holds the two rows the built-in renderer reads privately alongside
+// the two the icon use case fills into a request, because someone making a
+// thumbnail look right wants all four and does not care which side of the port
+// each lands on. Backend allows the two to still be told apart.
+const (
+	GroupPools     = "pools"
+	GroupGates     = "gates"
+	GroupProviders = "providers"
+	GroupWriting   = "writing"
+	GroupNarration = "narration"
+	GroupSlides    = "slides"
+	GroupThumbnail = "thumbnail"
+	GroupVideo     = "video"
+	GroupRetries   = "retries"
+	GroupServer    = "server"
+)
+
+// The registry names a backend-scoped row belongs to. A row tagged with one of
+// these is read only when that backend is the one selected, which is worth
+// saying on the settings screen rather than leaving an operator to wonder why
+// an edit changed nothing.
+const (
+	BackendNineRouter = "9router"
+	BackendRunware    = "runware"
+	BackendXTTS       = "xtts"
+)
+
 // The complete set of settings keys. Everything the server needs after the
 // database is open lives here as a row, not in a config file.
 const (
@@ -33,7 +68,16 @@ const (
 
 	SettingGateBlueprintEnabled SettingKey = "gate.blueprint.enabled"
 	SettingGateUploadEnabled    SettingKey = "gate.upload.enabled"
+	// SettingUploadDryRun sits with the gates rather than among the server knobs
+	// it used to be filed under. The three of them are what stands between a
+	// generation and a public video, and this is the one whose failure mode is
+	// silent: a gate left open only delays, a dry run left off publishes.
+	SettingUploadDryRun SettingKey = "upload.dry_run"
 
+	// The routing table: one row per port in domain/provider. It grows when a
+	// port is added and never when a backend is registered — a backend's own
+	// knobs live with the pipeline stage they shape, so this group stays the
+	// seven-line answer to "who does each job".
 	SettingProviderLLM           SettingKey = "provider.llm"
 	SettingProviderTTS           SettingKey = "provider.tts"
 	SettingProviderSlide         SettingKey = "provider.slide"
@@ -41,26 +85,24 @@ const (
 	SettingProviderThumbnail     SettingKey = "provider.thumbnail"
 	SettingProviderThumbnailIcon SettingKey = "provider.thumbnail_icon"
 	SettingProviderUploader      SettingKey = "provider.uploader"
+
 	// SettingNineRouterModel picks which upstream the 9router backend routes to.
 	// It is a settings row rather than a flag because it is the knob that gets
 	// turned most while prompts are being tuned.
 	SettingNineRouterModel SettingKey = "ninerouter.model"
-	// SettingRunwareModel picks which checkpoint the Runware backend draws with,
-	// as an AIR identifier. A row for the same reason as the model above: it is
-	// the knob that gets turned while a look is being found.
-	SettingRunwareModel SettingKey = "runware.model"
-	// SettingRunwareWidth and SettingRunwareHeight are the geometry slides are
-	// generated at. They exist because provider.SlideRequest carries a size that
-	// no use case fills in: the slide's dimensions are a property of the backend
-	// drawing it, not of the chapter asking for it.
-	SettingRunwareWidth  SettingKey = "runware.width"
-	SettingRunwareHeight SettingKey = "runware.height"
+	// SettingBlueprintChapterTolerancePercent bounds how far an accepted
+	// blueprint's chapter count may fall from the one the video was briefed with.
+	// It is a property of the writing rather than of the video: it decides
+	// whether a roll is accepted or re-rolled, and every video is judged by
+	// whatever it says at the moment the blueprint lands.
+	SettingBlueprintChapterTolerancePercent SettingKey = "blueprint.chapter_tolerance_percent"
 
-	// The xtts narration knobs. They are rows rather than flags for the same
-	// reason the models above are: a voice and a speed are found by listening to
-	// a chapter and trying the next value, not by restarting the server.
+	// How a chapter should sound. These three cross the TTS port in the request
+	// rather than being read by a backend: a voice belongs to whoever the video
+	// is for, and the day a channel wants its own, these become its default
+	// rather than a row that has to be renamed.
 	//
-	// SettingTTSVoice names a voice file on the AllTalk server, e.g.
+	// SettingTTSVoice names a voice file on the narration server, e.g.
 	// female_01.wav. Empty is meaningful — it lets the server use its own default
 	// rather than failing a chapter over a name this end cannot verify.
 	SettingTTSVoice SettingKey = "tts.voice"
@@ -70,20 +112,30 @@ const (
 	// It is the one float in the table: the useful range is 0.5..2.0 and the
 	// interesting steps inside it are tenths, which an integer cannot express.
 	SettingTTSSpeed SettingKey = "tts.speed"
-	// SettingTTSChunkMinChars is the floor on a chunk's length in characters. The
-	// chunk count follows from it, so it sets the size of the pieces a chapter is
-	// synthesised in rather than their number.
-	SettingTTSChunkMinChars SettingKey = "tts.chunk.min_chars"
-	// SettingTTSChunkSilenceMillis is the pause inserted between chunks when they
-	// are rejoined, so a sentence boundary does not become an audible splice.
-	SettingTTSChunkSilenceMillis SettingKey = "tts.chunk.silence_ms"
+	// The chunking pair is xtts's own, and named for it: a chapter is split
+	// because XTTS degrades on long inputs, which is a fact about that server and
+	// not about narration. No other backend inherits these.
+	//
+	// SettingXTTSChunkMinChars is the floor on a chunk's length in characters.
+	// The chunk count follows from it, so it sets the size of the pieces a
+	// chapter is synthesised in rather than their number.
+	SettingXTTSChunkMinChars SettingKey = "xtts.chunk.min_chars"
+	// SettingXTTSChunkSilenceMillis is the pause inserted between chunks when
+	// they are rejoined, so a sentence boundary does not become an audible splice.
+	SettingXTTSChunkSilenceMillis SettingKey = "xtts.chunk.silence_ms"
 
-	SettingVideoDefaultChapters SettingKey = "video.default_chapter_count"
-	SettingVideoDefaultSlides   SettingKey = "video.default_slides_per_chapter"
-	// SettingVideoDefaultThumbnailCells seeds a new video's grid width. It is a
-	// default rather than the live value: the DAG holds one icon task per cell
-	// from expansion onward, so a video keeps the width it was created with.
-	SettingVideoDefaultThumbnailCells SettingKey = "video.default_thumbnail_cells"
+	// SettingRunwareModel picks which checkpoint the Runware backend draws with,
+	// as an AIR identifier. A row for the same reason as the model above: it is
+	// the knob that gets turned while a look is being found. It draws the
+	// thumbnail icons too, when that port is pointed at the same backend.
+	SettingRunwareModel SettingKey = "runware.model"
+	// SettingRunwareWidth and SettingRunwareHeight are the geometry slides are
+	// generated at. They exist because provider.SlideRequest carries a size that
+	// no use case fills in: the slide's dimensions are a property of the backend
+	// drawing it, not of the chapter asking for it.
+	SettingRunwareWidth  SettingKey = "runware.width"
+	SettingRunwareHeight SettingKey = "runware.height"
+
 	// SettingThumbnailIconStyle is the clause appended to every icon prompt. It
 	// lives outside the plan so restyling the whole grid costs the icons rather
 	// than the words: change it and ten cheap generations re-run, with no model
@@ -91,18 +143,26 @@ const (
 	SettingThumbnailIconStyle SettingKey = "thumbnail.icon.style"
 	// SettingThumbnailIconSize is the square edge each icon is generated at.
 	SettingThumbnailIconSize SettingKey = "thumbnail.icon.size"
-	// SettingThumbnailFont names the typeface the built-in renderer sets the
-	// headline and captions in, as a filename under the resources fonts
-	// directory. A row rather than a constant because the face is the loudest
-	// thing about a thumbnail and the one worth trying alternatives for.
+	// SettingThumbnailFont names the typeface the renderer sets the headline and
+	// captions in, as a filename under the resources fonts directory. A row
+	// rather than a constant because the face is the loudest thing about a
+	// thumbnail and the one worth trying alternatives for. It is untagged
+	// deliberately: the HTML backend still to come sets type too.
 	SettingThumbnailFont SettingKey = "thumbnail.font"
 	// SettingThumbnailGridRows is how many rows the icons are laid out in;
 	// columns follow from the cell count.
 	SettingThumbnailGridRows SettingKey = "thumbnail.grid.rows"
 
-	// SettingVideoChapterTolerancePercent bounds how far an accepted blueprint's
-	// chapter count may fall from the one the video was briefed with.
-	SettingVideoChapterTolerancePercent SettingKey = "video.chapter_tolerance_percent"
+	// What a new video is created with. These three are read once, at creation,
+	// and then frozen into the row — an existing video keeps what it was made
+	// with, which is why they are a section of their own rather than mixed in
+	// beside knobs that apply to the next task.
+	SettingVideoDefaultChapters SettingKey = "video.default_chapter_count"
+	SettingVideoDefaultSlides   SettingKey = "video.default_slides_per_chapter"
+	// SettingVideoDefaultThumbnailCells seeds a new video's grid width. The DAG
+	// holds one icon task per cell from expansion onward, so the width a video
+	// was created with is the width it keeps.
+	SettingVideoDefaultThumbnailCells SettingKey = "video.default_thumbnail_cells"
 
 	SettingTaskMaxAttempts     SettingKey = "task.max_attempts"
 	SettingTaskRetryBaseMillis SettingKey = "task.retry_base_ms"
@@ -110,7 +170,6 @@ const (
 
 	SettingSSECoalesceMillis SettingKey = "sse.coalesce_ms"
 	SettingLogLevel          SettingKey = "log.level"
-	SettingUploadDryRun      SettingKey = "upload.dry_run"
 )
 
 // SettingType is the declared type of a setting's text value. Every value is
@@ -156,7 +215,17 @@ type Setting struct {
 	Options []string
 	// Optional allows a string setting to be empty, for the keys where empty is a
 	// meaningful value rather than a missing one.
-	Optional  bool
+	Optional bool
+	// Backend names the registry entry that reads this row, empty when the row is
+	// not backend-specific. Like Options it is a property of the running binary
+	// and is not persisted: what reads a row is a fact about the code, and a
+	// stored copy would go stale the first time a backend was rewritten.
+	//
+	// It exists so the settings screen can say "xtts only" on a row and dim it
+	// when that backend is not the one selected. A row whose backend is idle
+	// still validates and still holds its value — it is simply not being read,
+	// and that is the thing worth showing rather than hiding.
+	Backend   string
 	UpdatedAt time.Time
 }
 
@@ -292,54 +361,96 @@ func GateEnabledKey(g GateKind) SettingKey {
 // DefaultSettings is the complete seeded settings table. The seed is an upsert
 // by key, so a fresh database and a ten-times-seeded database end up in the
 // same state.
+//
+// The order here is the order the settings screen shows: rows are sorted by
+// their position in this slice rather than by key, because "voice, language,
+// speed" is how an operator thinks about narration and "chunk, chunk, language,
+// speed, voice" is only how the key names happen to sort.
 func DefaultSettings() []Setting {
 	return []Setting{
-		{Key: SettingPoolLLMLimit, Value: "2", Type: SettingTypeInt, Group: "pools", Min: 1, Max: MaxPoolLimit, Description: "Concurrent LLM calls across all videos and channels."},
-		{Key: SettingPoolTTSLimit, Value: "2", Type: SettingTypeInt, Group: "pools", Min: 1, Max: MaxPoolLimit, Description: "Concurrent narration syntheses."},
-		{Key: SettingPoolImageLimit, Value: "2", Type: SettingTypeInt, Group: "pools", Min: 1, Max: MaxPoolLimit, Description: "Concurrent slide generations — usually the binding constraint."},
-		{Key: SettingPoolComposeLimit, Value: "2", Type: SettingTypeInt, Group: "pools", Min: 1, Max: MaxPoolLimit, Description: "Concurrent clip and concat compositions."},
-		{Key: SettingPoolCacheLimit, Value: "32", Type: SettingTypeInt, Group: "pools", Min: 1, Max: MaxPoolLimit, Description: "Concurrent slide-prompt cache reads; must never be the bottleneck."},
-		{Key: SettingPoolUploadLimit, Value: "1", Type: SettingTypeInt, Group: "pools", Min: 1, Max: MaxPoolLimit, Description: "Concurrent uploads."},
+		{Key: SettingPoolLLMLimit, Value: "2", Type: SettingTypeInt, Group: GroupPools, Min: 1, Max: MaxPoolLimit, Description: "Concurrent LLM calls across all videos and channels."},
+		{Key: SettingPoolTTSLimit, Value: "2", Type: SettingTypeInt, Group: GroupPools, Min: 1, Max: MaxPoolLimit, Description: "Concurrent narration syntheses."},
+		{Key: SettingPoolImageLimit, Value: "2", Type: SettingTypeInt, Group: GroupPools, Min: 1, Max: MaxPoolLimit, Description: "Concurrent slide generations — usually the binding constraint."},
+		{Key: SettingPoolComposeLimit, Value: "2", Type: SettingTypeInt, Group: GroupPools, Min: 1, Max: MaxPoolLimit, Description: "Concurrent clip and concat compositions."},
+		{Key: SettingPoolCacheLimit, Value: "32", Type: SettingTypeInt, Group: GroupPools, Min: 1, Max: MaxPoolLimit, Description: "Concurrent slide-prompt cache reads; must never be the bottleneck."},
+		{Key: SettingPoolUploadLimit, Value: "1", Type: SettingTypeInt, Group: GroupPools, Min: 1, Max: MaxPoolLimit, Description: "Concurrent uploads."},
 
-		{Key: SettingGateBlueprintEnabled, Value: "true", Type: SettingTypeBool, Group: "gates", Description: "Pause after the blueprint for human review."},
-		{Key: SettingGateUploadEnabled, Value: "true", Type: SettingTypeBool, Group: "gates", Description: "Pause before upload for human review."},
-
-		{Key: SettingProviderLLM, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for blueprint, script, prompts and metadata."},
-		{Key: SettingProviderTTS, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for narration."},
-		{Key: SettingProviderSlide, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for slides."},
-		{Key: SettingProviderComposer, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for clip and concat composition."},
-		{Key: SettingProviderThumbnail, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend that renders the thumbnail image."},
-		{Key: SettingProviderThumbnailIcon, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for the thumbnail's grid icons; selected apart from slides."},
-		{Key: SettingProviderUploader, Value: "mock", Type: SettingTypeString, Group: "providers", Description: "Backend for publishing."},
+		{Key: SettingGateBlueprintEnabled, Value: "true", Type: SettingTypeBool, Group: GroupGates, Description: "Pause after the blueprint for human review."},
+		{Key: SettingGateUploadEnabled, Value: "true", Type: SettingTypeBool, Group: GroupGates, Description: "Pause before upload for human review."},
 		//nolint:lll // one row, one line
-		{Key: SettingNineRouterModel, Value: "ag/gemini-3-flash", Type: SettingTypeString, Group: "providers", Description: "Which upstream the 9router backend routes to, e.g. ag/gemini-3-flash. See GET /v1/models on the gateway."},
+		{Key: SettingUploadDryRun, Value: "true", Type: SettingTypeBool, Group: GroupGates, Description: "Uploads are simulated and produce a local receipt. Turning this off is what makes a publish real."},
 
-		{Key: SettingRunwareModel, Value: "runware:100@1", Type: SettingTypeString, Group: "providers", Description: "Checkpoint the Runware backend draws with, as an AIR identifier, e.g. runware:100@1."},
-		{Key: SettingRunwareWidth, Value: "1344", Type: SettingTypeInt, Group: "providers", Min: 128, Max: 2048, Description: "Width slides are generated at. The composer frames them at 1344x768, so anything else is resampled."},
-		{Key: SettingRunwareHeight, Value: "768", Type: SettingTypeInt, Group: "providers", Min: 128, Max: 2048, Description: "Height slides are generated at. Most checkpoints require both edges to be a multiple of 64."},
-
-		{Key: SettingTTSVoice, Value: "", Type: SettingTypeString, Group: "providers", Optional: true, Description: "Voice file on the AllTalk server, e.g. female_01.wav. Empty lets the server pick its own default."},
-		{Key: SettingTTSLanguage, Value: "en", Type: SettingTypeString, Group: "providers", Description: "Two-letter code the narration model is asked to speak."},
-		{Key: SettingTTSSpeed, Value: "1.0", Type: SettingTypeFloat, Group: "providers", Min: 0.5, Max: 2.0, Description: "Playback rate asked of the narration server; 1.0 is unmodified."},
-		{Key: SettingTTSChunkMinChars, Value: "250", Type: SettingTypeInt, Group: "providers", Min: 50, Max: 5000, Description: "Floor on a narration chunk's length in characters. A chapter is synthesised in pieces at least this long."},
-		{Key: SettingTTSChunkSilenceMillis, Value: "200", Type: SettingTypeInt, Group: "providers", Min: 0, Max: 2000, Description: "Pause inserted between narration chunks when they are rejoined, so a sentence boundary is not an audible splice."},
-
-		{Key: SettingVideoDefaultChapters, Value: "50", Type: SettingTypeInt, Group: "video", Min: MinChapterCount, Max: MaxChapterCount, Description: "Chapters created for a new video when unspecified."},
-		{Key: SettingVideoDefaultSlides, Value: "2", Type: SettingTypeInt, Group: "video", Min: MinSlidesPerChapter, Max: MaxSlidesPerChapter, Description: "Slides generated per chapter when unspecified."},
-		{Key: SettingThumbnailIconStyle, Value: "", Type: SettingTypeString, Group: "video", Optional: true, Description: "Appended to every thumbnail icon prompt."},
-		{Key: SettingThumbnailIconSize, Value: "512", Type: SettingTypeInt, Group: "video", Min: 64, Max: 2048, Description: "Square edge, in pixels, each thumbnail icon is generated at."},
-		{Key: SettingThumbnailFont, Value: "CabinSketch-Bold.ttf", Type: SettingTypeString, Group: "video", Description: "Typeface for the thumbnail headline and captions, from the resources fonts directory."},
-		{Key: SettingThumbnailGridRows, Value: "2", Type: SettingTypeInt, Group: "video", Min: 1, Max: 4, Description: "Rows the thumbnail's icon grid is laid out in; the columns follow from the tile count."},
-		{Key: SettingVideoDefaultThumbnailCells, Value: "12", Type: SettingTypeInt, Group: "video", Min: MinThumbnailCells, Max: MaxThumbnailCells, Description: "Tiles in a new video's thumbnail grid; one icon is generated per tile. Twelve is two rows of six."},
-		{Key: SettingVideoChapterTolerancePercent, Value: "20", Type: SettingTypeInt, Group: "video", Min: 0, Max: 100, Description: "How far an accepted blueprint's chapter count may fall from the target, as a percentage."},
+		{Key: SettingProviderLLM, Value: "mock", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for blueprint, script, prompts and metadata."},
+		{Key: SettingProviderTTS, Value: "mock", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for narration."},
+		{Key: SettingProviderSlide, Value: "mock", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for slides."},
+		{Key: SettingProviderComposer, Value: "mock", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for clip and concat composition."},
+		{Key: SettingProviderThumbnail, Value: "mock", Type: SettingTypeString, Group: GroupProviders, Description: "Backend that renders the thumbnail image."},
+		{Key: SettingProviderThumbnailIcon, Value: "mock", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for the thumbnail's grid icons; selected apart from slides."},
+		{Key: SettingProviderUploader, Value: "mock", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for publishing."},
 
 		//nolint:lll // one row, one line
-		{Key: SettingTaskMaxAttempts, Value: "1", Type: SettingTypeInt, Group: "scheduler", Min: 1, Max: 20, Description: "Attempts before a task is permanently failed. One means a failure surfaces immediately rather than costing a second generation; raise it once the prompts are settled."},
-		{Key: SettingTaskRetryBaseMillis, Value: "250", Type: SettingTypeInt, Group: "scheduler", Min: 1, Max: 60000, Description: "Initial retry backoff."},
-		{Key: SettingTaskRetryMaxMillis, Value: "30000", Type: SettingTypeInt, Group: "scheduler", Min: 1, Max: 3600000, Description: "Maximum retry backoff."},
+		{Key: SettingNineRouterModel, Value: "ag/gemini-3-flash", Type: SettingTypeString, Group: GroupWriting, Backend: BackendNineRouter, Description: "Which upstream the 9router backend routes to, e.g. ag/gemini-3-flash. See GET /v1/models on the gateway."},
+		//nolint:lll // one row, one line
+		{Key: SettingBlueprintChapterTolerancePercent, Value: "20", Type: SettingTypeInt, Group: GroupWriting, Min: 0, Max: 100, Description: "How far an accepted blueprint's chapter count may fall from the target, as a percentage. A roll outside it is rejected and written again."},
 
-		{Key: SettingSSECoalesceMillis, Value: "50", Type: SettingTypeInt, Group: "server", Min: 1, Max: 5000, Description: "Minimum interval between event batches per video."},
-		{Key: SettingLogLevel, Value: "info", Type: SettingTypeString, Group: "server", Description: "debug, info, warn or error; applied without a restart."},
-		{Key: SettingUploadDryRun, Value: "true", Type: SettingTypeBool, Group: "server", Description: "Uploads are simulated and produce a local receipt."},
+		//nolint:lll // one row, one line
+		{Key: SettingTTSVoice, Value: "", Type: SettingTypeString, Group: GroupNarration, Optional: true, Description: "Voice file on the narration server, e.g. female_01.wav. Empty lets the server pick its own default."},
+		{Key: SettingTTSLanguage, Value: "en", Type: SettingTypeString, Group: GroupNarration, Description: "Two-letter code the narration model is asked to speak."},
+		{Key: SettingTTSSpeed, Value: "1.0", Type: SettingTypeFloat, Group: GroupNarration, Min: 0.5, Max: 2.0, Description: "Playback rate asked of the narration server; 1.0 is unmodified."},
+		//nolint:lll // one row, one line
+		{Key: SettingXTTSChunkMinChars, Value: "250", Type: SettingTypeInt, Group: GroupNarration, Backend: BackendXTTS, Min: 50, Max: 5000, Description: "Floor on a narration chunk's length in characters. A chapter is synthesised in pieces at least this long, because XTTS degrades on long inputs."},
+		//nolint:lll // one row, one line
+		{Key: SettingXTTSChunkSilenceMillis, Value: "200", Type: SettingTypeInt, Group: GroupNarration, Backend: BackendXTTS, Min: 0, Max: 2000, Description: "Pause inserted between narration chunks when they are rejoined, so a sentence boundary is not an audible splice."},
+
+		//nolint:lll // one row, one line
+		{Key: SettingRunwareModel, Value: "runware:100@1", Type: SettingTypeString, Group: GroupSlides, Backend: BackendRunware, Description: "Checkpoint the Runware backend draws with, as an AIR identifier, e.g. runware:100@1. It draws the thumbnail icons too, when that port is pointed at it."},
+		//nolint:lll // one row, one line
+		{Key: SettingRunwareWidth, Value: "1344", Type: SettingTypeInt, Group: GroupSlides, Backend: BackendRunware, Min: 128, Max: 2048, Description: "Width slides are generated at. The composer frames them at 1344x768, so anything else is resampled."},
+		//nolint:lll // one row, one line
+		{Key: SettingRunwareHeight, Value: "768", Type: SettingTypeInt, Group: GroupSlides, Backend: BackendRunware, Min: 128, Max: 2048, Description: "Height slides are generated at. Most checkpoints require both edges to be a multiple of 64."},
+
+		{Key: SettingThumbnailIconStyle, Value: "", Type: SettingTypeString, Group: GroupThumbnail, Optional: true, Description: "Appended to every thumbnail icon prompt."},
+		{Key: SettingThumbnailIconSize, Value: "512", Type: SettingTypeInt, Group: GroupThumbnail, Min: 64, Max: 2048, Description: "Square edge, in pixels, each thumbnail icon is generated at."},
+		//nolint:lll // one row, one line
+		{Key: SettingThumbnailFont, Value: "CabinSketch-Bold.ttf", Type: SettingTypeString, Group: GroupThumbnail, Description: "Typeface for the thumbnail headline and captions, from the resources fonts directory."},
+		//nolint:lll // one row, one line
+		{Key: SettingThumbnailGridRows, Value: "2", Type: SettingTypeInt, Group: GroupThumbnail, Min: 1, Max: 4, Description: "Rows the thumbnail's icon grid is laid out in; the columns follow from the tile count."},
+
+		//nolint:lll // one row, one line
+		{Key: SettingVideoDefaultChapters, Value: "50", Type: SettingTypeInt, Group: GroupVideo, Min: MinChapterCount, Max: MaxChapterCount, Description: "Chapters created for a new video when unspecified."},
+		//nolint:lll // one row, one line
+		{Key: SettingVideoDefaultSlides, Value: "2", Type: SettingTypeInt, Group: GroupVideo, Min: MinSlidesPerChapter, Max: MaxSlidesPerChapter, Description: "Slides generated per chapter when unspecified."},
+		//nolint:lll // one row, one line
+		{Key: SettingVideoDefaultThumbnailCells, Value: "12", Type: SettingTypeInt, Group: GroupVideo, Min: MinThumbnailCells, Max: MaxThumbnailCells, Description: "Tiles in a new video's thumbnail grid; one icon is generated per tile. Twelve is two rows of six."},
+
+		//nolint:lll // one row, one line
+		{Key: SettingTaskMaxAttempts, Value: "1", Type: SettingTypeInt, Group: GroupRetries, Min: 1, Max: 20, Description: "Attempts before a task is permanently failed. One means a failure surfaces immediately rather than costing a second generation; raise it once the prompts are settled."},
+		{Key: SettingTaskRetryBaseMillis, Value: "250", Type: SettingTypeInt, Group: GroupRetries, Min: 1, Max: 60000, Description: "Initial retry backoff."},
+		{Key: SettingTaskRetryMaxMillis, Value: "30000", Type: SettingTypeInt, Group: GroupRetries, Min: 1, Max: 3600000, Description: "Maximum retry backoff."},
+
+		{Key: SettingSSECoalesceMillis, Value: "50", Type: SettingTypeInt, Group: GroupServer, Min: 1, Max: 5000, Description: "Minimum interval between event batches per video."},
+		{Key: SettingLogLevel, Value: "info", Type: SettingTypeString, Group: GroupServer, Description: "debug, info, warn or error; applied without a restart."},
 	}
+}
+
+// settingOrder is each key's position in DefaultSettings, so a section can be
+// presented in the order it was written. Built once: the table is read on every
+// settings screen and the slice is rebuilt on every call to DefaultSettings.
+var settingOrder = func() map[SettingKey]int {
+	defaults := DefaultSettings()
+	order := make(map[SettingKey]int, len(defaults))
+	for i, d := range defaults {
+		order[d.Key] = i
+	}
+	return order
+}()
+
+// SettingOrder returns a key's seeded position. A key that is not seeded sorts
+// after every one that is, rather than being dropped: an unknown row in the
+// table is a thing to show the operator, not to hide from them.
+func SettingOrder(k SettingKey) int {
+	if i, ok := settingOrder[k]; ok {
+		return i
+	}
+	return len(settingOrder)
 }

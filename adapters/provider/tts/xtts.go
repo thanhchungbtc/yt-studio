@@ -1,7 +1,7 @@
 // Package tts is the narration backend for an AllTalk/XTTS server.
 //
 // A chapter is spoken in pieces: the script is split on sentence boundaries
-// into chunks of at least tts.chunk.min_chars, each chunk is synthesised on its
+// into chunks of at least xtts.chunk.min_chars, each chunk is synthesised on its
 // own, and the WAVs are joined with a short silence between them. The splitting
 // is not an optimisation — XTTS degrades on long inputs, and a chapter is
 // thousands of words.
@@ -76,16 +76,15 @@ const (
 // context aborts an in-flight call promptly.
 const defaultTimeout = 20 * time.Minute
 
-// Options are the knobs that belong in the settings table, read per call so an
-// edit on the settings screen applies to the next chapter rather than the next
-// restart — the same reason the registry resolves its backend per call.
+// Options are this backend's own knobs, read per call so an edit on the
+// settings screen applies to the next chapter rather than the next restart —
+// the same reason the registry resolves its backend per call.
+//
+// How a chapter should sound is not here: voice, language and speed arrive on
+// the request, because they belong to the video being narrated rather than to
+// the server narrating it. What is left is the chunking, which exists only
+// because this server degrades on long inputs.
 type Options struct {
-	// Voice is the server-side voice file, e.g. `female_01.wav`.
-	Voice string
-	// Language is the two-letter code the model is asked to speak.
-	Language string
-	// Speed is the playback rate the server is asked for; 1.0 is unmodified.
-	Speed float64
 	// ChunkMinChars is the floor on a chunk's length in characters. The chunk
 	// count follows from it (len(text) / ChunkMinChars), so it sets the size of
 	// the pieces rather than their number.
@@ -93,6 +92,32 @@ type Options struct {
 	// ChunkSilenceMillis is the pause inserted between chunks when they are
 	// rejoined, so a sentence boundary does not become a splice.
 	ChunkSilenceMillis int
+}
+
+// voice is how one chapter should sound, after the request's blanks have been
+// filled in. It is a type of its own so the request's three fields travel
+// together down to the one call that sends them.
+type voice struct {
+	name     string
+	language string
+	speed    float64
+}
+
+// voiceOf fills a request's blanks, field by field rather than wholesale: a
+// missing value should cost a chapter its tuning, not its narration.
+//
+// The name is the deliberate exception — empty is passed through, because the
+// server picking its own default is better than this end guessing a filename it
+// cannot verify.
+func voiceOf(req provider.SpeakRequest) voice {
+	v := voice{name: req.Voice, language: req.Language, speed: req.Speed}
+	if v.language == "" {
+		v.language = defaultLanguage
+	}
+	if v.speed <= 0 {
+		v.speed = defaultSpeed
+	}
+	return v
 }
 
 // Config is everything needed to reach one AllTalk instance.
@@ -193,6 +218,7 @@ func (c *Client) Check(ctx context.Context) error {
 // working backend.
 func (c *Client) Speak(ctx context.Context, req provider.SpeakRequest) (entity.AssetID, error) {
 	opts := c.options()
+	v := voiceOf(req)
 
 	text := normalize(req.Text)
 
@@ -205,7 +231,7 @@ func (c *Client) Speak(ctx context.Context, req provider.SpeakRequest) (entity.A
 
 	parts := make([][]byte, 0, len(chunks))
 	for _, chunk := range chunks {
-		part, err := c.synthesize(ctx, chunk, opts)
+		part, err := c.synthesize(ctx, chunk, v)
 		if err != nil {
 			return "", err
 		}
@@ -235,14 +261,14 @@ type generateResponse struct {
 //
 // It is two requests, because the server answers with a URL rather than audio:
 // generate, then fetch what the generation reported.
-func (c *Client) synthesize(ctx context.Context, chunk string, opts Options) ([]byte, error) {
+func (c *Client) synthesize(ctx context.Context, chunk string, v voice) ([]byte, error) {
 	form := url.Values{
 		"text_input":          {chunk},
-		"character_voice_gen": {opts.Voice},
-		"language":            {opts.Language},
+		"character_voice_gen": {v.name},
+		"language":            {v.language},
 		// Formatted without a trailing zero so 1.0 goes over as "1", which is what
 		// the Python sent and what the server's own examples use.
-		"speed": {strconv.FormatFloat(opts.Speed, 'g', -1, 64)},
+		"speed": {strconv.FormatFloat(v.speed, 'g', -1, 64)},
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		c.cfg.BaseURL+endpointGenerate, strings.NewReader(form.Encode()))
@@ -332,20 +358,10 @@ func (c *Client) audioURL(reported string) (string, error) {
 
 // options reads the current settings, falling back per field rather than
 // wholesale: a missing row should cost a chapter its tuning, not its narration.
-//
-// Voice is the deliberate exception — empty is passed through, because the
-// server picking its own default is better than this end guessing a filename it
-// cannot verify.
 func (c *Client) options() Options {
 	opts := Options{}
 	if c.cfg.Options != nil {
 		opts = c.cfg.Options()
-	}
-	if opts.Language == "" {
-		opts.Language = defaultLanguage
-	}
-	if opts.Speed <= 0 {
-		opts.Speed = defaultSpeed
 	}
 	if opts.ChunkMinChars <= 0 {
 		opts.ChunkMinChars = defaultChunkMinChars

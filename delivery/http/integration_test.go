@@ -97,9 +97,16 @@ func newHarness(t *testing.T) *harness {
 		expander,
 		func() app.BlueprintOptions {
 			return app.BlueprintOptions{
-				ChapterTolerancePercent: settings.Int(entity.SettingVideoChapterTolerancePercent),
+				ChapterTolerancePercent: settings.Int(entity.SettingBlueprintChapterTolerancePercent),
 				MaxAttempts:             settings.Int(entity.SettingTaskMaxAttempts),
 				UploadGate:              settings.GateEnabled(entity.GateUpload),
+			}
+		},
+		func() app.NarrationOptions {
+			return app.NarrationOptions{
+				Voice:    settings.String(entity.SettingTTSVoice),
+				Language: settings.String(entity.SettingTTSLanguage),
+				Speed:    settings.Float(entity.SettingTTSSpeed),
 			}
 		},
 		func() app.IconOptions {
