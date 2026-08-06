@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import {
   AlertCircle,
   ArrowRight,
@@ -64,6 +65,12 @@ const GROUPS: Record<string, GroupMeta> = {
     blurb: 'Where the pipeline pauses for a human. A gate costs nothing while it is open.',
     icon: ShieldCheck,
   },
+  presets: {
+    title: 'Presets',
+    blurb:
+      'One click across every provider row. A preset writes only the rows it names — the gates and the upload dry run are never among them.',
+    icon: Wand2,
+  },
   providers: {
     title: 'Providers',
     blurb:
@@ -90,6 +97,14 @@ const GROUPS: Record<string, GroupMeta> = {
 
 const GROUP_ORDER = Object.keys(GROUPS)
 
+/**
+ * The one section that is not a group of the settings table: it writes rows
+ * rather than holding them. It sits in the rail beside the real groups because
+ * from the operator's side it is the same question — which backends run this —
+ * answered in one click instead of seven.
+ */
+const PRESETS = 'presets'
+
 function groupMeta(group: string): GroupMeta {
   return GROUPS[group] ?? { title: group, blurb: '', icon: SlidersHorizontal }
 }
@@ -109,22 +124,26 @@ interface RowState {
  * offer one "apply everything" instead of making the operator hunt for the rows
  * they touched — and so a row that saves itself the moment it is flipped (a
  * switch, a backend) can sit beside one that waits for Enter without the two
- * disagreeing about what "unsaved" means. And the rail on the left is a table of
- * contents that scrolls the pane rather than a filter that hides the rest: with
- * thirty keys, knowing what exists matters more than seeing one at a time.
+ * disagreeing about what "unsaved" means. And the rail on the left is navigation
+ * rather than a table of contents: one section is mounted at a time, because
+ * thirty keys in one column means every visit scrolls past six answers to reach
+ * the one being changed. Drafts survive the move, so leaving a section mid-edit
+ * loses nothing and the dock below still names what is unsaved.
  */
 export function SettingsRoute() {
   const queryClient = useQueryClient()
   const settings = useQuery({ queryKey: qk.settings, queryFn: api.listSettings })
+  const presets = useQuery({ queryKey: qk.presets, queryFn: api.listPresets })
 
   // Free from cache — the status bar keeps this query warm. It turns an abstract
   // limit into "and here is what that limit is currently doing".
   const { data: status } = useQuery({ queryKey: qk.scheduler, queryFn: api.schedulerStatus })
 
+  const navigate = useNavigate()
+  const { section: requested } = useSearch({ from: '/settings' })
+
   const [query, setQuery] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const [active, setActive] = useState('')
 
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [rowStates, setRowStates] = useState<Record<string, RowState>>({})
@@ -154,17 +173,19 @@ export function SettingsRoute() {
     })
   }, [rows])
 
-  const groups = useMemo(() => {
-    const needle = query.trim().toLowerCase()
+  const needle = query.trim().toLowerCase()
+  const hasPresets = (presets.data?.length ?? 0) > 0
+
+  /**
+   * Every section the rail offers, with all of its rows. The filter narrows what
+   * a section shows, never which sections exist — the rail is how the operator
+   * finds out what this build has, so it must not shrink under them.
+   */
+  const sections = useMemo(() => {
     const map = new Map<string, Setting[]>()
+    // The presets section owns no rows; it is listed when the server has any.
+    if (hasPresets) map.set(PRESETS, [])
     for (const setting of rows) {
-      if (
-        needle &&
-        !setting.key.toLowerCase().includes(needle) &&
-        !setting.description.toLowerCase().includes(needle)
-      ) {
-        continue
-      }
       const list = map.get(setting.group)
       if (list) list.push(setting)
       else map.set(setting.group, [setting])
@@ -174,7 +195,45 @@ export function SettingsRoute() {
         (GROUP_ORDER.indexOf(a[0]) + 1 || 99) - (GROUP_ORDER.indexOf(b[0]) + 1 || 99) ||
         a[0].localeCompare(b[0]),
     )
-  }, [rows, query])
+  }, [rows, hasPresets])
+
+  const matches = useMemo(() => {
+    const map = new Map<string, Setting[]>()
+    for (const [group, list] of sections) {
+      map.set(
+        group,
+        needle
+          ? list.filter(
+              (setting) =>
+                setting.key.toLowerCase().includes(needle) ||
+                setting.description.toLowerCase().includes(needle),
+            )
+          : list,
+      )
+    }
+    return map
+  }, [sections, needle])
+
+  /**
+   * The section the pane renders. The URL carries the request so a reload comes
+   * back to it; what is actually rendered is the first section with something to
+   * render, so filtering from a section the needle misses lands on the matches
+   * instead of on a blank pane — and clearing the filter returns to where the
+   * operator was, since the URL never changed.
+   */
+  const active = useMemo(() => {
+    const shows = (group: string) => !needle || (matches.get(group)?.length ?? 0) > 0
+    if (requested !== undefined && matches.has(requested) && shows(requested)) return requested
+    return sections.find(([group]) => shows(group))?.[0] ?? ''
+  }, [sections, matches, needle, requested])
+
+  const selectSection = useCallback(
+    // Replaced rather than pushed: the back button is for leaving settings, not
+    // for retracing which section was looked at on the way through.
+    (group: string) =>
+      void navigate({ to: '/settings', search: { section: group }, replace: true }),
+    [navigate],
+  )
 
   const dirtyKeys = useMemo(
     () => rows.filter((row) => drafts[row.key] !== undefined).map((row) => row.key),
@@ -278,39 +337,8 @@ export function SettingsRoute() {
     },
   ])
 
-  // Which section the pane is looking at, measured against the container rather
-  // than the document so the sticky header offset stays honest.
-  useEffect(() => {
-    const container = scrollRef.current
-    if (!container || groups.length === 0) return
-    let frame = 0
-    const measure = () => {
-      frame = 0
-      const top = container.getBoundingClientRect().top
-      let current = groups[0]?.[0] ?? ''
-      for (const [group] of groups) {
-        const node = document.getElementById(`settings-${group}`)
-        if (node && node.getBoundingClientRect().top - top <= 96) current = group
-      }
-      if (container.scrollHeight - container.scrollTop - container.clientHeight < 8) {
-        current = groups[groups.length - 1]?.[0] ?? current
-      }
-      setActive(current)
-    }
-    const onScroll = () => {
-      if (frame === 0) frame = requestAnimationFrame(measure)
-    }
-    measure()
-    container.addEventListener('scroll', onScroll, { passive: true })
-    return () => {
-      container.removeEventListener('scroll', onScroll)
-      if (frame !== 0) cancelAnimationFrame(frame)
-    }
-  }, [groups])
-
   const total = rows.length
-  const shown = groups.reduce((sum, [, list]) => sum + list.length, 0)
-  const needle = query.trim().toLowerCase()
+  const shown = needle ? [...matches.values()].reduce((sum, list) => sum + list.length, 0) : total
 
   return (
     <>
@@ -334,7 +362,7 @@ export function SettingsRoute() {
         }
       />
 
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-5xl px-4 py-5">
           {settings.isPending && (
             <div className="space-y-4">
@@ -345,53 +373,43 @@ export function SettingsRoute() {
           )}
           {settings.isError && <ErrorNotice error={settings.error} />}
 
-          {!settings.isPending && !settings.isError && groups.length === 0 && (
-            <EmptyState
-              icon={<SlidersHorizontal />}
-              title="Nothing matches"
-              description={`None of the ${total} settings mention “${query.trim()}”.`}
-              action={
-                <Button variant="outline" size="sm" onClick={() => setQuery('')}>
-                  Clear the filter
-                </Button>
-              }
-            />
-          )}
-
-          {!settings.isPending && !settings.isError && (
-            <PresetBar rows={rows} running={status?.running ?? 0} />
-          )}
-
-          {groups.length > 0 && (
+          {sections.length > 0 && (
             <div className="grid gap-6 lg:grid-cols-[184px_minmax(0,1fr)]">
-              <nav aria-label="Setting groups" className="hidden lg:block">
-                <div className="sticky top-0 space-y-0.5 pb-4">
-                  <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-subtle">
-                    Sections
-                  </p>
-                  {groups.map(([group, list]) => (
+              {/* Vertical beside the pane, a scrolling strip of chips above it
+                  when there is no room — hiding it would strand the operator in
+                  whichever section happened to be first. */}
+              <nav aria-label="Setting groups" className="lg:sticky lg:top-0 lg:self-start">
+                <p className="mb-1.5 hidden px-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-subtle lg:block">
+                  Sections
+                </p>
+                <div className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-col lg:gap-0.5 lg:overflow-x-visible lg:px-0 lg:pb-4">
+                  {sections.map(([group, list]) => (
                     <RailItem
                       key={group}
                       group={group}
-                      count={list.length}
-                      active={active === group}
-                      dirty={list.some((row) => drafts[row.key] !== undefined)}
-                      onSelect={() =>
-                        document
-                          .getElementById(`settings-${group}`)
-                          ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      count={
+                        group === PRESETS
+                          ? (presets.data?.length ?? 0)
+                          : (matches.get(group)?.length ?? 0)
                       }
+                      active={active === group}
+                      // Measured against every row, not the visible ones: an
+                      // unsaved edit in a filtered-out row still needs saying.
+                      dirty={list.some((row) => drafts[row.key] !== undefined)}
+                      empty={needle !== '' && (matches.get(group)?.length ?? 0) === 0}
+                      onSelect={() => selectSection(group)}
                     />
                   ))}
                 </div>
               </nav>
 
-              <div className="min-w-0 space-y-6">
-                {groups.map(([group, list]) => (
+              <div className="min-w-0">
+                {active === PRESETS && <PresetBar rows={rows} running={status?.running ?? 0} />}
+
+                {active !== '' && active !== PRESETS && (
                   <GroupSection
-                    key={group}
-                    group={group}
-                    rows={list}
+                    group={active}
+                    rows={matches.get(active) ?? []}
                     pools={status?.pools}
                     drafts={drafts}
                     rowStates={rowStates}
@@ -401,7 +419,20 @@ export function SettingsRoute() {
                     onCommit={commit}
                     onRevert={revert}
                   />
-                ))}
+                )}
+
+                {active === '' && (
+                  <EmptyState
+                    icon={<SlidersHorizontal />}
+                    title="Nothing matches"
+                    description={`None of the ${total} settings mention “${query.trim()}”.`}
+                    action={
+                      <Button variant="outline" size="sm" onClick={() => setQuery('')}>
+                        Clear the filter
+                      </Button>
+                    }
+                  />
+                )}
               </div>
             </div>
           )}
@@ -427,12 +458,15 @@ function RailItem({
   count,
   active,
   dirty,
+  empty,
   onSelect,
 }: {
   group: string
   count: number
   active: boolean
   dirty: boolean
+  /** No row here survives the current filter; shown, but not worth going to. */
+  empty: boolean
   onSelect: () => void
 }) {
   const { title, icon: Icon } = groupMeta(group)
@@ -440,18 +474,20 @@ function RailItem({
     <button
       type="button"
       onClick={onSelect}
+      disabled={empty}
       aria-current={active ? 'true' : undefined}
       className={cn(
-        'relative flex w-full items-center gap-2 rounded-[var(--radius-sm)] py-1.5 pl-2.5 pr-2 text-left text-[12px] transition-colors',
+        'relative flex shrink-0 items-center gap-2 rounded-[var(--radius-sm)] py-1.5 pl-2.5 pr-2 text-left text-[12px] transition-colors lg:w-full',
         active
           ? 'bg-[hsl(var(--bg-active))] font-medium text-fg'
           : 'text-muted hover:bg-[hsl(var(--bg-hover))] hover:text-fg',
+        empty && 'pointer-events-none opacity-40',
       )}
     >
       {active && (
         <span
           aria-hidden
-          className="absolute left-[-6px] top-1/2 h-4 w-[2px] -translate-y-1/2 rounded-full bg-[hsl(var(--accent))]"
+          className="absolute left-[-6px] top-1/2 hidden h-4 w-[2px] -translate-y-1/2 rounded-full bg-[hsl(var(--accent))] lg:block"
         />
       )}
       <Icon className={cn('h-3.5 w-3.5 shrink-0', active ? 'text-[hsl(var(--accent))]' : '')} />
@@ -520,21 +556,8 @@ function PresetBar({ rows, running }: { rows: Setting[]; running: number }) {
   if (diffs.length === 0) return null
 
   return (
-    <section className="mb-6" aria-labelledby="heading-presets">
-      <div className="mb-2.5 flex items-start gap-2.5 px-0.5">
-        <span className="mt-[1px] flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[hsl(var(--accent-soft))] text-[hsl(var(--accent))]">
-          <Wand2 className="h-[15px] w-[15px]" />
-        </span>
-        <div className="min-w-0">
-          <h2 id="heading-presets" className="text-[13.5px] font-semibold text-fg">
-            Presets
-          </h2>
-          <p className="mt-0.5 max-w-2xl text-[11.5px] leading-[1.5] text-subtle">
-            One click across every provider row. A preset writes only the rows it names — the gates
-            and the upload dry run are never among them.
-          </p>
-        </div>
-      </div>
+    <section aria-labelledby={`heading-${PRESETS}`}>
+      <SectionHeader group={PRESETS} />
 
       {running > 0 && (
         <p className="mb-2 flex items-center gap-1.5 px-0.5 text-[11.5px] text-[hsl(var(--warning))]">
@@ -661,22 +684,9 @@ function GroupSection({
   rowStates: Record<string, RowState>
   needle: string
 }) {
-  const { title, blurb, icon: Icon } = groupMeta(group)
   return (
-    <section id={`settings-${group}`} className="scroll-mt-5" aria-labelledby={`heading-${group}`}>
-      <div className="mb-2.5 flex items-start gap-2.5 px-0.5">
-        <span className="mt-[1px] flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[hsl(var(--accent-soft))] text-[hsl(var(--accent))]">
-          <Icon className="h-[15px] w-[15px]" />
-        </span>
-        <div className="min-w-0">
-          <h2 id={`heading-${group}`} className="text-[13.5px] font-semibold text-fg">
-            {title}
-          </h2>
-          {blurb && (
-            <p className="mt-0.5 max-w-2xl text-[11.5px] leading-[1.5] text-subtle">{blurb}</p>
-          )}
-        </div>
-      </div>
+    <section aria-labelledby={`heading-${group}`}>
+      <SectionHeader group={group} />
 
       <ul className="divide-y divide-[hsl(var(--border))] overflow-hidden rounded-[var(--radius-md)] border border-[hsl(var(--border))] bg-[hsl(var(--bg-elevated))] elev-1">
         {rows.map((setting) => (
@@ -692,6 +702,26 @@ function GroupSection({
         ))}
       </ul>
     </section>
+  )
+}
+
+/** Shared by the settings groups and by presets, which is a section like them. */
+function SectionHeader({ group }: { group: string }) {
+  const { title, blurb, icon: Icon } = groupMeta(group)
+  return (
+    <div className="mb-2.5 flex items-start gap-2.5 px-0.5">
+      <span className="mt-[1px] flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[hsl(var(--accent-soft))] text-[hsl(var(--accent))]">
+        <Icon className="h-[15px] w-[15px]" />
+      </span>
+      <div className="min-w-0">
+        <h2 id={`heading-${group}`} className="text-[13.5px] font-semibold text-fg">
+          {title}
+        </h2>
+        {blurb && (
+          <p className="mt-0.5 max-w-2xl text-[11.5px] leading-[1.5] text-subtle">{blurb}</p>
+        )}
+      </div>
+    </div>
   )
 }
 

@@ -61,10 +61,19 @@ const schedulerRoute = createRoute({
   component: lazyRouteComponent(() => import('@/routes/scheduler')),
 })
 
+/**
+ * The section lives in the URL rather than in component state so a reload — or
+ * the browser's back button after a jump to the scheduler — puts the operator
+ * back on the group they were editing. It is validated loosely on purpose: the
+ * groups come from the server's settings table, so this route cannot enumerate
+ * them, and an unknown value simply falls back to the first section.
+ */
 const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/settings',
   component: SettingsRoute,
+  validateSearch: (search: Record<string, unknown>): { section?: string } =>
+    typeof search.section === 'string' && search.section !== '' ? { section: search.section } : {},
 })
 
 const routeTree = rootRoute.addChildren([
