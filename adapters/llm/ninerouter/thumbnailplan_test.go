@@ -87,14 +87,14 @@ func TestThumbnailPlanPromptCarriesTheVideo(t *testing.T) {
 		t.Fatalf("ThumbnailPlan: %v", err)
 	}
 	messages := g.messages(t)
-	for _, want := range []string{"12", `"cells"`, "caption"} {
+	for _, want := range []string{"12", `"cells"`, "caption", "50 FORGOTTEN HARBOURS"} {
 		if !strings.Contains(messages["system"], want) {
 			t.Errorf("system prompt does not carry %q", want)
 		}
 	}
 	for _, want := range []string{
 		"The Long Winter of the Harbour",
-		"50 FORGOTTEN HARBOURS",
+		"a northern port town over one winter",
 		"Chapter 4",
 		"12",
 	} {
