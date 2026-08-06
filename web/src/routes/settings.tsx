@@ -59,9 +59,9 @@ interface GroupMeta {
  * operator is doing rather than a subsystem that reads the rows, which is why
  * the four in the middle are the pipeline in the order it runs — write,
  * narrate, draw, package. Backend knobs sit with the stage they shape and are
- * marked with the backend that reads them, so "Providers" can stay the
- * seven-line answer to who does each job instead of collecting a backend's
- * settings every time one is registered.
+ * marked with the backend that reads them, so "Providers" can stay the short
+ * answer to who does each job instead of collecting a backend's settings every
+ * time one is registered.
  */
 const GROUPS: Record<string, GroupMeta> = {
   pools: {
@@ -80,8 +80,7 @@ const GROUPS: Record<string, GroupMeta> = {
   gates: {
     category: 'Approval',
     title: 'Approval gates',
-    blurb:
-      'What stands between a generation and a public video. A gate costs nothing while it is open; the dry run is the one whose failure mode is silent.',
+    blurb: 'Where the pipeline pauses for a human. A gate costs nothing while it is open.',
     icon: ShieldCheck,
   },
   presets: {
@@ -95,7 +94,7 @@ const GROUPS: Record<string, GroupMeta> = {
     category: 'Backends',
     title: 'Providers',
     blurb:
-      'One row per port: who does each job. Each list holds the backends this build registered, and a change applies to the next task.',
+      'One row per port: who does each job, and — for the uploader — whether the publish is real. Each list holds the backends this build registered, and a change applies to the next task.',
     icon: Plug,
   },
   writing: {

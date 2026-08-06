@@ -68,16 +68,11 @@ const (
 
 	SettingGateBlueprintEnabled SettingKey = "gate.blueprint.enabled"
 	SettingGateUploadEnabled    SettingKey = "gate.upload.enabled"
-	// SettingUploadDryRun sits with the gates rather than among the server knobs
-	// it used to be filed under. The three of them are what stands between a
-	// generation and a public video, and this is the one whose failure mode is
-	// silent: a gate left open only delays, a dry run left off publishes.
-	SettingUploadDryRun SettingKey = "upload.dry_run"
 
-	// The routing table: one row per port in domain/provider. It grows when a
-	// port is added and never when a backend is registered — a backend's own
-	// knobs live with the pipeline stage they shape, so this group stays the
-	// seven-line answer to "who does each job".
+	// The routing table: one row per port in domain/provider, plus the dry run
+	// that rides with the uploader. It grows when a port is added and never when a
+	// backend is registered — a backend's own knobs live with the pipeline stage
+	// they shape, so this group stays the short answer to "who does each job".
 	SettingProviderLLM           SettingKey = "provider.llm"
 	SettingProviderTTS           SettingKey = "provider.tts"
 	SettingProviderSlide         SettingKey = "provider.slide"
@@ -85,6 +80,13 @@ const (
 	SettingProviderThumbnail     SettingKey = "provider.thumbnail"
 	SettingProviderThumbnailIcon SettingKey = "provider.thumbnail_icon"
 	SettingProviderUploader      SettingKey = "provider.uploader"
+	// SettingUploadDryRun rides with the uploader rather than with the gates,
+	// because it is an argument to that backend rather than a rail of its own:
+	// provider.uploader says who publishes, this says whether the publish is
+	// real. A backend asked for a dry run does everything but the irreversible
+	// call, which is the rehearsal the mock cannot give — the mock runs none of
+	// the code and records every upload as dry whatever this says.
+	SettingUploadDryRun SettingKey = "upload.dry_run"
 
 	// SettingNineRouterModel picks which upstream the 9router backend routes to.
 	// It is a settings row rather than a flag because it is the knob that gets
@@ -377,8 +379,6 @@ func DefaultSettings() []Setting {
 
 		{Key: SettingGateBlueprintEnabled, Value: "true", Type: SettingTypeBool, Group: GroupGates, Description: "Pause after the blueprint for human review."},
 		{Key: SettingGateUploadEnabled, Value: "true", Type: SettingTypeBool, Group: GroupGates, Description: "Pause before upload for human review."},
-		//nolint:lll // one row, one line
-		{Key: SettingUploadDryRun, Value: "true", Type: SettingTypeBool, Group: GroupGates, Description: "Uploads are simulated and produce a local receipt. Turning this off is what makes a publish real."},
 
 		{Key: SettingProviderLLM, Value: "mock", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for blueprint, script, prompts and metadata."},
 		{Key: SettingProviderTTS, Value: "mock", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for narration."},
@@ -387,6 +387,8 @@ func DefaultSettings() []Setting {
 		{Key: SettingProviderThumbnail, Value: "mock", Type: SettingTypeString, Group: GroupProviders, Description: "Backend that renders the thumbnail image."},
 		{Key: SettingProviderThumbnailIcon, Value: "mock", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for the thumbnail's grid icons; selected apart from slides."},
 		{Key: SettingProviderUploader, Value: "mock", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for publishing."},
+		//nolint:lll // one row, one line
+		{Key: SettingUploadDryRun, Value: "true", Type: SettingTypeBool, Group: GroupProviders, Description: "The uploader does everything but the irreversible call, and produces a local receipt. Turning this off is what makes a publish real."},
 
 		//nolint:lll // one row, one line
 		{Key: SettingNineRouterModel, Value: "ag/gemini-3-flash", Type: SettingTypeString, Group: GroupWriting, Backend: BackendNineRouter, Description: "Which upstream the 9router backend routes to, e.g. ag/gemini-3-flash. See GET /v1/models on the gateway."},

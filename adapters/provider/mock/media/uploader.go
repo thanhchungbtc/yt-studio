@@ -53,9 +53,13 @@ func (u *Uploader) Upload(ctx context.Context, req provider.UploadRequest) (enti
 	remoteID := "mock-" + strconv.FormatUint(seed, 36)
 
 	return entity.UploadRecord{
-		VideoID:    remoteID,
-		URL:        "https://www.youtube.com/watch?v=" + remoteID,
-		DryRun:     req.DryRun,
+		VideoID: remoteID,
+		URL:     "https://www.youtube.com/watch?v=" + remoteID,
+		// Always dry, whatever the request said. upload.dry_run asks a real
+		// backend to stop short of publishing; this one never publishes at all,
+		// and a receipt claiming otherwise would be the one record in the database
+		// that lies about whether something reached YouTube.
+		DryRun:     true,
 		UploadedAt: u.now().UTC(),
 	}, nil
 }
