@@ -850,10 +850,16 @@ export interface components {
       min: number
       /** @description The only accepted values, when the setting is constrained to a fixed set; empty means free-form */
       options: string[]
+      /** @description Known-good values worth offering, with the name a human uses for each; advisory, the field still takes anything */
+      suggestions: components['schemas']['SettingSuggestionDTO'][]
       /** @enum {string} */
       type: 'int' | 'bool' | 'string' | 'float'
       /** Format: date-time */
       updatedAt: string
+      value: string
+    }
+    SettingSuggestionDTO: {
+      label: string
       value: string
     }
     SettingsOutputBody: {
@@ -1438,7 +1444,7 @@ export interface operations {
       query?: never
       header?: never
       path: {
-        /** @description Preset name, e.g. mock */
+        /** @description Preset name, e.g. sample */
         name: string
       }
       cookie?: never

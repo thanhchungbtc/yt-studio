@@ -13,13 +13,9 @@ type retryItem struct {
 	when    time.Time
 }
 
-// retryQueue is a binary min-heap keyed by due time. It exists so the loop can
-// arm exactly one timer for the next due retry instead of polling — polling
-// is forbidden as a primary mechanism.
-//
-// It is owned by the dispatch goroutine and carries no lock. container/heap
-// would need an interface with pointer receivers and boxes every element; a
-// dozen lines of sift-up/sift-down here allocate nothing per operation.
+// retryQueue is a min-heap keyed by due time, so the loop arms one timer for
+// the next retry instead of polling. Owned by the dispatch goroutine, so no
+// lock; hand-rolled because container/heap boxes every element.
 type retryQueue struct {
 	items []retryItem
 }

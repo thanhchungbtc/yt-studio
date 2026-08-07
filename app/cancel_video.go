@@ -21,8 +21,8 @@ func CancelVideo(
 		return entity.Video{}, err
 	}
 	if err := canceller.Cancel(ctx, v.ID); err != nil {
-		// A video the scheduler never admitted is still cancellable: the task table
-		// is the state, and there is simply nothing in flight.
+		// A video the scheduler never admitted is still cancellable: the task
+		// table is the state, and nothing is in flight.
 		if err := states.SetVideoState(ctx, v.ID, entity.VideoStateCancelled, "cancelled by operator"); err != nil {
 			return entity.Video{}, err
 		}

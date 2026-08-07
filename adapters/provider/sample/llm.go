@@ -19,25 +19,16 @@ import (
 )
 
 // The sample text backend, and the one part of this package that generates
-// rather than reads.
+// rather than reads: a canned blueprint could not answer the chapter count the
+// DAG is built from, and words are the one output that costs nothing locally.
 //
-// Narration and artwork are what a canned file can honestly stand in for. Words
-// are not: the blueprint has to come back with the chapter count the request
-// asked for, because the DAG's whole shape is built from it, and no file on disk
-// knows that number. Sampled prose would buy nothing besides — words are the one
-// output that costs nothing to produce locally.
-//
-// It is held to the same standards as a paid backend: valid JSON and text
-// output, one unit of work per call, no fan-out inside a provider, and the same
-// inputs always producing the same bytes and therefore the same content address.
-//
-// The prose generators in text.go sit beside it rather than anywhere shared
-// because nothing else in this package produces text: a slide needs a file, not
-// a vocabulary.
+// It is held to the same standards as a paid backend — valid output, one unit
+// of work per call, and the same inputs always producing the same bytes and so
+// the same content address.
 
-// VideoContext is everything this backend needs to produce output that is coherent
-// across a whole video. It is supplied by a lookup the caller wires from the
-// repositories, which keeps the provider itself free of database access.
+// VideoContext is what this backend needs to stay coherent across a whole
+// video. A lookup the caller wires supplies it, which keeps the provider free
+// of database access.
 type VideoContext struct {
 	Ref              entity.Ref
 	Title            string
@@ -46,9 +37,8 @@ type VideoContext struct {
 	SlidesPerChapter int
 }
 
-// ContextLookup resolves a video's context. Wiring it explicitly is what lets
-// SlidePrompts keep the narrow signature the port declares while still having
-// the blueprint it needs.
+// ContextLookup resolves a video's context, so SlidePrompts keeps the port's
+// narrow signature while still having the blueprint it needs.
 type ContextLookup func(ctx context.Context, videoID entity.VideoID) (VideoContext, error)
 
 // seedOf derives a stable 64-bit seed from its parts. Every piece of generated
@@ -82,9 +72,8 @@ type LLM struct {
 	store  provider.AssetStore
 	lookup ContextLookup
 
-	// singleflight collapses concurrent callers onto one production; the cache
-	// serves every later caller. Both halves are needed: singleflight alone
-	// deduplicates only calls that overlap in time.
+	// Singleflight collapses the callers that overlap in time, the cache serves
+	// the ones that come after.
 	prompts singleflight.Group
 	cacheMu sync.RWMutex
 	cache   map[entity.VideoID][]provider.SlidePrompt
@@ -92,7 +81,7 @@ type LLM struct {
 
 var _ provider.LLM = (*LLM)(nil)
 
-// NewLLM constructs the backend. Every dependency is an explicit parameter.
+// NewLLM constructs the backend.
 func NewLLM(store provider.AssetStore, lookup ContextLookup) *LLM {
 	return &LLM{
 		store:  store,

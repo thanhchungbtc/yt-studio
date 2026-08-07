@@ -32,9 +32,8 @@ func cover(src image.Image, w, h int) *image.RGBA {
 	return dst
 }
 
-// scrim darkens the background so white text over it is legible. The reference
-// thumbnails are nearly black behind their headline; this is what gets a
-// photograph there without losing its texture entirely.
+// scrim darkens the background so white text over it is legible, without
+// losing the photograph's texture entirely.
 func scrim(img *image.RGBA) {
 	for i := 0; i < len(img.Pix); i += 4 {
 		img.Pix[i] = uint8(int(img.Pix[i]) * backgroundBrightness / 255)     //nolint:gosec // 0..255
@@ -70,28 +69,21 @@ func drawTile(canvas *image.RGBA, box image.Rectangle, icon image.Image) {
 	if inner.Dx() <= 0 || inner.Dy() <= 0 {
 		return
 	}
-	// Scaled into a buffer rather than straight onto the canvas, because the
-	// keying needs the icon's own pixels before they are composited.
-	//
-	// CatmullRom rather than nearest neighbour: these are line art, and aliased
-	// strokes are the first thing that makes a thumbnail look cheap.
+	// Into a buffer rather than straight onto the canvas: the keying needs the
+	// icon's own pixels before they are composited. CatmullRom because these are
+	// line art, and aliased strokes make a thumbnail look cheap.
 	scaled := image.NewRGBA(image.Rect(0, 0, inner.Dx(), inner.Dy()))
 	xdraw.CatmullRom.Scale(scaled, scaled.Bounds(), icon, icon.Bounds(), draw.Src, nil)
 	keyOutBackground(scaled)
 
-	// Masked to the same rounding, inset with everything else. Without it a
-	// square icon would poke out through the tile's corners at any radius wider
-	// than its padding.
+	// Masked to the same rounding, or a square icon pokes out through the
+	// tile's corners at any radius wider than its padding.
 	mask := roundedMask(scaled.Bounds(), max(radius-inset, 0))
 	draw.DrawMask(canvas, inner, scaled, image.Point{}, mask, image.Point{}, draw.Over)
 }
 
-// paintPlate fills the tile and strokes its border, both rounded, in one pass
-// over the box.
-//
-// One pass rather than a fill followed by a stroke: the border colour is opaque
-// and the plate is not, so painting the whole shape in the border colour first
-// would tint the plate with whatever showed through.
+// paintPlate fills the tile and strokes its border in one pass: the border is
+// opaque and the plate is not, so filling first would tint the plate.
 func paintPlate(canvas *image.RGBA, box image.Rectangle, radius int) {
 	inner := box.Inset(tileBorderWidth)
 	innerRadius := max(radius-tileBorderWidth, 0)
@@ -114,11 +106,8 @@ func paintPlate(canvas *image.RGBA, box image.Rectangle, radius int) {
 }
 
 // coverage is how much of the pixel at (x, y) falls inside a rounded rectangle,
-// from 0 to 1.
-//
-// It is the signed distance to the shape's edge, read as coverage across the
-// half pixel either side of it — which is what gives the corners a smooth arc
-// rather than a staircase.
+// from 0 to 1: the signed distance to the edge, read across the half pixel
+// either side of it, which is what makes the corners an arc not a staircase.
 func coverage(x, y int, box image.Rectangle, radius int) float64 {
 	px, py := float64(x)+0.5, float64(y)+0.5
 	cx := float64(box.Min.X+box.Max.X) / 2
@@ -165,11 +154,9 @@ func blend(canvas *image.RGBA, x, y int, c color.RGBA, cov float64) {
 }
 
 // keyOutBackground turns an icon's dark field into transparency, in place.
-//
 // Alpha comes from luminance through the ramp above, and the colours are
-// re-premultiplied against it — image/draw works in premultiplied alpha, and
-// leaving the originals there would draw a grey haze where the background used
-// to be.
+// re-premultiplied against it: image/draw works in premultiplied alpha, and
+// the originals would leave a grey haze where the background was.
 func keyOutBackground(img *image.RGBA) {
 	for i := 0; i < len(img.Pix); i += 4 {
 		r, g, b := int(img.Pix[i]), int(img.Pix[i+1]), int(img.Pix[i+2])

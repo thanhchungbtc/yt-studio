@@ -10,10 +10,9 @@ import (
 	"github.com/tbui/yt-studio/domain/repository"
 )
 
-// GenerateSlide produces exactly one image for one chapter.
-//
-// Two of these run per chapter and they write to the same row, so the slide is
-// recorded through a single indexed statement rather than a read-modify-write.
+// GenerateSlide produces exactly one image for one chapter. Siblings write to
+// the same row, so it records through one indexed statement rather than a
+// read-modify-write.
 //
 //nolint:revive // the parameter list is the dependency list
 func GenerateSlide(
@@ -69,8 +68,7 @@ func GenerateSlide(
 	}
 
 	if notifier != nil {
-		// Re-read so the delta carries every slide recorded so far, including the
-		// sibling task's, rather than a stale local copy.
+		// Re-read so the delta carries the sibling task's slide too.
 		if fresh, err := chapters.ChapterByID(ctx, chapter.ID); err == nil {
 			notifier.NotifyChapter(chapterDelta(fresh))
 		}

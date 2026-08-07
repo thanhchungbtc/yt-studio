@@ -8,17 +8,15 @@ import (
 	"github.com/tbui/yt-studio/domain/scheduler"
 )
 
-// The scheduler ports below are consumer-defined here: each one names exactly
-// the single operation a use case performs, so a handler's blast radius is
-// visible in its signature.
+// The scheduler ports below are consumer-defined: one operation each, so a
+// handler's blast radius is visible in its signature.
 
 // GraphSubmitter admits a freshly built DAG.
 type GraphSubmitter interface {
 	Submit(ctx context.Context, g *scheduler.Graph) error
 }
 
-// GraphExpander splices a video's per-chapter body onto the head graph it was
-// enqueued with, once the blueprint has said how many chapters there are.
+// GraphExpander splices a video's per-chapter body onto its head graph.
 type GraphExpander interface {
 	Expand(ctx context.Context, videoID entity.VideoID, tail scheduler.Tail) error
 }
@@ -81,8 +79,7 @@ type StaleRunner interface {
 	RunStale(ctx context.Context, videoID entity.VideoID, ids []entity.TaskID) (int, error)
 }
 
-// StaleAccepter clears the stale flag without re-running: the operator checked
-// the artifact and kept it.
+// StaleAccepter clears the stale flag without re-running.
 type StaleAccepter interface {
 	AcceptStale(ctx context.Context, videoID entity.VideoID, ids []entity.TaskID) (int, error)
 }

@@ -243,9 +243,8 @@ export function TaskTable({
     })
   }, [tasks, activeLens, search, chapterTitles])
 
-  // The clock is an input to the row order only while the sort is by duration —
-  // otherwise a ticking second hand would rebuild every row once a second for an
-  // answer that has not changed.
+  // The clock orders rows only while the sort is by duration; otherwise a
+  // ticking second hand rebuilds every row for an unchanged answer.
   const sortNow = sort.key === 'duration' ? now : 0
   const rows = useMemo(
     () => buildRows(filtered, group, sort, chapterTitles, folded, sortNow),
@@ -935,8 +934,7 @@ const TaskRow = memo(function TaskRow({
               {task.error}
             </span>
           ) : (
-            // Which steps left a file behind, as a mark rather than as prose:
-            // most rows carry one, and sixty rows reading "1 artifact" is a
+            // A mark rather than prose: sixty rows reading "1 artifact" is a
             // column of noise for a fact the icon states.
             produced > 0 && (
               <span

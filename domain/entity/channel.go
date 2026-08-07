@@ -39,10 +39,7 @@ func (c CredentialStatus) Valid() bool {
 }
 
 // StyleConfig is the per-channel creative configuration handed to providers.
-//
-// Deliberately empty: what belongs in it is being reconsidered, and an empty
-// struct says "nothing decided yet" where leftover fields would say "these are
-// the ones". It is kept rather than deleted so the seam survives the rethink.
+// Deliberately empty for now; the seam is kept so the fields can return.
 type StyleConfig struct{}
 
 // Channel owns identity, creative configuration and upload credentials.
@@ -59,8 +56,7 @@ type Channel struct {
 	UpdatedAt time.Time
 }
 
-// NewChannel validates and constructs a Channel. Cross-field rules that a
-// struct tag cannot express live here.
+// NewChannel validates and constructs a Channel.
 func NewChannel(id ChannelID, slug Slug, name string, style StyleConfig, now time.Time) (Channel, error) {
 	if strings.TrimSpace(string(id)) == "" {
 		return Channel{}, fmt.Errorf("%w: id must not be empty", ErrInvalidChannel)

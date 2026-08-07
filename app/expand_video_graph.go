@@ -10,29 +10,21 @@ import (
 	"github.com/tbui/yt-studio/domain/scheduler"
 )
 
-// ExpandOptions are the tail's scheduler-shaped inputs, sourced from settings
-// rows by the caller.
-//
-// They are read when the graph expands rather than when the video is enqueued,
-// so a gate switched on while an operator was reading a blueprint applies to
-// the video they are about to approve.
+// ExpandOptions are the tail's settings-sourced inputs, read at expansion
+// rather than at enqueue, so a gate switched on while an operator was reading a
+// blueprint still applies to the video they approve.
 type ExpandOptions struct {
 	MaxAttempts int
 	UploadGate  bool
 }
 
-// ExpandVideoGraph builds a video's per-chapter DAG from the chapters its
-// blueprint produced, and splices it onto the head graph.
+// ExpandVideoGraph builds a video's per-chapter DAG and splices it onto the
+// head graph. The count comes from the chapter rows — what the operator read
+// before approving, and what every task in the tail addresses — rather than
+// from the response or the brief.
 //
-// The count comes from the chapter rows rather than from the blueprint response
-// or from the number the video was briefed with. Those rows are what the
-// operator read before approving, and they are what every task in the tail will
-// address — deriving the shape from anything else would be deriving it from
-// something nobody agreed to.
-//
-// It is idempotent. Task ids are deterministic, the row insert is an upsert and
-// the scheduler treats a repeated splice of the same shape as a no-op, so an
-// approval retried after a partial failure converges rather than duplicating.
+// Idempotent: task ids are deterministic, the insert upserts and a repeated
+// splice of the same shape is a no-op, so a retried approval converges.
 func ExpandVideoGraph(
 	ctx context.Context,
 	videos repository.VideoReader,
@@ -58,8 +50,8 @@ func ExpandVideoGraph(
 		VideoID:          v.ID,
 		ChapterCount:     len(rows),
 		SlidesPerChapter: v.SlidesPerChapter,
-		// The grid width comes off the video row, not from settings: it decides how
-		// many icon tasks this graph gets, and the graph can never grow after.
+		// Off the video row, not settings: it fixes how many icon tasks this
+		// graph gets, and the graph can never grow after.
 		ThumbnailCells: v.ThumbnailCells,
 		MaxAttempts:    opts.MaxAttempts,
 		UploadGate:     opts.UploadGate,

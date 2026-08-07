@@ -9,9 +9,8 @@ import (
 	"github.com/tbui/yt-studio/domain/repository"
 )
 
-// RegenerateIconInput is an operator's edited cell prompt and the instruction
-// to redraw that cell. One request, like the slide it mirrors: a prompt cannot
-// be saved without generating from it.
+// RegenerateIconInput is an edited cell prompt and the instruction to redraw
+// that cell. One request, like the slide it mirrors.
 type RegenerateIconInput struct {
 	Key   string `path:"key" doc:"Video ref or id"`
 	Index int    `path:"index" minimum:"0" doc:"0-based cell index in the thumbnail grid"`

@@ -8,12 +8,10 @@ import (
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
-// PrimeSlidePrompts forces the video's whole prompt batch to be produced once.
-//
-// This task exists because the LLM pool is capped at 2: without it, the N
-// per-chapter prompt tasks would trickle through that cap and there would never
-// be a batch to coalesce. It occupies a real LLM slot; the per-chapter tasks
-// then fan out as cheap cache reads on a separate high-concurrency pool.
+// PrimeSlidePrompts produces the video's whole prompt batch once, on a real LLM
+// slot. Without it the per-chapter tasks would trickle through the LLM cap and
+// there would never be a batch to coalesce; with it they are cache reads on a
+// separate high-concurrency pool.
 func PrimeSlidePrompts(
 	ctx context.Context,
 	t entity.Task,

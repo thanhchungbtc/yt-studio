@@ -10,18 +10,12 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 )
 
-// jsonSchemaOf renders a Go type as a self-contained JSON Schema, for a prompt
-// to hand a model as its output contract.
-//
-// The point is that the shape asked for and the shape parsed are one
-// declaration. A field added to the struct appears in the prompt on the next
-// call; a hand-written block would have to be remembered, and would not be.
-//
-// huma is already the dependency that turns this project's structs into the
-// OpenAPI document, so the same reflection serves both.
+// jsonSchemaOf renders a Go type as a self-contained JSON Schema for a prompt
+// to hand a model, so the shape asked for and the shape parsed are one
+// declaration. huma already reflects this project's structs for OpenAPI.
 func jsonSchemaOf(v any) (string, error) {
-	// $defs rather than huma's OpenAPI components path: the result has to stand
-	// on its own inside a prompt, with nothing to resolve references against.
+	// $defs rather than huma's OpenAPI components path: the result must stand on
+	// its own inside a prompt, with nothing to resolve references against.
 	registry := huma.NewMapRegistry("#/$defs/", huma.DefaultSchemaNamer)
 	schema := huma.SchemaFromType(registry, reflect.TypeOf(v))
 
@@ -30,11 +24,9 @@ func jsonSchemaOf(v any) (string, error) {
 		assembled["defs"] = defs
 	}
 
-	// Round-tripped through plain maps before the final encode. huma.Schema has
-	// its own MarshalJSON, and bytes a custom marshaller produced are copied
-	// through verbatim — so the escaping it applies cannot be switched off from
-	// outside. Decoding first replaces those types with maps the encoder below
-	// actually formats.
+	// Round-tripped through plain maps first: huma.Schema has its own
+	// MarshalJSON, whose output is copied through verbatim, so its escaping
+	// cannot be switched off from outside.
 	raw, err := json.Marshal(assembled)
 	if err != nil {
 		return "", fmt.Errorf("encode schema: %w", err)

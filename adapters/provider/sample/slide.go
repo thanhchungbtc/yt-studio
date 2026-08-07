@@ -23,12 +23,10 @@ func NewSlide(lib *Library, store provider.AssetStore) *Slide {
 	return &Slide{lib: lib, store: store}
 }
 
-// Generate stores one slide and returns its content address.
-//
-// The file is chosen by ordinal and index together, so a chapter always gets
-// distinct slides — a dissolve between two copies of one image is not a
-// dissolve — and consecutive chapters start at different points in the set
-// rather than repeating the same pair down the whole video.
+// Generate stores one slide and returns its content address. The file is chosen
+// by ordinal and index together, so a chapter gets distinct slides — a dissolve
+// between two copies of one image is not a dissolve — and consecutive chapters
+// start at different points in the set.
 func (i *Slide) Generate(ctx context.Context, req provider.SlideRequest) (entity.AssetID, error) {
 	if err := i.lib.Check(); err != nil {
 		return "", err

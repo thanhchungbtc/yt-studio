@@ -9,22 +9,17 @@ type grid struct {
 	tileSize int
 	rows     int
 	cols     int
-	// counts is how many tiles each row holds. A grid that does not divide
-	// evenly puts the remainder in the last row and centres it, rather than
-	// leaving a hole at the end of a row.
+	// counts is how many tiles each row holds. An uneven grid centres the
+	// remainder in the last row rather than leaving a hole at its end.
 	counts []int
 	rowY   []int
 	rowX   []int
 }
 
-// layOutGrid sizes the tiles from the frame width. Where the block sits is
-// decided later by place, once the headline above it has been fitted.
-//
-// Width first, deliberately. Sizing the tiles from whatever height a headline
-// left behind is what made the first cut of this look like a filmstrip
-// stranded mid-frame: the tiles came out small and the frame kept a wide empty
-// gutter down both sides. Here the tiles always span the frame, and it is the
-// headline that gives way.
+// layOutGrid sizes the tiles from the frame width; place decides where the
+// block sits once the headline is fitted. Width first, so the tiles always span
+// the frame and it is the headline that gives way — sizing from leftover height
+// leaves small tiles stranded between wide empty gutters.
 func layOutGrid(cells, rows int) grid {
 	if rows < 1 {
 		rows = 1
@@ -66,13 +61,9 @@ func (g grid) headlineBudget() int {
 	return frameHeight - gridBottomMargin - blockHeight(g.rows, g.tileSize) - headlineToGridGap - headlineTopMargin
 }
 
-// place centres the block in what the headline left, rather than pinning it to
-// the bottom of the frame.
-//
-// Pinned, a grid of small tiles leaves a band of empty background between the
-// headline and the first row that reads as a mistake. Centred, the leftover
-// space is split above and below and a fourteen-tile grid sits as comfortably
-// as a ten-tile one.
+// place centres the block in what the headline left rather than pinning it to
+// the bottom, where a grid of small tiles would leave a band of empty
+// background that reads as a mistake.
 func (g *grid) place(headlineBottom int) {
 	bandTop := max(headlineBottom+headlineToGridGap, headlineTopMargin)
 	bandBottom := frameHeight - gridBottomMargin

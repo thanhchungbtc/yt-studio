@@ -32,19 +32,17 @@ const (
 	TaskKindConcat TaskKind = "concat"
 	// TaskKindMetadata writes the YouTube title, description and tags.
 	TaskKindMetadata TaskKind = "metadata"
-	// TaskKindThumbnailPlan writes the grid: one caption and one icon prompt per
-	// cell.
+	// TaskKindThumbnailPlan writes one caption and one icon prompt per cell.
 	TaskKindThumbnailPlan TaskKind = "thumbnail_plan"
 	// TaskKindThumbnailIcon generates one cell's icon.
 	TaskKindThumbnailIcon TaskKind = "thumbnail_icon"
-	// TaskKindThumbnail renders the image that fronts the video, from the hook
-	// the metadata task wrote and the icons the grid asked for.
+	// TaskKindThumbnail composes the icons under the metadata task's hook.
 	TaskKindThumbnail TaskKind = "thumbnail"
 	// TaskKindUpload publishes the final render.
 	TaskKindUpload TaskKind = "upload"
 )
 
-// AllTaskKinds lists every TaskKind, for validation, the UI and tests.
+// AllTaskKinds lists every TaskKind, for validation and the UI.
 var AllTaskKinds = []TaskKind{
 	TaskKindBlueprint,
 	TaskKindPrimeSlidePrompts,
@@ -95,8 +93,8 @@ func (k TaskKind) Pool() Pool {
 	}
 }
 
-// PerChapter reports whether the DAG contains one node of this kind per chapter
-// (as opposed to one per video).
+// PerChapter reports whether the DAG holds one node of this kind per chapter
+// rather than one per video.
 func (k TaskKind) PerChapter() bool {
 	switch k {
 	case TaskKindScript, TaskKindTTS, TaskKindSlidePrompts, TaskKindSlide, TaskKindClip:
@@ -121,8 +119,8 @@ const (
 	TaskStateReady TaskState = "ready"
 	// TaskStateRunning holds a pool slot and is inside a provider call.
 	TaskStateRunning TaskState = "running"
-	// TaskStateAwaitingApproval succeeded but sits on a gate; it has not released
-	// its dependents and consumes nothing.
+	// TaskStateAwaitingApproval succeeded but sits on a gate, holding its
+	// dependents and consuming nothing.
 	TaskStateAwaitingApproval TaskState = "awaiting_approval"
 	// TaskStateSucceeded completed and released its dependents.
 	TaskStateSucceeded TaskState = "succeeded"
@@ -132,7 +130,7 @@ const (
 	TaskStateCancelled TaskState = "cancelled"
 )
 
-// AllTaskStates lists every TaskState, for validation, the UI and tests.
+// AllTaskStates lists every TaskState, for validation and the UI.
 var AllTaskStates = []TaskState{
 	TaskStateBlocked,
 	TaskStateReady,
@@ -166,8 +164,7 @@ func (s TaskState) Terminal() bool {
 	}
 }
 
-// Open reports whether the scheduler must still carry the task in memory after
-// a restart.
+// Open reports whether a restart must carry the task back into memory.
 func (s TaskState) Open() bool {
 	switch s {
 	case TaskStateBlocked, TaskStateReady, TaskStateRunning, TaskStateAwaitingApproval:
@@ -204,8 +201,8 @@ func (g GateKind) Valid() bool {
 }
 
 // Task is one node of one video's DAG and the scheduler's unit of work. The
-// table is the state: an unscheduled successor consumes nothing and the server
-// may restart freely while a gate is open.
+// table is the state: an unscheduled successor consumes nothing, and the
+// server may restart while a gate is open.
 type Task struct {
 	ID      TaskID
 	VideoID VideoID
@@ -214,28 +211,23 @@ type Task struct {
 	Kind      TaskKind
 	// Ordinal is the chapter ordinal, or -1 for a video-level task.
 	Ordinal int
-	// Index distinguishes siblings of the same kind for one chapter — the image
-	// index within a chapter — or -1 when there is only one.
+	// Index distinguishes siblings of the same kind, or -1 when there is one.
 	Index int
 
 	State TaskState
 	Pool  Pool
-	// Gate, when set, means: on success, park in awaiting_approval and do not
-	// release dependents until a human approves.
+	// Gate, when set, parks the task in awaiting_approval on success rather than
+	// releasing its dependents.
 	Gate GateKind
 
 	Attempt     int
 	MaxAttempts int
-	// DepsRemaining is the count of unsatisfied dependencies. It is persisted so
-	// that recovery after a crash is exact rather than recomputed.
+	// DepsRemaining is persisted so recovery is exact rather than recomputed.
 	DepsRemaining int
 
-	// Stale marks a task whose own output is intact but whose input has since
-	// changed — an upstream task was re-run, or a chapter script was edited.
-	//
-	// A flag rather than a state, because the useful combination is `succeeded`
-	// *and* stale: the artifact is still there and may still be correct. A stale
-	// task never runs on its own; it waits for the operator to run or accept it.
+	// Stale marks a task whose output is intact but whose input has changed. A
+	// flag rather than a state, because the useful combination is `succeeded`
+	// and stale: the artifact may still be correct, so it waits for a decision.
 	Stale bool
 
 	Error      string
@@ -250,9 +242,8 @@ type Task struct {
 // Retryable reports whether another attempt is permitted.
 func (t *Task) Retryable() bool { return t.Attempt < t.MaxAttempts }
 
-// TaskOutcome is a sealed sum type: the unexported marker method means no other
-// package can add a case. Every type switch over it must end with a default
-// that panics, and a table-driven test asserts each site handles every case.
+// TaskOutcome is a sealed sum type: the unexported marker means no other
+// package can add a case. Type switches over it end in a panicking default.
 type TaskOutcome interface{ isTaskOutcome() }
 
 // Success is the outcome of a task that produced its assets.
@@ -278,8 +269,7 @@ func (Success) isTaskOutcome()          {}
 func (Failed) isTaskOutcome()           {}
 func (AwaitingApproval) isTaskOutcome() {}
 
-// AllTaskOutcomes returns one zero value of every outcome type. The
-// exhaustiveness tests iterate it against every type-switch site.
+// AllTaskOutcomes returns one zero value of every outcome type.
 func AllTaskOutcomes() []TaskOutcome {
 	return []TaskOutcome{Success{}, Failed{}, AwaitingApproval{}}
 }

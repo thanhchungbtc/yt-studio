@@ -10,10 +10,9 @@ import (
 	"github.com/tbui/yt-studio/domain/repository"
 )
 
-// NarrationOptions are the settings-sourced inputs of one chapter's narration:
-// how it should sound. They are a use-case input rather than a backend's own
-// configuration for the reason given on provider.SpeakRequest — a voice belongs
-// to whoever the video is for, not to the server that speaks it.
+// NarrationOptions is how a chapter should sound. A use-case input rather than
+// the backend's own configuration, because a voice belongs to whoever the video
+// is for, not to the server that speaks it.
 type NarrationOptions struct {
 	Voice    string
 	Language string

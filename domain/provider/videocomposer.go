@@ -6,11 +6,8 @@ import (
 	"github.com/tbui/yt-studio/domain/entity"
 )
 
-// ClipRequest asks for one chapter's composed clip.
-//
-// The titles are carried rather than looked up: a composer that burns text into
-// a frame needs the text, and passing it keeps the backend free of any
-// repository.
+// ClipRequest asks for one chapter's composed clip. The titles are carried
+// rather than looked up, which keeps the backend free of any repository.
 type ClipRequest struct {
 	VideoID       entity.VideoID
 	ChapterID     entity.ChapterID

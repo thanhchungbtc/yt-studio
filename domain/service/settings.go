@@ -13,30 +13,28 @@ import (
 	"github.com/tbui/yt-studio/domain/repository"
 )
 
-// Settings is the typed, cached accessor over the settings table.
+// Settings is the typed, cached accessor over the settings table. The whole
+// table is validated once at startup, so an unparsable value fails there rather
+// than at first use and every typed getter afterwards cannot fail. Set
+// validates, persists and refreshes, so an edit applies without a restart.
 //
-// The whole table is read and validated once at startup, so an unparsable value
-// fails loudly then rather than at first use, and every typed getter afterwards
-// is a map read that cannot fail. Writes go through Set, which validates,
-// persists and refreshes the cache — a change applies without a restart.
+// The four maps below are properties of this binary rather than the database,
+// so they are written once before Load and stamped onto each row at load.
 type Settings struct {
 	reader repository.SettingReader
 	writer repository.SettingWriter
 
-	// options constrains the keys whose legal values are only known once the
-	// backends have been registered. It is written once, before Load, and read
-	// only afterwards.
+	// options constrains keys whose legal values are known only once the
+	// backends have been registered.
 	options map[entity.SettingKey][]string
 
-	// optional carries the keys an empty value is legal for. Like options, it is
-	// a property of the code rather than of the database, so it is stamped onto
-	// each row at load rather than stored.
+	// optional carries the keys an empty value is legal for.
 	optional map[entity.SettingKey]bool
 
-	// backend carries which registry entry reads a row, for the rows only one
-	// does. Stamped rather than stored for the same reason as the two above: what
-	// reads a row is a fact about this binary, and a persisted copy would go
-	// stale the first time a backend was rewritten.
+	// suggestions carries the known-good values worth offering for a key.
+	suggestions map[entity.SettingKey][]entity.SettingSuggestion
+
+	// backend carries which registry entry reads a row, where only one does.
 	backend map[entity.SettingKey]string
 
 	mu    sync.RWMutex
@@ -65,17 +63,22 @@ func NewSettings(reader repository.SettingReader, writer repository.SettingWrite
 	}
 }
 
-// Constrain declares the legal values for keys that have a fixed set, which is
-// what turns a free-text field into a dropdown and a typo into a startup error
-// rather than a silent fallback. It must be called before Load.
+// Constrain declares the legal values for keys with a fixed set, turning a
+// typo into a startup error rather than a silent fallback. Call before Load.
 func (s *Settings) Constrain(options map[entity.SettingKey][]string) {
 	s.options = options
 }
 
-// constrain stamps a row with its legal values, so validation and the settings
-// screen both see them without the database having to store them.
+// Suggest declares known-good values for keys whose legal set is too large to
+// enumerate. Advisory only, and must be called before Load.
+func (s *Settings) Suggest(suggestions map[entity.SettingKey][]entity.SettingSuggestion) {
+	s.suggestions = suggestions
+}
+
+// constrain stamps a row with what the database does not store.
 func (s *Settings) constrain(row entity.Setting) entity.Setting {
 	row.Options = s.options[row.Key]
+	row.Suggestions = s.suggestions[row.Key]
 	row.Optional = s.optional[row.Key]
 	row.Backend = s.backend[row.Key]
 	return row
@@ -95,8 +98,8 @@ func (s *Settings) Load(ctx context.Context) error {
 		}
 		next[r.Key] = r
 	}
-	// Every key the code reads must exist, or a typed getter would silently fall
-	// back. Missing keys are a seeding bug and are caught here.
+	// A missing key would make a typed getter silently fall back, so a seeding
+	// bug is caught here instead.
 	for _, d := range entity.DefaultSettings() {
 		if _, ok := next[d.Key]; !ok {
 			return fmt.Errorf("%w: %q is missing; run the seed", entity.ErrSettingNotFound, d.Key)
@@ -108,8 +111,7 @@ func (s *Settings) Load(ctx context.Context) error {
 	return nil
 }
 
-// All returns every setting in seeded order — grouped, and within a group in
-// the order the rows were written — for the settings screen.
+// All returns every setting in seeded order, for the settings screen.
 func (s *Settings) All() []entity.Setting {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -132,8 +134,8 @@ func (s *Settings) Get(key entity.SettingKey) (entity.Setting, error) {
 	return v, nil
 }
 
-// Int returns an integer setting, falling back to the seeded default if the key
-// is somehow absent. Load has already proved every key is present.
+// Int returns an integer setting, falling back to the seeded default; Load has
+// already proved every key is present.
 func (s *Settings) Int(key entity.SettingKey) int {
 	v, err := s.Get(key)
 	if err != nil {
@@ -204,21 +206,17 @@ func (s *Settings) GateEnabled(g entity.GateKind) bool {
 	return s.Bool(key)
 }
 
-// Check reports whether a value would be accepted for a key, without writing it.
-//
-// It exists for the writes that come in a batch: a preset names half a dozen
-// rows, and applying four of them before the fifth turns out to be illegal
-// leaves the pipeline half on one set of backends and half on another. Because
-// validation is pure, the whole patch can be proved first and only then written.
+// Check reports whether a value would be accepted, without writing it. It is
+// for batched writes: applying four rows of a preset before the fifth turns out
+// illegal would leave the pipeline half on one set of backends.
 func (s *Settings) Check(key entity.SettingKey, value string) error {
 	_, err := s.candidate(key, value)
 	return err
 }
 
-// candidate builds the row a write would produce and validates it.
-//
-// The constraint is checked here rather than in the store, because the store
-// reads its row from the database and the legal values are not in there.
+// candidate builds and validates the row a write would produce. It happens here
+// rather than in the store, whose rows come from a database that holds no
+// legal-value set.
 func (s *Settings) candidate(key entity.SettingKey, value string) (entity.Setting, error) {
 	current, err := s.Get(key)
 	if err != nil {
@@ -249,12 +247,10 @@ func (s *Settings) Set(ctx context.Context, key entity.SettingKey, value string)
 	return updated, nil
 }
 
-// sortSettings puts the table in seeded order — which is grouped, and within a
-// group is the order the rows were written rather than the order their keys
-// sort in. Two unseeded rows fall back to their keys so the result is stable.
+// sortSettings puts the table in seeded order, falling back to the key so two
+// unseeded rows still sort stably. Insertion sort: a few dozen rows, and no
+// comparator closure to allocate.
 func sortSettings(v []entity.Setting) {
-	// Insertion sort: the table is a few dozen rows and this avoids pulling in a
-	// comparator closure allocation on a path called by the settings screen.
 	for i := 1; i < len(v); i++ {
 		cur := v[i]
 		curOrder := entity.SettingOrder(cur.Key)

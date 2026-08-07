@@ -1,13 +1,10 @@
 // Package ffmpeg is the real composition backend: chapter clips and the final
 // render, produced by invoking ffmpeg with explicit argv.
 //
-// There is no wrapper library between this package and the binary. Every
-// invocation builds a []string and logs it, so a composition that fails at 2am
-// can be pasted straight into a shell.
-//
-// The provider is closed over its inputs: a request carries every string that
-// reaches the output — titles included — so nothing here reads a database,
-// a setting or a clock.
+// No wrapper library. Every invocation builds a []string and logs it, so a
+// failed composition can be pasted straight into a shell. A request carries
+// every string that reaches the output, titles included, so nothing here reads
+// a database, a setting or a clock.
 package ffmpeg
 
 import (
@@ -24,10 +21,8 @@ import (
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
-// ErrUnavailable reports a missing binary or resource file: the composition
-// cannot run at all until the operator fixes the installation. It wraps the
-// port's sentinel so the task fails once rather than retrying three times for a
-// binary that will not appear.
+// ErrUnavailable reports a missing binary or resource file. Wrapping the port's
+// sentinel stops a task retrying for a binary that will not appear.
 var ErrUnavailable = fmt.Errorf("ffmpeg composer: %w", provider.ErrUnavailable)
 
 // Chapter clip geometry and timing. These are the reference pipeline's

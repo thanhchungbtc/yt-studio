@@ -1,15 +1,12 @@
 // Package registry routes each provider port to the backend named by its
 // settings row.
 //
-// Selection is one mechanism used once per port rather than a bespoke wrapper per
-// port: a backend is registered under a name, the settings row names one, and
-// the router resolves it per call so an edit on the settings screen applies to
-// the next task instead of the next restart.
+// One mechanism per port rather than a bespoke wrapper each: a backend is
+// registered under a name, a settings row names one, and the router resolves it
+// per call so an edit applies to the next task rather than the next restart.
 //
-// A name that is not registered is an error, never a fallback. Silently
-// downgrading to a different backend because a settings value was misspelled is
-// the failure mode this package exists to prevent — the operator finds out
-// from a startup error, not from watching the output.
+// An unregistered name is an error, never a fallback — a misspelled row must
+// surface at startup rather than as silently different output.
 package registry
 
 import (

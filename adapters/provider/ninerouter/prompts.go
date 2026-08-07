@@ -7,16 +7,15 @@ import (
 	"text/template"
 )
 
-// promptFS holds the prompt templates. They are embedded rather than read from
-// disk because they are part of the binary's behaviour: a backend whose prompts
-// can be edited underneath it is a backend whose output nobody can reproduce.
+// promptFS holds the prompt templates. Embedded rather than read from disk: a
+// backend whose prompts can be edited underneath it is one whose output nobody
+// can reproduce.
 //
 //go:embed prompts/*.tmpl
 var promptFS embed.FS
 
-// prompts is parsed once at init. The templates are compile-time constants and
-// a broken one is a build-time mistake, so failing loudly here beats returning
-// an error every caller would have to invent a response to.
+// prompts is parsed once at init: a broken template is a build-time mistake,
+// not an error every caller would have to invent a response to.
 var prompts = template.Must(template.ParseFS(promptFS, "prompts/*.tmpl"))
 
 // Template names, which text/template takes from the file's base name.

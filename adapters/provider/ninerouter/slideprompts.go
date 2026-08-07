@@ -9,12 +9,9 @@ import (
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
-// VideoContext is what an slide-prompt generation needs to know about a video.
-//
-// The port hands this method a video id and nothing else, and a provider may
-// never read the database — so the caller supplies a lookup that resolves one
-// into the other. It is the only method with that shape, because it is the only
-// one whose callers are N per-chapter tasks rather than one.
+// VideoContext is what a slide-prompt generation needs to know about a video.
+// The port hands this method an id and nothing else, and a provider may not
+// read the database, so the caller supplies a lookup between the two.
 type VideoContext struct {
 	provider.BlueprintOutline
 	SlidesPerChapter int
@@ -43,11 +40,11 @@ type slideAsset struct {
 	Index   int
 	Title   string
 	Summary string
-	// Role is which of the three the image plays: the prompt's own vocabulary,
-	// derived from position within the chapter rather than asked for.
+	// Role is the image's job, in the prompt's vocabulary, derived from its
+	// position within the chapter rather than asked for.
 	Role string
-	// Position is where the chapter sits in the video, in the prompt's macro
-	// vocabulary. Empty when the video is too short for the arc to mean much.
+	// Position is where the chapter sits on the video's arc, empty when the
+	// video is too short for that to mean much.
 	Position string
 }
 
@@ -59,17 +56,13 @@ type slidePromptsPrompt struct {
 	ExpectedOutputSchema string
 }
 
-// SlidePrompts returns every chapter's slide prompts for one video.
+// SlidePrompts returns every chapter's slide prompts from one generation: the
+// prompt carries the whole outline, so chapter 31's slides can answer chapter
+// 12's instead of repeating them.
 //
-// All of them come from a single generation. The prompt carries the whole
-// outline, so the slides of chapter 31 can answer the ones from chapter 12
-// instead of repeating them — and asking per chapter would resend that outline
-// a hundred times to get a hundred unrelated answers.
-//
-// The DAG still holds N individually retryable per-chapter tasks. Singleflight
-// collapses them onto one production and the cache serves the rest; both halves
-// are needed, because singleflight alone only deduplicates calls that overlap
-// in time, and the image pool is capped well below the number of callers.
+// The DAG still holds N retryable per-chapter tasks. Singleflight collapses the
+// callers that overlap and the cache serves the ones that come after, since the
+// pool is capped well below the number of callers.
 func (c *Client) SlidePrompts(ctx context.Context, videoID entity.VideoID) ([]provider.SlidePrompt, error) {
 	if cached, ok := c.cached(videoID); ok {
 		return cached, nil
@@ -103,8 +96,7 @@ func (c *Client) SlidePrompts(ctx context.Context, videoID entity.VideoID) ([]pr
 	return prompts, nil
 }
 
-// Forget drops a video's batch so a retry regenerates it rather than replaying
-// the answer that was retried away from.
+// Forget drops a video's batch so a retry regenerates rather than replays it.
 func (c *Client) Forget(videoID entity.VideoID) {
 	c.cacheMu.Lock()
 	delete(c.cache, videoID)
@@ -156,9 +148,8 @@ func (c *Client) generateSlidePrompts(ctx context.Context, videoID entity.VideoI
 	for _, p := range doc.Prompts {
 		out = append(out, provider.SlidePrompt{Ordinal: p.Chapter, Index: p.Index, Prompt: p.Prompt})
 	}
-	// A short batch is a bad roll rather than a misconfiguration: the per-chapter
-	// tasks address this by (ordinal, index) and a missing pair has no prompt to
-	// draw from, so it is worth asking again.
+	// A short batch is a bad roll: the per-chapter tasks address this by
+	// (ordinal, index), and a missing pair has no prompt to draw from.
 	if len(out) < prompt.Total {
 		return nil, fmt.Errorf("9router returned %d slide prompts, want %d", len(out), prompt.Total)
 	}

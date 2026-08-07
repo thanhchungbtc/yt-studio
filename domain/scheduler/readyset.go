@@ -6,9 +6,8 @@ import "github.com/tbui/yt-studio/domain/entity"
 // slide tasks) so a normal run never grows a ring after warm-up.
 const initialRingCapacity = 128
 
-// ring is a fixed-stride FIFO of task pointers. Push and Pop are O(1) and
-// allocation-free once the buffer has reached its steady-state capacity, which
-// is what lets the dispatch decision hit its zero-allocation budget.
+// ring is a FIFO of task pointers, allocation-free once warm, which is what
+// lets the dispatch decision hit its zero-allocation budget.
 type ring struct {
 	buf   []*entity.Task
 	head  int
@@ -40,7 +39,6 @@ func (r *ring) grow() {
 	r.head = 0
 }
 
-// peek returns the front entry without removing it.
 func (r *ring) peek() *entity.Task {
 	if r.count == 0 {
 		return nil
@@ -48,7 +46,6 @@ func (r *ring) peek() *entity.Task {
 	return r.buf[r.head]
 }
 
-// pop removes and returns the front entry.
 func (r *ring) pop() *entity.Task {
 	if r.count == 0 {
 		return nil
@@ -63,13 +60,9 @@ func (r *ring) pop() *entity.Task {
 	return t
 }
 
-// ReadySet is the authoritative dispatch structure: the scheduler never queries
-// SQLite to answer "what can run now?".
-//
-// It is owned by the dispatch goroutine alone and therefore carries no lock.
-// Cancellation and gate changes do not remove entries; they change the task's
-// state, and Next drops any entry that is no longer ready. Lazy deletion keeps
-// the hot path branch-free of set lookups.
+// ReadySet answers "what can run now?" without querying SQLite. Owned by the
+// dispatch goroutine alone, so it carries no lock. Cancellations and gates only
+// change a task's state; Next lazily drops entries that are no longer ready.
 type ReadySet struct {
 	queues [entity.NumPools]ring
 	// stale counts entries dropped by lazy deletion, for the console.
@@ -94,8 +87,8 @@ func (rs *ReadySet) Push(t *entity.Task) {
 	rs.queues[i].push(t)
 }
 
-// Next returns the front runnable task of a pool without removing it, dropping
-// any entry whose state has moved on since it was pushed. It allocates nothing.
+// Next returns a pool's front runnable task without removing it, dropping any
+// entry whose state has moved on. It allocates nothing.
 func (rs *ReadySet) Next(pool entity.Pool) *entity.Task {
 	i := pool.Index()
 	if i < 0 {
@@ -115,8 +108,8 @@ func (rs *ReadySet) Next(pool entity.Pool) *entity.Task {
 	}
 }
 
-// Pop removes the front entry of a pool. It is called only after Next returned
-// that entry and a slot was acquired for it.
+// Pop removes a pool's front entry, only after Next returned it and a slot was
+// acquired for it.
 func (rs *ReadySet) Pop(pool entity.Pool) *entity.Task {
 	i := pool.Index()
 	if i < 0 {
@@ -125,8 +118,7 @@ func (rs *ReadySet) Pop(pool entity.Pool) *entity.Task {
 	return rs.queues[i].pop()
 }
 
-// Len reports the queue depth of one pool, including entries that lazy deletion
-// has not yet dropped.
+// Len reports one pool's queue depth, including entries not yet lazily dropped.
 func (rs *ReadySet) Len(pool entity.Pool) int {
 	i := pool.Index()
 	if i < 0 {
@@ -144,9 +136,8 @@ func (rs *ReadySet) Total() int {
 	return n
 }
 
-// Compact drops stale entries from every queue. The dispatch loop calls it
-// after a cancellation, so a cancelled video's queued tasks do not linger in
-// the depth reported to the operator.
+// Compact drops stale entries from every queue, called after a cancellation so
+// its queued tasks do not linger in the reported depth.
 func (rs *ReadySet) Compact() {
 	for i := range rs.queues {
 		q := &rs.queues[i]

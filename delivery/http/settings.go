@@ -71,11 +71,8 @@ type ApplyPresetInput struct {
 	Name string `path:"name" doc:"Preset name, e.g. sample"`
 }
 
-// ApplyPresetOutput is the rows the preset changed.
-//
-// Only the rows that moved: a preset already in force changes nothing and says
-// so with an empty list, which is also what lets the client patch its cache from
-// the response instead of refetching the table.
+// ApplyPresetOutput is only the rows that moved, so a preset already in force
+// returns an empty list and the client can patch its cache from the response.
 type ApplyPresetOutput struct {
 	Body struct {
 		Settings []SettingDTO `json:"settings"`
@@ -124,8 +121,8 @@ func registerSettingRoutes(
 		Summary: "List runtime settings", Tags: []string{"settings"},
 	}, getSettings(settings))
 
-	// Registered before the {key} route below so "presets" is read as the literal
-	// path segment it is rather than as a settings key.
+	// Before the {key} route below, so "presets" is read as a literal segment
+	// rather than a settings key.
 	huma.Register(api, huma.Operation{
 		OperationID: "listPresets", Method: "GET", Path: "/api/settings/presets",
 		Summary:     "List settings presets",

@@ -36,9 +36,8 @@ func GenerateScript(
 	if err != nil {
 		return classify(err)
 	}
-	// The whole outline goes with every chapter. A writer that can see what
-	// chapter 12 already covered is what keeps chapter 31 from covering it
-	// again, and that is the failure a fifty-chapter video actually has.
+	// The whole outline goes with every chapter: a writer that can see what
+	// chapter 12 covered is what keeps chapter 31 from covering it again.
 	outline, err := blueprintOutline(ctx, chapters, video)
 	if err != nil {
 		return classify(err)
@@ -101,15 +100,14 @@ func blueprintOutline(
 	return out, nil
 }
 
-// NarrationSeconds turns a word count into a duration at the narration speed
-// the blueprint budgeted words with. Planning a three-hour video and then
-// reporting it as two and a half is the drift one shared constant prevents.
+// NarrationSeconds turns a word count into a duration at the speed the
+// blueprint budgeted with, so a planned length and a reported one agree.
 func NarrationSeconds(words int) float64 {
 	return float64(words) / float64(entity.DefaultWordsPerMinute) * 60
 }
 
-// CountWords counts whitespace-separated words without allocating, which is
-// what an operator's script edit needs to re-time a chapter.
+// CountWords counts whitespace-separated words without allocating, to re-time a
+// chapter after a script edit.
 func CountWords(script string) int {
 	words := 0
 	inWord := false

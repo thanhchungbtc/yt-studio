@@ -20,9 +20,8 @@ func NewSlide(c *Client) *Slide { return &Slide{c: c} }
 // Generate draws one slide and returns its content address.
 func (i *Slide) Generate(ctx context.Context, req provider.SlideRequest) (entity.AssetID, error) {
 	width, height := req.Width, req.Height
-	// The request's geometry wins when it carries any, and the configured size is
-	// the fallback rather than the rule: the port declares the fields, so a use
-	// case that starts filling them must be obeyed rather than overridden here.
+	// The request's geometry wins when it carries any: the port declares those
+	// fields, so a use case that fills them must be obeyed, not overridden.
 	if width <= 0 || height <= 0 {
 		width, height = i.c.cfg.SlideSize()
 	}

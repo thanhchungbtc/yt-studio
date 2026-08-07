@@ -160,9 +160,8 @@ func startOptions(settings *service.Settings) app.StartVideoOptions {
 	}
 }
 
-// expandOptions are read when a blueprint is accepted rather than when the
-// video was enqueued, because that is when the tail carrying the upload gate is
-// built.
+// expandOptions are read at blueprint acceptance, not enqueue: that is when the
+// tail carrying the upload gate is built.
 func expandOptions(settings *service.Settings) app.ExpandOptions {
 	return app.ExpandOptions{
 		MaxAttempts: settings.Int(entity.SettingTaskMaxAttempts),

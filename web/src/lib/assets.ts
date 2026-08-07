@@ -284,9 +284,8 @@ export function chapterSlideItems(
 ): ViewerItem[] {
   const subtitle = `${chapterKey(videoRef, chapter.ordinal)} · ${chapter.title}`
 
-  // Empty slots are kept rather than skipped. A slide that failed or has not run
-  // is the one whose prompt most wants changing, and dropping it here would put
-  // that prompt out of reach of the only surface that edits it.
+  // Empty slots are kept: a slide that failed is the one whose prompt most
+  // wants changing, and this is the only surface that edits it.
   const items: ViewerItem[] = chapter.slideAssetIds.map((id, slot) => ({
     id: id || pendingSlideId(chapter.id, slot),
     kind: 'image',
@@ -369,11 +368,10 @@ export function videoAssetItems(
   const items = assets.map((asset) => {
     const chapter = asset.chapterId ? byId.get(asset.chapterId) : undefined
     const slot = chapter ? chapter.slideAssetIds.indexOf(asset.id) : -1
-    // An icon belongs to a grid cell rather than to a chapter, and the video row
-    // is the only place that mapping exists. Without it every icon looks alike:
-    // same title, same sort key, and — because producingTaskId matches any index
-    // when given -1 — the same producing task, so re-running the fifth icon from
-    // the gallery would re-run the first.
+    // An icon belongs to a grid cell, and the video row is the only place that
+    // mapping exists. Without it every icon shares a title, a sort key and —
+    // since producingTaskId matches any index given -1 — a producing task, so
+    // re-running the fifth from the gallery would re-run the first.
     const cell =
       asset.kind === 'thumbnail_icon' ? (video?.thumbnailIconIds.indexOf(asset.id) ?? -1) : -1
     const index = cell >= 0 ? cell : slot
@@ -403,7 +401,7 @@ export function videoAssetItems(
       } satisfies ViewerItem,
       ordinal: chapter?.ordinal ?? 0,
       // Grid order for icons, slot order for slides: both read the way the
-      // artifact is laid out rather than the order the pool finished them in.
+      // artifact is laid out, not the order the pool finished them in.
       slot: index < 0 ? 0 : index,
     }
   })

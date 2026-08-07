@@ -27,12 +27,9 @@ var (
 	ErrBlueprintLocked = errors.New("blueprint cannot be re-run")
 )
 
-// Runner executes exactly one task and reports its outcome. Everything the
-// server owns — lifecycle, the DAG, pools, retries, persistence, gates —
-// stays outside it; a Runner does the provider call and records the artifacts.
-//
-// It takes the task by value: the scheduler keeps mutating its own copy from
-// the dispatch goroutine, and a shared pointer would be a data race.
+// Runner executes exactly one task and reports its outcome: the provider call
+// and the artifacts, nothing about the DAG, pools, retries or gates. It takes
+// the task by value because the loop keeps mutating its own copy.
 type Runner interface {
 	Run(ctx context.Context, t entity.Task) entity.TaskOutcome
 }
@@ -61,8 +58,8 @@ type Notifier interface {
 type Config struct {
 	RetryBase time.Duration
 	RetryMax  time.Duration
-	// SafetyInterval is the in-memory consistency sweep. Polling is forbidden as
-	// the primary mechanism; this exists only as a net.
+	// SafetyInterval is the in-memory consistency sweep — a net, never the
+	// primary mechanism.
 	SafetyInterval time.Duration
 	// CompletionBuffer sizes the channel workers report on.
 	CompletionBuffer int
@@ -99,10 +96,9 @@ type Status struct {
 	UptimeSeconds    float64           `json:"uptimeSeconds"`
 }
 
-// counters is a video's task census, recomputed from its graph whenever
-// anything about that video changes. Deriving it rather than maintaining it
-// incrementally removes a whole class of drift bugs for a few hundred integer
-// comparisons, which is nothing next to the transaction that follows.
+// counters is a video's task census, recomputed from its graph on every change.
+// Deriving rather than maintaining it removes a class of drift bugs for a few
+// hundred integer comparisons.
 type counters struct {
 	total            int
 	succeeded        int
@@ -124,25 +120,20 @@ type completion struct {
 	videoID entity.VideoID
 	outcome entity.TaskOutcome
 	at      time.Time
-	// generation the task was dispatched under. A reset in the meantime bumps the
-	// graph's counter and this answer is thrown away.
+	// generation dispatched under; a reset in the meantime discards this answer.
 	generation uint64
 }
 
-// videoRun carries the cancellation scope of one video. Cancelling it stops
-// every in-flight provider call for that video, which is how a cancelled video
-// frees its slots within 100 ms.
+// videoRun is one video's cancellation scope: cancelling it stops every
+// in-flight provider call for that video, freeing its slots.
 type videoRun struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
-// Scheduler is the event-driven dispatch loop. Every task starts the moment its
-// own dependencies are met, regardless of what other chapters are doing; there
-// are no stage barriers.
-//
-// All mutable state below the ports is owned by the single loop goroutine.
-// Public methods are thin: they hand a command to the loop and wait.
+// Scheduler is the event-driven dispatch loop. A task starts the moment its own
+// dependencies are met; there are no stage barriers. All mutable state is owned
+// by the loop goroutine, and public methods hand it a command and wait.
 type Scheduler struct {
 	pools     *Pools
 	ready     *ReadySet
@@ -162,9 +153,8 @@ type Scheduler struct {
 	runs      map[entity.VideoID]*videoRun
 	taskIndex map[entity.TaskID]entity.VideoID
 	touched   map[entity.VideoID]struct{}
-	// pending and spare alternate: a batch handed to the store is never the buffer
-	// the loop keeps appending to. Reusing a single slice would alias the store's
-	// view of it, and swapping keeps the steady state allocation free either way.
+	// pending and spare alternate so a batch handed to the store is never the
+	// buffer the loop appends to, and the steady state stays allocation free.
 	pending  []repository.TaskTransition
 	spare    []repository.TaskTransition
 	retries  retryQueue
@@ -173,16 +163,14 @@ type Scheduler struct {
 
 	workers sync.WaitGroup
 	status  atomic.Pointer[Status]
-	// startedAt is read by the console from other goroutines, so it is stored as
-	// unix nanoseconds rather than a plain field.
+	// startedAt is read from other goroutines, so it is unix nanos, not a field.
 	startedAt atomic.Int64
 	running   atomic.Bool
 }
 
 func (s *Scheduler) started() time.Time { return time.Unix(0, s.startedAt.Load()) }
 
-// New constructs a Scheduler. Every dependency is an explicit parameter: the
-// signature is the whole dependency list.
+// New constructs a Scheduler; the signature is the whole dependency list.
 func New(
 	pools *Pools,
 	store TransitionStore,
@@ -296,9 +284,8 @@ func (s *Scheduler) loop(ctx context.Context) error {
 // settle recomputes derived state for every video touched this iteration,
 // commits the batch in one transaction and publishes the console snapshot.
 func (s *Scheduler) settle(ctx context.Context) {
-	// Task rows commit first. The video row is derived from them, so writing it
-	// first would let an API read observe a video parked on a gate whose task
-	// still claims to be running.
+	// Task rows commit first: the video row is derived from them, so the other
+	// order would let a read see a gated video whose task still claims to run.
 	s.flush(ctx)
 	for videoID := range s.touched {
 		s.recount(videoID)
@@ -322,10 +309,9 @@ func (s *Scheduler) drainCompletions() {
 	}
 }
 
-// pump is the dispatch decision: for every pool, start as many ready tasks as
-// there are free slots. Selection is greedy-with-skip and cannot deadlock — a
-// task holds at most one slot and never acquires a second, so there is no
-// hold-and-wait.
+// pump is the dispatch decision: per pool, start as many ready tasks as there
+// are free slots. It cannot deadlock — a task holds at most one slot and never
+// acquires a second, so there is no hold-and-wait.
 func (s *Scheduler) pump(ctx context.Context) {
 	for _, pool := range entity.AllPools {
 		for {
@@ -357,9 +343,8 @@ func (s *Scheduler) startTask(ctx context.Context, t *entity.Task) {
 	snapshot := *t // by value: the loop keeps mutating its own copy
 	id, videoID := t.ID, t.VideoID
 
-	// Captured at dispatch: whatever happens to the task while the provider call
-	// is in flight, the completion can be matched against the state it was started
-	// from.
+	// Captured at dispatch so the completion can be matched against the state it
+	// started from.
 	var generation uint64
 	if g, ok := s.graphs[videoID]; ok {
 		if idx, found := g.IndexOf(id); found {
@@ -382,8 +367,8 @@ func (s *Scheduler) startTask(ctx context.Context, t *entity.Task) {
 	}()
 }
 
-// runSafely turns a panicking Runner into a permanent task failure instead of a
-// dead server. A provider is replaceable third-party code by design.
+// runSafely turns a panicking Runner into a failed task rather than a dead
+// server; a provider is replaceable third-party code by design.
 func runSafely(ctx context.Context, r Runner, t entity.Task) (outcome entity.TaskOutcome) {
 	defer func() {
 		if rec := recover(); rec != nil {
@@ -394,8 +379,7 @@ func runSafely(ctx context.Context, r Runner, t entity.Task) (outcome entity.Tas
 }
 
 func (s *Scheduler) handleCompletion(c completion) {
-	// Every completion corresponds to exactly one startTask, so the in-flight
-	// count is decremented before any early return.
+	// One completion per startTask, so decrement before any early return.
 	s.inFlight--
 
 	g, ok := s.graphs[c.videoID]
@@ -407,8 +391,8 @@ func (s *Scheduler) handleCompletion(c completion) {
 		return
 	}
 	if idx, found := g.IndexOf(c.taskID); found && g.Generation(idx) != c.generation {
-		// Reset while in flight. The answer is to a question that has since changed,
-		// so it is discarded; resetFrom has already re-queued the task.
+		// Reset while in flight: the question has changed and resetFrom has
+		// already re-queued the task.
 		return
 	}
 	if t.State != entity.TaskStateRunning {
@@ -463,8 +447,7 @@ func (s *Scheduler) markSucceeded(g *Graph, t *entity.Task) {
 }
 
 // releaseDependents is the whole of dependency propagation: a completed task
-// signals its dependents directly. The task table is never rescanned to find
-// work.
+// signals its dependents directly, so the task table is never rescanned.
 func (s *Scheduler) releaseDependents(g *Graph, idx int32) {
 	now := time.Now()
 	for _, d := range g.Dependents(idx) {
@@ -515,8 +498,7 @@ func (s *Scheduler) handleFailure(t *entity.Task, o entity.Failed) {
 		slog.String("error", msg))
 }
 
-// retryDelay uses cenkalti/backoff's exponential schedule rather than a
-// hand-rolled one. A fresh instance advanced to the current attempt keeps the
+// retryDelay advances a fresh backoff to the current attempt, which keeps the
 // scheduler free of per-task retry state.
 func retryDelay(base, maxDelay time.Duration, attempt int) time.Duration {
 	b := backoff.NewExponentialBackOff()
@@ -561,9 +543,9 @@ func (s *Scheduler) releaseDueRetries(now time.Time) {
 	}
 }
 
-// sweep is the safety net: it re-derives readiness in memory for any task whose
-// dependencies are satisfied but which is not queued. It never touches the
-// database and never rescans the task table.
+// sweep is the safety net: it re-derives readiness in memory for a task whose
+// dependencies are satisfied but which is not queued. It never reads the
+// database.
 func (s *Scheduler) sweep() {
 	now := time.Now()
 	for videoID, g := range s.graphs {
@@ -640,7 +622,7 @@ func (s *Scheduler) recount(videoID entity.VideoID) {
 	*c = counters{total: len(g.tasks)}
 	for i := range g.tasks {
 		t := &g.tasks[i]
-		// Staleness cuts across the states below; it does not partition with them.
+		// Staleness cuts across the states; it does not partition with them.
 		if t.Stale {
 			c.stale++
 		}
@@ -772,11 +754,9 @@ func (s *Scheduler) publishStatus() {
 	}
 }
 
-// Snapshot returns the current console view without disturbing the loop.
-//
-// Task counters come from the snapshot the loop publishes; pool limits and
-// occupancy are read live, because a limit change is applied asynchronously by
-// the pool reconciler and would otherwise appear stale until the next event.
+// Snapshot returns the console view without disturbing the loop. Counters come
+// from the published snapshot; pool limits and occupancy are read live, since
+// the reconciler applies a limit change asynchronously.
 func (s *Scheduler) Snapshot() Status {
 	st := s.status.Load()
 	if st == nil {

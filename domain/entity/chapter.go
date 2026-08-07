@@ -15,8 +15,7 @@ var ErrInvalidChapter = errors.New("invalid chapter")
 type Chapter struct {
 	ID      ChapterID
 	VideoID VideoID
-	// Ordinal is 1-based and unique within the video; it is the chapter's natural
-	// key together with the video ref (DSS-14#7).
+	// Ordinal is 1-based and, with the video ref, the natural key (DSS-14#7).
 	Ordinal int
 	Title   string
 	Summary string
@@ -27,13 +26,10 @@ type Chapter struct {
 	SlideAssetIDs []AssetID
 	ClipAssetID   *AssetID
 
-	// DurationSeconds is how long the narration actually came to, measured from
-	// the script once it exists.
+	// DurationSeconds is what the narration came to, measured from the script.
 	DurationSeconds float64
-	// EstimatedWords is the spoken-word budget the blueprint assigned to this
-	// chapter, before a word of it was written. It is deliberately uneven across
-	// a video: a deep chapter carries roughly twice a short one. Zero means the
-	// blueprint did not assign one.
+	// EstimatedWords is the budget the blueprint assigned this chapter, uneven
+	// by design — a deep chapter carries roughly twice a short one. Zero is unset.
 	EstimatedWords int
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
@@ -62,8 +58,7 @@ func NewChapter(videoID VideoID, ordinal int, title, summary string, now time.Ti
 	}, nil
 }
 
-// NaturalKey returns the human-readable key of a chapter within its video, e.g.
-// `DSS-14#7`. It is used in logs and golden-file fixtures.
+// NaturalKey is the chapter's readable key within its video, e.g. `DSS-14#7`.
 func (c Chapter) NaturalKey(videoRef Ref) string {
 	var b strings.Builder
 	b.Grow(len(videoRef) + 4)

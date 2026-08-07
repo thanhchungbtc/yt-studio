@@ -10,12 +10,10 @@ import (
 	"github.com/tbui/yt-studio/domain/service"
 )
 
-// UpdateSetting writes one settings row and applies its side effects live.
-//
-// Changing a pool limit, the SSE coalescing window or the log level is a row
-// update applied without restarting the server. Each side effect is dispatched
-// through a narrow port that is named in the signature, so it is obvious from
-// here what a settings edit can reach.
+// UpdateSetting writes one settings row and applies its side effects live: a
+// pool limit, the SSE window or the log level all take effect without a
+// restart. Each goes through a narrow port named in the signature, so what a
+// settings edit can reach is visible from here.
 func UpdateSetting(
 	ctx context.Context,
 	settings *service.Settings,
@@ -46,8 +44,8 @@ func UpdateSetting(
 		return updated, nil
 	}
 
-	// Only the keys with a live side effect appear here; everything else is
-	// already applied by virtue of being read from the cache on next use.
+	// Only keys with a live side effect: everything else applies by being read
+	// from the cache on next use.
 	switch key { //nolint:exhaustive // side effects are the exception, not the rule
 	case entity.SettingSSECoalesceMillis:
 		if coalesce != nil {

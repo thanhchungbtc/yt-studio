@@ -11,16 +11,12 @@ import (
 )
 
 // GenerateBlueprint produces a video's chapter outline and materialises its
-// chapters.
+// chapters. It is the root of the DAG; whether the pipeline then parks on a
+// gate is the scheduler's decision, not this function's.
 //
-// It is the root of the DAG and, when the gate is enabled, the point at which
-// the pipeline parks for human review. The scheduler owns that decision; this
-// function just does the work and records the result.
-//
-// The chapter count it returns is the video's real one. The number the video
-// was created with is a target the model was briefed with, and this is where
-// the two are reconciled: anything inside the tolerance band is accepted as
-// written, and the DAG is later built for what came back.
+// The count that comes back is the video's real one — the number it was created
+// with was only the brief — so anything inside the tolerance band is accepted
+// as written and the DAG is later built for it.
 //
 //nolint:revive // the parameter list is the dependency list
 func GenerateBlueprint(
@@ -60,9 +56,8 @@ func GenerateBlueprint(
 	}
 	minChapters, maxChapters := entity.ChapterCountBand(video.ChapterCount, tolerancePercent)
 	if n := len(bp.Chapters); n < minChapters || n > maxChapters {
-		// Retryable: how far a roll lands from the brief is a property of the roll,
-		// not of the video, so another attempt is worth having. MaxAttempts bounds
-		// how many times we ask.
+		// Retryable: how far a roll lands from the brief is a property of the
+		// roll, not of the video, and MaxAttempts bounds the asking.
 		return entity.Failed{
 			Err: fmt.Errorf("%w: blueprint returned %d chapters, want %d..%d for a target of %d",
 				ErrBlueprintOffTarget, n, minChapters, maxChapters, video.ChapterCount),
@@ -80,21 +75,17 @@ func GenerateBlueprint(
 
 	chapters := make([]entity.Chapter, 0, len(bp.Chapters))
 	for i, bc := range bp.Chapters {
-		// Ordinals are renumbered 1..N in the order the model returned them, rather
-		// than taken from the response. They are the chapter's natural key and the
-		// index every task id is derived from, so a gap or a repeat would put the
-		// DAG and the chapter table out of correspondence. Here is the only moment
-		// renumbering is free: no chapter work has run and no asset exists yet.
+		// Ordinals are renumbered 1..N rather than taken from the response: they
+		// are the index every task id derives from, so a gap or a repeat would put
+		// the DAG and the chapter table out of correspondence. This is the only
+		// moment renumbering is free — no chapter work has run.
 		c, err := entity.NewChapter(video.ID, i+1, bc.Title, bc.Summary, now)
 		if err != nil {
 			return classify(err)
 		}
-		// The slide slots are pre-sized so that the two slide tasks of a chapter can
-		// each write their own index atomically.
+		// Pre-sized so a chapter's slide tasks each write their own index atomically.
 		c.SlideAssetIDs = make([]entity.AssetID, video.SlidesPerChapter)
 		c.SlidePrompts = make([]string, 0, video.SlidesPerChapter)
-		// The budget the outline assigned this chapter, carried as a field so the
-		// script writer reads it rather than recovering it from prose.
 		c.EstimatedWords = bc.EstimatedWords
 		chapters = append(chapters, c)
 	}

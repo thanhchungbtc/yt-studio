@@ -30,9 +30,8 @@ type UpdateScriptInput struct {
 	}
 }
 
-// RegenerateSlideInput is an operator's edited prompt and the instruction to
-// draw the slide again with it. The two are one request because they are one
-// decision; there is no way to save a prompt without generating from it.
+// RegenerateSlideInput is an edited prompt and the instruction to draw with it.
+// One request, because there is no way to save a prompt without generating.
 type RegenerateSlideInput struct {
 	ID    string `path:"id" doc:"Chapter id"`
 	Index int    `path:"index" minimum:"0" doc:"0-based slide index within the chapter"`

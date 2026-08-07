@@ -1,12 +1,10 @@
 // Package thumbnail renders a video's thumbnail in Go: the headline and the
 // grid of generated icons, over the channel's background.
 //
-// It is pure Go rather than a filter graph or a browser. Text is the whole
-// problem here — fitting a headline to the frame, tracking it, centring
-// captions under tiles — and x/image/font already measures and rasterises,
-// which is what the composer's title fitting is built on. A browser backend
-// will come later for layouts worth editing without a rebuild; this one is the
-// deterministic floor: same inputs, same bytes, no external process.
+// Pure Go rather than a filter graph or a browser, because text is the whole
+// problem here and x/image/font already measures and rasterises. An HTML
+// backend will come later for layouts worth editing without a rebuild; this one
+// is the deterministic floor — same inputs, same bytes, no external process.
 package thumbnail
 
 import (
@@ -19,6 +17,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 
 	"golang.org/x/image/font/sfnt"
@@ -57,8 +57,8 @@ func New(store provider.AssetStore, resources string, opts func() Options, log *
 	return &Renderer{store: store, dir: resources, opts: opts, log: log}
 }
 
-// Check reports whether the fixed resources are in place, so an operator learns
-// at startup rather than from a parked task forty minutes in.
+// Check reports whether the fixed resources are in place, at startup rather
+// than from a parked task forty minutes in.
 func (b *Renderer) Check() error {
 	opts := b.options()
 	if _, err := b.background(); err != nil {
@@ -85,9 +85,8 @@ func (b *Renderer) Render(ctx context.Context, req provider.ThumbnailRequest) (e
 	canvas := image.NewRGBA(image.Rect(0, 0, frameWidth, frameHeight))
 	copy(canvas.Pix, background.Pix)
 
-	// The grid is laid out first and takes the width it needs; the headline is
-	// then fitted into the band above it. That order is the whole reason the
-	// tiles run edge to edge instead of floating in the middle of the frame.
+	// The grid takes the width it needs and the headline is fitted into what is
+	// left, which is why the tiles run edge to edge.
 	cells := layOutGrid(len(req.Cells), opts.Rows)
 	headline := layOutHeadline(font, req.Headline, cells.headlineBudget())
 	drawHeadline(canvas, headline)
@@ -99,10 +98,9 @@ func (b *Renderer) Render(ctx context.Context, req provider.ThumbnailRequest) (e
 
 	var buf bytes.Buffer
 	buf.Grow(frameWidth * frameHeight / 2)
-	// Default compression, not best. On a photographic frame this size, best
-	// costs roughly seven times the CPU to save six percent of the bytes — half
-	// a megabyte either way, against YouTube's two megabyte ceiling. The sample
-	// flat colours are a different case and it still asks for best.
+	// Default compression, not best: on a photographic frame this size, best
+	// costs seven times the CPU to save six percent, against a two megabyte
+	// ceiling. The sample's flat colours are a different case.
 	enc := png.Encoder{CompressionLevel: png.DefaultCompression}
 	if err := enc.Encode(&buf, canvas); err != nil {
 		return "", fmt.Errorf("encode thumbnail: %w", err)
@@ -129,14 +127,9 @@ func (b *Renderer) options() Options {
 }
 
 // background returns the frame every thumbnail starts from: the backdrop scaled
-// to cover, with a scrim over it. The scrim is not decoration — white text over
-// an undimmed photograph is unreadable, and the reference thumbnails are nearly
-// black behind their headline.
-//
-// The result is cached by path rather than per builder. Decoding and
-// resampling a quarter-megabyte photograph is by far the most expensive thing
-// here and the answer never differs: one backdrop, one frame, for the life of
-// the process.
+// to cover, scrimmed so white text over it is legible. Cached by path, because
+// decoding and resampling the photograph is the most expensive thing here and
+// the answer never differs.
 func (b *Renderer) background() (*image.RGBA, error) {
 	path := filepath.Join(b.dir, backgroundFileName)
 
@@ -180,6 +173,32 @@ func loadBackground(path string) (*image.RGBA, error) {
 	return img, nil
 }
 
+// Fonts lists the typefaces in a resources directory, for the settings screen
+// to offer by name. Read from disk, because what is installed is a fact about
+// the machine; offered as suggestions rather than a closed list, because the
+// scan happens once at startup and a font added later must not be refused.
+//
+// An unreadable directory yields nothing rather than an error: Check already
+// fails over a typeface it cannot parse.
+func Fonts(resources string) []string {
+	entries, err := os.ReadDir(filepath.Join(resources, "fonts"))
+	if err != nil {
+		return nil
+	}
+	out := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		switch strings.ToLower(filepath.Ext(entry.Name())) {
+		case ".ttf", ".otf":
+			out = append(out, entry.Name())
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 // face parses the configured typeface. A font that will not parse is the
 // operator's to fix, so it is unavailable rather than retryable.
 func (b *Renderer) face(name string) (*sfnt.Font, error) {
@@ -200,14 +219,13 @@ func (b *Renderer) drawGrid(
 	grid grid,
 ) error {
 	if len(cells) == 0 {
-		// A headline on its own is a thin thumbnail, not a broken one. Whether an
-		// empty grid is worth publishing is the server's judgement, not a
-		// renderer's.
+		// A headline on its own is a thin thumbnail, not a broken one, and
+		// whether that is worth publishing is the server's judgement.
 		return nil
 	}
 
-	// One size for every caption, chosen once the tiles are sized: a dozen tiles
-	// at a dozen type sizes read as a dozen unrelated pictures.
+	// One size for every caption: a dozen tiles at a dozen type sizes read as a
+	// dozen unrelated pictures.
 	captions := make([]string, 0, len(cells))
 	for _, c := range cells {
 		captions = append(captions, c.Caption)

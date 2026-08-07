@@ -9,17 +9,12 @@ import (
 )
 
 // The text and audio helpers, ported one for one from the Python this backend
-// replaces. They are free functions rather than methods because none of them
-// touches the network or the store: given the same input they give the same
-// output, which is what makes them the part worth unit-testing hardest.
-//
-// Lengths are counted in runes throughout. The Python counted code points, and
-// measuring in bytes would silently change the chunking of any script carrying
-// a curly apostrophe or an em dash.
+// replaces. Free functions, because none of them touches the network or the
+// store. Lengths are in runes throughout: the Python counted code points, and
+// bytes would change the chunking of any script with a curly apostrophe.
 
-// sentenceTerminators is the set a sentence may end on. The CJK marks are in it
-// deliberately — a script is not guaranteed to be English, and splitting a
-// Chinese paragraph on ASCII periods alone yields one enormous chunk.
+// sentenceTerminators is the set a sentence may end on. The CJK marks are
+// deliberate: splitting a Chinese paragraph on ASCII periods yields one chunk.
 const sentenceTerminators = ".!?。！？"
 
 // splitSentences cuts text into sentences, keeping the terminal punctuation and
@@ -38,7 +33,7 @@ func splitSentences(text string) []string {
 			continue
 		}
 		// "!?" and "..." end one sentence, not three, so the whole run goes with
-		// it — and so does the space after, which is why rejoining is lossless.
+		// it — and so does the space after, which keeps rejoining lossless.
 		i += runLength(text[i:], func(r rune) bool { return strings.ContainsRune(sentenceTerminators, r) })
 		i += runLength(text[i:], unicode.IsSpace)
 
@@ -65,20 +60,16 @@ func runLength(s string, fn func(rune) bool) int {
 }
 
 // chunkTextBySentence splits text into chunks of roughly equal size, none below
-// minChars where the sentence boundaries allow it.
-//
-// The count is fixed first — floor(len(text)/minChars) — so each chunk targets
-// len(text)/n characters, which is always at least minChars. Sentences are then
-// accumulated, and the current chunk is closed before a sentence whenever
-// closing lands nearer the target than adding would. A single sentence longer
-// than the target becomes one oversize chunk: the boundary is never broken.
+// minChars where the boundaries allow. The count is fixed first, so each chunk
+// targets len(text)/n; sentences accumulate until closing lands nearer that
+// target than adding would. A sentence longer than the target is never broken.
 func chunkTextBySentence(text string, minChars int) []string {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return nil
 	}
-	// The Python divided by minChars unguarded and would have raised. A
-	// misconfigured floor should cost the chunking, not the chapter.
+	// The Python divided unguarded and would have raised. A misconfigured floor
+	// should cost the chunking, not the chapter.
 	if minChars <= 0 {
 		return []string{text}
 	}
@@ -104,12 +95,10 @@ func chunkTextBySentence(text string, minChars int) []string {
 			target := float64(remainingChars) / float64(remainingChunks)
 			before := math.Abs(float64(currentLen) - target)
 			after := math.Abs(float64(currentLen+sentenceLen) - target)
-			// Closing before this sentence lands nearer the target than adding it
-			// would, so this is the boundary.
 			if before < after {
 				chunks = append(chunks, strings.TrimSpace(current.String()))
-				// The untrimmed length is what was spent against the budget, so the
-				// remaining chunks size themselves against what is genuinely left.
+				// The untrimmed length is what was spent, so the remaining chunks
+				// size themselves against what is genuinely left.
 				remainingChars -= currentLen
 				remainingChunks--
 				current.Reset()
@@ -125,17 +114,16 @@ func chunkTextBySentence(text string, minChars int) []string {
 	return chunks
 }
 
-// concatWavs joins WAV blobs into one, with silenceMillis of silence between
-// each pair. The first part's format defines the output; a part that disagrees
-// is an error rather than a resample, because a chapter whose chunks came back
-// at different sample rates is a server problem to surface, not to paper over.
+// concatWavs joins WAV blobs with silenceMillis between each pair. The first
+// part's format defines the output; one that disagrees is an error rather than
+// a resample, because chunks at different sample rates are a server problem.
 func concatWavs(parts [][]byte, silenceMillis int) ([]byte, error) {
 	switch len(parts) {
 	case 0:
 		return nil, nil
 	case 1:
-		// Nothing to join and nothing to gain from re-encoding: the bytes the
-		// server sent are the bytes stored, and their content address with them.
+		// Nothing to join: the bytes the server sent are the bytes stored, and
+		// their content address with them.
 		return parts[0], nil
 	}
 
@@ -175,13 +163,10 @@ func concatWavs(parts [][]byte, silenceMillis int) ([]byte, error) {
 	return encodeWAV(out), nil
 }
 
-// cleanTail trims trailing near-silence and fades the last fadeMillis to zero.
-//
-// The trim is what removes the click some generations end on; the fade is what
-// covers the case where the click is loud enough to survive the threshold. The
-// input is returned unchanged rather than refused when it is not 16-bit PCM —
-// a tail that cannot be cleaned is not a reason to lose a chapter's narration,
-// which is why this returns no error.
+// cleanTail trims trailing near-silence and fades the last fadeMillis to zero:
+// the trim removes the click some generations end on, the fade covers a click
+// loud enough to survive the threshold. Anything it cannot read comes back
+// unchanged — a tail that cannot be cleaned is no reason to lose a chapter.
 //
 // silenceThreshold is a fraction of full scale: 0.005 is roughly -46 dBFS.
 func cleanTail(audio []byte, fadeMillis int, silenceThreshold float64) []byte {
@@ -199,21 +184,18 @@ func cleanTail(audio []byte, fadeMillis int, silenceThreshold float64) []byte {
 	}
 
 	threshold := int32(silenceThreshold * math.MaxInt16)
-	// Scanning backwards rather than forwards over the whole file: the answer is
-	// at the end by definition, and a ten-minute chapter is tens of millions of
-	// samples.
+	// Backwards: the answer is at the end by definition, and a ten-minute
+	// chapter is tens of millions of samples.
 	for frames > 0 && frameMagnitude(decoded.Frames, frames-1, decoded.Channels) <= threshold {
 		frames--
 	}
 	if frames == 0 {
-		// Every sample is below the threshold. The Python kept the audio whole
-		// here rather than returning nothing, and so does this: silence that was
-		// generated is still the chapter's narration.
+		// Every sample is below the threshold. Like the Python, keep the audio
+		// whole: generated silence is still the chapter's narration.
 		frames = len(decoded.Frames) / frameBytes
 	}
 
-	// Copied, not sliced: the fade writes into these bytes, and the caller's
-	// buffer is not ours to alter.
+	// Copied, not sliced: the fade writes into these bytes.
 	out := wavAudio{
 		Channels:    decoded.Channels,
 		SampleWidth: decoded.SampleWidth,
@@ -243,8 +225,7 @@ func frameMagnitude(frames []byte, frame, channels int) int32 {
 // fadeOut ramps the last fadeFrames linearly to zero, in place.
 func fadeOut(frames []byte, fadeFrames, channels int) {
 	if fadeFrames <= 1 {
-		// A one-frame ramp starts at full scale and never reaches zero, so it does
-		// nothing; anything shorter has nothing to ramp.
+		// A one-frame ramp starts at full scale and never reaches zero.
 		return
 	}
 	total := len(frames) / (channels * 2)
@@ -254,8 +235,7 @@ func fadeOut(frames []byte, fadeFrames, channels int) {
 		for c := range channels {
 			at := base + c*2
 			sample := int16(uint16(frames[at]) | uint16(frames[at+1])<<8) //nolint:gosec // 16-bit PCM
-			// Truncating rather than rounding, to match the numpy cast this is
-			// ported from.
+			// Truncating, not rounding, to match the numpy cast.
 			faded := uint16(int16(float64(sample) * gain)) //nolint:gosec // the gain is within [0,1]
 			frames[at] = byte(faded)
 			frames[at+1] = byte(faded >> 8)
@@ -263,13 +243,10 @@ func fadeOut(frames []byte, fadeFrames, channels int) {
 	}
 }
 
-// prependChapterTitle prefixes the narration with the chapter's title so the
-// narrator announces it.
-//
-// The intro is spoken as it stands — it has no topic title to read — and so is
-// a chapter whose title is empty. The title rules guarantee no terminal
-// punctuation, so a period is added: it is what makes the narrator pause before
-// the body instead of running the title into the first sentence.
+// prependChapterTitle prefixes the narration so the narrator announces the
+// title. The intro is spoken as it stands, having no topic to read. The period
+// is what makes the narrator pause instead of running on into the first
+// sentence.
 func prependChapterTitle(body, title string, isIntro bool) string {
 	title = strings.TrimSpace(title)
 	if isIntro || title == "" {

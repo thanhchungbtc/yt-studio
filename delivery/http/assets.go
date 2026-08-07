@@ -14,14 +14,11 @@ import (
 	"github.com/tbui/yt-studio/domain/repository"
 )
 
-// immutableCacheControl is safe because the URL contains the content address:
-// the hash is the cache key, so a slide caches forever for free.
+// immutableCacheControl is safe because the URL is the content address.
 const immutableCacheControl = "public, max-age=31536000, immutable"
 
-// assetHandler streams a stored artifact.
-//
-// http.ServeContent is used rather than io.Copy so range requests work: the
-// operator can scrub a three-hour render without the server buffering it.
+// assetHandler streams a stored artifact. ServeContent rather than io.Copy so
+// range requests work and a three-hour render can be scrubbed.
 func assetHandler(assets repository.AssetReader, store provider.AssetStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := entity.AssetID(chi.URLParam(r, "id"))

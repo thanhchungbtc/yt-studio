@@ -28,12 +28,9 @@ type thumbnailPlanPrompt struct {
 	ExpectedOutputSchema string
 }
 
-// ThumbnailPlan writes the grid of captions and icon subjects that sits under
-// the thumbnail's headline.
-//
-// The cell count is a contract rather than a target: the graph already holds
-// one icon task per cell. A plan that comes back short is rejected above, in
-// app.normaliseCells, which is also where a long one is cut.
+// ThumbnailPlan writes the captions and icon subjects under the headline. The
+// cell count is a contract, not a target — app.normaliseCells rejects a short
+// plan and cuts a long one.
 func (c *Client) ThumbnailPlan(ctx context.Context, req provider.ThumbnailPlanRequest) (provider.ThumbnailPlan, error) {
 	schema, err := jsonSchemaOf(thumbnailPlanDoc{})
 	if err != nil {

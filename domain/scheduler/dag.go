@@ -1,9 +1,6 @@
 // Package scheduler owns dispatch: the per-video DAG, the global pools, the
-// in-memory ready set and the event-driven loop that ties them together.
-//
-// We own this outright. Every off-the-shelf option costs a server process,
-// which breaks the single-binary principle; `semaphore.Weighted` supplies the
-// concurrency control an engine would have supplied.
+// in-memory ready set and the event-driven loop that ties them together. It is
+// hand-written because every off-the-shelf engine costs a second process.
 package scheduler
 
 import (
@@ -19,8 +16,8 @@ import (
 // ErrInvalidGraph is returned by BuildGraph for an unusable specification.
 var ErrInvalidGraph = errors.New("invalid graph")
 
-// ErrCycle is returned by BuildGraph if the constructed graph is not acyclic.
-// It exists to make the invariant checkable rather than assumed.
+// ErrCycle makes "the graph is acyclic" a checked invariant rather than an
+// assumed one.
 var ErrCycle = errors.New("graph contains a cycle")
 
 // ErrAlreadyExpanded is returned when a video's per-chapter body is spliced on
@@ -28,11 +25,8 @@ var ErrCycle = errors.New("graph contains a cycle")
 var ErrAlreadyExpanded = errors.New("video graph is already expanded")
 
 // HeadSpec describes the graph a video is enqueued with: the blueprint alone.
-//
-// The rest of the DAG is not describable yet. Its shape is one branch per
-// chapter, and the chapter count is the blueprint's output rather than its
-// input — a video briefed for 50 chapters legitimately comes back with 45, and
-// that is the number the operator approves.
+// The rest is one branch per chapter, and the chapter count is the blueprint's
+// output rather than its input.
 type HeadSpec struct {
 	VideoID     entity.VideoID
 	MaxAttempts int
@@ -46,9 +40,8 @@ type BuildSpec struct {
 	VideoID          entity.VideoID
 	ChapterCount     int
 	SlidesPerChapter int
-	// ThumbnailCells is the width of the thumbnail's grid, and therefore how many
-	// icon tasks the graph holds. It is independent of the chapters: the grid is
-	// its own artifact, not a view onto them.
+	// ThumbnailCells is the grid width, and so how many icon tasks the graph
+	// holds. Independent of the chapters: the grid is its own artifact.
 	ThumbnailCells int
 	MaxAttempts    int
 	// BlueprintGate parks the pipeline after the blueprint for human review;
@@ -58,35 +51,28 @@ type BuildSpec struct {
 	Now           time.Time
 }
 
-// Graph is one video's precomputed dependency graph. It is built once at
-// enqueue time and never rebuilt: the scheduler answers "what can run now?"
-// from memory, never from a query.
+// Graph is one video's dependency graph, built once at enqueue time: the
+// scheduler answers "what can run now?" from memory, never from a query.
 type Graph struct {
 	VideoID entity.VideoID
 
-	// tasks is the authoritative in-memory copy. The ready set holds pointers into
-	// this slice, so it is allocated once at full size and never appended to
-	// afterwards — the pointers must stay valid.
+	// tasks is the authoritative copy. The ready set holds pointers into this
+	// slice, so it is sized once and the pointers must stay valid.
 	tasks []entity.Task
 	// dependents[i] lists the nodes that i releases when it succeeds.
 	dependents [][]int32
-	// dependencies[i] lists the nodes i waits on. It is what a retry cascade and a
-	// recovery consistency check walk.
+	// dependencies[i] lists the nodes i waits on; a retry cascade walks it.
 	dependencies [][]int32
 	byID         map[entity.TaskID]int32
 
-	// generations[i] counts how many times node i has been reset. A dispatch
-	// carries the generation it started under and its completion is discarded if
-	// they no longer match, which is what stops a task that was in flight when its
-	// input was retried from landing an answer to the old question.
-	//
-	// It is deliberately not persisted: a restart reclaims every in-flight task as
-	// ready, so there is no completion left to disambiguate.
+	// generations[i] counts resets of node i. A dispatch carries the generation it
+	// started under and its completion is discarded on mismatch, so a task in
+	// flight when its input was retried cannot answer the old question. Not
+	// persisted: a restart reclaims every in-flight task as ready.
 	generations []uint64
 
-	// installed flips once the dispatch loop owns this graph. After that the loop
-	// mutates tasks freely, so no other goroutine may read the slice — which is
-	// what makes a repeated Submit a cheap no-op rather than a race.
+	// installed flips once the dispatch loop owns this graph and may mutate tasks
+	// freely, which makes a repeated Submit a no-op rather than a race.
 	installed atomic.Bool
 }
 
@@ -129,8 +115,8 @@ func (g *Graph) bumpGeneration(i int32) { g.generations[i]++ }
 // Dependents returns the node indices released when i succeeds.
 func (g *Graph) Dependents(i int32) []int32 { return g.dependents[i] }
 
-// Edges materialises the arcs for persistence. It allocates, and is called once
-// per video at enqueue time — never on the dispatch path.
+// Edges materialises the arcs for persistence. It allocates, and runs once per
+// video at enqueue time — never on the dispatch path.
 func (g *Graph) Edges() []repository.TaskEdge {
 	n := 0
 	for _, d := range g.dependents {
@@ -149,10 +135,9 @@ func (g *Graph) Edges() []repository.TaskEdge {
 	return edges
 }
 
-// NodeCountFor returns the exact number of tasks a spec produces: blueprint +
-// prime + concat + metadata + thumbnail plan + thumbnail + upload, plus four
-// per-chapter tasks, one per slide and one per thumbnail cell. It is exported
-// so callers can preallocate too.
+// NodeCountFor returns the number of tasks a spec produces: seven singletons,
+// four per chapter, one per slide and one per thumbnail cell. Exported so
+// callers can preallocate too.
 func NodeCountFor(chapters, slidesPerChapter, thumbnailCells int) int {
 	return 7 + 4*chapters + chapters*slidesPerChapter + thumbnailCells
 }
@@ -169,9 +154,8 @@ func newGraph(videoID entity.VideoID, total int) *Graph {
 	}
 }
 
-// addNode appends one task and returns its index. Both BuildGraph and
-// BuildHeadGraph go through it, so the blueprint node a head graph starts life
-// with is identical to the one the full builder would have produced.
+// addNode appends one task and returns its index. Both builders go through it,
+// so a head graph's blueprint node is identical to the full builder's.
 func (g *Graph) addNode(kind entity.TaskKind, ordinal, index int, gate entity.GateKind, maxAttempts int, now time.Time) int32 {
 	id := entity.NewTaskID(g.VideoID, kind, ordinal, index)
 	var chapterID *entity.ChapterID
@@ -208,8 +192,8 @@ func (g *Graph) linkNodes(from, to int32) {
 	g.tasks[to].DepsRemaining++
 }
 
-// normaliseAttempts floors the retry budget at one attempt, so a zero-valued
-// spec still runs each task once rather than never.
+// normaliseAttempts floors the budget at one, so a zero-valued spec still runs
+// each task once rather than never.
 func normaliseAttempts(maxAttempts int) int {
 	if maxAttempts < 1 {
 		return 1
@@ -218,12 +202,8 @@ func normaliseAttempts(maxAttempts int) int {
 }
 
 // BuildHeadGraph constructs the graph a video is enqueued with: a single
-// blueprint node.
-//
-// Everything downstream is one branch per chapter, and there is no honest
-// chapter count until the blueprint has been written and accepted. Committing
-// to the number a video was briefed with would mean rejecting a blueprint that
-// came back with 45 chapters instead of 50, which is a perfectly good blueprint.
+// blueprint node. There is no honest chapter count until that blueprint has
+// been written and accepted.
 func BuildHeadGraph(spec HeadSpec) (*Graph, error) {
 	if spec.VideoID == "" {
 		return nil, fmt.Errorf("%w: video id must not be empty", ErrInvalidGraph)
@@ -237,24 +217,17 @@ func BuildHeadGraph(spec HeadSpec) (*Graph, error) {
 	return g, nil
 }
 
-// Tail is a video's per-chapter body: every node of its DAG except the
-// blueprint, plus every arc, including the ones reaching back to the blueprint.
-//
-// It is a plain value rather than a Graph because of where it is built. The
-// chapter count comes from a database read and the rows are persisted before
-// the loop ever sees them, so the tail is assembled off the dispatch goroutine
-// and handed in to be spliced.
+// Tail is a video's per-chapter body: every node except the blueprint, plus
+// every arc. A plain value rather than a Graph because it is assembled off the
+// dispatch goroutine and handed in to be spliced.
 type Tail struct {
 	Tasks []entity.Task
 	Edges []repository.TaskEdge
 }
 
-// BuildTail constructs the per-chapter body for a chapter count that is now
-// known.
-//
-// It derives the tail from the canonical full graph rather than rebuilding the
-// topology a second time: a head graph plus its tail is BuildGraph's output
-// node for node, and TestHeadPlusTailEqualsBuildGraph holds that to be true.
+// BuildTail constructs the per-chapter body once the chapter count is known.
+// It derives from the full graph rather than restating the topology, so a head
+// plus its tail is BuildGraph's output node for node.
 func BuildTail(spec BuildSpec) (Tail, error) {
 	full, err := BuildGraph(spec)
 	if err != nil {
@@ -268,18 +241,9 @@ func BuildTail(spec BuildSpec) (Tail, error) {
 // unexpanded graph is a lone blueprint node.
 func (g *Graph) Expanded() bool { return len(g.tasks) > 1 }
 
-// Expand splices a video's per-chapter body onto its head graph, once the
-// blueprint has said how many chapters there are.
-//
-// It is called by the dispatch loop and only by the dispatch loop. Appending to
-// g.tasks is safe despite the ready set holding raw pointers into that slice,
-// because an unexpanded graph can have no entry in it: its single node is
-// expanded while the blueprint is running or parked on its gate, and a task in
-// either state has already been popped.
-//
-// No spliced node is runnable on arrival — every one of them depends on the
-// blueprint transitively — so Expand never has to admit anything to the ready
-// set, which is what keeps it a pure graph operation.
+// Expand splices the per-chapter body onto a head graph. Called by the dispatch
+// loop and only by it: appending is safe because an unexpanded graph has no
+// ready-set entry to invalidate, and no spliced node is runnable on arrival.
 func (g *Graph) Expand(tail Tail) error {
 	if len(g.tasks) != 1 {
 		return fmt.Errorf("%w: expand wants a head graph, %s has %d nodes",
@@ -293,8 +257,7 @@ func (g *Graph) Expand(tail Tail) error {
 			ErrInvalidGraph, g.VideoID, head.Kind)
 	}
 	if g.tasks[0].State == entity.TaskStateSucceeded {
-		// The blueprint has already released. Nothing would ever wake a tail spliced
-		// on after that moment, so refuse rather than strand it.
+		// Nothing would ever wake a tail spliced on after the blueprint released.
 		return fmt.Errorf("%w: blueprint of %s has already released its dependents",
 			ErrInvalidGraph, g.VideoID)
 	}
@@ -303,8 +266,8 @@ func (g *Graph) Expand(tail Tail) error {
 		if _, dup := g.byID[t.ID]; dup {
 			return fmt.Errorf("%w: tail repeats task %s", ErrInvalidGraph, t.ID)
 		}
-		// Outstanding counts are recomputed from the arcs below, so a tail built
-		// against one topology cannot import a count belonging to another.
+		// Recomputed from the arcs below, so a tail cannot import a count
+		// belonging to another topology.
 		t.DepsRemaining = 0
 		idx := int32(len(g.tasks)) //nolint:gosec // bounded by MaxChapterCount
 		g.tasks = append(g.tasks, t)
@@ -327,12 +290,9 @@ func (g *Graph) Expand(tail Tail) error {
 	return g.assertAcyclic()
 }
 
-// BuildGraph constructs a video's DAG.
-//
-// The structurally important detail: slide prompts depend on the blueprint
-// alone, not on the chapter script. That gives the graph two independent
-// branches and is what makes the slide pipeline — the longest pole — start
-// early.
+// BuildGraph constructs a video's DAG. Slide prompts depend on the blueprint
+// alone, not on the chapter script: two independent branches are what let the
+// slide pipeline — the longest pole — start early.
 func BuildGraph(spec BuildSpec) (*Graph, error) {
 	if spec.VideoID == "" {
 		return nil, fmt.Errorf("%w: video id must not be empty", ErrInvalidGraph)
@@ -371,8 +331,7 @@ func BuildGraph(spec BuildSpec) (*Graph, error) {
 		uploadGate = entity.GateUpload
 	}
 
-	// Canonical node order. It is deterministic so that golden-file tests over the
-	// dispatch sequence stay stable.
+	// Canonical node order, deterministic so a dispatch sequence is reproducible.
 	blueprint := add(entity.TaskKindBlueprint, -1, -1, blueprintGate)
 	prime := add(entity.TaskKindPrimeSlidePrompts, -1, -1, entity.GateNone)
 
@@ -402,20 +361,14 @@ func BuildGraph(spec BuildSpec) (*Graph, error) {
 	concat := add(entity.TaskKindConcat, -1, -1, entity.GateNone)
 	metadata := add(entity.TaskKindMetadata, -1, -1, entity.GateNone)
 	plan := add(entity.TaskKindThumbnailPlan, -1, -1, entity.GateNone)
-	// One icon per cell, indexed like a chapter's slides are. The width is fixed
-	// here and cannot grow later, which is why the plan's cell count is a
-	// contract rather than a target.
+	// One icon per cell. The width is fixed here and cannot grow later, which is
+	// why the plan's cell count is a contract rather than a target.
 	icons := make([]int32, cells)
 	for i := range cells {
 		icons[i] = add(entity.TaskKindThumbnailIcon, -1, i, entity.GateNone)
 	}
-	// The thumbnail task carries the upload gate: on success it parks in
-	// awaiting_approval and does not release the upload task.
-	//
-	// The gate sits on the last node before the upload rather than on the
-	// metadata that opens the listing, because what the operator is approving is
-	// publication — and the thumbnail is the part of the listing they most need
-	// to have seen before it goes out.
+	// The upload gate rides on the last node before the upload rather than on the
+	// metadata, so what the operator approves is the whole listing.
 	thumbnail := add(entity.TaskKindThumbnail, -1, -1, uploadGate)
 	upload := add(entity.TaskKindUpload, -1, -1, entity.GateNone)
 
@@ -432,8 +385,7 @@ func BuildGraph(spec BuildSpec) (*Graph, error) {
 		link(clips[i], concat)
 	}
 	link(concat, metadata)
-	// The grid is planned from the listing the metadata just wrote, drawn one
-	// cell at a time, and only then composed.
+	// The grid is planned from the listing metadata just wrote.
 	link(metadata, plan)
 	for i := range cells {
 		link(plan, icons[i])
@@ -447,9 +399,8 @@ func BuildGraph(spec BuildSpec) (*Graph, error) {
 	return g, nil
 }
 
-// assertAcyclic runs Kahn's algorithm over a copy of the in-degrees. It is
-// cheap next to graph construction and turns "the DAG is acyclic" from a
-// comment into a checked invariant.
+// assertAcyclic runs Kahn's algorithm over a copy of the in-degrees; cheap next
+// to graph construction.
 func (g *Graph) assertAcyclic() error {
 	indeg := make([]int32, len(g.tasks))
 	for i := range g.tasks {
@@ -491,8 +442,8 @@ func (g *Graph) Roots() []int32 {
 	return roots
 }
 
-// Downstream returns i plus every node reachable from it, in ascending index
-// order. It is what a chapter retry resets.
+// Downstream returns i plus every node reachable from it, ascending. It is
+// what a chapter retry resets.
 func (g *Graph) Downstream(i int32) []int32 {
 	seen := make([]bool, len(g.tasks))
 	stack := make([]int32, 0, 16)
@@ -510,7 +461,6 @@ func (g *Graph) Downstream(i int32) []int32 {
 			}
 		}
 	}
-	// Ascending order keeps resets deterministic.
 	for a := 1; a < len(out); a++ {
 		v := out[a]
 		b := a - 1

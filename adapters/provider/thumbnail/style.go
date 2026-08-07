@@ -5,16 +5,13 @@ import (
 	"image/color"
 )
 
-// Every tunable of the thumbnail's look, in one file.
+// Every tunable of the thumbnail's look, as numbers rather than logic, so the
+// design can be changed without reading the drawing code. Each entry says what
+// raising it does.
 //
-// Nothing here is logic: it is the design expressed as numbers, so it can be
-// changed by editing this file rather than by reading the drawing code. Each
-// entry says what raising it does.
-//
-// They are constants rather than settings rows on purpose. The backend that
-// exists to be re-styled without a rebuild is the browser one slide to come;
-// a settings table full of pixel values would be a second place to change a
-// layout and a first place to get it wrong.
+// Constants rather than settings rows: the backend that exists to be restyled
+// without a rebuild is the HTML one still to come, and a table of pixel values
+// would be a second place to change a layout.
 
 // ------------------------------------------------------------------ frame ---
 
@@ -23,9 +20,8 @@ const (
 	frameWidth  = 1280
 	frameHeight = 720
 
-	// backgroundBrightness is how much of the backdrop photograph survives, out
-	// of 255. Lower is darker: white type over an undimmed photograph is
-	// unreadable, and the reference thumbnails are nearly black behind it.
+	// backgroundBrightness is how much of the backdrop survives, out of 255.
+	// Lower is darker: white type over an undimmed photograph is unreadable.
 	backgroundBrightness = 220
 )
 
@@ -50,9 +46,8 @@ const (
 const (
 	// tileBorderWidth is the frame drawn around each tile. Zero for none.
 	tileBorderWidth = 3
-	// tileCornerRadius rounds the tile's corners, the border and the icon inside
-	// it together. Zero is square. It is clamped to half the tile, so a large
-	// value simply rounds a tile into a circle rather than misdrawing it.
+	// tileCornerRadius rounds the tile, its border and its icon together; zero
+	// is square. Clamped to half the tile, so a large value gives a circle.
 	tileCornerRadius = 10
 	// tileIconPadding is the inset from the border to the icon. Raise it to give
 	// the artwork more air.
@@ -80,11 +75,8 @@ const (
 // --------------------------------------------------------------- headline ---
 
 // The headline is fitted into whatever height the grid left above it, at the
-// largest size between the bounds that fits on one line. It wraps only when
-// even the floor will not hold it.
-//
-// A fuller grid leaves the headline less room: the default twelve tiles in two
-// rows of six sit near the middle of this range.
+// largest size that fits on one line, wrapping only when even the floor will
+// not hold it. A fuller grid leaves it less room.
 const (
 	headlineSideMargin = 40
 	headlineTopMargin  = 22

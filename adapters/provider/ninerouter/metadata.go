@@ -33,20 +33,17 @@ type metadataDoc struct {
 // metadataPrompt is what the templates render against.
 type metadataPrompt struct {
 	provider.MetadataRequest
-	// DurationPhrase is the running time as a title says it — "3+ Hours". It is
-	// computed here because the model cannot know it, and a title that promises
-	// three hours of something two hours long is a title that lies. Empty when
-	// the video is under an hour, which is what tells the prompt not to reach
-	// for the duration-led shape.
+	// DurationPhrase is the running time as a title says it — "3+ Hours".
+	// Computed here because the model cannot know it and a title that promises
+	// three hours of a two-hour video lies. Empty under an hour, which tells the
+	// prompt not to reach for the duration-led shape.
 	DurationPhrase       string
 	ExpectedOutputSchema string
 }
 
-// Metadata writes the YouTube-facing listing for a finished video.
-//
-// The chapter titles go with it rather than just the working title: they are
-// what the video actually covers, and they are where the niche keywords and the
-// thumbnail hook have to come from.
+// Metadata writes the YouTube-facing listing. The chapter titles go with it,
+// not just the working title: they are what the video covers, and where the
+// keywords and the hook have to come from.
 func (c *Client) Metadata(ctx context.Context, req provider.MetadataRequest) (provider.Metadata, error) {
 	schema, err := jsonSchemaOf(metadataDoc{})
 	if err != nil {

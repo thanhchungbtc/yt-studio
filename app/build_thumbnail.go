@@ -10,16 +10,10 @@ import (
 	"github.com/tbui/yt-studio/domain/repository"
 )
 
-// BuildThumbnail renders the image that fronts the finished video.
-//
-// It runs after the metadata because the headline it renders is part of the
-// listing: the hook and the title compete for the same glance, so they are
-// written together and only then drawn.
-//
-// When the upload gate is enabled this task carries it: on success the
-// scheduler parks in awaiting_approval and does not release the upload, so what
-// the operator signs off on is the listing they are about to publish, thumbnail
-// included.
+// BuildThumbnail renders the image that fronts the finished video. It runs
+// after the metadata because the headline is part of the listing, and it
+// carries the upload gate, so what the operator signs off on is the whole
+// listing rather than its text alone.
 //
 //nolint:revive // the parameter list is the dependency list
 func BuildThumbnail(
@@ -65,13 +59,10 @@ func BuildThumbnail(
 	return entity.Success{Assets: []entity.AssetID{assetID}}
 }
 
-// thumbnailCells pairs each planned caption with the icon that landed in its
-// slot.
-//
-// Every icon task is a dependency of this one, so an empty slot means one of
-// them succeeded without recording anything. Another attempt here would read
-// the same empty slot, so it fails permanently and waits: re-running the icon
-// is what fixes it, and that marks this task stale and brings it back.
+// thumbnailCells pairs each planned caption with the icon in its slot. Every
+// icon task is a dependency, so an empty slot means one succeeded without
+// recording anything; retrying would read the same slot, so this fails
+// permanently and waits for the icon to be re-run.
 func thumbnailCells(video entity.Video) ([]provider.IconCell, error) {
 	if video.ThumbnailPlan == nil {
 		return nil, fmt.Errorf("%w: video has no thumbnail plan", ErrValidation)

@@ -6,15 +6,12 @@ import (
 	"strings"
 )
 
-// The filter graphs live here as pure functions of their inputs, so the exact
-// string handed to ffmpeg can be asserted in a test without a binary.
+// The filter graphs, as pure functions of their inputs.
 
-// slideXfadeGraph dissolves a chapter's slide clips into one track.
-//
-// Each transition starts fade seconds before the outgoing clip ends, so the
-// offset walks forward by the clip's duration minus the overlap. The durations
-// are the probed ones: a slide clip is a whole number of frames, and computing
-// the offsets from the requested length instead would drift a frame per image.
+// slideXfadeGraph dissolves a chapter's slide clips into one track. Each
+// transition starts fade seconds before the outgoing clip ends, so the offset
+// walks forward by duration minus overlap. The durations are the probed ones:
+// computing from the requested length would drift a frame per image.
 func slideXfadeGraph(durations []float64) string {
 	parts := make([]string, 0, len(durations)-1)
 	prev := "[0:v]"
@@ -56,11 +53,8 @@ func layOutTitles(chapterSize int) chapterLayout {
 }
 
 // chapterCompositeGraph is the chapter's final look: the slideshow keyed onto
-// the chalkboard below a titled strip, padded for the crossfades that join it
-// to its neighbours.
-//
-// Input 0 is the chalkboard background, input 1 the dissolved slideshow with its
-// narration.
+// the chalkboard below a titled strip, padded for the crossfades to its
+// neighbours. Input 0 is the chalkboard, input 1 the dissolved slideshow.
 func chapterCompositeGraph(chapterTitle, videoTitle, fontFile string, layout chapterLayout, totalDuration float64) string {
 	contentWidth, contentHeight := imageWidth, imageHeight-titleStripHeight
 
@@ -74,17 +68,16 @@ func chapterCompositeGraph(chapterTitle, videoTitle, fontFile string, layout cha
 		fmt.Sprintf("[1:v]scale=%d:%d:force_original_aspect_ratio=decrease,"+
 			"pad=%d:%d:(ow-iw)/2:(oh-ih)/2:black,format=yuva420p[scaled]",
 			contentWidth, contentHeight, contentWidth, contentHeight),
-		// The slides are keyed rather than pasted: the chalkboard shows through
-		// wherever the artwork is near-black, which is what makes a slide look drawn
-		// on the board instead of stuck to it.
+		// Keyed rather than pasted, so the chalkboard shows through where the
+		// artwork is near-black and a slide looks drawn on it, not stuck to it.
 		"[scaled]lumakey=threshold=0.1:tolerance=0.15:softness=0.05[keyed]",
 		fmt.Sprintf("[chalk][keyed]overlay=%d:%d[comp]", 0, titleStripHeight),
 		fmt.Sprintf("[comp]drawtext=text='%s':x=20:y=%d:fontsize=%d%s:fontcolor=white:box=0[t1]",
 			escapeDrawtext(chapterTitle), layout.chapterY, layout.chapterSize, fontArg),
 		fmt.Sprintf("[t1]drawtext=text='%s':x=20:y=%d:fontsize=%d%s:fontcolor=white:box=0[out]",
 			escapeDrawtext(videoTitle), layout.videoY, videoTitleSize, fontArg),
-		// Cloning the first and last frames gives the neighbouring chapters something
-		// to dissolve into without freezing on a black frame.
+		// Cloning the end frames gives the neighbours something to dissolve into
+		// besides black.
 		fmt.Sprintf("[out]tpad=start_mode=clone:start_duration=%s:stop_mode=clone:stop_duration=%s[out_padded]",
 			headPadArg, tailPadArg),
 		fmt.Sprintf("[1:a]adelay=%s:all=1,apad=whole_dur=%s[aout]", adelayMillis, f3(totalDuration)),
@@ -101,11 +94,9 @@ func sectionGeometry() (width, height, x, y int) {
 	return width, height, (concatWidth - width) / 2, (concatHeight - height) / 2
 }
 
-// concatGraph joins the chapter clips over the looping background, with the
-// music mixed under the narration.
-//
-// Input 0 is the background video, inputs 1..n the chapter clips, and input n+1
-// the music when there is any.
+// concatGraph joins the chapter clips over the looping background, music mixed
+// under the narration. Input 0 is the background, 1..n the clips, n+1 the music
+// when there is any.
 func concatGraph(durations []float64, bgMusicIndex int) string {
 	n := len(durations)
 	secWidth, secHeight, padX, padY := sectionGeometry()
@@ -157,8 +148,7 @@ func concatGraph(durations []float64, bgMusicIndex int) string {
 }
 
 // f3, f4 and f6 format a duration for a filter option or a -t flag. The
-// precision is part of the output: a coarser offset moves a transition by a
-// frame.
+// precision is part of the output: a coarser offset moves a transition.
 func f3(v float64) string { return strconv.FormatFloat(v, 'f', 3, 64) }
 func f4(v float64) string { return strconv.FormatFloat(v, 'f', 4, 64) }
 func f6(v float64) string { return strconv.FormatFloat(v, 'f', 6, 64) }

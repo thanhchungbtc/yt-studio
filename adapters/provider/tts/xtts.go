@@ -1,16 +1,11 @@
 // Package tts is the narration backend for an AllTalk/XTTS server.
 //
-// A chapter is spoken in pieces: the script is split on sentence boundaries
-// into chunks of at least xtts.chunk.min_chars, each chunk is synthesised on its
-// own, and the WAVs are joined with a short silence between them. The splitting
-// is not an optimisation — XTTS degrades on long inputs, and a chapter is
-// thousands of words.
-//
-// The server answers a generation with a URL rather than audio, so every chunk
-// costs two requests: generate, then fetch what the generation reported. The
-// text chunking, WAV concatenation and the tail trim and fade are ported one
-// for one from the Python this replaces, because the output has to keep sounding
-// the same.
+// A chapter is split on sentence boundaries into chunks of at least
+// xtts.chunk.min_chars, each synthesised alone and rejoined with a short
+// silence. The splitting is not an optimisation: XTTS degrades on long inputs.
+// Every chunk costs two requests, because a generation answers with a URL
+// rather than audio. The chunking, concatenation and tail cleanup are ported
+// one for one from the Python this replaces, so the output sounds the same.
 package tts
 
 import (
@@ -29,24 +24,20 @@ import (
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
-// ErrUnavailable reports a server that cannot serve this request until someone
-// changes something: an unreachable host, a voice that does not exist, a
-// rejected language. It wraps the port's sentinel, so app.classify fails the
-// task once and says why rather than spending its retries on an answer that
-// will not change.
+// ErrUnavailable reports a server that cannot serve until someone changes
+// something — an unreachable host, a voice that does not exist. Wrapping the
+// port's sentinel makes app.classify fail the task once rather than retrying.
 var ErrUnavailable = fmt.Errorf("xtts: %w", provider.ErrUnavailable)
 
-// The two endpoints this package uses, relative to Config.BaseURL. They are
-// named here rather than inline at their call sites, so the surface this
-// package needs from a server is one list rather than a search.
+// The endpoints this package uses, relative to Config.BaseURL, listed here so
+// the surface it needs from a server is one list rather than a search.
 const (
 	endpointGenerate = "/api/tts-generate"
 	endpointReady    = "/api/ready"
 )
 
-// The defaults a half-configured client falls back to, so a missing settings
-// row costs a chapter its tuning rather than its narration. They are the values
-// the Python this replaces shipped with.
+// The defaults a half-configured client falls back to, so a missing row costs a
+// chapter its tuning rather than its narration. They are the Python's values.
 const (
 	defaultLanguage           = "en"
 	defaultSpeed              = 1.0
@@ -54,61 +45,44 @@ const (
 	defaultChunkSilenceMillis = 200
 )
 
-// introOrdinal is the first chapter. Chapters are 1-based here (the Python this
-// is ported from was 0-based), and the intro is the one chapter whose title is
-// not announced — it has no topic to read out.
+// introOrdinal is the first chapter, the one whose title is not announced
+// because it has no topic to read out. Chapters are 1-based here.
 const introOrdinal = 1
 
 // The tail cleanup constants, carried over unchanged: trim trailing samples
-// below the threshold, then ramp the last fade to zero so whatever artefact
-// survives the trim is attenuated below audibility.
+// below the threshold, then fade what survives below audibility.
 const (
 	defaultFadeMillis       = 40
 	defaultSilenceThreshold = 0.005
 )
 
-// defaultTimeout bounds one HTTP request, not one chapter.
-//
-// It is generous because a chunk on a CPU-only server genuinely takes minutes,
-// and cutting it off early costs the whole chapter rather than the chunk. The
-// cost of the generosity is that a hung call holds its TTS pool slot for the
-// duration; cancelling the video is the faster way out, since the per-video
-// context aborts an in-flight call promptly.
+// defaultTimeout bounds one request, not one chapter. It is generous because a
+// chunk on a CPU-only server takes minutes; the cost is that a hung call holds
+// its pool slot, and cancelling the video is the way out.
 const defaultTimeout = 20 * time.Minute
 
-// Options are this backend's own knobs, read per call so an edit on the
-// settings screen applies to the next chapter rather than the next restart —
-// the same reason the registry resolves its backend per call.
-//
-// How a chapter should sound is not here: voice, language and speed arrive on
-// the request, because they belong to the video being narrated rather than to
-// the server narrating it. What is left is the chunking, which exists only
-// because this server degrades on long inputs.
+// Options are this backend's own knobs, read per call so an edit applies to the
+// next chapter rather than the next restart. How a chapter should *sound* is
+// not here — that arrives on the request, because it belongs to the video.
 type Options struct {
-	// ChunkMinChars is the floor on a chunk's length in characters. The chunk
-	// count follows from it (len(text) / ChunkMinChars), so it sets the size of
-	// the pieces rather than their number.
+	// ChunkMinChars floors a chunk's length, so it sets the size of the pieces a
+	// chapter is spoken in rather than their number.
 	ChunkMinChars int
-	// ChunkSilenceMillis is the pause inserted between chunks when they are
-	// rejoined, so a sentence boundary does not become a splice.
+	// ChunkSilenceMillis pads the joins so a sentence boundary is not a splice.
 	ChunkSilenceMillis int
 }
 
-// voice is how one chapter should sound, after the request's blanks have been
-// filled in. It is a type of its own so the request's three fields travel
-// together down to the one call that sends them.
+// voice is how one chapter should sound, once the request's blanks are filled.
+// Its own type so the three fields travel together to the call that sends them.
 type voice struct {
 	name     string
 	language string
 	speed    float64
 }
 
-// voiceOf fills a request's blanks, field by field rather than wholesale: a
-// missing value should cost a chapter its tuning, not its narration.
-//
-// The name is the deliberate exception — empty is passed through, because the
-// server picking its own default is better than this end guessing a filename it
-// cannot verify.
+// voiceOf fills a request's blanks field by field. The name is the exception —
+// empty is passed through, because the server picking its own default beats
+// this end guessing a filename it cannot verify.
 func voiceOf(req provider.SpeakRequest) voice {
 	v := voice{name: req.Voice, language: req.Language, speed: req.Speed}
 	if v.language == "" {
@@ -122,14 +96,12 @@ func voiceOf(req provider.SpeakRequest) voice {
 
 // Config is everything needed to reach one AllTalk instance.
 type Config struct {
-	// BaseURL is the server root, e.g. http://127.0.0.1:7851. The endpoints are
-	// appended here rather than configured, and the audio URL a generation
-	// returns is resolved against it.
+	// BaseURL is the server root, e.g. http://127.0.0.1:7851. Endpoints are
+	// appended to it and a generation's audio URL is resolved against it.
 	BaseURL string
 	// Timeout bounds one request; zero means defaultTimeout.
 	Timeout time.Duration
-	// Options resolves the settings-sourced knobs. It is a function for the
-	// reason given on Options itself.
+	// Options resolves the settings-sourced knobs, per call.
 	Options func() Options
 }
 
@@ -142,11 +114,9 @@ type Client struct {
 
 var _ provider.TTS = (*Client)(nil)
 
-// New validates the configuration and wires the client. It touches no network:
-// wiring cannot fail because a server is down, and Check is what reports that.
-//
-// A bad BaseURL fails here rather than at the first chapter of fifty, which is
-// the whole value of checking it at startup.
+// New validates the configuration and wires the client, touching no network —
+// Check reports a server that is down. A bad BaseURL fails here rather than at
+// the first chapter of fifty.
 func New(cfg Config, store provider.AssetStore) (*Client, error) {
 	base := strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")
 	if base == "" {
@@ -160,10 +130,9 @@ func New(cfg Config, store provider.AssetStore) (*Client, error) {
 		return nil, fmt.Errorf("%w: base URL %q must be absolute, e.g. http://127.0.0.1:7851",
 			ErrUnavailable, cfg.BaseURL)
 	}
-	// The server root, not the generate endpoint. The Python this replaces
-	// configured the full endpoint and re-derived the root to resolve the audio
-	// URL against; taking the root means a path here is a mistake to catch, not a
-	// convention to remember.
+	// The server root, not the generate endpoint: the Python this replaces
+	// configured the full endpoint, so pasting that value across is a mistake
+	// worth catching rather than a convention to remember.
 	if parsed.Path != "" {
 		return nil, fmt.Errorf("%w: base URL %q must be the server root, without %q",
 			ErrUnavailable, cfg.BaseURL, parsed.Path)
@@ -179,11 +148,9 @@ func New(cfg Config, store provider.AssetStore) (*Client, error) {
 	}, nil
 }
 
-// Check probes the server so an operator learns it is unreachable at startup
-// rather than from the first chapter of a fifty-chapter video.
-//
-// The result is deliberately not cached: a server that was down at boot may be
-// up now, and a remembered failure would keep saying otherwise.
+// Check probes the server, so an unreachable one is known at startup rather
+// than at the first chapter. The result is not cached: a server that was down
+// at boot may be up now.
 func (c *Client) Check(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.cfg.BaseURL+endpointReady, http.NoBody)
 	if err != nil {
@@ -201,9 +168,8 @@ func (c *Client) Check(ctx context.Context) error {
 	if resp.StatusCode != http.StatusOK {
 		return statusError(resp.StatusCode, resp.Status, body)
 	}
-	// AllTalk answers this endpoint with the bare word "Ready". Anything else
-	// means the process is up but the model is not loaded, which is exactly the
-	// state worth catching before fifty chapters queue behind it.
+	// AllTalk answers with the bare word "Ready". Anything else means the
+	// process is up but the model is not loaded.
 	if !strings.EqualFold(strings.TrimSpace(string(body)), "Ready") {
 		return fmt.Errorf("%w: %s answered %q rather than Ready",
 			ErrUnavailable, c.cfg.BaseURL+endpointReady, snippet(string(body)))
@@ -212,10 +178,7 @@ func (c *Client) Check(ctx context.Context) error {
 }
 
 // Speak narrates exactly one chapter and returns the audio's content address.
-//
-// The body below is the order of operations, ported from the Python. Every step
-// but synthesize is written; that one call is what stands between this and a
-// working backend.
+// The order of operations below is the Python's.
 func (c *Client) Speak(ctx context.Context, req provider.SpeakRequest) (entity.AssetID, error) {
 	opts := c.options()
 	v := voiceOf(req)
@@ -251,23 +214,20 @@ func (c *Client) Speak(ctx context.Context, req provider.SpeakRequest) (entity.A
 	return stored.ID, nil
 }
 
-// generateResponse is the half of the generate reply this package reads. The
-// server returns more; the audio's location is the only part that matters here.
+// generateResponse is the half of the reply this package reads; the server
+// returns more.
 type generateResponse struct {
 	OutputFileURL string `json:"output_file_url"`
 }
 
-// synthesize speaks one chunk and returns its WAV bytes.
-//
-// It is two requests, because the server answers with a URL rather than audio:
-// generate, then fetch what the generation reported.
+// synthesize speaks one chunk and returns its WAV bytes: generate, then fetch
+// what the generation reported.
 func (c *Client) synthesize(ctx context.Context, chunk string, v voice) ([]byte, error) {
 	form := url.Values{
 		"text_input":          {chunk},
 		"character_voice_gen": {v.name},
 		"language":            {v.language},
-		// Formatted without a trailing zero so 1.0 goes over as "1", which is what
-		// the Python sent and what the server's own examples use.
+		// No trailing zero, so 1.0 goes over as "1" — what the Python sent.
 		"speed": {strconv.FormatFloat(v.speed, 'g', -1, 64)},
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
@@ -296,8 +256,8 @@ func (c *Client) synthesize(ctx context.Context, chunk string, v voice) ([]byte,
 			snippet(string(body)), err)
 	}
 	if decoded.OutputFileURL == "" {
-		// A 200 with no URL is the server telling us it did nothing. Retrying is
-		// pointless until whatever refused the request is changed.
+		// A 200 with no URL means the server did nothing, and will keep doing
+		// nothing until something changes.
 		return nil, fmt.Errorf("%w: generate returned no output_file_url: %s",
 			ErrUnavailable, snippet(string(body)))
 	}
@@ -329,18 +289,16 @@ func (c *Client) fetchAudio(ctx context.Context, audioURL string) ([]byte, error
 		return nil, fmt.Errorf("xtts: read audio: %w", err)
 	}
 	if len(audio) == 0 {
-		// Empty bytes would store, content-address and compose into a video as
-		// silence, which is the one failure nobody notices until the render.
+		// Empty bytes would store, address and compose as silence — the one
+		// failure nobody notices until the render.
 		return nil, fmt.Errorf("%w: %s returned no audio", ErrUnavailable, audioURL)
 	}
 	return audio, nil
 }
 
-// audioURL resolves what a generation reported into something fetchable.
-//
-// The builds this was written against answer with a server-root-relative path,
-// but others return an absolute URL. Parsing tells the two apart; concatenation
-// works until the day it silently does not.
+// audioURL resolves what a generation reported into something fetchable. Some
+// builds answer with a root-relative path and others with an absolute URL, and
+// parsing tells the two apart where concatenation would not.
 func (c *Client) audioURL(reported string) (string, error) {
 	parsed, err := url.Parse(reported)
 	if err != nil {
@@ -356,8 +314,8 @@ func (c *Client) audioURL(reported string) (string, error) {
 	return base.ResolveReference(parsed).String(), nil
 }
 
-// options reads the current settings, falling back per field rather than
-// wholesale: a missing row should cost a chapter its tuning, not its narration.
+// options reads the current settings, falling back per field so a missing row
+// costs a chapter its tuning rather than its narration.
 func (c *Client) options() Options {
 	opts := Options{}
 	if c.cfg.Options != nil {
@@ -372,12 +330,8 @@ func (c *Client) options() Options {
 	return opts
 }
 
-// statusError turns a non-200 into an error of the right retry class.
-//
-// The distinction is whether another attempt could land differently. A voice
-// that does not exist or a rejected language cannot, and three attempts would
-// only take three times as long to say so; a rate limit or a model still
-// loading is exactly what backoff exists for.
+// statusError turns a non-200 into an error of the right retry class: a
+// rejected voice cannot land differently, a rate limit or a loading model can.
 func statusError(code int, status string, body []byte) error {
 	detail := snippet(string(body))
 	switch {
@@ -390,15 +344,15 @@ func statusError(code int, status string, body []byte) error {
 	}
 }
 
-// The response-body ceilings. An error body is read to describe the failure,
-// not to be kept, and the ready probe answers with a single word.
+// The response-body ceilings: an error body describes a failure rather than
+// being kept, and the ready probe answers with one word.
 const (
 	replyBodyLimit = 64 << 10
 	readyBodyLimit = 1 << 10
 )
 
-// snippetLimit is how much of a response an error carries: enough to recognise
-// what came back, not so much that a log line becomes a transcript.
+// snippetLimit is enough of a response to recognise what came back, without
+// turning a log line into a transcript.
 const snippetLimit = 240
 
 // snippet flattens and truncates text for an error message.
@@ -410,9 +364,8 @@ func snippet(s string) string {
 	return s[:snippetLimit] + "…"
 }
 
-// normalize is the only tidying done to a script before it is spoken: leading
-// and trailing whitespace, nothing else. What the model was told to write is
-// what the narrator reads.
+// normalize is the only tidying a script gets: surrounding whitespace, nothing
+// else. What the model was told to write is what the narrator reads.
 func normalize(text string) string {
 	return strings.TrimSpace(text)
 }

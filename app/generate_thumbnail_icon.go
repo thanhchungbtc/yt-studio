@@ -18,12 +18,9 @@ type IconOptions struct {
 	Size  int
 }
 
-// GenerateThumbnailIcon draws one cell's icon.
-//
-// The task's index is the cell it belongs to. It reads that cell's prompt from
-// the plan and writes its result back into the slot the plan sized for it, so
-// ten icons finishing in whatever order the image pool hands them back still
-// land in their own cells.
+// GenerateThumbnailIcon draws one cell's icon. The task's index is the cell: it
+// reads that prompt from the plan and writes back into the slot the plan sized,
+// so icons finishing in any order still land in their own cells.
 //
 //nolint:revive // the parameter list is the dependency list
 func GenerateThumbnailIcon(
@@ -46,9 +43,8 @@ func GenerateThumbnailIcon(
 	}
 	cells := video.ThumbnailPlan.Cells
 	if t.Index < 0 || t.Index >= len(cells) {
-		// The plan is narrower than the graph. The plan task holds the count as a
-		// contract, so this means it was replaced by a shorter one — re-running that
-		// task is what fixes it, not another attempt here.
+		// The plan is narrower than the graph, so it was replaced by a shorter
+		// one. Re-running the plan task fixes it; another attempt here does not.
 		return entity.Failed{
 			Err: fmt.Errorf("%w: cell %d of a %d-cell plan", ErrValidation, t.Index, len(cells)),
 		}
@@ -74,10 +70,8 @@ func GenerateThumbnailIcon(
 	return entity.Success{Assets: []entity.AssetID{assetID}}
 }
 
-// joinStyle appends the shared style clause to a cell's subject. The backend is
-// handed one finished prompt, so the content address is a function of exactly
-// what was asked for and a style edit produces new icons rather than reusing
-// the old ones.
+// joinStyle appends the shared style clause to a cell's subject, so the content
+// address covers the style and an edit produces new icons rather than old ones.
 func joinStyle(subject, style string) string {
 	style = strings.TrimSpace(style)
 	if style == "" {

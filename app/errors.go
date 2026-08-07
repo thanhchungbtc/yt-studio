@@ -1,10 +1,7 @@
 // Package app holds the use cases: one exported function per file, named after
-// what it does. This is where the real logic lives, so delivery layers stay
-// thin — an HTTP handler and a CLI command call the same function.
-//
-// Every function declares exactly the narrow interfaces it uses as separate
-// parameters. There is no container struct of dependencies anywhere in this
-// package: the signature is the whole dependency list.
+// what it does, so an HTTP handler and a CLI command call the same function.
+// Each declares the narrow interfaces it uses as separate parameters — there is
+// no dependency container, the signature is the dependency list.
 package app
 
 import (
@@ -25,15 +22,13 @@ var ErrValidation = errors.New("validation failed")
 var ErrConflict = errors.New("conflict")
 
 // ErrBlueprintOffTarget reports an outline whose chapter count fell outside the
-// tolerance band around the video's target. It is deliberately not an
-// ErrValidation: the input was fine, the roll was not, so it is worth another
-// attempt rather than a permanent failure.
+// tolerance band. Not an ErrValidation: the input was fine, the roll was not,
+// so it is worth another attempt.
 var ErrBlueprintOffTarget = errors.New("blueprint chapter count is off target")
 
-// ErrThumbnailPlanOffTarget reports a grid the model came back short on, or a
-// cell it left blank. Not an ErrValidation, for the same reason as above: the
-// graph already holds one icon task per cell and cannot grow, so a plan that
-// does not fill it is a roll to take again.
+// ErrThumbnailPlanOffTarget reports a grid the model came back short on. Not an
+// ErrValidation for the same reason: the graph cannot grow to fit a short plan,
+// so it is a roll to take again.
 var ErrThumbnailPlanOffTarget = errors.New("thumbnail plan does not fill the grid")
 
 // Invalid builds a validation error for one field.
@@ -41,22 +36,17 @@ func Invalid(field, message string) error {
 	return fmt.Errorf("%w: %s %s", ErrValidation, field, message)
 }
 
-// classify turns an error from a provider or repository into a task outcome.
-//
-// The distinction that matters is transient versus permanent: a provider that
-// timed out should be retried with backoff, a chapter that does not exist never
-// will be.
+// classify turns a provider or repository error into a task outcome. The only
+// question is whether another attempt could land differently.
 func classify(err error) entity.TaskOutcome {
 	switch {
 	case err == nil:
 		return entity.Success{}
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		// The video was cancelled or the server is shutting down. Retrying is
-		// pointless; resume happens through the task table, not through a retry.
+		// Cancelled or shutting down: resume happens through the task table.
 		return entity.Failed{Err: err, Retryable: false}
 	case errors.Is(err, provider.ErrUnavailable):
-		// The backend cannot run until the operator installs something. Three
-		// attempts would only take three times as long to say so.
+		// Nothing runs until the operator changes something.
 		return entity.Failed{Err: err, Retryable: false}
 	case errors.Is(err, repository.ErrNotFound),
 		errors.Is(err, entity.ErrAssetNotFound),

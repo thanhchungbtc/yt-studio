@@ -6,12 +6,10 @@ import (
 	"github.com/tbui/yt-studio/domain/entity"
 )
 
-// RetryChapter resets one chapter and everything downstream of it, so a bad
-// script or a failed slide can be re-run without redoing the whole video.
-//
-// The video's coalesced slide-prompt batch is dropped first: a retry that
-// replayed the cached prompts would reproduce exactly the output the operator
-// rejected.
+// RetryChapter resets one chapter and everything downstream, so a bad script or
+// failed slide costs one chapter rather than the video. The coalesced
+// slide-prompt batch is dropped first, or a retry would replay the prompts that
+// produced the rejected output.
 func RetryChapter(
 	ctx context.Context,
 	retrier ChapterRetrier,

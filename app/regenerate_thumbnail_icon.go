@@ -9,17 +9,13 @@ import (
 	"github.com/tbui/yt-studio/domain/repository"
 )
 
-// RegenerateThumbnailIcon rewrites one cell's prompt and redraws that cell.
+// RegenerateThumbnailIcon rewrites one cell's prompt and redraws that cell —
+// the icon counterpart of RegenerateChapterSlide, and welded together for the
+// same reason. It is the narrow alternative to re-running thumbnail_plan, which
+// would rewrite every caption to fix one tile.
 //
-// The icon counterpart of RegenerateChapterSlide, and welded together for the
-// same reason: a prompt saved without generating from it would leave the words
-// disagreeing with the tile beside them. It is the narrow alternative to
-// re-running thumbnail_plan, which rewrites every caption and every cell prompt
-// to fix one tile.
-//
-// Only the subject is edited. The style clause shared by the whole grid is
-// settings-sourced and appended at generation, so editing one cell cannot make
-// it the odd one out.
+// Only the subject is edited; the grid's shared style clause is appended at
+// generation, so editing one cell cannot make it the odd one out.
 //
 //nolint:revive // the parameter list is the dependency list
 func RegenerateThumbnailIcon(
@@ -57,9 +53,8 @@ func RegenerateThumbnailIcon(
 	}
 	v.ThumbnailPlan.Cells[index].Prompt = prompt
 
-	// The tail below an icon is short — the composed thumbnail, and the upload it
-	// gates — but it is the tail the operator is judging when they approve, which
-	// is why it is flagged rather than silently rebuilt.
+	// The tail below an icon is short, but it is what the operator judges at the
+	// upload gate, so it is flagged rather than silently rebuilt.
 	seed := entity.NewTaskID(videoID, entity.TaskKindThumbnailIcon, -1, index)
 	if _, err := rerunner.Rerun(ctx, videoID, []entity.TaskID{seed}, false); err != nil {
 		return entity.Video{}, err

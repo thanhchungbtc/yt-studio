@@ -31,12 +31,9 @@ type BlueprintChapter struct {
 	EstimatedWords int
 }
 
-// BlueprintOutline is the whole video plan one chapter is written inside.
-//
-// The writer sees every chapter in order, not just its own. That is what lets
-// it build on ground an earlier chapter already covered and leave room for one
-// still to come, instead of re-deriving the same idea under a different title
-// forty minutes later.
+// BlueprintOutline is the whole video plan one chapter is written inside: the
+// writer sees every chapter in order, so it can build on what came before
+// rather than re-deriving the same idea under a different title.
 type BlueprintOutline struct {
 	Title    string
 	Summary  string
@@ -64,9 +61,8 @@ type Blueprint struct {
 type ScriptRequest struct {
 	VideoID   entity.VideoID
 	ChapterID entity.ChapterID
-	// Ordinal says which chapter of the outline to write. The chapter's own
-	// title, brief and budget are read out of Blueprint rather than repeated
-	// here, so there is no second copy to disagree with it.
+	// Ordinal says which chapter of the outline to write; its title, brief and
+	// budget are read out of Blueprint, so there is no second copy to disagree.
 	Ordinal   int
 	Blueprint BlueprintOutline
 	// TargetWords is the resolved budget: what the blueprint assigned this
@@ -113,9 +109,8 @@ type ThumbnailPlanRequest struct {
 	// Headline is the hook the metadata task wrote. The plan sees it so the
 	// captions say something the headline does not already say.
 	Headline string
-	// Cells is exactly how many tiles to write, not a target. The DAG already
-	// holds one icon task per cell by the time this is called, so a plan that
-	// comes back short leaves tasks with no prompt to read.
+	// Cells is exactly how many tiles to write, not a target: the DAG already
+	// holds one icon task per cell, so a short plan leaves tasks with no prompt.
 	Cells int
 }
 

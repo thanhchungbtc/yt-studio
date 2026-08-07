@@ -10,38 +10,26 @@ import (
 	"github.com/tbui/yt-studio/domain/scheduler"
 )
 
-// StartVideoOptions are the scheduler-shaped inputs, all sourced from settings
-// rows by the caller.
-//
-// The upload gate is not among them: it is carried by the metadata task, which
-// is part of the tail, so it is read when the graph expands rather than when
-// the video is enqueued. See ExpandOptions.
+// StartVideoOptions are the settings-sourced scheduler inputs. The upload gate
+// is not among them: it rides on a task in the tail, so it is read at expansion
+// instead. See ExpandOptions.
 type StartVideoOptions struct {
 	MaxAttempts   int
 	BlueprintGate bool
 }
 
 // StartVideo enqueues a video by scheduling its blueprint, or resumes one whose
-// DAG already exists.
+// DAG already exists. Only the blueprint goes on the first pass; ExpandVideoGraph
+// splices the rest on once the outline is accepted.
 //
-// Only the blueprint is scheduled on the first pass. Everything below it is one
-// branch per chapter, and the chapter count is not known yet: it is the
-// blueprint's output rather than its input, fixed when the operator accepts the
-// outline. The rest of the DAG is spliced on then, by ExpandVideoGraph.
+// A video that already has tasks takes the resume path, because submitting a
+// fresh head graph over an expanded DAG would tell the loop the video is one
+// node while the database holds hundreds. Starting it again means requeueing
+// whatever it stopped on; a video that stopped on nothing is left alone.
 //
-// A video that already has tasks takes the resume path instead. Submitting a
-// fresh head graph over a DAG that has already expanded would leave the loop
-// believing the video is one node while the database holds hundreds, so what
-// "start it again" can mean there is to requeue whatever it stopped on —
-// cancelled tasks after a cancel, failed ones after an exhausted retry. A video
-// that stopped on nothing is left exactly as it is, so the call stays
-// idempotent.
-//
-// The graph is handed back to the loop before the requeue because the loop may
-// not be holding it: a video whose tasks are all terminal is not among the open
-// graphs reloaded at startup, so after a restart a cancelled video is one the
-// scheduler has never heard of. Resume admits it only if it is unknown, which
-// makes this a no-op in the ordinary case.
+// The graph is re-admitted before the requeue because the loop may not hold it:
+// a video whose tasks are all terminal is not reloaded at startup. Resume
+// ignores a graph it already has, so that is a no-op in the ordinary case.
 //
 //nolint:revive // the parameter list is the dependency list
 func StartVideo(

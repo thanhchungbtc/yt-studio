@@ -16,7 +16,6 @@ type SettingReader interface {
 // server restart.
 type SettingWriter interface {
 	UpdateSetting(ctx context.Context, key entity.SettingKey, value string) (entity.Setting, error)
-	// UpsertSettings is the seed path: idempotent by key, so a fresh database and
-	// a ten-times-seeded database end up in the same state.
+	// UpsertSettings is the seed path, idempotent by key.
 	UpsertSettings(ctx context.Context, settings []entity.Setting) error
 }

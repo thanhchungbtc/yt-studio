@@ -1,12 +1,7 @@
-// Package http is the HTTP delivery layer.
-//
-// It is deliberately thin: a handler validates its input, calls exactly one
-// function in app/, and maps the result. No business logic lives here, which is
-// what makes adding a CLI a matter of calling the same app function.
-//
-// Handlers are typed huma operations, so the OpenAPI document — and therefore
-// the browser client's TypeScript types — are generated from these Go structs
-// rather than hand-written.
+// Package http is the HTTP delivery layer. It is thin: a handler validates its
+// input, calls one function in app/, and maps the result. Handlers are typed
+// huma operations, so the OpenAPI document — and the browser's TypeScript
+// types — are generated from these structs rather than hand-written.
 package http
 
 import (
@@ -17,13 +12,11 @@ import (
 	"github.com/tbui/yt-studio/domain/scheduler"
 )
 
-// StyleDTO is a channel's creative configuration as the API returns it. Every
-// field is always present; a blank one means the channel leaves it unset.
+// StyleDTO is a channel's creative configuration as the API returns it.
 type StyleDTO struct{}
 
-// StyleInputDTO is the same configuration on the way in, where every field is
-// optional: an omitted one leaves the stored value alone. Input and output are
-// separate types precisely so the generated client sees that difference.
+// StyleInputDTO is the same configuration on the way in, where an omitted field
+// leaves the stored value alone. Separate types so the client sees that.
 type StyleInputDTO struct{}
 
 // Into converts the request DTO to the domain type.
@@ -104,11 +97,8 @@ type UploadDTO struct {
 	UploadedAt time.Time `json:"uploadedAt"`
 }
 
-// ThumbnailCellDTO is one tile of the grid: what it says, and what it pictures.
-//
-// The prompt is the subject alone. The style clause every icon shares lives in
-// settings and is appended when the icon is drawn, so it is deliberately absent
-// here — editing one cell must not be able to make it the odd one out.
+// ThumbnailCellDTO is one tile of the grid. Prompt is the subject alone: the
+// shared style clause lives in settings and is appended when the icon is drawn.
 type ThumbnailCellDTO struct {
 	Caption string `json:"caption"`
 	Prompt  string `json:"prompt"`
@@ -172,8 +162,8 @@ func videoFrom(v entity.Video, counts repository.TaskCounts) VideoDTO {
 	if v.ThumbnailAssetID != nil {
 		dto.ThumbnailAssetID = string(*v.ThumbnailAssetID)
 	}
-	// Both are always present, never null: a grid the plan has not filled yet is
-	// an empty list, and the client's cell loop is the same either way.
+	// Never null: an unplanned grid is an empty list, so the client's cell loop
+	// is the same either way.
 	dto.ThumbnailPlan = make([]ThumbnailCellDTO, 0, v.ThumbnailCells)
 	if v.ThumbnailPlan != nil {
 		for _, cell := range v.ThumbnailPlan.Cells {
@@ -368,14 +358,26 @@ type SettingDTO struct {
 	//nolint:lll // one field, one line
 	Options []string `json:"options" doc:"The only accepted values, when the setting is constrained to a fixed set; empty means free-form"`
 	//nolint:lll // one field, one line
-	Backend   string    `json:"backend" doc:"The backend that reads this row, when only one does; empty means the row applies whatever is selected"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	Backend string `json:"backend" doc:"The backend that reads this row, when only one does; empty means the row applies whatever is selected"`
+	//nolint:lll // one field, one line
+	Suggestions []SettingSuggestionDTO `json:"suggestions" doc:"Known-good values worth offering, with the name a human uses for each; advisory, the field still takes anything"`
+	UpdatedAt   time.Time              `json:"updatedAt"`
+}
+
+// SettingSuggestionDTO is one known-good value and the name it goes by.
+type SettingSuggestionDTO struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
 }
 
 func settingFrom(s entity.Setting) SettingDTO {
 	options := s.Options
 	if options == nil {
 		options = []string{}
+	}
+	suggestions := make([]SettingSuggestionDTO, 0, len(s.Suggestions))
+	for _, sg := range s.Suggestions {
+		suggestions = append(suggestions, SettingSuggestionDTO{Value: sg.Value, Label: sg.Label})
 	}
 	return SettingDTO{
 		Key:         string(s.Key),
@@ -387,6 +389,7 @@ func settingFrom(s entity.Setting) SettingDTO {
 		Max:         s.Max,
 		Options:     options,
 		Backend:     s.Backend,
+		Suggestions: suggestions,
 		UpdatedAt:   s.UpdatedAt,
 	}
 }
@@ -397,11 +400,9 @@ type PresetValueDTO struct {
 	Value string `json:"value"`
 }
 
-// PresetDTO is a named patch over the settings table.
-//
-// It carries the values it would write and no judgement about whether it is the
-// one in force: the client holds the settings table already, so "active" is a
-// comparison it makes rather than a field that could arrive stale.
+// PresetDTO is a named patch over the settings table. It carries no "active"
+// flag: the client holds the settings table, so that is a comparison it makes
+// rather than a field that could arrive stale.
 type PresetDTO struct {
 	Name        string `json:"name"`
 	Title       string `json:"title"`

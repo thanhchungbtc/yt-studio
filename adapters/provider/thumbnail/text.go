@@ -12,10 +12,9 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
-// fontCache parses a TTF once. A thumbnail measures the headline at a dozen
-// sizes while fitting it, and re-parsing a quarter-megabyte font per step is
-// pure waste. The faces cut from it are cached separately, keyed by font and
-// size, because two renders of different videos share both.
+// fontCache parses a TTF once: fitting a headline measures it at a dozen sizes,
+// and re-parsing a quarter-megabyte font per step is waste. Faces are cached
+// separately by font and size, since two renders share both.
 type fontCache struct {
 	once sync.Once
 	font *sfnt.Font
@@ -70,9 +69,8 @@ var (
 	faces   map[faceKey]font.Face
 )
 
-// trackingFor is the extra space inserted between glyphs. The reference
-// thumbnails are visibly letter-spaced, and a face drawn at its natural
-// advances reads as ordinary text rather than as a title.
+// trackingFor is the extra space between glyphs: a face at its natural advances
+// reads as ordinary text rather than as a title.
 func trackingFor(size int) fixed.Int26_6 {
 	return fixed.I(max(size/headlineTracking, 1))
 }
@@ -135,15 +133,10 @@ func (h headlineLayout) height() int {
 
 // layOutHeadline fits the hook into the band the grid left above it: as large
 // as it goes on one line, wrapping only when even the floor will not hold it.
-//
-// It is fitted to two bounds rather than one. The width is the frame's, and the
-// height is whatever is left over — the grid is sized first and keeps what it
-// needs, so a fuller grid quietly makes the headline smaller instead of pushing
-// the tiles off the bottom of the frame.
-//
-// A headline that fits neither bound is drawn at the floor and allowed to
-// overflow, the way the composer's chapter titles are: a clipped word is better
-// than a video that cannot produce a thumbnail at all.
+// Two bounds, the frame's width and whatever height the grid did not take, so a
+// fuller grid shrinks the headline rather than pushing tiles off the frame. One
+// that fits neither is drawn at the floor and allowed to overflow — a clipped
+// word beats a video that cannot produce a thumbnail.
 func layOutHeadline(parsed *sfnt.Font, headline string, maxHeight int) headlineLayout {
 	words := strings.Fields(strings.ToUpper(headline))
 	if len(words) == 0 {
@@ -151,10 +144,9 @@ func layOutHeadline(parsed *sfnt.Font, headline string, maxHeight int) headlineL
 	}
 	maxWidth := fixed.I(frameWidth - 2*headlineSideMargin)
 
-	// One line is the design. Every size is tried at one line before any is tried
-	// at two, so a hook that fits small-and-single beats one that fits
-	// large-and-wrapped — the reference thumbnails are single-line, and a wrapped
-	// headline costs the grid a third of its height.
+	// Every size is tried at one line before any is tried at two, so
+	// small-and-single beats large-and-wrapped: wrapping costs the grid a third
+	// of its height.
 	for lines := 1; lines <= headlineMaxLines; lines++ {
 		for size := headlineFontMax; size >= headlineFontMin; size -= headlineFontStep {
 			face, err := faceOf(parsed, size)

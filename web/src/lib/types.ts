@@ -192,7 +192,19 @@ export interface Setting {
    * your edit changed nothing" is the thing worth saying.
    */
   backend: string
+  /**
+   * Known-good values worth offering, each with the name a human uses for it.
+   * Advisory: the field still takes anything, because the catalogue these come
+   * from lives on someone else's server and runs to thousands.
+   */
+  suggestions: SettingSuggestion[]
   updatedAt: string
+}
+
+/** One known-good value and the name it goes by. */
+export interface SettingSuggestion {
+  value: string
+  label: string
 }
 
 export interface PresetValue {

@@ -30,9 +30,9 @@ func PublishVideo(
 	if video.Metadata == nil {
 		return entity.Failed{Err: fmt.Errorf("%w: video has no metadata", ErrValidation), Retryable: true}
 	}
-	// The thumbnail is a dependency of this task, so a missing one means its task
-	// succeeded without recording anything — worth another attempt rather than
-	// publishing and letting YouTube pick a frame.
+	// The thumbnail is a dependency, so a missing one means its task succeeded
+	// without recording anything. Better another attempt than letting YouTube
+	// pick a frame.
 	if video.ThumbnailAssetID == nil || *video.ThumbnailAssetID == "" {
 		return entity.Failed{Err: fmt.Errorf("%w: video has no thumbnail", ErrValidation), Retryable: true}
 	}

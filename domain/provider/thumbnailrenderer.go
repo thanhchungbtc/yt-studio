@@ -12,11 +12,9 @@ type IconCell struct {
 	IconAssetID entity.AssetID
 }
 
-// ThumbnailRequest asks for the one image that fronts a finished video.
-//
-// Everything the backend renders is carried here, for the same reason
-// ClipRequest carries its titles: it keeps the backend free of any repository.
-// Cells are in grid order — reading order, left to right.
+// ThumbnailRequest asks for the image that fronts a finished video. Everything
+// the backend renders is carried here, keeping it free of any repository. Cells
+// are in reading order, left to right.
 type ThumbnailRequest struct {
 	VideoID  entity.VideoID
 	VideoRef entity.Ref

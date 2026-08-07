@@ -92,9 +92,8 @@ export function VideoDetailRoute() {
     queryFn: () => api.listVideoTasks(ref),
     enabled: Boolean(videoId),
   })
-  // Fetched once here rather than by each tab that wants it: the overview, the
-  // task inspector and the gallery all ask the same question, and the count in
-  // the tab strip has to be answered before any of them is opened.
+  // Fetched once here: three tabs ask the same question, and the tab strip's
+  // count has to be answered before any of them is opened.
   const assets = useQuery({
     queryKey: qk.assets(videoId ?? ''),
     queryFn: () => api.listAssets(ref),
@@ -573,10 +572,8 @@ function Overview({
       items.findIndex((item) => item.id === id),
     )
 
-  // What each stage of the pipeline left behind, so a stage tile can offer to
-  // show it. Grouped once here rather than filtered per tile: thirteen tiles
-  // scanning the whole asset list on every render is thirteen passes for one
-  // answer.
+  // What each stage left behind, so a tile can offer to show it. Grouped once:
+  // thirteen tiles filtering the asset list is thirteen passes for one answer.
   const artifactsByStage = useMemo(() => {
     const byKind = new Map<TaskKind, ViewerItem[]>()
     for (const task of tasks) {
@@ -954,9 +951,8 @@ const ChapterCard = memo(function ChapterCard({
       setEditing(false)
     },
   })
-  // The cascade: every task of this chapter and everything downstream of them,
-  // reset and run. Reachable only from inside the dialog, once it has said what
-  // that sweeps up.
+  // The cascade: this chapter's tasks and everything downstream, reset and run.
+  // Reachable only from inside the dialog, once it has said what that sweeps up.
   const retry = useMutation({
     mutationFn: () => api.retryChapter(videoRef, chapter.ordinal),
     onSuccess: () => {
@@ -966,9 +962,8 @@ const ChapterCard = memo(function ChapterCard({
     },
   })
 
-  // One verb for "run this again", whatever state the chapter is in: re-run its
-  // own tasks and flag what is below. Rebuilding the rest of the video is the
-  // explicit choice inside the dialog.
+  // One verb for "run this again" whatever state the chapter is in: re-run its
+  // own tasks and flag what is below. The cascade is the dialog's choice.
   const chapterStale = tasks.some((t) => t.stale)
   const rerunSeeds = useMemo(() => tasks.map((t) => t.id), [tasks])
 

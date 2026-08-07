@@ -1,23 +1,16 @@
 // Package dotenv reads KEY=VALUE files into the process environment.
 //
-// The format is deliberately the small one: KEY=VALUE, `#` comments, blank
-// lines, an optional `export` prefix, and surrounding quotes stripped. There is
-// no `${VAR}` interpolation and no multiline value — interpolation is where
-// dotenv implementations start disagreeing with each other, and nothing that
-// reads one of these files needs it. A `#` starts a comment only as the first
-// character of a line, because a secret may contain one and truncating a key at
-// it is a failure nobody would think to look for.
+// The format is the small one: KEY=VALUE, `#` comments, blank lines, an
+// optional `export` prefix, surrounding quotes stripped. No `${VAR}`
+// interpolation, which is where implementations start disagreeing, and no
+// inline comments, since a secret may contain a `#`.
 //
-// Two properties are the reason this is a package rather than a helper. A
-// variable already set is never overwritten, so the real environment always
-// wins over a file. And the whole file is parsed before anything is applied, so
-// a malformed line leaves the environment untouched rather than half changed.
+// A variable already set is never overwritten, and the whole file is parsed
+// before anything is applied, so a malformed line changes nothing.
 //
-// It holds no policy: which file to read, what a missing one means, and what to
-// say afterwards belong to the command. That is also why it lives under
-// cmd/server/internal — Load mutates the process environment, which is the
-// command's business alone. A use case or an adapter calling it would be a bug,
-// and from here that bug does not compile.
+// It holds no policy — which file, and what a missing one means, belong to the
+// command. That is also why it is under cmd/server/internal: Load mutates the
+// process environment, so a use case calling it must not compile.
 package dotenv
 
 import (
@@ -27,10 +20,8 @@ import (
 	"strings"
 )
 
-// Load applies the file at path and reports how many variables it set.
-//
-// The count is smaller than the file when something was already set in the real
-// environment, which is not an error: it is the precedence working.
+// Load applies the file at path and reports how many variables it set. A count
+// smaller than the file is the precedence working, not an error.
 func Load(path string) (int, error) {
 	file, err := os.Open(path) //nolint:gosec // the path is the caller's own, by definition
 	if err != nil {
@@ -129,9 +120,8 @@ func validKey(key string) error {
 	return nil
 }
 
-// unquote strips one layer of matching quotes. What is inside is taken
-// literally: there are no escape sequences, so a value is exactly what it looks
-// like in the file.
+// unquote strips one layer of matching quotes. There are no escape sequences,
+// so a value is exactly what it looks like in the file.
 func unquote(value string) string {
 	if len(value) < 2 {
 		return value

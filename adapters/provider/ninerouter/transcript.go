@@ -11,18 +11,10 @@ import (
 	"github.com/tbui/yt-studio/domain/entity"
 )
 
-// Transcripts are the record of what was actually sent to a model and what came
-// back. They exist for one job: reading a generation afterwards to work out why
-// it came out the way it did.
-//
-// They are files rather than assets on purpose. An asset needs an ownership row
-// only the app layer can write, and the sweep reclaims what has none — so the
-// failed call, the one most worth reading, is exactly the one that would be
-// collected. A file on disk has no such opinion.
-//
-// Writing one never fails a generation. The directory is created when the
-// client is constructed, so a bad path is a wiring error rather than something
-// discovered halfway through a fifty-chapter video.
+// Transcripts record what was sent to a model and what came back, for reading a
+// generation afterwards. They are files rather than assets because an asset
+// needs an ownership row only the app layer can write, and the sweep would
+// reclaim the failed call — the one most worth reading.
 
 // call names the generation a transcript belongs to.
 type call struct {
@@ -52,8 +44,7 @@ var transcriptSeq atomic.Uint64
 type transcriptWriter struct{ dir string }
 
 // newTranscriptWriter returns nil when no directory is configured, which is how
-// the feature is switched off: every call site is a nil check away from doing
-// nothing.
+// the feature is switched off.
 func newTranscriptWriter(dir string) (*transcriptWriter, error) {
 	if strings.TrimSpace(dir) == "" {
 		return nil, nil //nolint:nilnil // a nil writer is the disabled state

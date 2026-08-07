@@ -7,18 +7,17 @@ import (
 	"github.com/tbui/yt-studio/domain/entity"
 )
 
-// TaskEdge is one dependency arc of a video's DAG: To may not start until From
-// has released it. Edges are persisted so that recovery after a crash rebuilds
-// the exact graph rather than re-deriving it.
+// TaskEdge is one arc of a video's DAG: To may not start until From releases
+// it. Edges are persisted so recovery rebuilds the exact graph.
 type TaskEdge struct {
 	VideoID entity.VideoID
 	From    entity.TaskID
 	To      entity.TaskID
 }
 
-// TaskTransition is one durable state change of one task. The scheduler holds
-// the authoritative in-memory copy and writes whole rows, so a transition is a
-// complete description rather than a patch.
+// TaskTransition is one task's durable state change. The scheduler holds the
+// authoritative copy and writes whole rows, so this is a description, not a
+// patch.
 type TaskTransition struct {
 	ID            entity.TaskID
 	State         entity.TaskState
@@ -43,9 +42,8 @@ type TaskCounts struct {
 	Blocked          int
 	AwaitingApproval int
 	Cancelled        int
-	// Stale counts tasks whose input changed after they ran. It cuts across the
-	// states above rather than partitioning with them: a stale task is usually
-	// also a succeeded one.
+	// Stale cuts across the states above rather than partitioning with them: a
+	// stale task is usually also a succeeded one.
 	Stale             int
 	FirstOpenGateKind entity.GateKind
 }
@@ -60,19 +58,17 @@ type VideoGraph struct {
 	Edges   []TaskEdge
 }
 
-// TaskReader reads the task table. The scheduler never asks it "what can run
-// now?" — that is answered by the in-memory ready set. These queries serve
-// the API, recovery and the operator console.
+// TaskReader serves the API, recovery and the console. The scheduler never asks
+// it "what can run now?" — the in-memory ready set answers that.
 type TaskReader interface {
 	TaskByID(ctx context.Context, id entity.TaskID) (entity.Task, error)
 	ListTasksByVideo(ctx context.Context, videoID entity.VideoID) ([]entity.Task, error)
 	CountTasksByVideo(ctx context.Context, videoID entity.VideoID) (TaskCounts, error)
-	// ListOpenGraphs returns every video whose DAG still has open tasks, with its
-	// edges, so the server can resume rather than restart.
+	// ListOpenGraphs returns every video that still has open tasks, so the server
+	// can resume rather than restart.
 	ListOpenGraphs(ctx context.Context) ([]VideoGraph, error)
-	// GraphByVideo returns one video's persisted DAG whatever state its tasks are
-	// in. A video whose tasks are all terminal is not among the open graphs
-	// reloaded at startup, so this is the only way back to a cancelled one.
+	// GraphByVideo returns one video's DAG whatever state its tasks are in, which
+	// is the only way back to a video whose tasks are all terminal.
 	GraphByVideo(ctx context.Context, videoID entity.VideoID) (VideoGraph, error)
 	// ListRecentTasks powers the scheduler console's live table.
 	ListRecentTasks(ctx context.Context, limit int) ([]entity.Task, error)
@@ -80,8 +76,8 @@ type TaskReader interface {
 
 // TaskWriter is the scheduler's durable backing.
 type TaskWriter interface {
-	// InsertGraph writes a whole DAG in one transaction, idempotently: task ids
-	// are deterministic, so re-enqueueing an existing video is a no-op.
+	// InsertGraph writes a whole DAG in one transaction. Task ids are
+	// deterministic, so re-enqueueing an existing video is a no-op.
 	InsertGraph(ctx context.Context, videoID entity.VideoID, tasks []entity.Task, edges []TaskEdge) error
 	// ApplyTransitions commits N transitions in a single transaction.
 	ApplyTransitions(ctx context.Context, transitions []TaskTransition) error

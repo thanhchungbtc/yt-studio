@@ -18,19 +18,12 @@ var ErrUnknownPool = errors.New("unknown pool")
 // ErrPoolLimitOutOfRange is returned when a requested limit is unusable.
 var ErrPoolLimitOutOfRange = errors.New("pool limit out of range")
 
-// Pools is the global admission control. Limits are enforced across all videos
-// and all channels; a task acquires exactly one slot in exactly one pool and
-// holds it for the duration of the provider call.
+// Pools is the global admission control across every video and channel: a task
+// holds exactly one slot for the duration of its provider call.
 //
-// The mechanism is golang.org/x/sync/semaphore.Weighted — context-cancellable
-// and FIFO-fair. We write no counter of our own.
-//
-// Runtime limit changes (a settings row edit, applied without a restart) are
-// implemented as ballast: every semaphore is created at MaxPoolLimit capacity
-// and the difference between that and the effective limit is held as tokens.
-// Lowering a limit therefore takes effect as running tasks release their slots,
-// which is the only correct semantics — a running provider call is not
-// preemptible.
+// A limit change is ballast — every semaphore is created at MaxPoolLimit and
+// the difference from the effective limit is held as tokens — so lowering one
+// takes effect as running tasks release, a provider call being unpreemptible.
 type Pools struct {
 	sems     [entity.NumPools]*semaphore.Weighted
 	limits   [entity.NumPools]atomic.Int64
@@ -39,8 +32,8 @@ type Pools struct {
 	mu      sync.Mutex
 	ballast [entity.NumPools]int64
 
-	// requests carries desired limits to the per-pool reconcilers, so an API call
-	// never blocks behind a running provider call.
+	// requests carries desired limits to the reconcilers, so an API call never
+	// blocks behind a running provider call.
 	requests [entity.NumPools]chan int64
 }
 
@@ -70,8 +63,8 @@ func NewPools(limits map[entity.Pool]int) (*Pools, error) {
 	return p, nil
 }
 
-// TryAcquire takes one slot without blocking. It is on the dispatch hot path
-// and allocates nothing.
+// TryAcquire takes one slot without blocking. On the dispatch hot path, so it
+// allocates nothing.
 func (p *Pools) TryAcquire(pool entity.Pool) bool {
 	i := pool.Index()
 	if i < 0 {
@@ -174,9 +167,8 @@ func (p *Pools) reconcile(ctx context.Context, i int) {
 	}
 }
 
-// applyLimit moves ballast so that the effective capacity becomes want.
-// Acquiring ballast can block until running tasks release their slots; that is
-// the point, and it happens on the reconciler goroutine, never on a caller's.
+// applyLimit moves ballast until the effective capacity is want. Acquiring can
+// block on running tasks, which is why it runs on the reconciler goroutine.
 func (p *Pools) applyLimit(ctx context.Context, i int, want int64) {
 	p.mu.Lock()
 	cur := p.limits[i].Load()

@@ -218,9 +218,8 @@ export function ArtifactGallery({
     return () => observer.disconnect()
   }, [])
 
-  // The tree is by chapter and only ever by chapter: it is the only axis along
-  // which an operator reviews a video, and the kind axis is the filter above.
-  // Sorting by size or age crosses chapters, so it flattens the tree.
+  // By chapter and only ever by chapter: that is the axis a video is reviewed
+  // along. Sorting by size or age crosses chapters, so it flattens the tree.
   const tree = group === 'chapter' && sort === 'pipeline'
   // A folded section would hide the very thing being searched for.
   const searching = search.length > 0
@@ -248,9 +247,8 @@ export function ArtifactGallery({
     overscan: 6,
   })
 
-  // Row heights here are computed, not measured — a wider pane, a bigger tile or
-  // a switch of layout changes every one of them at once, and the cached
-  // measurements have to be thrown away with them.
+  // Row heights are computed, not measured: a wider pane or a bigger tile
+  // changes every one at once, taking the cached measurements with them.
   useEffect(() => {
     virtualizer.measure()
   }, [virtualizer, rows])
@@ -683,9 +681,8 @@ function buildRows({
         first: ordered.length,
       })
       if (folded.has(kindKey)) continue
-      // Slides are numbered by their slot and are worth naming; thumbnail icons
-      // all carry the same name, and eleven copies of it say nothing the header
-      // has not.
+      // Slides are numbered by slot and worth naming; icons all share a name,
+      // and eleven copies of it say nothing the header has not.
       const named = new Set(group.map((item) => item.title)).size > 1
       emit(group, 2, named)
     }

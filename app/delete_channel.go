@@ -9,12 +9,10 @@ import (
 	"github.com/tbui/yt-studio/domain/repository"
 )
 
-// DeleteChannel removes a channel and everything it owns.
-//
-// Its videos are deleted one at a time through the same path a single delete
-// takes, rather than left to the channel's foreign key, so each one is dropped
-// from the scheduler first and its unreferenced files are reclaimed. Cascading
-// from the channel row would take the rows and leave the disk.
+// DeleteChannel removes a channel and everything it owns. Its videos go one at
+// a time through the single-delete path rather than by foreign key, so each is
+// dropped from the scheduler and its files reclaimed — a cascade would take the
+// rows and leave the disk.
 func DeleteChannel(
 	ctx context.Context,
 	channels repository.ChannelReader,
@@ -47,6 +45,6 @@ func DeleteChannel(
 	return writer.DeleteChannel(ctx, c.ID)
 }
 
-// entityMaxVideosPerChannel bounds the cascade listing. It is deliberately
-// larger than any realistic single-operator channel.
+// entityMaxVideosPerChannel bounds the cascade listing, well above any
+// realistic single-operator channel.
 const entityMaxVideosPerChannel = 500

@@ -18,24 +18,13 @@ type PresetValue struct {
 	Value string
 }
 
-// Preset is a named patch over the settings table: the rows to write, and
-// nothing at all about the rows it does not name.
+// Preset is a named patch over the settings table, not a snapshot: a snapshot
+// would drag the log level, pool limits and retry policy along with the
+// backends. Values is a slice so applying one is deterministic.
 //
-// A patch rather than a snapshot. A snapshot of the whole table would carry the
-// log level, the pool limits and the retry policy along with it, so switching to
-// the local backends would also reset how loudly the server logs — and it would
-// make a preset undeclarable for any port whose backend this build does not
-// register. Naming only what it means to change is both.
-//
-// Values is a slice rather than a map so applying one is deterministic: a
-// failure names the same row every time, and two applications of the same preset
-// log the same sequence.
-//
-// Which preset is "active" is deliberately not stored anywhere. It is derived —
-// a preset is active when every row it names already holds the value it would
-// write. A persisted "current preset" would start lying the moment a single
-// provider row was edited by hand, and keeping it honest would mean invalidation
-// logic in every settings write.
+// Which preset is active is derived, never stored — a preset is active when
+// every row it names already holds the value it would write, and a persisted
+// answer would start lying the moment one row was edited by hand.
 type Preset struct {
 	Name        string
 	Title       string
@@ -43,13 +32,9 @@ type Preset struct {
 	Values      []PresetValue
 }
 
-// Validate checks the preset's shape.
-//
-// It deliberately does not check values. What a provider row may legally hold
-// depends on which backends this binary registered, which is not visible from
-// here; service.Settings does that half, and main runs it over every built-in at
-// startup so a preset naming a backend that no longer exists fails the boot
-// rather than a task.
+// Validate checks the preset's shape, not its values: what a provider row may
+// hold depends on which backends this binary registered, which service.Settings
+// checks at startup so a stale preset fails the boot rather than a task.
 func (p Preset) Validate() error {
 	if p.Name == "" {
 		return fmt.Errorf("%w: name must not be empty", ErrInvalidPreset)
@@ -74,23 +59,12 @@ func (p Preset) Validate() error {
 	return nil
 }
 
-// BuiltinPresets is every preset the binary ships with.
+// BuiltinPresets is every preset the binary ships with. They live in code
+// because which backends exist is a property of the running binary.
 //
-// They live in code rather than in the settings table for the same reason
-// Setting.Options is not persisted: which backends exist is a property of the
-// running binary, not of the database. Seeded rows would also be clobbered by
-// the next seed, and a preset naming a backend that had been deleted would sit
-// in the database saying nothing.
-//
-// Each one names all seven provider ports, including the ports where there is
-// only one backend to name. A preset that answers "who does the work" for four
-// ports and stays silent about three makes the active indicator ambiguous — the
-// reader cannot tell whether the silence means "leave it" or "it already
-// matches".
-//
-// None of them touches upload.dry_run or the gates. A preset says who does the
-// work; it does not say what is allowed to escape. Those two rails stay under a
-// separate deliberate flip, which is worth the extra click.
+// Each names all seven ports, even where only one backend exists: silence on a
+// port would make the active indicator ambiguous. None touches upload.dry_run
+// or the gates — a preset says who does the work, not what may escape.
 func BuiltinPresets() []Preset {
 	return []Preset{
 		{
@@ -99,9 +73,8 @@ func BuiltinPresets() []Preset {
 			//nolint:lll // one description, one line
 			Description: "Everything local: ffmpeg cuts the clips and the built-in renderer draws the thumbnail, over operator-supplied narration and stills. Nothing leaves the machine and nothing costs a generation.",
 			Values: []PresetValue{
-				// The sample LLM generates rather than reads: the words are the cheap
-				// part, and a canned blueprint would not have the chapter count the
-				// graph is built from.
+				// The sample LLM generates rather than reads: a canned blueprint
+				// could not answer the chapter count the graph is built from.
 				{SettingProviderLLM, "sample"},
 				{SettingProviderTTS, "sample"},
 				{SettingProviderSlide, "sample"},
@@ -123,9 +96,8 @@ func BuiltinPresets() []Preset {
 				{SettingProviderComposer, "ffmpeg"},
 				{SettingProviderThumbnail, "builtin"},
 				{SettingProviderThumbnailIcon, "runware"},
-				// Named rather than omitted so the preset stays a complete answer for
-				// all seven ports. It is the local one either way: no build here
-				// registers an uploader that publishes.
+				// Named rather than omitted, to keep all seven ports answered. No
+				// build here registers an uploader that publishes.
 				{SettingProviderUploader, "sample"},
 			},
 		},

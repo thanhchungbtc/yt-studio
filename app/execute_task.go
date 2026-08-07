@@ -12,9 +12,8 @@ import (
 	"github.com/tbui/yt-studio/domain/scheduler"
 )
 
-// BlueprintOptions are the settings-sourced inputs of the blueprint task: the
-// tolerance its chapter count is judged against, and the shape of the DAG that
-// count expands into when no gate stands in the way.
+// BlueprintOptions are the blueprint task's settings-sourced inputs: the
+// tolerance its chapter count is judged against, and the shape it expands into.
 type BlueprintOptions struct {
 	ChapterTolerancePercent int
 	MaxAttempts             int
@@ -26,12 +25,9 @@ func (o BlueprintOptions) Expand() ExpandOptions {
 	return ExpandOptions{MaxAttempts: o.MaxAttempts, UploadGate: o.UploadGate}
 }
 
-// TaskRunner adapts the use cases below to the scheduler's Runner port.
-//
-// It is the one place in this package that holds state, because implementing an
-// interface requires a receiver. It contains no logic of its own: every branch
-// forwards to an exported use case whose signature names exactly the narrow
-// dependencies that branch touches.
+// TaskRunner adapts the use cases below to the scheduler's Runner port. It is
+// the one stateful type here, because implementing an interface needs a
+// receiver, and it holds no logic: every branch forwards to a use case.
 type TaskRunner struct {
 	videos        repository.VideoReader
 	videoFields   repository.VideoFieldWriter
@@ -60,7 +56,7 @@ type TaskRunner struct {
 
 var _ scheduler.Runner = (*TaskRunner)(nil)
 
-// NewTaskRunner wires the runner. Every collaborator is an explicit parameter.
+// NewTaskRunner wires the runner.
 //
 //nolint:revive // the parameter list is the dependency list, which is the point
 func NewTaskRunner(
@@ -103,9 +99,7 @@ func NewTaskRunner(
 	}
 }
 
-// Run executes exactly one task. The switch is exhaustive over TaskKind and
-// ends in a panic, so adding a kind without handling it fails loudly rather
-// than silently succeeding.
+// Run executes exactly one task.
 func (r *TaskRunner) Run(ctx context.Context, t entity.Task) entity.TaskOutcome {
 	log := r.log.With(
 		slog.String("video_id", t.VideoID.String()),
@@ -177,19 +171,11 @@ func (r *TaskRunner) dispatch(ctx context.Context, t entity.Task) entity.TaskOut
 	}
 }
 
-// runBlueprint writes the outline and, when no gate will park the pipeline,
-// builds the DAG that outline shapes before reporting success.
-//
-// The two branches are the same rule seen from either side: a video's chapter
-// branches are created when its outline is accepted. With the gate on that is
-// the operator's approval, and ApproveGate expands. With the gate off there is
-// nobody to ask, so acceptance is the task succeeding and the expansion happens
-// here — before the outcome is reported, so the blueprint never releases
-// dependents that do not exist yet.
-//
-// Expansion is deliberately the last thing to happen. Anything that fails
-// before it leaves a video whose DAG is still a single node and whose blueprint
-// can simply be run again.
+// runBlueprint writes the outline and, with no gate to park on, expands the DAG
+// before reporting success — chapter branches are created when the outline is
+// accepted, and with no operator to ask, acceptance is the task succeeding.
+// Expansion goes last, so anything that fails before it leaves a one-node DAG
+// whose blueprint can simply be run again.
 func (r *TaskRunner) runBlueprint(ctx context.Context, t entity.Task) entity.TaskOutcome {
 	opts := r.blueprintOpts()
 	outcome := GenerateBlueprint(ctx, t, r.videos, r.channels, r.llm, r.chapterWriter,

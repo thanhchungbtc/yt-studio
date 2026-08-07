@@ -14,16 +14,14 @@ import (
 type scriptPrompt struct {
 	Blueprint provider.BlueprintOutline
 	Chapter   provider.BlueprintChapter
-	// TargetWords is the resolved budget. It is separate from Chapter's own
-	// figure because that one may be zero, and a prompt that asks for zero
-	// words is worse than one that falls back to the default.
+	// TargetWords is the resolved budget, separate from Chapter's own figure
+	// because that may be zero and a prompt asking for zero words is worse.
 	TargetWords int
 }
 
-// newScriptPrompt finds the chapter in the outline and resolves its budget.
-//
-// The chapter is looked up rather than passed alongside, so the assignment and
-// the outline entry it points at are the same object by construction.
+// newScriptPrompt finds the chapter in the outline and resolves its budget. It
+// is looked up rather than passed alongside, so the assignment and the outline
+// entry are the same object by construction.
 func newScriptPrompt(req provider.ScriptRequest) (scriptPrompt, error) {
 	ch, ok := req.Blueprint.Chapter(req.Ordinal)
 	if !ok {
@@ -40,12 +38,9 @@ func newScriptPrompt(req provider.ScriptRequest) (scriptPrompt, error) {
 	return scriptPrompt{Blueprint: req.Blueprint, Chapter: ch, TargetWords: target}, nil
 }
 
-// Script writes one chapter's narration.
-//
-// Unlike the blueprint this returns prose rather than JSON, so there is nothing
-// to parse: the completion is the narration. That also means there is no parse
-// error to catch a model that prefaced its answer, which is why the system
-// prompt spends a section on it — every character here is read aloud.
+// Script writes one chapter's narration. The completion is the narration —
+// prose, not JSON — so no parse error catches a model that prefaced its answer,
+// which is why the system prompt spends a section on it.
 func (c *Client) Script(ctx context.Context, req provider.ScriptRequest) (provider.Script, error) {
 	prompt, err := newScriptPrompt(req)
 	if err != nil {

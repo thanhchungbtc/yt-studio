@@ -9,14 +9,10 @@ import (
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
-// TTS narrates every chapter with the same recording.
-//
-// A real backend would speak the chapter's own script; this one hands back the
-// sample unchanged, which means every chapter shares one content address and
-// therefore one row and one file. That is a deliberate trade: the point is real
-// speech in the composed video, and nothing in the system keys off narration
-// being unique — the chapter's own audio_asset_id is written per chapter, and
-// the asset table's chapter_id is provenance only.
+// TTS narrates every chapter with the same recording, so a whole video costs
+// one row and one file. Nothing keys off narration being unique: the chapter's
+// own audio_asset_id is written per chapter, and the asset table's chapter_id
+// is provenance only.
 type TTS struct {
 	lib   *Library
 	store provider.AssetStore
@@ -29,11 +25,8 @@ func NewTTS(lib *Library, store provider.AssetStore) *TTS {
 	return &TTS{lib: lib, store: store}
 }
 
-// Speak stores the sample narration and returns its content address.
-//
-// The file is streamed rather than read: it is megabytes per call, and the
-// store hashes and copies with a pooled buffer, so memory stays flat however
-// long the recording is.
+// Speak stores the sample narration and returns its content address. Streamed
+// rather than read, so memory stays flat however long the recording is.
 func (t *TTS) Speak(ctx context.Context, _ provider.SpeakRequest) (entity.AssetID, error) {
 	if err := t.lib.Check(); err != nil {
 		return "", err

@@ -9,10 +9,8 @@ import (
 	"github.com/tbui/yt-studio/domain/repository"
 )
 
-// FindOpenGate returns the task a video is currently parked on, if any.
-//
-// A gate is a row update: there is no in-memory flow to suspend, so the open
-// gate is simply the one task in awaiting_approval.
+// FindOpenGate returns the task a video is parked on, if any. A gate is a row
+// update, so the open gate is simply the task in awaiting_approval.
 func FindOpenGate(
 	ctx context.Context,
 	tasks repository.TaskReader,
@@ -36,13 +34,10 @@ func FindOpenGate(
 }
 
 // ApproveGate releases a gated task's successors. Waits may last days, so the
-// state lives in the task table and the server may have restarted since the
-// gate opened.
+// state lives in the task table and the server may have restarted since.
 //
-// Approving a blueprint does one thing more: it builds the rest of the video's
-// DAG. Until this moment a video is a single blueprint node, because the number
-// of chapter branches it needs is the number of chapters the operator is
-// approving right now.
+// Approving a blueprint also builds the rest of the DAG: until now the video is
+// one node, because its chapter branches are the chapters being approved.
 //
 //nolint:revive // the parameter list is the dependency list
 func ApproveGate(
@@ -65,9 +60,8 @@ func ApproveGate(
 		return entity.Task{}, err
 	}
 	if t.Kind == entity.TaskKindBlueprint {
-		// Expansion precedes approval, not the other way round: releasing the
-		// blueprint's dependents before they exist would leave a video whose whole
-		// DAG had succeeded after one task.
+		// Expansion precedes approval: releasing dependents before they exist
+		// would leave a video whose whole DAG had succeeded after one task.
 		if err := ExpandVideoGraph(ctx, videos, chapters, expander, now, opts, videoID); err != nil {
 			return entity.Task{}, err
 		}

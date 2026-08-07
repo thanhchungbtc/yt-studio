@@ -35,7 +35,7 @@ const (
 	VideoStateCancelled VideoState = "cancelled"
 )
 
-// AllVideoStates lists every VideoState, for validation, the UI and tests.
+// AllVideoStates lists every VideoState, for validation and the UI.
 var AllVideoStates = []VideoState{
 	VideoStateDraft,
 	VideoStateRunning,
@@ -57,8 +57,7 @@ func (s VideoState) Valid() bool {
 	}
 }
 
-// Terminal reports whether no further work will happen for this video without
-// operator action.
+// Terminal reports whether no further work happens without operator action.
 func (s VideoState) Terminal() bool {
 	switch s {
 	case VideoStateCompleted, VideoStateFailed, VideoStateCancelled:
@@ -94,37 +93,28 @@ func (s VideoState) CanTransitionTo(to VideoState) bool {
 	return false
 }
 
-// Metadata is the YouTube-facing description of a finished video.
-//
-// It is stored as JSON on the video row, so a field added here needs no
-// migration.
+// Metadata is the YouTube-facing description of a finished video, stored as
+// JSON on the video row so a new field needs no migration.
 type Metadata struct {
 	Title       string
 	Description string
 	Tags        []string
-	// ThumbnailText is the all-caps hook overlaid on the thumbnail. It is
-	// written with the rest of the listing because it competes for the same
-	// glance the title does.
+	// ThumbnailText is the all-caps hook overlaid on the thumbnail, written with
+	// the listing because it competes for the same glance the title does.
 	ThumbnailText string
 	CategoryID    string
 	Privacy       string
 }
 
-// ThumbnailCell is one tile of the grid under the thumbnail's headline.
-//
-// The prompt is the subject only — "a lit alarm clock, side view". The style
-// clause every icon shares is appended when the icon is generated, not stored
-// here, so restyling the whole grid costs the icons rather than the words.
+// ThumbnailCell is one tile of the grid under the headline. Prompt is the
+// subject only — the shared style clause is appended at generation time.
 type ThumbnailCell struct {
 	Caption string
 	Prompt  string
 }
 
-// ThumbnailPlan is the grid the thumbnail is built from: what each tile says
-// and what it pictures.
-//
-// It is stored as JSON on the video row, so a field added here needs no
-// migration. Slice order is grid order — reading order, left to right.
+// ThumbnailPlan is the grid the thumbnail is built from, stored as JSON on the
+// video row. Slice order is reading order, left to right.
 type ThumbnailPlan struct {
 	Cells []ThumbnailCell
 }
@@ -150,22 +140,18 @@ type Video struct {
 
 	ChapterCount     int
 	SlidesPerChapter int
-	// ThumbnailCells is how many tiles the thumbnail's grid has. It is on the row
-	// rather than read from settings at expansion because the DAG gets one icon
-	// task per cell and can never grow after: a video's graph has to be
-	// explainable from the video's own record.
+	// ThumbnailCells is how many tiles the grid has. On the row rather than read
+	// from settings, so a video's graph is explainable from its own record.
 	ThumbnailCells int
-	// TargetDurationMinutes is how long the finished video should run. Zero
-	// means unset, and the length is whatever ChapterCount chapters of the
-	// channel's usual size come to.
+	// TargetDurationMinutes is how long the finished video should run; zero
+	// means unset.
 	TargetDurationMinutes int
 
 	BlueprintAssetID *AssetID
 	FinalAssetID     *AssetID
 	ThumbnailAssetID *AssetID
-	// ThumbnailIconAssetIDs is one slot per cell, filled by the icon tasks as
-	// they land. It is sized when the plan is written, so an out-of-order write
-	// has a slot to go in rather than an array to grow.
+	// ThumbnailIconAssetIDs is one slot per cell, sized when the plan is written
+	// so an out-of-order icon has a slot to land in rather than an array to grow.
 	ThumbnailIconAssetIDs []AssetID
 	ThumbnailPlan         *ThumbnailPlan
 	Metadata              *Metadata
@@ -233,37 +219,26 @@ const (
 	MaxChapterCount     = 500
 	MinSlidesPerChapter = 1
 	MaxSlidesPerChapter = 20
-	// The thumbnail's grid. The ceiling is what still reads at 1280x720 on a
-	// phone: past two dozen tiles nobody can tell what any of them are.
+	// The ceiling is what still reads at 1280x720 on a phone.
 	MinThumbnailCells = 1
 	MaxThumbnailCells = 24
-	// MaxDurationMinutes bounds a target length at twelve hours, which is well
-	// past the longest thing this channel would publish.
+	// MaxDurationMinutes bounds a target length at twelve hours.
 	MaxDurationMinutes = 720
 )
 
-// The narration constants. They are what turn a word count into a duration and
-// back, so a video cannot be planned or timed without them.
+// The narration constants, which turn a word count into a duration and back.
 const (
-	// DefaultWordsPerChapter is the spoken length of one chapter when nothing
-	// has assigned it a budget of its own.
+	// DefaultWordsPerChapter is one chapter's spoken length absent a budget.
 	DefaultWordsPerChapter = 450
-	// DefaultWordsPerMinute is an unhurried narration speed, chosen for a
-	// channel someone falls asleep to rather than for a briefing.
+	// DefaultWordsPerMinute is an unhurried narration speed, for a channel
+	// someone falls asleep to rather than a briefing.
 	DefaultWordsPerMinute = 130
 )
 
-// ChapterCountBand returns the inclusive range of chapter counts an accepted
-// blueprint may have, for a video briefed with target chapters.
-//
-// A video's chapter count is a target, not a contract. The outline is written
-// by a model, and a 50-chapter brief that comes back as 45 is a good blueprint
-// that happened to find 45 natural breaks — the DAG is built from what the
-// operator approves, so there is nothing for it to contradict. The band exists
-// to separate that from a blueprint that came back with three chapters, which
-// is a model failure and should stop the line.
-//
-// The slack is rounded up, so a small target still has room to move.
+// ChapterCountBand is the inclusive range an accepted blueprint may land in.
+// A chapter count is a target, not a contract: 45 against a brief of 50 is a
+// good outline, three is a model failure that should stop the line. Slack is
+// rounded up so a small target still has room to move.
 func ChapterCountBand(target, tolerancePercent int) (minCount, maxCount int) {
 	if tolerancePercent < 0 {
 		tolerancePercent = 0

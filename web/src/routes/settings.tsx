@@ -43,7 +43,7 @@ import { Switch } from '@/components/ui/switch'
 import { api, qk } from '@/lib/api'
 import { formatRelative, poolLabel } from '@/lib/format'
 import { useHotkeys } from '@/lib/hotkeys'
-import type { PoolStat, Preset, PresetValue, Setting } from '@/lib/types'
+import type { PoolStat, Preset, PresetValue, Setting, SettingSuggestion } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 interface GroupMeta {
@@ -179,8 +179,8 @@ export function SettingsRoute() {
   const settings = useQuery({ queryKey: qk.settings, queryFn: api.listSettings })
   const presets = useQuery({ queryKey: qk.presets, queryFn: api.listPresets })
 
-  // Free from cache — the status bar keeps this query warm. It turns an abstract
-  // limit into "and here is what that limit is currently doing".
+  // Free from cache — the status bar keeps this query warm — and it turns an
+  // abstract limit into what that limit is currently doing.
   const { data: status } = useQuery({ queryKey: qk.scheduler, queryFn: api.schedulerStatus })
 
   const navigate = useNavigate()
@@ -282,8 +282,7 @@ export function SettingsRoute() {
   }, [sections, matches, needle, requested])
 
   const selectSection = useCallback(
-    // Replaced rather than pushed: the back button is for leaving settings, not
-    // for retracing which section was looked at on the way through.
+    // Replaced, not pushed: back leaves settings rather than retracing sections.
     (group: string) =>
       void navigate({ to: '/settings', search: { section: group }, replace: true }),
     [navigate],
@@ -296,6 +295,59 @@ export function SettingsRoute() {
   const saving = dirtyKeys.some((key) => rowStates[key]?.saving)
 
   /**
+   * Writes one row. The single path to the server, shared by the dock's "apply
+   * everything" and by the controls that save the moment they are touched.
+   *
+   * The "Saving" pill is deferred rather than shown immediately: a local write
+   * lands in a few milliseconds, and a pill that appears and vanishes inside one
+   * frame reads as the screen twitching rather than as progress. Past 200ms the
+   * write is slow enough to be worth saying something about.
+   */
+  const write = useCallback(
+    async (key: string, value: string) => {
+      const slow = setTimeout(() => {
+        setRowStates((prev) => ({ ...prev, [key]: { saving: true } }))
+      }, 200)
+      try {
+        const updated = await api.updateSetting(key, value)
+        queryClient.setQueryData<Setting[]>(qk.settings, (prev) =>
+          prev?.map((row) => (row.key === updated.key ? updated : row)),
+        )
+        setDrafts((prev) => {
+          if (prev[key] === undefined) return prev
+          const next = { ...prev }
+          delete next[key]
+          return next
+        })
+        setRowStates((prev) => ({ ...prev, [key]: { applied: true } }))
+        clearTimeout(timers.current.get(key))
+        timers.current.set(
+          key,
+          setTimeout(() => {
+            timers.current.delete(key)
+            setRowStates((prev) => {
+              const next = { ...prev }
+              delete next[key]
+              return next
+            })
+          }, 1800),
+        )
+        // Only a pool limit moves a live semaphore, so only a pool limit makes
+        // the scheduler's numbers stale. Refetching after every write cost a
+        // request per edit and flickered the rows that read them.
+        if (key.startsWith('pool.')) {
+          void queryClient.invalidateQueries({ queryKey: qk.scheduler })
+        }
+      } catch (error) {
+        setRowStates((prev) => ({ ...prev, [key]: { error } }))
+      } finally {
+        clearTimeout(slow)
+      }
+    },
+    [queryClient],
+  )
+
+  /**
    * Applied in sequence rather than at once: the store serialises writes anyway,
    * and a failure part-way through then names the row it stopped at instead of
    * scattering six half-answers across the pane.
@@ -305,37 +357,10 @@ export function SettingsRoute() {
       for (const key of keys) {
         const value = draftsRef.current[key]
         if (value === undefined) continue
-        setRowStates((prev) => ({ ...prev, [key]: { saving: true } }))
-        try {
-          const updated = await api.updateSetting(key, value)
-          queryClient.setQueryData<Setting[]>(qk.settings, (prev) =>
-            prev?.map((row) => (row.key === updated.key ? updated : row)),
-          )
-          setDrafts((prev) => {
-            const next = { ...prev }
-            delete next[key]
-            return next
-          })
-          setRowStates((prev) => ({ ...prev, [key]: { applied: true } }))
-          clearTimeout(timers.current.get(key))
-          timers.current.set(
-            key,
-            setTimeout(() => {
-              timers.current.delete(key)
-              setRowStates((prev) => {
-                const next = { ...prev }
-                delete next[key]
-                return next
-              })
-            }, 1800),
-          )
-        } catch (error) {
-          setRowStates((prev) => ({ ...prev, [key]: { error } }))
-        }
+        await write(key, value)
       }
-      void queryClient.invalidateQueries({ queryKey: qk.scheduler })
     },
-    [queryClient],
+    [write],
   )
 
   const draft = useCallback((key: string, value: string) => {
@@ -357,15 +382,16 @@ export function SettingsRoute() {
 
   const commit = useCallback((key: string) => void apply([key]), [apply])
 
-  /** Draft and apply in one move, for a control that has no half-changed state. */
-  const set = useCallback(
-    (key: string, value: string) => {
-      setDrafts((prev) => ({ ...prev, [key]: value }))
-      draftsRef.current = { ...draftsRef.current, [key]: value }
-      void apply([key])
-    },
-    [apply],
-  )
+  /**
+   * Writes straight through, for a control that has no half-changed state.
+   *
+   * Deliberately not a draft first. Drafting would make the row dirty for the
+   * few milliseconds the write takes, which tinted the row and slid the unsaved
+   * dock in and out of the bottom of the screen — a full-width layout shift on
+   * every flip of a switch, for a change that was never pending in the first
+   * place.
+   */
+  const set = useCallback((key: string, value: string) => void write(key, value), [write])
 
   const discardAll = useCallback(() => {
     setDrafts({})
@@ -441,9 +467,8 @@ export function SettingsRoute() {
                     <RailItem
                       key={group}
                       group={group}
-                      // The category heading is drawn by the first section under
-                      // it, so the rail stays one flat list of buttons and the
-                      // horizontal strip can simply drop the headings.
+                      // The first section under a heading draws it, so the rail
+                      // stays one flat list and the strip can drop the headings.
                       category={
                         groupMeta(group).category === groupMeta(sections[i - 1]?.[0] ?? '').category
                           ? undefined
@@ -554,8 +579,8 @@ function RailItem({
         aria-current={active ? 'true' : undefined}
         className={cn(
           'relative flex shrink-0 items-center gap-2 rounded-[var(--radius-sm)] py-1.5 pl-2.5 pr-2 text-left text-[12.5px] transition-colors lg:w-full lg:pl-3',
-          // The selected section is the pane: it carries the accent outright, so
-          // which one is open is answered without comparing two greys.
+          // The selected section carries the accent outright, so which one is
+          // open is answered without comparing two greys.
           active
             ? 'bg-[hsl(var(--accent-soft))] font-semibold text-[hsl(var(--accent))]'
             : 'text-muted hover:bg-[hsl(var(--bg-hover))] hover:text-fg',
@@ -827,7 +852,8 @@ function poolFor(key: string, pools: PoolStat[] | undefined): PoolStat | undefin
 
 /* --------------------------------------------------------------------- row */
 
-type ControlKind = 'switch' | 'segmented' | 'select' | 'stepper' | 'number' | 'text' | 'textarea'
+type ControlKind =
+  'switch' | 'segmented' | 'select' | 'suggested' | 'stepper' | 'number' | 'text' | 'textarea'
 
 /**
  * The control follows the shape of the value, not its storage type: a fixed set
@@ -853,12 +879,13 @@ function orderedOptions(options: string[]): string[] {
 }
 
 function controlKind(setting: Setting): ControlKind {
+  // Suggestions beat every other shape: they exist where the value is an
+  // identifier nobody remembers, and the names are the whole point.
+  if (setting.suggestions.length > 0) return 'suggested'
   if (setting.options.length > 0) {
-    // A fixed set is always the segmented control, including a set of one: the
-    // single registered thumbnail renderer is still the answer to "who draws
-    // it", and a row that changes shape depending on how many backends happen to
-    // be compiled in makes the screen read as though the rows differ in kind.
-    // The dropdown is kept only for a list too long to lay out flat.
+    // A fixed set is always the segmented control, even a set of one: a row that
+    // changes shape with the number of registered backends makes the screen read
+    // as though its rows differ in kind. The dropdown is for lists too long.
     return setting.options.length <= 5 ? 'segmented' : 'select'
   }
   if (setting.type === 'bool') return 'switch'
@@ -896,7 +923,7 @@ const SettingRow = memo(function SettingRow({
   const value = draft ?? setting.value
   const dirty = draft !== undefined && draft !== setting.value
   const kind = controlKind(setting)
-  const stacked = kind === 'textarea'
+  const stacked = kind === 'textarea' || kind === 'suggested'
   const id = `setting-${setting.key}`
   const hint = `${id}-hint`
 
@@ -925,6 +952,7 @@ const SettingRow = memo(function SettingRow({
       onDraft={(next) => onDraft(setting.key, next)}
       onSet={(next) => onSet(setting.key, next)}
       onCommit={commit}
+      onRevert={() => onRevert(setting.key)}
       onKeyDown={onKeyDown}
     />
   )
@@ -993,35 +1021,38 @@ const SettingRow = memo(function SettingRow({
           )}
         >
           <div className="min-w-0 flex-1">{control}</div>
-          {kind !== 'switch' && kind !== 'segmented' && kind !== 'select' && (
-            <div className="flex w-[52px] shrink-0 justify-end gap-1">
-              {dirty && (
-                <>
-                  <Tooltip label="Apply" keys={stacked ? 'mod+s' : 'enter'}>
-                    <Button
-                      size="icon"
-                      variant="primary"
-                      onClick={commit}
-                      disabled={state?.saving}
-                      aria-label={`Apply ${setting.key}`}
-                    >
-                      <Check className="h-3.5 w-3.5" />
-                    </Button>
-                  </Tooltip>
-                  <Tooltip label="Revert" keys="escape">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => onRevert(setting.key)}
-                      aria-label={`Revert ${setting.key}`}
-                    >
-                      <RotateCcw className="h-3.5 w-3.5" />
-                    </Button>
-                  </Tooltip>
-                </>
-              )}
-            </div>
-          )}
+          {kind !== 'switch' &&
+            kind !== 'segmented' &&
+            kind !== 'select' &&
+            kind !== 'suggested' && (
+              <div className="flex w-[52px] shrink-0 justify-end gap-1">
+                {dirty && (
+                  <>
+                    <Tooltip label="Apply" keys={stacked ? 'mod+s' : 'enter'}>
+                      <Button
+                        size="icon"
+                        variant="primary"
+                        onClick={commit}
+                        disabled={state?.saving}
+                        aria-label={`Apply ${setting.key}`}
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </Button>
+                    </Tooltip>
+                    <Tooltip label="Revert" keys="escape">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => onRevert(setting.key)}
+                        aria-label={`Revert ${setting.key}`}
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      </Button>
+                    </Tooltip>
+                  </>
+                )}
+              </div>
+            )}
         </div>
       </div>
     </li>
@@ -1142,6 +1173,7 @@ function SettingControl({
   onDraft,
   onSet,
   onCommit,
+  onRevert,
   onKeyDown,
 }: {
   id: string
@@ -1153,6 +1185,7 @@ function SettingControl({
   onDraft: (value: string) => void
   onSet: (value: string) => void
   onCommit: () => void
+  onRevert: () => void
   onKeyDown: (event: ReactKeyboardEvent) => void
 }) {
   switch (kind) {
@@ -1182,9 +1215,8 @@ function SettingControl({
           aria-label={setting.key}
           className="w-full"
           value={value}
-          // Re-selecting what is already selected is not a change. Without this
-          // the only segment of a one-option row would PUT the same value on
-          // every click, and every one of those would bump updatedAt.
+          // Re-selecting what is already selected is not a change: without this
+          // a one-option row would PUT the same value and bump updatedAt.
           onChange={(next) => {
             if (next !== value) onSet(next)
           }}
@@ -1232,6 +1264,58 @@ function SettingControl({
         />
       )
 
+    case 'suggested':
+      return (
+        <div className="space-y-2">
+          <Input
+            id={id}
+            aria-describedby={describedBy}
+            value={value}
+            spellCheck={false}
+            autoComplete="off"
+            onChange={(event) => onDraft(event.target.value)}
+            onBlur={onCommit}
+            onKeyDown={onKeyDown}
+            className={cn('font-mono text-[12.5px]', dirty && 'border-[hsl(var(--accent))]')}
+          />
+          {/* One row under the field, always present: the known values on the
+              left, and what typing something else costs on the right. The
+              actions replace nothing and push nothing — the row is there either
+              way, so committing an edit does not resize the pane. */}
+          <div className="flex min-h-[24px] flex-wrap items-center gap-1.5">
+            {setting.suggestions.map((suggestion) => (
+              <SuggestionChip
+                key={suggestion.value}
+                suggestion={suggestion}
+                active={suggestion.value === value}
+                onPick={() => {
+                  if (suggestion.value !== value) onSet(suggestion.value)
+                }}
+              />
+            ))}
+            {dirty && (
+              <span className="animate-in-fade ml-auto flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={onRevert}
+                  className="rounded-[var(--radius-sm)] px-2 py-[3px] text-[11px] text-subtle transition-colors hover:bg-[hsl(var(--bg-hover))] hover:text-fg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={onCommit}
+                  className="inline-flex items-center gap-1 rounded-[var(--radius-sm)] bg-[hsl(var(--accent))] px-2 py-[3px] text-[11px] font-medium text-[hsl(var(--accent-fg))] transition-opacity hover:opacity-90"
+                >
+                  Save
+                  <Kbd keys="enter" className="opacity-70" />
+                </button>
+              </span>
+            )}
+          </div>
+        </div>
+      )
+
     case 'textarea':
       return (
         <Textarea
@@ -1267,6 +1351,41 @@ function SettingControl({
         />
       )
   }
+}
+
+/**
+ * One known checkpoint, by the name a human uses for it.
+ *
+ * A chip rather than a dropdown option, because these are not the legal values:
+ * the field above still takes any identifier the API would draw. What they are
+ * is the two or three worth reaching for without going to look one up, and the
+ * only way to know which is in force without decoding `runware:100@1` by eye.
+ */
+function SuggestionChip({
+  suggestion,
+  active,
+  onPick,
+}: {
+  suggestion: SettingSuggestion
+  active: boolean
+  onPick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      title={suggestion.value}
+      aria-pressed={active}
+      className={cn(
+        'rounded-full border px-2 py-[3px] text-[11px] font-medium transition-colors',
+        active
+          ? 'border-transparent bg-[hsl(var(--accent))] text-[hsl(var(--accent-fg))]'
+          : 'border-[hsl(var(--border-strong))] text-muted hover:border-[hsl(var(--accent))] hover:text-fg',
+      )}
+    >
+      {suggestion.label}
+    </button>
+  )
 }
 
 /**

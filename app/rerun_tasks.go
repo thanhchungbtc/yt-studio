@@ -14,11 +14,9 @@ type RerunPlan struct {
 	Stale []entity.Task
 }
 
-// RerunTasks re-runs tasks that have already succeeded. Unlike RetryTask it does
-// not cascade: the dependents hold artifacts an operator may have reviewed, so
-// they are flagged stale and left for a decision.
-//
-// With dryRun nothing changes and the plan describes what would happen.
+// RerunTasks re-runs tasks that already succeeded. Unlike RetryTask it does not
+// cascade: the dependents hold artifacts that may have been reviewed, so they
+// are flagged stale. With dryRun the plan describes what would happen.
 func RerunTasks(
 	ctx context.Context,
 	tasks repository.TaskReader,
@@ -88,9 +86,8 @@ func RunStaleTasks(
 	return runner.RunStale(ctx, videoID, ids)
 }
 
-// AcceptStaleTasks clears the flag without re-running anything. Staleness is
-// pessimistic — it records that an input moved, not that the output is wrong —
-// so an operator who has checked the artifact can keep it.
+// AcceptStaleTasks clears the flag without re-running. Staleness records that
+// an input moved, not that the output is wrong, so the artifact can be kept.
 func AcceptStaleTasks(
 	ctx context.Context,
 	accepter StaleAccepter,

@@ -6,17 +6,13 @@ import (
 	"fmt"
 )
 
-// The RIFF/WAVE handling the Python got free from the `wave` module.
-//
-// It lives in this package rather than being borrowed from the ffmpeg adapter
-// on purpose: what that package reads is a duration out of a header, and what
-// this one needs is the frames themselves. Shelling out to ffmpeg to glue two
-// generations together would also put a second process on the TTS path, which
-// is the one path that is already slow.
+// The RIFF/WAVE handling the Python got free from the `wave` module. It is here
+// rather than borrowed from the ffmpeg adapter, which reads durations out of
+// headers where this needs the frames — and shelling out would put a second
+// process on the slowest path in the pipeline.
 
-// errNotWAV reports bytes that are not a RIFF/WAVE file, or are one this cannot
-// read. cleanTail treats it as "leave the audio alone" rather than as a
-// failure, which is why it is a sentinel rather than a message.
+// errNotWAV reports bytes this cannot read. A sentinel because cleanTail treats
+// it as "leave the audio alone" rather than as a failure.
 var errNotWAV = errors.New("xtts: not a readable RIFF/WAVE file")
 
 // headerSize is the canonical RIFF/WAVE header this package writes: 12 bytes of
@@ -26,24 +22,21 @@ const headerSize = 44
 // pcmFormat is the only audio format handled here.
 const pcmFormat = 1
 
-// wavAudio is one decoded PCM stream: the format that describes the frames, and
-// the frames.
+// wavAudio is one decoded PCM stream: the format, and the frames.
 type wavAudio struct {
-	// Channels is 1 for the mono the models produce, 2 if a server is
-	// configured otherwise.
+	// Channels is 1 for the mono the models produce.
 	Channels int
-	// SampleWidth is bytes per sample per channel; 2 is the 16-bit PCM
-	// everything here assumes.
+	// SampleWidth is bytes per sample per channel; 2 is the 16-bit PCM assumed
+	// throughout.
 	SampleWidth int
 	// SampleRate is frames per second.
 	SampleRate int
-	// Frames is the raw payload of the data chunk, interleaved by channel.
+	// Frames is the data chunk's payload, interleaved by channel.
 	Frames []byte
 }
 
-// bytesPerFrame is one frame across every channel — the unit a trim or a splice
-// must land on, since cutting between the channels of a frame swaps the ears
-// for the rest of the file.
+// bytesPerFrame is one frame across every channel — the unit a trim must land
+// on, since cutting between channels swaps the ears for the rest of the file.
 func (a wavAudio) bytesPerFrame() int { return a.Channels * a.SampleWidth }
 
 // sameFormatAs reports whether two streams can be joined without resampling.
@@ -56,12 +49,9 @@ func (a wavAudio) format() string {
 	return fmt.Sprintf("%d Hz, %d ch, %d-bit", a.SampleRate, a.Channels, a.SampleWidth*8)
 }
 
-// decodeWAV reads a RIFF/WAVE blob into its format and its frames.
-//
-// The chunks are walked rather than the canonical 44-byte header assumed: a
-// LIST chunk between `fmt ` and `data` is legal and some builds emit one, and a
-// fixed offset would read that metadata as audio — a burst of noise at the head
-// of every chunk of narration.
+// decodeWAV reads a RIFF/WAVE blob into its format and its frames. The chunks
+// are walked rather than the 44-byte header assumed: a LIST chunk before `data`
+// is legal, and a fixed offset would read that metadata as a burst of noise.
 func decodeWAV(blob []byte) (wavAudio, error) {
 	if len(blob) < 12 || string(blob[0:4]) != "RIFF" || string(blob[8:12]) != "WAVE" {
 		return wavAudio{}, errNotWAV
@@ -74,9 +64,8 @@ func decodeWAV(blob []byte) (wavAudio, error) {
 		id := string(blob[at : at+4])
 		size := int(binary.LittleEndian.Uint32(blob[at+4 : at+8]))
 		body := blob[at+8:]
-		// A streaming writer cannot know the length in advance and leaves it at
-		// zero or at the maximum, so the declared size is trusted only as far as
-		// the bytes that are actually here.
+		// A streaming writer cannot know the length and leaves it at zero or the
+		// maximum, so the declared size is trusted only as far as the bytes here.
 		if size < 0 || size > len(body) {
 			size = len(body)
 		}
@@ -102,8 +91,8 @@ func decodeWAV(blob []byte) (wavAudio, error) {
 		if haveFormat && haveData {
 			break
 		}
-		// Chunks are padded to an even length, and the pad byte is not counted in
-		// the size — missing it puts every later chunk one byte out.
+		// Chunks are padded to an even length and the pad byte is not counted;
+		// missing it puts every later chunk one byte out.
 		at += 8 + size + size%2
 	}
 

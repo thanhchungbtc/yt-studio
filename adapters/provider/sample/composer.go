@@ -9,18 +9,11 @@ import (
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
-// Composer answers both composition calls with the sample render.
-//
-// It cuts nothing and encodes nothing: a chapter's clip and the whole video's
-// final render are the same file on disk, handed back unchanged. What it exists
-// for is everything downstream of composition — the player in the UI, the
-// upload path, the sweep, a final asset that is a real MP4 — without ffmpeg
-// installed and without the minutes a real encode of fifty chapters costs.
-//
-// The consequence to know: every clip shares one content address, so fifty
-// chapters produce one row and one file. Nothing keys off a clip being unique,
-// and the chapter's own clip_asset_id is written per chapter either way. If you
-// need to see cuts, timing or burnt-in text, that is what ffmpeg is for.
+// Composer answers both composition calls with the same sample file, cutting
+// and encoding nothing. It exists for everything downstream — the player, the
+// upload path, the sweep — without ffmpeg installed. Fifty chapters therefore
+// cost one row and one file; ffmpeg is what to select when cuts, timing or
+// burnt-in text need to be real.
 type Composer struct {
 	lib   *Library
 	store provider.AssetStore
@@ -43,11 +36,8 @@ func (c *Composer) Concat(ctx context.Context, _ provider.ConcatRequest) (entity
 	return c.put(ctx, entity.AssetKindFinal)
 }
 
-// put streams the sample into the store under the kind the caller asked for.
-//
-// Streamed rather than read: it is tens of megabytes per call, and the store
-// hashes and copies with a pooled buffer, so memory stays flat however long the
-// take is.
+// put streams the sample into the store under the kind asked for. Streamed
+// rather than read, so memory stays flat however long the take is.
 func (c *Composer) put(ctx context.Context, kind entity.AssetKind) (entity.AssetID, error) {
 	path, err := c.lib.Video()
 	if err != nil {

@@ -9,9 +9,8 @@ import (
 	"github.com/tbui/yt-studio/domain/entity"
 )
 
-// cmdKind enumerates the operations the loop accepts. Every public method is a
-// thin wrapper that hands one of these to the loop and waits, which keeps all
-// mutable scheduler state owned by a single goroutine.
+// cmdKind enumerates the operations the loop accepts. Every public method hands
+// one over and waits, so all mutable state stays owned by one goroutine.
 type cmdKind uint8
 
 // The complete set of commands.
@@ -46,8 +45,8 @@ type command struct {
 	limit   int
 	reason  string
 	dryRun  bool
-	// out and count are filled by the loop before it replies. The caller blocks on
-	// reply, so the write happens-before the read and no lock is needed.
+	// out and count are filled before the reply; the caller blocks on it, so the
+	// write happens-before the read and no lock is needed.
 	out   *[]entity.TaskID
 	count *int
 	reply chan error
@@ -118,8 +117,7 @@ func (s *Scheduler) Submit(ctx context.Context, g *Graph) error {
 		return fmt.Errorf("%w: nil graph", ErrInvalidGraph)
 	}
 	if g.Installed() {
-		// The loop already owns this graph and is mutating its tasks; reading them
-		// here to persist them again would be both a race and pointless.
+		// The loop owns these tasks; reading them here to persist again is a race.
 		return nil
 	}
 	if err := s.store.InsertGraph(ctx, g.VideoID, g.Tasks(), g.Edges()); err != nil {
@@ -128,13 +126,9 @@ func (s *Scheduler) Submit(ctx context.Context, g *Graph) error {
 	return s.send(ctx, command{kind: cmdSubmit, graph: g})
 }
 
-// Expand splices a video's per-chapter body onto the head graph it was
-// enqueued with, now that the blueprint has said how many chapters there are.
-//
-// Rows are written before the loop is told, exactly as Submit does it, and
-// InsertGraph is an idempotent upsert over deterministic ids — so an approval
-// retried after a partial failure recomputes the same tail and writes nothing
-// new.
+// Expand splices a video's per-chapter body onto its head graph. Rows are
+// written before the loop is told, and InsertGraph upserts over deterministic
+// ids, so a retried approval recomputes the same tail and writes nothing new.
 func (s *Scheduler) Expand(ctx context.Context, videoID entity.VideoID, tail Tail) error {
 	if len(tail.Tasks) == 0 {
 		return fmt.Errorf("%w: empty tail for %s", ErrInvalidGraph, videoID)
@@ -145,8 +139,8 @@ func (s *Scheduler) Expand(ctx context.Context, videoID entity.VideoID, tail Tai
 	return s.send(ctx, command{kind: cmdExpand, videoID: videoID, tail: tail})
 }
 
-// Resume admits graphs rebuilt from the database at startup. A crash 45 minutes
-// into a run resumes rather than restarts.
+// Resume admits graphs rebuilt from the database at startup, so a crash
+// mid-run resumes rather than restarts.
 func (s *Scheduler) Resume(ctx context.Context, graphs []*Graph) error {
 	return s.send(ctx, command{kind: cmdResume, graphs: graphs})
 }
@@ -177,25 +171,20 @@ func (s *Scheduler) RetryChapter(ctx context.Context, videoID entity.VideoID, or
 	return s.send(ctx, command{kind: cmdRetryChapter, videoID: videoID, ordinal: ordinal})
 }
 
-// Requeue resets every task a video stopped on — cancelled or failed — and
-// everything downstream of them, and reports how many it reset.
-//
-// It is what resuming a cancelled video means. Re-submitting the head graph
-// cannot be it: the DAG has already expanded, so the loop would be told a video
-// is one node while the database holds hundreds. Nothing stopped is a no-op
-// rather than an error, which keeps the operator's button idempotent.
+// Requeue resets every task a video stopped on — cancelled or failed — plus
+// everything downstream, and reports the count. It is what resuming a cancelled
+// video means; re-submitting the head graph cannot be, since the DAG has
+// already expanded. Nothing stopped is a no-op rather than an error.
 func (s *Scheduler) Requeue(ctx context.Context, videoID entity.VideoID) (int, error) {
 	var n int
 	err := s.send(ctx, command{kind: cmdRequeue, videoID: videoID, count: &n})
 	return n, err
 }
 
-// Rerun re-runs tasks that have already succeeded, and marks everything
-// downstream of them stale rather than re-running it: unlike a failed task's
-// dependents, they hold artifacts an operator may have reviewed, so discarding
-// them is their decision.
-//
-// With dryRun nothing changes and the returned ids are what would go stale.
+// Rerun re-runs tasks that already succeeded and marks everything downstream
+// stale rather than re-running it: those artifacts may have been reviewed, so
+// discarding them is the operator's decision. With dryRun nothing changes and
+// the returned ids are what would go stale.
 func (s *Scheduler) Rerun(
 	ctx context.Context,
 	videoID entity.VideoID,
@@ -210,8 +199,7 @@ func (s *Scheduler) Rerun(
 }
 
 // MarkStale flags everything downstream of the seeds without touching the seeds
-// themselves. It is what an edit made outside the pipeline calls: no task needs
-// re-running for its downstream to have become questionable.
+// themselves. It is what an edit made outside the pipeline calls.
 func (s *Scheduler) MarkStale(
 	ctx context.Context,
 	videoID entity.VideoID,
@@ -234,9 +222,8 @@ func (s *Scheduler) RunStale(
 	return n, err
 }
 
-// AcceptStale clears the stale flag without re-running anything: the operator
-// has looked at the artifact and decided it is still good. A nil id list means
-// every stale task of the video.
+// AcceptStale clears the flag without re-running anything: the artifact has
+// been looked at and is still good. A nil id list means every stale task.
 func (s *Scheduler) AcceptStale(
 	ctx context.Context,
 	videoID entity.VideoID,
@@ -259,7 +246,6 @@ func (s *Scheduler) SetPoolLimit(ctx context.Context, pool entity.Pool, limit in
 
 func (s *Scheduler) doSubmit(g *Graph) error {
 	if _, exists := s.graphs[g.VideoID]; exists {
-		// Already admitted; nothing to do. Idempotent by construction.
 		return nil
 	}
 	s.install(g)
@@ -272,11 +258,8 @@ func (s *Scheduler) doExpand(videoID entity.VideoID, tail Tail) error {
 		return fmt.Errorf("%w: %s", ErrUnknownVideo, videoID)
 	}
 	if g.Expanded() {
-		// Idempotent. The chapters a tail is derived from cannot change once the
-		// blueprint has left `failed`, so a repeated expansion describes the same
-		// shape; one that does not means the two were computed from different
-		// chapter sets, and continuing would build a video for chapters that are
-		// not there.
+		// A repeated expansion describes the same shape; a different one was
+		// computed from a different chapter set and must not be spliced.
 		if got, want := g.NodeCount(), 1+len(tail.Tasks); got != want {
 			return fmt.Errorf("%w: %s is expanded to %d nodes, tail describes %d",
 				ErrAlreadyExpanded, videoID, got, want)
@@ -298,7 +281,7 @@ func (s *Scheduler) doExpand(videoID entity.VideoID, tail Tail) error {
 	return nil
 }
 
-// chapterCountOf counts the video's chapter branches, for the log line above.
+// chapterCountOf counts the video's chapter branches, for the log line.
 func chapterCountOf(g *Graph) int {
 	n := 0
 	for i := range g.tasks {
@@ -323,9 +306,9 @@ func (s *Scheduler) doResume(graphs []*Graph) error {
 	return nil
 }
 
-// install admits a graph and reconstructs the ready set from persisted state. A
-// task caught mid-flight by a crash is reclaimed as ready: its provider call
-// did not finish, and every step is idempotent by design.
+// install admits a graph and rebuilds the ready set from persisted state. A
+// task caught mid-flight by a crash is reclaimed as ready — its provider call
+// did not finish, and every step is idempotent.
 func (s *Scheduler) install(g *Graph) {
 	s.graphs[g.VideoID] = g
 	g.markInstalled()
@@ -357,7 +340,7 @@ func (s *Scheduler) install(g *Graph) {
 			entity.TaskStateFailed, entity.TaskStateCancelled:
 			// Nothing to schedule.
 		default:
-			// Unknown persisted state: treat conservatively as blocked.
+			// Unknown persisted state: treat as blocked.
 			t.State = entity.TaskStateBlocked
 			s.record(t)
 		}
@@ -366,17 +349,10 @@ func (s *Scheduler) install(g *Graph) {
 	s.dirty = true
 }
 
-// reclaimCommittedBlueprint settles a blueprint that was caught in flight by a
-// crash after it had already expanded the graph.
-//
-// The ordinary reclaim below re-runs an interrupted task, which is safe because
-// every step is idempotent. The blueprint is the one exception: expansion is
-// its commit point — the outline asset, the chapter rows and the DAG built from
-// them are all durable by the time the graph grew — and re-running it would
-// roll a fresh outline underneath a graph shaped by the old one.
-//
-// It runs before the reclaim pass rather than inside it so that dependents are
-// discharged first and admitted to the ready set exactly once.
+// reclaimCommittedBlueprint settles a blueprint caught in flight by a crash
+// after it had already expanded the graph. Expansion is its commit point, so
+// re-running it would roll a fresh outline under a graph shaped by the old one.
+// It runs before the reclaim pass so dependents are discharged exactly once.
 func (s *Scheduler) reclaimCommittedBlueprint(g *Graph, now time.Time) {
 	if !g.Expanded() {
 		return
@@ -490,25 +466,10 @@ func (s *Scheduler) doCancel(videoID entity.VideoID) error {
 }
 
 // guardBlueprintReset refuses to re-run a blueprint that is not `failed`.
-//
-// The whole DAG below a blueprint is built from the chapters that blueprint
-// produced, and that expansion is deliberately one-way: there is no reshape
-// path, which is what keeps expansion strictly additive and lets it run at the
-// one instant a video provably has nothing ready, running or retrying. Letting
-// a second roll of the outline land underneath a graph already built for the
-// first would leave tasks pointing at chapters that no longer exist.
-//
-// `failed` is the exception because it is the one state in which no expansion
-// has happened: a blueprint that exhausted its retries, or one an operator
-// rejected at the gate, has produced nothing the graph depends on. Both are
-// worth being able to run again — without them a transient provider error
-// would kill a video permanently.
-//
-// A cancelled blueprint is the same case, but only while the graph is still one
-// node: with the gate off, expansion happens inside the blueprint's own run, so
-// a cancel landing in that window leaves a cancelled blueprint over a DAG that
-// was built from its outline. Expansion, not the state, is what must not be
-// rolled twice.
+// Expansion is one-way, so a second roll of the outline would leave tasks
+// pointing at chapters that no longer exist. `failed` is safe because nothing
+// was expanded from it; a cancelled blueprint is too, but only while the graph
+// is still one node — expansion, not the state, is what must not happen twice.
 func guardBlueprintReset(g *Graph, indices []int32) error {
 	for _, i := range indices {
 		t := &g.tasks[i]
@@ -552,8 +513,7 @@ func (s *Scheduler) doRetryChapter(videoID entity.VideoID, ordinal int) error {
 	if len(seeds) == 0 {
 		return fmt.Errorf("%w: video %s has no chapter %d", ErrUnknownTask, videoID, ordinal)
 	}
-	// The video-level tasks all carry ordinal -1, so an ordinal of -1 would sweep
-	// the blueprint in with them.
+	// Video-level tasks carry ordinal -1, so that ordinal sweeps the blueprint in.
 	if err := guardBlueprintReset(g, seeds); err != nil {
 		return err
 	}
@@ -573,7 +533,7 @@ func (s *Scheduler) doRequeue(c command) error {
 			seeds = append(seeds, int32(i)) //nolint:gosec // bounded by graph size
 		case entity.TaskStateBlocked, entity.TaskStateReady, entity.TaskStateRunning,
 			entity.TaskStateAwaitingApproval, entity.TaskStateSucceeded:
-			// Still open, or holding an artifact: not what the video stopped on.
+			// Still open, or holding an artifact: not what it stopped on.
 		}
 	}
 	if len(seeds) == 0 {
@@ -640,8 +600,8 @@ func (s *Scheduler) doRerun(c command) error {
 	}
 	downstream := strictDownstream(g, seeds)
 
-	// Report exactly what will be flagged, not everything reachable: a task that
-	// has never run is not marked, so listing it would overstate the blast radius.
+	// Report what will be flagged, not everything reachable: a task that never
+	// ran is not marked, so listing it would overstate the blast radius.
 	if c.out != nil {
 		ids := make([]entity.TaskID, 0, len(downstream))
 		for _, idx := range downstream {
@@ -657,8 +617,7 @@ func (s *Scheduler) doRerun(c command) error {
 
 	s.markStale(g, downstream)
 	// resetNodes, not resetFrom: only the seeds re-run. Their dependents are
-	// `succeeded` rather than `blocked`, so releaseDependents passes over them
-	// when the seeds finish and the stale set stays waiting for a decision.
+	// `succeeded`, so releaseDependents passes over them and the stale set waits.
 	s.resetNodes(g, seeds)
 	return nil
 }
@@ -686,9 +645,8 @@ func (s *Scheduler) doMarkStale(c command) error {
 	return nil
 }
 
-// markStale flags tasks that actually produced something; a task that never ran
-// is merely pending. A gated task counts: its artifact exists and is the last
-// thing an operator sees before approving.
+// markStale flags only tasks that produced something; one that never ran is
+// merely pending. A gated task counts — its artifact exists.
 func (s *Scheduler) markStale(g *Graph, indices []int32) {
 	now := time.Now()
 	for _, idx := range indices {
@@ -705,15 +663,14 @@ func (s *Scheduler) markStale(g *Graph, indices []int32) {
 		slog.Int("count", len(indices)))
 }
 
-// producedOutput reports whether a task has an artifact that staleness could be
-// about.
+// producedOutput reports whether a task has an artifact staleness could be about.
 func producedOutput(s entity.TaskState) bool {
 	return s == entity.TaskStateSucceeded || s == entity.TaskStateAwaitingApproval
 }
 
 // staleIndices resolves the requested ids, or every stale task when none are
-// given. Ids that are not actually stale are ignored rather than rejected, so a
-// UI acting on a list that moved under it is idempotent rather than an error.
+// given. Ids that are no longer stale are ignored, so a UI acting on a list
+// that moved under it is idempotent rather than an error.
 func staleIndices(g *Graph, ids []entity.TaskID) []int32 {
 	out := make([]int32, 0, 16)
 	if len(ids) == 0 {
@@ -780,12 +737,9 @@ func (s *Scheduler) doAcceptStale(c command) error {
 }
 
 // resetFrom clears the seeds and everything reachable from them, recomputes
-// their dependency counts against the surviving successes and re-admits
-// whatever is now runnable.
-//
-// A task in flight is reset like any other: its generation is bumped so the
-// answer it is about to produce is discarded on arrival. The provider call is
-// not interrupted — it holds its slot until it returns, and the work is wasted.
+// dependency counts against the surviving successes and re-admits what is
+// runnable. A task in flight has its generation bumped, so the answer it is
+// about to produce is discarded; the provider call itself is not interrupted.
 func (s *Scheduler) resetFrom(g *Graph, seeds []int32) {
 	affected := make([]bool, len(g.tasks))
 	for _, seed := range seeds {
@@ -806,12 +760,10 @@ func (s *Scheduler) resetFrom(g *Graph, seeds []int32) {
 		slog.Int("reset", len(closure)))
 }
 
-// resetNodes clears exactly the nodes it is given and re-admits whichever of
-// them are runnable. It does not walk the graph.
-//
-// Unlike resetFrom: retrying a failure resets the whole closure, since nothing
-// in it ever ran; re-running a success resets only the seeds, since their
-// descendants hold artifacts flagged stale and awaiting a decision.
+// resetNodes clears exactly the nodes it is given, without walking the graph.
+// Retrying a failure resets the whole closure, since nothing in it ever ran;
+// re-running a success resets only the seeds, since their descendants hold
+// artifacts flagged stale and awaiting a decision.
 func (s *Scheduler) resetNodes(g *Graph, indices []int32) {
 	now := time.Now()
 	for _, i := range indices {
@@ -825,9 +777,8 @@ func (s *Scheduler) resetNodes(g *Graph, indices []int32) {
 		t.StartedAt = nil
 		t.FinishedAt = nil
 	}
-	// Dependency counts are recomputed only after every node has been cleared, so
-	// a node inside the set sees its siblings' new states rather than a
-	// half-applied mixture.
+	// Counts are recomputed only after every node is cleared, so a node sees its
+	// siblings' new states rather than a half-applied mixture.
 	for _, i := range indices {
 		t := &g.tasks[i]
 		if t.State != entity.TaskStateBlocked {

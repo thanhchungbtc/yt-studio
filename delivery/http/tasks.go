@@ -70,8 +70,8 @@ type RerunInput struct {
 	Key  string `path:"key" doc:"Video ref or id"`
 	Body struct {
 		TaskIDs []string `json:"taskIds" required:"true" minItems:"1" doc:"Tasks to run again"`
-		// omitempty, or huma makes it required: a re-run without the flag is the
-		// ordinary case and must not be a validation error.
+		// omitempty, or huma makes it required and the ordinary re-run fails
+		// validation.
 		DryRun bool `json:"dryRun,omitempty" doc:"Report the blast radius without changing anything"`
 	}
 }

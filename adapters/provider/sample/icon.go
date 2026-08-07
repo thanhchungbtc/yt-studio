@@ -32,12 +32,9 @@ func NewIcon(lib *Library, store provider.AssetStore) *Icon {
 	return &Icon{lib: lib, store: store}
 }
 
-// Generate stores one tile's icon and returns its content address.
-//
-// The file is chosen by cell index, so a grid drawn from a set at least as
-// large shows a different picture in every tile — which is the point of running
-// the pipeline on samples at all: a grid of ten copies of one image says
-// nothing about whether the layout works.
+// Generate stores one tile's icon and returns its content address. The file is
+// chosen by cell index, so a large enough set gives every tile a different
+// picture — a grid of ten copies says nothing about whether the layout works.
 func (i *Icon) Generate(ctx context.Context, req provider.IconRequest) (entity.AssetID, error) {
 	icons, err := i.lib.Icons()
 	if err != nil {
@@ -49,10 +46,8 @@ func (i *Icon) Generate(ctx context.Context, req provider.IconRequest) (entity.A
 	}
 	path := icons[req.Index%len(icons)]
 
-	// Unlike a slide, an icon is square by the port's definition, and the
-	// renderer scales whatever it is handed into a square tile. A 16:9 sample
-	// passed through untouched would arrive there stretched, so the crop happens
-	// here where the aspect is still known to be wrong.
+	// An icon is square by the port's definition and the samples are 16:9, so
+	// the crop happens here rather than reaching the renderer stretched.
 	key := path + "|" + strconv.Itoa(size)
 	encoded, err := i.png.bytes(key, path, func(src image.Image) image.Image {
 		return square(src, size)
@@ -68,10 +63,8 @@ func (i *Icon) Generate(ctx context.Context, req provider.IconRequest) (entity.A
 }
 
 // square centre-crops an image to its shorter edge and scales that to size.
-//
-// Cropping rather than squashing: these samples are illustrations, and the
-// middle of one is a fair icon where a horizontally compressed copy of the
-// whole is not.
+// Cropping rather than squashing: the middle of an illustration is a fair icon
+// where a compressed copy of the whole is not.
 func square(src image.Image, size int) image.Image {
 	b := src.Bounds()
 	edge := min(b.Dx(), b.Dy())

@@ -13,15 +13,10 @@ import (
 	_ "image/jpeg"
 )
 
-// pngCache holds the encoded bytes of every sample a backend has served.
-//
-// The samples are JPEG on disk but every image asset is a .png with an
-// image/png MIME, and the store addresses content rather than sniffing it.
-// Normalising on the way in keeps every consumer downstream — the browser, the
-// composer, the thumbnail renderer — able to trust what the asset row says.
-//
-// A video asks for a hundred slides and ten icons from a handful of files, so
-// each conversion happens once and is then handed out by content address.
+// pngCache holds the encoded bytes of every sample a backend has served. The
+// samples are JPEG on disk but every image asset is a .png with an image/png
+// MIME, so normalising on the way in keeps the asset row honest. A video asks
+// for a hundred slides from a handful of files, so each conversion runs once.
 type pngCache struct {
 	mu      sync.Mutex
 	entries map[string][]byte

@@ -1,8 +1,6 @@
-// Package entity holds the dependency-free core domain model of yt-studio.
-//
-// Nothing in this package may import another yt-studio package. Identifiers are
-// distinct named types so that passing a ChapterID where a VideoID belongs is a
-// compile error, not a runtime surprise.
+// Package entity holds the dependency-free core domain model of yt-studio. It
+// may import no other yt-studio package, and its identifiers are distinct named
+// types so passing a ChapterID where a VideoID belongs is a compile error.
 package entity
 
 import (
@@ -19,14 +17,12 @@ type VideoID string
 // ChapterID is the opaque identifier of a Chapter.
 type ChapterID string
 
-// AssetID is the content address (sha256, hex) of an Asset. Two identical byte
-// streams always produce the same AssetID, which is what makes re-running a
-// task that produces identical output a no-op.
+// AssetID is the content address (sha256, hex) of an Asset, so re-running a
+// task that produces identical output is a no-op.
 type AssetID string
 
-// TaskID is the deterministic identifier of a Task. It is derived from the
-// video, kind, ordinal and index rather than randomly generated, so enqueueing
-// the same DAG twice is an idempotent upsert and golden-file tests stay stable.
+// TaskID is derived from the video, kind, ordinal and index rather than
+// generated, so enqueueing the same DAG twice is an idempotent upsert.
 type TaskID string
 
 // String returns the underlying text of the identifier.
@@ -62,11 +58,8 @@ func NewChapterID(videoID VideoID, ordinal int) ChapterID {
 	return ChapterID(b.String())
 }
 
-// NewTaskID derives the deterministic task identifier for a node in the DAG.
-//
-// ordinal is the chapter ordinal (or -1 for video-level tasks) and index
-// distinguishes sibling tasks for the same chapter, such as the two slides of a
-// chapter (or -1 when there is only one).
+// NewTaskID derives a node's identifier. ordinal is the chapter ordinal and
+// index distinguishes siblings; both are -1 when they do not apply.
 func NewTaskID(videoID VideoID, kind TaskKind, ordinal, index int) TaskID {
 	var b strings.Builder
 	b.Grow(len(videoID) + len(kind) + 12)

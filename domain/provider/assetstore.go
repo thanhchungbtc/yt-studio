@@ -20,18 +20,13 @@ type StoredAsset struct {
 }
 
 // AssetStore is the content-addressed file store behind every generated file.
-//
-// Put streams: a multi-GB render is copied with a sized buffer and never read
-// into memory.
+// Put streams, so a multi-GB render is never read into memory.
 type AssetStore interface {
 	Put(ctx context.Context, kind entity.AssetKind, r io.Reader) (StoredAsset, error)
 	Open(ctx context.Context, id entity.AssetID, kind entity.AssetKind) (io.ReadSeekCloser, error)
-	// Stat describes a stored asset without opening it — enough to record its
-	// metadata row and to answer a range request.
+	// Stat describes a stored asset without opening it.
 	Stat(ctx context.Context, id entity.AssetID, kind entity.AssetKind) (StoredAsset, error)
-	// Delete unlinks a file whose last owner is gone. It is idempotent: an
-	// address that is not stored is already in the desired state, because the
-	// caller unlinks only after the database has committed and may be retrying a
-	// half-finished reclaim.
+	// Delete unlinks a file whose last owner is gone. Idempotent, because the
+	// caller unlinks after the commit and may be retrying a half-done reclaim.
 	Delete(ctx context.Context, id entity.AssetID, kind entity.AssetKind) error
 }

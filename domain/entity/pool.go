@@ -1,8 +1,7 @@
 package entity
 
-// Pool is a global concurrency pool. Limits are enforced across all videos and
-// all channels: video A's chapter 3 competes with video B's chapter 40 for the
-// same slots.
+// Pool is a global concurrency pool: video A's chapter 3 competes with video
+// B's chapter 40 for the same slots.
 type Pool string
 
 // The complete set of pools. A task acquires exactly one slot in exactly one
@@ -16,8 +15,8 @@ const (
 	PoolImage Pool = "image"
 	// PoolCompose covers per-chapter clips and the final concat.
 	PoolCompose Pool = "compose"
-	// PoolCache covers the per-chapter slide-prompt tasks, which are cache reads
-	// against the coalesced batch and must not occupy a real LLM slot.
+	// PoolCache covers the per-chapter slide-prompt reads against the coalesced
+	// batch, which must not occupy a real LLM slot.
 	PoolCache Pool = "cache"
 	// PoolUpload covers the YouTube upload.
 	PoolUpload Pool = "upload"
@@ -30,9 +29,8 @@ var AllPools = [...]Pool{PoolLLM, PoolTTS, PoolImage, PoolCompose, PoolCache, Po
 // NumPools is the size of the fixed arrays the scheduler allocates once.
 const NumPools = len(AllPools)
 
-// Index returns the dense array index of the pool, or -1 if unknown. It is
-// allocation-free and branch-predictable, so it is safe on the dispatch hot
-// path.
+// Index returns the dense array index of the pool, or -1 if unknown.
+// Allocation-free, so it is safe on the dispatch hot path.
 func (p Pool) Index() int {
 	switch p {
 	case PoolLLM:
@@ -58,8 +56,8 @@ func (p Pool) Valid() bool { return p.Index() >= 0 }
 // String returns the underlying text of the pool name.
 func (p Pool) String() string { return string(p) }
 
-// DefaultPoolLimit is the seeded limit for each pool. Every one of these is a
-// settings row and is changeable at runtime without a restart.
+// DefaultPoolLimit is the seeded limit for each pool; each is a settings row
+// changeable without a restart.
 func DefaultPoolLimit(p Pool) int {
 	switch p {
 	case PoolLLM, PoolTTS, PoolImage, PoolCompose:
@@ -74,7 +72,6 @@ func DefaultPoolLimit(p Pool) int {
 	}
 }
 
-// MaxPoolLimit bounds the semaphore capacity a pool is created with. Runtime
-// limit changes move ballast inside this ceiling rather than rebuilding the
-// semaphore.
+// MaxPoolLimit is the capacity a pool's semaphore is created with; a limit
+// change moves ballast inside this ceiling rather than rebuilding it.
 const MaxPoolLimit = 256

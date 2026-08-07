@@ -326,9 +326,8 @@ function DeleteVideoDialog({
   const remove = useMutation({
     mutationFn: () => api.deleteVideo(video.ref),
     onSuccess: () => {
-      // Leave first, drop the cache second. The detail pane is looking at a video
-      // that no longer exists, and pulling its data out from under it while it is
-      // still mounted only buys a refetch that 404s.
+      // Leave first, drop the cache second: pulling data out from under a
+      // mounted pane only buys a refetch that 404s.
       if (active) void navigate({ to: '/videos' })
       onClose()
 

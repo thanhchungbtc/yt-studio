@@ -30,8 +30,8 @@ func UpdateChapterScript(
 	if err != nil {
 		return entity.Chapter{}, err
 	}
-	// The same reading speed the blueprint budgeted with, so an edited chapter
-	// and a generated one are measured the same way.
+	// The blueprint's reading speed, so an edited chapter and a generated one
+	// are measured the same way.
 	duration := NarrationSeconds(CountWords(script))
 	if err := fields.SetChapterScript(ctx, id, script, duration); err != nil {
 		return entity.Chapter{}, err
@@ -39,13 +39,13 @@ func UpdateChapterScript(
 	c.Script = script
 	c.DurationSeconds = duration
 
-	// Seeded on the chapter's own script task: the edit replaces that task's
-	// output, so everything below it is questionable but the task itself is not.
+	// Seeded on the script task: the edit replaces its output, so everything
+	// below is questionable but the task itself is not.
 	if marker != nil {
 		seed := entity.NewTaskID(c.VideoID, entity.TaskKindScript, c.Ordinal, -1)
 		if _, err := marker.MarkStale(ctx, c.VideoID, []entity.TaskID{seed}); err != nil {
-			// A video that is not in the scheduler's memory has nothing running to
-			// invalidate, and the edit itself is already committed.
+			// A video the scheduler does not hold has nothing to invalidate, and
+			// the edit is already committed.
 			if !errors.Is(err, scheduler.ErrUnknownVideo) && !errors.Is(err, scheduler.ErrUnknownTask) {
 				return entity.Chapter{}, err
 			}

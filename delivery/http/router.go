@@ -17,12 +17,9 @@ import (
 	"github.com/tbui/yt-studio/domain/service"
 )
 
-// Deps is the composition root's wiring record.
-//
-// It is not a dependency container that handlers read from: every handler and
-// every register* function below takes the narrow interfaces it uses as
-// separate parameters, and this struct exists only so cmd/ can name what it is
-// passing. Nothing in this package holds a reference to it.
+// Deps is the composition root's wiring record, not a container handlers read
+// from: every handler takes its own narrow interfaces, and nothing in this
+// package holds a reference to this struct.
 type Deps struct {
 	Channels      repository.ChannelReader
 	ChannelWriter repository.ChannelWriter
@@ -70,13 +67,9 @@ type Deps struct {
 	Dist fs.FS
 }
 
-// Every list this API returns is built with make() and is never left nil, so
-// the schema does not declare arrays nullable and the generated client never
-// has to null-check one.
-//
-// This is a package-level knob in huma, so it is set once here rather than per
-// router: writing it from NewRouter would race with any other router being
-// constructed at the same time.
+// Every list this API returns is make()d and never nil, so the client never has
+// to null-check one. A package-level knob in huma, so it is set here rather
+// than in NewRouter, where it would race with a second router.
 func init() { huma.DefaultArrayNullable = false }
 
 // NewRouter assembles the whole HTTP surface: typed API operations, the SSE
@@ -123,8 +116,7 @@ func NewRouter(d Deps) (http.Handler, huma.API) {
 func requestLogger(log *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// The SSE stream is long-lived; logging it on completion would be noise
-			// measured in hours.
+			// The SSE stream is long-lived; a completion line would land hours late.
 			if r.URL.Path == "/events" {
 				next.ServeHTTP(w, r)
 				return

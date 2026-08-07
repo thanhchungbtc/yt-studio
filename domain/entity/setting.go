@@ -21,18 +21,8 @@ type SettingKey string
 // String returns the underlying text of the key.
 func (k SettingKey) String() string { return string(k) }
 
-// The groups the settings screen renders as sections, in the order it renders
-// them: how much runs at once, where the machine stops for a human, who does
-// the work, then the pipeline in the order it runs — write, narrate, draw,
-// package — then what a new video starts as, and last the knobs that are set
-// once and left alone.
-//
-// A group is a task the operator is doing, not the subsystem that reads the
-// row. Those two disagree in exactly one place and the task wins: the thumbnail
-// section holds the two rows the built-in renderer reads privately alongside
-// the two the icon use case fills into a request, because someone making a
-// thumbnail look right wants all four and does not care which side of the port
-// each lands on. Backend allows the two to still be told apart.
+// Sections of the settings screen, in render order. A group is the task the
+// operator is doing, not the subsystem that reads the row.
 const (
 	GroupPools     = "pools"
 	GroupGates     = "gates"
@@ -46,10 +36,8 @@ const (
 	GroupServer    = "server"
 )
 
-// The registry names a backend-scoped row belongs to. A row tagged with one of
-// these is read only when that backend is the one selected, which is worth
-// saying on the settings screen rather than leaving an operator to wonder why
-// an edit changed nothing.
+// Registry names a backend-scoped row may belong to; such a row is read only
+// while that backend is selected, which the settings screen shows.
 const (
 	BackendNineRouter = "9router"
 	BackendRunware    = "runware"
@@ -57,7 +45,7 @@ const (
 )
 
 // The complete set of settings keys. Everything the server needs after the
-// database is open lives here as a row, not in a config file.
+// database is open is a row here, not a config file.
 const (
 	SettingPoolLLMLimit     SettingKey = "pool.llm.limit"
 	SettingPoolTTSLimit     SettingKey = "pool.tts.limit"
@@ -69,10 +57,8 @@ const (
 	SettingGateBlueprintEnabled SettingKey = "gate.blueprint.enabled"
 	SettingGateUploadEnabled    SettingKey = "gate.upload.enabled"
 
-	// The routing table: one row per port in domain/provider, plus the dry run
-	// that rides with the uploader. It grows when a port is added and never when a
-	// backend is registered — a backend's own knobs live with the pipeline stage
-	// they shape, so this group stays the short answer to "who does each job".
+	// One row per port in domain/provider: this group grows when a port is added,
+	// never when a backend is registered.
 	SettingProviderLLM           SettingKey = "provider.llm"
 	SettingProviderTTS           SettingKey = "provider.tts"
 	SettingProviderSlide         SettingKey = "provider.slide"
@@ -80,97 +66,59 @@ const (
 	SettingProviderThumbnail     SettingKey = "provider.thumbnail"
 	SettingProviderThumbnailIcon SettingKey = "provider.thumbnail_icon"
 	SettingProviderUploader      SettingKey = "provider.uploader"
-	// SettingUploadDryRun rides with the uploader rather than with the gates,
-	// because it is an argument to that backend rather than a rail of its own:
-	// provider.uploader says who publishes, this says whether the publish is
-	// real. A backend asked for a dry run does everything but the irreversible
-	// call, which is the rehearsal a local backend cannot give — sample runs none
-	// of the code and records every upload as dry whatever this says.
+	// SettingUploadDryRun is an argument to the uploader, not a gate of its own:
+	// provider.uploader says who publishes, this says whether it is real.
 	SettingUploadDryRun SettingKey = "upload.dry_run"
 
 	// SettingNineRouterModel picks which upstream the 9router backend routes to.
-	// It is a settings row rather than a flag because it is the knob that gets
-	// turned most while prompts are being tuned.
 	SettingNineRouterModel SettingKey = "ninerouter.model"
 	// SettingBlueprintChapterTolerancePercent bounds how far an accepted
-	// blueprint's chapter count may fall from the one the video was briefed with.
-	// It is a property of the writing rather than of the video: it decides
-	// whether a roll is accepted or re-rolled, and every video is judged by
-	// whatever it says at the moment the blueprint lands.
+	// blueprint's chapter count may fall from the briefed target.
 	SettingBlueprintChapterTolerancePercent SettingKey = "blueprint.chapter_tolerance_percent"
 
-	// How a chapter should sound, named for the engine that speaks it. A voice is
-	// an opaque handle scoped to one server — `female_01.wav` means nothing to a
-	// backend that keys voices by UUID — and a range or a code that one engine
-	// accepts is not one another does, so every narration row belongs to its
-	// backend rather than to narration in general. A second engine brings its
-	// own set and neither has to be renamed.
+	// The narration rows are named for the engine because none is portable: a
+	// voice is an opaque handle scoped to one server, and a language code or a
+	// speed range one engine accepts is not one another does.
 	//
-	// They still cross the port on the request rather than being read behind it:
-	// which rows to read is a question about the selected backend, which the
-	// composition root can answer and a use case must not have to.
-	//
-	// SettingXTTSVoice names a voice file on the AllTalk server, e.g.
-	// female_01.wav. Empty is meaningful — it lets the server use its own default
-	// rather than failing a chapter over a name this end cannot verify.
+	// SettingXTTSVoice names a voice file on the AllTalk server. Empty is
+	// meaningful — it lets the server pick its own default.
 	SettingXTTSVoice SettingKey = "xtts.voice"
 	// SettingXTTSLanguage is the two-letter code the model is asked to speak in.
 	SettingXTTSLanguage SettingKey = "xtts.language"
-	// SettingXTTSSpeed is the playback rate asked of the server; 1.0 is
-	// unmodified. It is the one float in the table: the useful range is 0.5..2.0
-	// and the interesting steps inside it are tenths, which an integer cannot
-	// express.
+	// SettingXTTSSpeed is the playback rate asked of the server; 1.0 is unmodified.
 	SettingXTTSSpeed SettingKey = "xtts.speed"
-	// The chunking pair is the least portable of the five: a chapter is split
-	// because XTTS degrades on long inputs, which is a fact about that server and
-	// not about narration.
-	//
-	// SettingXTTSChunkMinChars is the floor on a chunk's length in characters.
-	// The chunk count follows from it, so it sets the size of the pieces a
-	// chapter is synthesised in rather than their number.
+	// SettingXTTSChunkMinChars floors a chunk's length: a chapter is split because
+	// XTTS degrades on long inputs.
 	SettingXTTSChunkMinChars SettingKey = "xtts.chunk.min_chars"
-	// SettingXTTSChunkSilenceMillis is the pause inserted between chunks when
-	// they are rejoined, so a sentence boundary does not become an audible splice.
+	// SettingXTTSChunkSilenceMillis pads the joins so a sentence boundary is not
+	// an audible splice.
 	SettingXTTSChunkSilenceMillis SettingKey = "xtts.chunk.silence_ms"
 
-	// SettingRunwareModel picks which checkpoint the Runware backend draws with,
-	// as an AIR identifier. A row for the same reason as the model above: it is
-	// the knob that gets turned while a look is being found. It draws the
-	// thumbnail icons too, when that port is pointed at the same backend.
+	// SettingRunwareModel is the checkpoint the Runware backend draws with, as an
+	// AIR identifier. It draws the thumbnail icons too when pointed at that port.
 	SettingRunwareModel SettingKey = "runware.model"
-	// SettingRunwareWidth and SettingRunwareHeight are the geometry slides are
-	// generated at. They exist because provider.SlideRequest carries a size that
-	// no use case fills in: the slide's dimensions are a property of the backend
-	// drawing it, not of the chapter asking for it.
+	// SettingRunwareWidth and SettingRunwareHeight size slides: the dimensions are
+	// a property of the backend drawing them, not of the chapter asking.
 	SettingRunwareWidth  SettingKey = "runware.width"
 	SettingRunwareHeight SettingKey = "runware.height"
 
-	// SettingThumbnailIconStyle is the clause appended to every icon prompt. It
-	// lives outside the plan so restyling the whole grid costs the icons rather
-	// than the words: change it and ten cheap generations re-run, with no model
-	// asked to write captions again.
+	// SettingThumbnailIconStyle is appended to every icon prompt, so restyling the
+	// grid re-runs cheap generations instead of re-rolling the captions.
 	SettingThumbnailIconStyle SettingKey = "thumbnail.icon.style"
 	// SettingThumbnailIconSize is the square edge each icon is generated at.
 	SettingThumbnailIconSize SettingKey = "thumbnail.icon.size"
-	// SettingThumbnailFont names the typeface the renderer sets the headline and
-	// captions in, as a filename under the resources fonts directory. A row
-	// rather than a constant because the face is the loudest thing about a
-	// thumbnail and the one worth trying alternatives for. It is untagged
-	// deliberately: the HTML backend still to come sets type too.
+	// SettingThumbnailFont names the typeface, as a filename under the resources
+	// fonts directory. Untagged: the HTML backend still to come sets type too.
 	SettingThumbnailFont SettingKey = "thumbnail.font"
 	// SettingThumbnailGridRows is how many rows the icons are laid out in;
 	// columns follow from the cell count.
 	SettingThumbnailGridRows SettingKey = "thumbnail.grid.rows"
 
-	// What a new video is created with. These three are read once, at creation,
-	// and then frozen into the row — an existing video keeps what it was made
-	// with, which is why they are a section of their own rather than mixed in
-	// beside knobs that apply to the next task.
+	// Read once at creation and then frozen into the video row.
 	SettingVideoDefaultChapters SettingKey = "video.default_chapter_count"
 	SettingVideoDefaultSlides   SettingKey = "video.default_slides_per_chapter"
-	// SettingVideoDefaultThumbnailCells seeds a new video's grid width. The DAG
-	// holds one icon task per cell from expansion onward, so the width a video
-	// was created with is the width it keeps.
+	// SettingVideoDefaultThumbnailCells seeds a new video's grid width, which it
+	// keeps: the DAG holds one icon task per cell from expansion onward.
 	SettingVideoDefaultThumbnailCells SettingKey = "video.default_thumbnail_cells"
 
 	SettingTaskMaxAttempts     SettingKey = "task.max_attempts"
@@ -182,8 +130,7 @@ const (
 )
 
 // SettingType is the declared type of a setting's text value. Every value is
-// stored as text and read through a typed accessor that parses and validates
-// it; an unparsable value fails loudly at startup.
+// stored as text; an unparsable one fails at startup.
 type SettingType string
 
 // The complete set of setting value types.
@@ -204,6 +151,13 @@ func (t SettingType) Valid() bool {
 	}
 }
 
+// SettingSuggestion is a known-good value with the name a human uses for it:
+// `runware:100@1` and "FLUX.1 Dev" are not derivable from each other.
+type SettingSuggestion struct {
+	Value string
+	Label string
+}
+
 // Setting is a single runtime configuration value keyed by a stable key.
 type Setting struct {
 	Key         SettingKey
@@ -211,29 +165,24 @@ type Setting struct {
 	Type        SettingType
 	Group       string
 	Description string
-	// Min and Max bound numeric settings; they are advisory to the UI and enforced
-	// by Validate. They are float64 so one pair of bounds serves both int and
-	// float keys — a speed of 0.5..2.0 has no integer expression, and a second
-	// pair of fields would be one more thing to keep in step.
+	// Min and Max bound numeric settings. float64 so one pair serves both int and
+	// float keys — a speed of 0.5..2.0 has no integer expression.
 	Min float64
 	Max float64
-	// Options constrains the value to a fixed set. It is deliberately not
-	// persisted: which backends exist is a property of the running binary, not of
-	// the database, so it is supplied at load time by whoever registered them. An
-	// empty Options means the value is unconstrained.
+	// Options constrains the value to a fixed set; empty means unconstrained. Not
+	// persisted — which backends exist is a property of the binary, so it is
+	// stamped at load.
 	Options []string
-	// Optional allows a string setting to be empty, for the keys where empty is a
-	// meaningful value rather than a missing one.
+	// Optional allows a string setting to be empty, where empty is meaningful
+	// rather than missing.
 	Optional bool
+	// Suggestions are advisory where Options are binding: a checkpoint catalogue
+	// lives on someone else's server, and a stale copy here would refuse an
+	// identifier the API would have drawn. Not persisted.
+	Suggestions []SettingSuggestion
 	// Backend names the registry entry that reads this row, empty when the row is
-	// not backend-specific. Like Options it is a property of the running binary
-	// and is not persisted: what reads a row is a fact about the code, and a
-	// stored copy would go stale the first time a backend was rewritten.
-	//
-	// It exists so the settings screen can say "xtts only" on a row and dim it
-	// when that backend is not the one selected. A row whose backend is idle
-	// still validates and still holds its value — it is simply not being read,
-	// and that is the thing worth showing rather than hiding.
+	// not backend-specific, so the screen can dim a row whose backend is idle.
+	// Not persisted.
 	Backend   string
 	UpdatedAt time.Time
 }
@@ -251,8 +200,8 @@ func (s Setting) AllowsValue(v string) bool {
 	return false
 }
 
-// Validate parses the value against the declared type and bounds. It is called
-// on every write and on the whole table at startup.
+// Validate parses the value against the declared type and bounds, on every
+// write and on the whole table at startup.
 func (s Setting) Validate() error {
 	if strings.TrimSpace(string(s.Key)) == "" {
 		return fmt.Errorf("%w: key must not be empty", ErrInvalidSetting)
@@ -271,8 +220,8 @@ func (s Setting) Validate() error {
 		if err != nil {
 			return fmt.Errorf("%w %q: %q is not a number", ErrInvalidSetting, s.Key, s.Value)
 		}
-		// NaN fails every comparison below, so it would slip past a bounds check
-		// written as "outside the range" and reach a backend as a speed.
+		// NaN fails every comparison, so it slips past a bounds check written
+		// as "outside the range".
 		if math.IsNaN(f) || math.IsInf(f, 0) {
 			return fmt.Errorf("%w %q: %q is not a finite number", ErrInvalidSetting, s.Key, s.Value)
 		}
@@ -367,14 +316,10 @@ func GateEnabledKey(g GateKind) SettingKey {
 	}
 }
 
-// DefaultSettings is the complete seeded settings table. The seed is an upsert
-// by key, so a fresh database and a ten-times-seeded database end up in the
-// same state.
-//
-// The order here is the order the settings screen shows: rows are sorted by
-// their position in this slice rather than by key, because "voice, language,
-// speed" is how an operator thinks about narration and "chunk, chunk, language,
-// speed, voice" is only how the key names happen to sort.
+// DefaultSettings is the complete seeded settings table; the seed upserts by
+// key. This slice's order is the order the settings screen shows, because
+// "voice, language, speed" is how narration is thought about and alphabetical
+// is not.
 func DefaultSettings() []Setting {
 	return []Setting{
 		{Key: SettingPoolLLMLimit, Value: "2", Type: SettingTypeInt, Group: GroupPools, Min: 1, Max: MaxPoolLimit, Description: "Concurrent LLM calls across all videos and channels."},
@@ -444,9 +389,8 @@ func DefaultSettings() []Setting {
 	}
 }
 
-// settingOrder is each key's position in DefaultSettings, so a section can be
-// presented in the order it was written. Built once: the table is read on every
-// settings screen and the slice is rebuilt on every call to DefaultSettings.
+// settingOrder is each key's position in DefaultSettings, built once because
+// DefaultSettings rebuilds its slice on every call.
 var settingOrder = func() map[SettingKey]int {
 	defaults := DefaultSettings()
 	order := make(map[SettingKey]int, len(defaults))
@@ -456,9 +400,8 @@ var settingOrder = func() map[SettingKey]int {
 	return order
 }()
 
-// SettingOrder returns a key's seeded position. A key that is not seeded sorts
-// after every one that is, rather than being dropped: an unknown row in the
-// table is a thing to show the operator, not to hide from them.
+// SettingOrder returns a key's seeded position. An unseeded key sorts last
+// rather than being dropped — an unknown row is worth showing.
 func SettingOrder(k SettingKey) int {
 	if i, ok := settingOrder[k]; ok {
 		return i

@@ -10,13 +10,13 @@ import (
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
-// Uploader is the local publishing backend. It reads the final render through
-// the asset store so the upload path genuinely touches the bytes, and returns a
-// receipt. There is nothing to sample here — a publish has no artifact to serve
-// from disk — so this is the one port where local means simulated.
+// Uploader is the local publishing backend: it reads the final render through
+// the asset store, so the upload path genuinely touches the bytes, and returns
+// a receipt. A publish has no artifact to serve, so this is the one port where
+// local means simulated.
 type Uploader struct {
 	store provider.AssetStore
-	// now is injectable so a golden-file test gets a stable receipt.
+	// now is injectable so a receipt is reproducible.
 	now func() time.Time
 }
 

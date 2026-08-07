@@ -12,33 +12,29 @@ import (
 	"github.com/tbui/yt-studio/domain/repository"
 )
 
-// ErrSweepUnsafe is returned when the store holds assets and the database
-// references none of them. It is what a sweep pointed at the wrong database
-// looks like from the inside, and the difference between that and a store that
-// is genuinely all garbage is not something this command can tell.
+// ErrSweepUnsafe is what a sweep pointed at the wrong database looks like from
+// the inside: a store full of assets the database references none of. Nothing
+// here can tell that apart from a store that is genuinely all garbage.
 var ErrSweepUnsafe = errors.New("refusing to sweep: the database references no assets at all")
 
-// defaultTempAge is how old a file in the staging area must be before the sweep
-// treats it as the debris of a crashed write rather than a write in progress.
+// defaultTempAge is how old a staged file must be before it counts as the
+// debris of a crashed write rather than a write in progress.
 const defaultTempAge = time.Hour
 
-// unrecognisedSample bounds how many surprising paths a report carries. The
-// count is always exact; the list is there to give a person somewhere to look.
+// unrecognisedSample bounds the sample of surprising paths; the count stays
+// exact.
 const unrecognisedSample = 20
 
 // SweepOptions tunes one sweep.
 type SweepOptions struct {
 	// Apply makes the sweep delete. Left false it only reports, which is the
-	// default the CLI uses: the numbers are the interesting part and the deletion
-	// is irreversible.
+	// CLI's default because the deletion is irreversible.
 	Apply bool
-	// TempAge overrides how old debris in the staging area must be. Zero means
-	// defaultTempAge.
+	// TempAge overrides the staging-area cutoff; zero means defaultTempAge.
 	TempAge time.Duration
-	// Now is the clock, injected so a test does not have to sleep.
+	// Now is the injected clock.
 	Now time.Time
-	// Force skips the empty-database guard, for the rare store that really does
-	// contain nothing but garbage.
+	// Force skips the empty-database guard.
 	Force bool
 }
 
@@ -50,41 +46,32 @@ type SweepReport struct {
 	Referenced int
 	// Unreferenced files are content addresses nothing owns.
 	Unreferenced int
-	// Debris is old files in the staging area, left by writes that crashed
-	// between streaming the bytes and renaming them into place.
+	// Debris is old staging-area files, left by writes that crashed between
+	// streaming the bytes and renaming them into place.
 	Debris int
-	// Unrecognised counts files the store layout does not explain. They are never
-	// deleted: nothing in the database describes them, so nothing in the database
-	// can license removing them.
+	// Unrecognised counts files the layout does not explain. They are never
+	// deleted: nothing in the database describes them, so nothing licenses it.
 	Unrecognised int
-	// UnrecognisedSample lists the first few of those, so they can be looked at.
+	// UnrecognisedSample lists the first few, so they can be looked at.
 	UnrecognisedSample []string
-	// Removed and Bytes report what was actually unlinked, which is zero unless
-	// Apply was set.
+	// Removed and Bytes are zero unless Apply was set.
 	Removed int
 	Bytes   int64
-	// DirsRemoved counts the empty kind and shard directories pruned afterwards.
-	// A dry run leaves it at zero rather than guessing: which directories end up
-	// empty depends on which files the run would have deleted.
+	// DirsRemoved counts the empty directories pruned afterwards. A dry run
+	// leaves it zero rather than guessing which would have ended up empty.
 	DirsRemoved int
 }
 
 // Reclaimable is what a dry run would free.
 func (r SweepReport) Reclaimable() int { return r.Unreferenced + r.Debris }
 
-// SweepAssets reclaims files in the store that nothing references.
+// SweepAssets reclaims files nothing references. It walks the store rather than
+// reading the database, because a file whose row was lost is exactly what needs
+// finding. An unowned content address goes, an old staged file goes, and
+// anything the layout does not explain is reported and kept.
 //
-// The store is walked rather than the database read, because a file whose row
-// was lost is exactly what needs finding and it is invisible from the database
-// side. Three kinds of file come out of that walk and each is treated
-// differently: a content address with no owner is garbage and goes; an old file
-// in the staging area is a crashed write and goes; anything else the layout does
-// not explain is reported and kept, because no database lookup describes it and
-// so none can justify deleting it.
-//
-// The caller must have run RepairAssetOwnership first. Without it, a file that a
-// surviving video reaches only through its chapter id lists has no owning row,
-// and this command cannot tell that from garbage.
+// The caller must have run RepairAssetOwnership first: without it, a file
+// reachable only through a chapter's id list looks like garbage.
 func SweepAssets(
 	ctx context.Context,
 	maintainer repository.AssetMaintainer,
@@ -110,17 +97,15 @@ func SweepAssets(
 		now = time.Now()
 	}
 
-	// Classify everything first and delete nothing: the whole store has to be
-	// counted before the guard below can tell a store full of garbage from a
-	// sweep pointed at the wrong database, and by then a single-pass version
-	// would already have deleted the evidence.
+	// Classify everything before deleting anything: the guard below needs the
+	// whole count, which a single pass would already have destroyed.
 	var report SweepReport
 	var doomed []provider.StoredFile
 	err = sweeper.Walk(ctx, func(f provider.StoredFile) error {
 		report.Files++
 		switch {
 		case f.Temporary:
-			// A young temporary file may be a write happening right now.
+			// A young temporary file may be a write happening now.
 			if now.Sub(f.ModTime) < tempAge {
 				return nil
 			}
@@ -145,9 +130,8 @@ func SweepAssets(
 		return report, fmt.Errorf("walk the asset store: %w", err)
 	}
 
-	// The guard is on the deletion, not on the counting: a report changes nothing,
-	// and it is the fastest way to see that the database is not the one that goes
-	// with this store.
+	// The guard is on the deletion, not the counting: a report changes nothing
+	// and is the fastest way to see the database does not go with this store.
 	if opts.Apply && !opts.Force && len(live) == 0 && report.Referenced+report.Unreferenced > 0 {
 		return report, fmt.Errorf("%w, but the store holds %d (wrong --db, or a database that was never migrated?)",
 			ErrSweepUnsafe, report.Unreferenced)
@@ -161,9 +145,8 @@ func SweepAssets(
 			report.Removed++
 			report.Bytes += f.Size
 		}
-		// Tidying the directories a delete cannot: a shard is shared by every
-		// address with the same digest prefix, so emptiness is only knowable once
-		// the files are gone.
+		// A shard is shared by every address with the same digest prefix, so
+		// emptiness is only knowable once the files are gone.
 		pruned, err := sweeper.PruneEmptyDirs(ctx)
 		if err != nil {
 			return report, err

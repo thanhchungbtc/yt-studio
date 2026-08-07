@@ -128,13 +128,9 @@ func (f *FS) Put(ctx context.Context, kind entity.AssetKind, r io.Reader) (provi
 }
 
 // commit renames a staged file into place, re-creating its shard directory if
-// that directory has gone missing.
-//
-// One thing removes directories under the root — the sweep, pruning the empty
-// ones — and the only window it can hurt is the gap between creating a shard
-// directory and renaming into it, when that directory is legitimately empty.
-// Retrying once closes it, and costs nothing on the path where nothing raced.
-// It also makes a `find -type d -empty -delete` run by hand harmless.
+// it has gone missing. The window is the gap between creating that directory
+// and renaming into it, when the sweep may legitimately prune it as empty;
+// retrying once closes it and costs nothing when nothing raced.
 func (f *FS) commit(tmp, dst string) error {
 	dir := filepath.Dir(dst)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -153,10 +149,9 @@ func (f *FS) commit(tmp, dst string) error {
 	return nil
 }
 
-// PutFile ingests a file that is already on disk, by hashing it in place and
-// renaming it into the store. Nothing is copied when the source sits on the
-// same filesystem, which is what keeps a multi-gigabyte render cheap to ingest:
-// a composer writes its output once and hands the path over.
+// PutFile ingests a file already on disk by hashing it in place and renaming it
+// in. Nothing is copied when the source is on the same filesystem, so a
+// composer writes its render once and hands the path over.
 //
 // The source is consumed either way — renamed on success, removed when the
 // content address is already present.

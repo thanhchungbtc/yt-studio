@@ -1,7 +1,5 @@
-// Package repository declares the persistence ports of the domain. Every port
-// is split into a reader and a writer so a use case can declare exactly the
-// half it needs in its signature.
-//
+// Package repository declares the persistence ports of the domain, each split
+// into a reader and a writer so a use case can name exactly the half it needs.
 // Nothing here imports anything outside domain/entity.
 package repository
 
@@ -30,10 +28,9 @@ type ChannelWriter interface {
 	CreateChannel(ctx context.Context, c entity.Channel) error
 	UpdateChannel(ctx context.Context, c entity.Channel) error
 	DeleteChannel(ctx context.Context, id entity.ChannelID) error
-	// NextVideoSeq atomically increments and returns the per-channel counter
-	// behind video refs (DSS-1, DSS-2...). It is the only way a ref is minted.
+	// NextVideoSeq atomically increments the per-channel counter behind refs. It
+	// is the only way a ref is minted.
 	NextVideoSeq(ctx context.Context, id entity.ChannelID) (int, error)
-	// UpsertChannelBySlug is the seed path: INSERT ... ON CONFLICT (slug) DO
-	// UPDATE, so running the seed a second time updates in place.
+	// UpsertChannelBySlug is the seed path, so a second seed updates in place.
 	UpsertChannelBySlug(ctx context.Context, c entity.Channel) (entity.Channel, error)
 }

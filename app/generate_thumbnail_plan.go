@@ -11,11 +11,8 @@ import (
 	"github.com/tbui/yt-studio/domain/repository"
 )
 
-// GenerateThumbnailPlan writes the grid the thumbnail is built from: one
-// caption and one icon prompt per cell.
-//
-// It runs after the metadata because it is handed the hook, so the captions can
-// say something the headline does not already say.
+// GenerateThumbnailPlan writes one caption and one icon prompt per cell. It
+// runs after the metadata so the captions can say what the headline does not.
 //
 //nolint:revive // the parameter list is the dependency list
 func GenerateThumbnailPlan(
@@ -81,14 +78,9 @@ func GenerateThumbnailPlan(
 	return entity.Success{Assets: []entity.AssetID{plan.AssetID}}
 }
 
-// normaliseCells tidies what the model returned and holds it to the one thing
-// that is not negotiable: the count.
-//
-// The graph already holds one icon task per cell by the time this runs, and it
-// cannot grow — a short plan leaves tasks with no prompt to read. That is a bad
-// roll rather than bad input, so it is retried, the same way an off-target
-// blueprint is. A long one is simply cut: re-rolling a model that was generous
-// costs more than dropping the surplus.
+// normaliseCells tidies the model's output and holds it to the count, which is
+// not negotiable: the graph already holds one icon task per cell and cannot
+// grow. A short plan is a bad roll and retried; a long one is simply cut.
 func normaliseCells(cells []entity.ThumbnailCell, want int) ([]entity.ThumbnailCell, error) {
 	if len(cells) < want {
 		return nil, fmt.Errorf("%w: plan has %d cells, the grid has %d",

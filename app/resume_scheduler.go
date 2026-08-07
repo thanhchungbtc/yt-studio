@@ -9,12 +9,9 @@ import (
 	"github.com/tbui/yt-studio/domain/scheduler"
 )
 
-// ResumeScheduler rebuilds every open video's DAG from the database and hands
-// it back to the loop.
-//
-// This is what makes a crash 45 minutes into a run resume rather than restart:
-// the task table is the state, edges are persisted, and a task caught
-// mid-flight is simply re-run because every step is idempotent.
+// ResumeScheduler rebuilds every open video's DAG and hands it back to the
+// loop, so a crash mid-run resumes rather than restarts: the task table is the
+// state, edges are persisted, and an interrupted task simply runs again.
 func ResumeScheduler(
 	ctx context.Context,
 	tasks repository.TaskReader,

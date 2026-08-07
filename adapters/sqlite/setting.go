@@ -63,8 +63,7 @@ func (s *Store) UpdateSetting(ctx context.Context, key entity.SettingKey, value 
 	return candidate, nil
 }
 
-// UpsertSettings is the seed path: idempotent by key, so a fresh database and a
-// ten-times-seeded database end up in the same state. An existing row keeps its
+// UpsertSettings is the seed path, idempotent by key. An existing row keeps its
 // operator-set value; only the metadata around it is refreshed.
 func (s *Store) UpsertSettings(ctx context.Context, settings []entity.Setting) error {
 	now := toUnix(time.Now())

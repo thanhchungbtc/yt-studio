@@ -12,10 +12,8 @@ import (
 	"github.com/tbui/yt-studio/domain/scheduler"
 )
 
-// mapError translates a domain or use-case error into an HTTP status.
-//
-// Delivery knows nothing about why an operation failed beyond these sentinels,
-// which is what keeps handlers free of business logic.
+// mapError translates a domain or use-case error into an HTTP status. These
+// sentinels are all delivery knows about failure, which keeps handlers thin.
 func mapError(err error) error {
 	switch {
 	case err == nil:

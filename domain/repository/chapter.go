@@ -19,12 +19,9 @@ type ChapterWriter interface {
 	UpdateChapter(ctx context.Context, c entity.Chapter) error
 }
 
-// ChapterFieldWriter narrows writes to a single field.
-//
-// Two slide tasks for the same chapter run concurrently by design, so a
-// read-modify-write of the whole row would lose one of them. Each method here
-// is one atomic statement, which removes the race rather than locking around
-// it.
+// ChapterFieldWriter narrows writes to a single field. Two slide tasks for one
+// chapter run concurrently by design, so a read-modify-write of the whole row
+// would lose one; each method here is one atomic statement.
 type ChapterFieldWriter interface {
 	SetChapterScript(ctx context.Context, id entity.ChapterID, script string, durationSeconds float64) error
 	SetChapterPrompts(ctx context.Context, id entity.ChapterID, prompts []string) error

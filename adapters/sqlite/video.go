@@ -247,16 +247,10 @@ func (s *Store) SetVideoState(ctx context.Context, id entity.VideoID, state enti
 }
 
 // DeleteVideo removes a video and everything below it in one transaction, and
-// reports which files that left unreferenced.
-//
-// Chapters and asset rows go by foreign key; tasks and their edges are deleted
-// explicitly, because a task is keyed by video without a constraint to hang a
-// cascade on. Doing it as one transaction is what keeps a failure from leaving a
-// video with no graph, or a graph with no video.
-//
-// The owner count is asked *after* the rows are gone, so an address with no
-// owners left is one nothing surviving can reach. An address another video still
-// owns is simply not returned, and its file stays where it is.
+// reports which files that left unreferenced. Chapters and asset rows go by
+// foreign key; tasks and edges are deleted explicitly, having no constraint to
+// hang a cascade on. The owner count is asked after the rows are gone, so an
+// address with none left is one nothing surviving can reach.
 func (s *Store) DeleteVideo(ctx context.Context, id entity.VideoID) ([]entity.Asset, error) {
 	var unreferenced []entity.Asset
 	err := s.doTx(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {

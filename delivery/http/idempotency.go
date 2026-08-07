@@ -10,13 +10,9 @@ import (
 // idempotencyTTL bounds how long a replayed request key is remembered.
 const idempotencyTTL = 10 * time.Minute
 
-// idempotency makes mutations idempotent by request key.
-//
-// Most mutations in this API are already idempotent by construction — task
-// ids are deterministic and a gate is a row update — but creating a video
-// mints a ref from a counter, so a retried request must not produce a second
-// video. Replaying a stored response is the only way to make that safe from the
-// client's side.
+// idempotency makes mutations idempotent by request key. Most already are by
+// construction, but creating a video mints a ref from a counter, so a retried
+// request must replay the stored response rather than mint a second one.
 func idempotency(ttl time.Duration) func(http.Handler) http.Handler {
 	store := &idempotencyStore{
 		entries: make(map[string]idempotencyEntry, 64),
@@ -44,9 +40,8 @@ func idempotency(ttl time.Duration) func(http.Handler) http.Handler {
 			rec := &recordingWriter{ResponseWriter: w, status: http.StatusOK}
 			next.ServeHTTP(rec, r)
 			if rec.status < 500 {
-				// The captured body is pre-compression, and the replay is written back
-				// through the same middleware stack, so transfer headers from the original
-				// response must not be replayed with it.
+				// The captured body is pre-compression and the replay goes back
+				// through the same stack, so transfer headers must not ride along.
 				header := w.Header().Clone()
 				header.Del("Content-Encoding")
 				header.Del("Content-Length")

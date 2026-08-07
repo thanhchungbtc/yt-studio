@@ -20,19 +20,15 @@ const (
 	slugMaxLen = 64
 )
 
-// Slug is the stable, human-readable natural key of a Channel: lowercase
-// kebab-case, unique, and immutable once chosen. It is a domain type, not a
-// bare string, so validation happens exactly once at the constructor.
+// Slug is a Channel's natural key: lowercase kebab-case, unique, immutable
+// once chosen. A domain type, so validation happens once at the constructor.
 type Slug string
 
 // String returns the underlying text of the slug.
 func (s Slug) String() string { return string(s) }
 
-// NewSlug validates and constructs a Slug.
-//
-// Valid shape: lowercase ASCII letters and digits, separated by single hyphens,
-// starting and ending with an alphanumeric. `deep-sleep-stories` is valid;
-// `Deep_Sleep`, `-lead`, `trail-` and `double--hyphen` are not.
+// NewSlug validates and constructs a Slug: lowercase ASCII letters and digits
+// separated by single hyphens, starting and ending alphanumeric.
 func NewSlug(s string) (Slug, error) {
 	if len(s) < slugMinLen || len(s) > slugMaxLen {
 		return "", fmt.Errorf("%w %q: length must be %d..%d", ErrInvalidSlug, s, slugMinLen, slugMaxLen)
@@ -57,9 +53,8 @@ func NewSlug(s string) (Slug, error) {
 	return Slug(s), nil
 }
 
-// SlugifyName derives a candidate slug from a human display name. It is a
-// convenience for callers that did not supply an explicit slug; the result is
-// still validated by NewSlug.
+// SlugifyName derives a candidate slug from a display name, still validated by
+// NewSlug.
 func SlugifyName(name string) (Slug, error) {
 	var b strings.Builder
 	b.Grow(len(name))
@@ -79,10 +74,8 @@ func SlugifyName(name string) (Slug, error) {
 	return NewSlug(strings.Trim(b.String(), "-"))
 }
 
-// Prefix returns the uppercase issue-key prefix derived from a slug:
-// `deep-sleep-stories` yields `DSS`, `history` yields `HIS`. It is the first
-// letter of each hyphenated word, padded from the first word when there are
-// fewer than three words.
+// Prefix is the uppercase issue-key prefix: the first letter of each hyphenated
+// word, padded from the first word. `deep-sleep-stories` yields `DSS`.
 func (s Slug) Prefix() string {
 	words := strings.Split(string(s), "-")
 	var b strings.Builder
@@ -96,7 +89,6 @@ func (s Slug) Prefix() string {
 			return b.String()
 		}
 	}
-	// Fewer than three words: pad from the first word's remaining letters.
 	first := words[0]
 	for i := 1; i < len(first) && b.Len() < 3; i++ {
 		b.WriteByte(byte(unicode.ToUpper(rune(first[i]))))
@@ -107,9 +99,8 @@ func (s Slug) Prefix() string {
 	return b.String()
 }
 
-// Ref is the stable, human-readable natural key of a Video, shaped like a JIRA
-// issue key: `DSS-1`, `HIS-42`. The prefix comes from the owning channel's slug
-// and the number is a per-channel counter.
+// Ref is a Video's natural key, shaped like an issue key: `DSS-1`. The prefix
+// comes from the channel's slug, the number from a per-channel counter.
 type Ref string
 
 // String returns the underlying text of the ref.
@@ -151,8 +142,8 @@ func ParseRef(s string) (prefix string, seq int, err error) {
 	return prefix, seq, nil
 }
 
-// LooksLikeRef reports whether s has the shape of a video ref rather than an
-// opaque id. It is used by the API to resolve `/api/videos/{refOrID}`.
+// LooksLikeRef reports whether s is a video ref rather than an opaque id,
+// which is how `/api/videos/{refOrID}` resolves.
 func LooksLikeRef(s string) bool {
 	_, _, err := ParseRef(s)
 	return err == nil

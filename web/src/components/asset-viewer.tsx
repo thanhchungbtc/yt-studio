@@ -593,8 +593,8 @@ function Stage({
 }) {
   const url = assetUrl(item.id)
 
-  // Nothing has been drawn here yet. Said plainly rather than as a broken image,
-  // because the panel beside it is where the operator does something about it.
+  // Nothing drawn yet — said plainly rather than as a broken image, since the
+  // panel beside it is where something is done about that.
   if (item.pending) {
     return (
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
@@ -890,9 +890,8 @@ function PromptEditor({
 
   const trimmed = draft.trim()
   const unsaved = prompt !== undefined && trimmed !== prompt
-  // A generation that has not finished. The old picture stays on screen while
-  // the new one is drawn, so without this the panel looks idle for as long as
-  // the provider takes — and longer, if the task is waiting for a pool slot.
+  // The old picture stays on screen while a new one is drawn, so without this
+  // the panel looks idle for as long as the provider takes.
   const working = task ? task.state === 'running' || task.state === 'ready' : false
   const busy = run.isPending || working
 
@@ -987,8 +986,7 @@ function DrawStatus({ task, noun }: { task: Task | undefined; noun: string }) {
       )
     case 'blocked':
       // A retryable failure and an unmet dependency are both `blocked`; the
-      // attempt count is what separates them, and the deadline only refines the
-      // wording.
+      // attempt count separates them.
       if (task.attempt > 0 && task.error) {
         const seconds = retryAt ? Math.max(0, Math.round((retryAt - now) / 1000)) : 0
         return (

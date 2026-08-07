@@ -26,16 +26,12 @@ type VideoReader interface {
 type VideoWriter interface {
 	CreateVideo(ctx context.Context, v entity.Video) error
 	UpdateVideo(ctx context.Context, v entity.Video) error
-	// DeleteVideo removes a video and everything that belongs to it — its
-	// chapters, its asset rows and its task graph — as one transaction, and
-	// returns the assets whose last owner it just removed.
-	//
-	// Those returned assets are the files the caller may unlink: their rows are
-	// gone and no other video's row names the same content address. Anything
-	// still shared with a surviving video is deliberately absent. The unlink
-	// happens after this returns, never inside it — a crash in between leaves an
-	// unreferenced file, which the sweep reclaims, where the other order would
-	// leave a live row pointing at nothing.
+	// DeleteVideo removes a video, its chapters, asset rows and task graph in one
+	// transaction, and returns the assets whose last owner it removed — the files
+	// the caller may unlink. Anything still shared with a surviving video is
+	// absent. The unlink happens after this returns: a crash in between leaves an
+	// unreferenced file for the sweep, where the other order would leave a live
+	// row pointing at nothing.
 	DeleteVideo(ctx context.Context, id entity.VideoID) ([]entity.Asset, error)
 }
 
@@ -45,11 +41,11 @@ type VideoFieldWriter interface {
 	SetVideoBlueprintAsset(ctx context.Context, id entity.VideoID, assetID entity.AssetID) error
 	SetVideoFinalAsset(ctx context.Context, id entity.VideoID, assetID entity.AssetID) error
 	SetVideoThumbnailPlan(ctx context.Context, id entity.VideoID, p entity.ThumbnailPlan) error
-	// SetVideoThumbnailIcon writes one icon into the slot the plan sized for it,
-	// so icons that finish out of order still land in their own cell.
+	// SetVideoThumbnailIcon writes one icon into the slot the plan sized, so
+	// icons finishing out of order still land in their own cell.
 	SetVideoThumbnailIcon(ctx context.Context, id entity.VideoID, index int, assetID entity.AssetID) error
-	// SetVideoThumbnailCellPrompt replaces what one cell pictures, leaving the
-	// caption the plan gave it alone.
+	// SetVideoThumbnailCellPrompt replaces what one cell pictures, leaving its
+	// caption alone.
 	SetVideoThumbnailCellPrompt(ctx context.Context, id entity.VideoID, index int, prompt string) error
 	SetVideoThumbnailAsset(ctx context.Context, id entity.VideoID, assetID entity.AssetID) error
 	SetVideoMetadata(ctx context.Context, id entity.VideoID, m entity.Metadata) error

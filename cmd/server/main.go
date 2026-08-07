@@ -14,8 +14,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
+	"unicode"
 
 	"github.com/alecthomas/kong"
 	"github.com/google/uuid"
@@ -92,9 +95,8 @@ type cli struct {
 
 func main() {
 	var root cli
-	// Before the parse, not after: kong reads its `env:` tags through os.Getenv
-	// while parsing, so anything the file supplies has to be in the environment
-	// by now.
+	// Before the parse: kong reads its `env:` tags through os.Getenv while
+	// parsing, so the file's values have to be in the environment by now.
 	if err := loadEnvFile(); err != nil {
 		fmt.Fprintln(os.Stderr, "yt-studio:", err)
 		os.Exit(1)
@@ -134,12 +136,9 @@ func (c *seedCmd) Run() error {
 	return errors.Join(err, g.Wait(), store.Close())
 }
 
-// Run reclaims store files that nothing in the database references.
-//
-// It repairs asset ownership first, unconditionally. That order is the whole
-// safety property: a file a surviving video reaches only through its chapters'
-// id lists has no owning row until the repair gives it one, and without the row
-// this command would read it as garbage.
+// Run reclaims store files that nothing in the database references. It repairs
+// asset ownership first, unconditionally: a file reachable only through a
+// chapter's id list has no owning row until then, and would read as garbage.
 func (c *sweepCmd) Run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -277,9 +276,8 @@ func (c *serveCmd) Run() error {
 		return err
 	}
 
-	// Before anything can serve a delete, every reference to a stored file must
-	// have the row that says who owns it: that is what a delete consults to decide
-	// which files it may reclaim. Normally this finds nothing and costs one query.
+	// A delete decides what it may reclaim from the ownership rows, so they must
+	// exist before one can be served. Normally this finds nothing.
 	if repaired, err := app.RepairAssetOwnership(ctx, store, store, store, assets, time.Now().UTC(), log); err != nil {
 		return fmt.Errorf("repair asset ownership: %w", err)
 	} else if repaired > 0 {
@@ -297,10 +295,8 @@ func (c *serveCmd) Run() error {
 	}, log)
 	samples := sample.NewLibrary(c.Resources)
 
-	// The model is read through a closure rather than captured: settings are not
-	// loaded until after every backend has registered, and a model picked on the
-	// settings screen has to apply to the next generation rather than the next
-	// restart.
+	// A closure rather than a captured value: settings load after registration,
+	// and a model picked on the screen applies to the next generation.
 	nineRouter, err := ninerouter.New(ninerouter.Config{
 		BaseURL:       c.NineRouterURL,
 		APIKey:        c.NineRouterKey,
@@ -311,8 +307,7 @@ func (c *serveCmd) Run() error {
 		return err
 	}
 
-	// Same closure treatment, and for the same reason: nothing here may read a
-	// settings value before Load, and the size is picked on the settings screen.
+	// Same closure treatment, for the same reason.
 	runwareClient, err := runware.New(runware.Config{
 		APIKey: c.RunwareKey,
 		Model:  func() string { return settings.String(entity.SettingRunwareModel) },
@@ -325,7 +320,7 @@ func (c *serveCmd) Run() error {
 	}
 
 	// Same again, and only this backend's own knobs: how a chapter should sound
-	// reaches it on the request, from app.NarrationOptions below.
+	// arrives on the request, from app.NarrationOptions below.
 	xttsClient, err := tts.New(tts.Config{
 		BaseURL: c.XTTSURL,
 		Options: func() tts.Options {
@@ -354,12 +349,17 @@ func (c *serveCmd) Run() error {
 	providers.RegisterUploader("sample", sample.NewUploader(assets, time.Now))
 
 	settings.Constrain(providers.Options())
+	// By assignment rather than a literal: a map keyed by a settings key is
+	// checked for exhaustiveness, and only a few rows have a shortlist.
+	suggestions := make(map[entity.SettingKey][]entity.SettingSuggestion, 1)
+	suggestions[entity.SettingRunwareModel] = modelSuggestions(runware.Models())
+	suggestions[entity.SettingThumbnailFont] = fontSuggestions(thumbnail.Fonts(c.Resources))
+	settings.Suggest(suggestions)
 	if err := settings.Load(ctx); err != nil {
 		return err
 	}
-	// Every built-in preset is proved against what was just registered, so one
-	// naming a backend that has since been renamed fails here rather than when an
-	// operator clicks it and half the ports move.
+	// Every preset is proved against what was just registered, so one naming a
+	// renamed backend fails here rather than when somebody clicks it.
 	if err := app.CheckPresets(settings); err != nil {
 		return err
 	}
@@ -553,6 +553,44 @@ func (c *serveCmd) Run() error {
 	}
 	log.Info("yt-studio stopped")
 	return nil
+}
+
+// modelSuggestions adapts a backend's shortlist to the settings type. The
+// backend names its own checkpoints and knows nothing of the settings table;
+// the mapping between the two is wiring, so it happens here.
+func modelSuggestions(models []runware.Model) []entity.SettingSuggestion {
+	out := make([]entity.SettingSuggestion, 0, len(models))
+	for _, m := range models {
+		out = append(out, entity.SettingSuggestion{Value: m.AIR, Label: m.Name})
+	}
+	return out
+}
+
+// fontSuggestions labels each typeface with its name rather than its filename:
+// the row stores `CabinSketch-Bold.ttf` because that is what the renderer opens,
+// and "Cabin Sketch Bold" is what an operator is choosing between.
+func fontSuggestions(files []string) []entity.SettingSuggestion {
+	out := make([]entity.SettingSuggestion, 0, len(files))
+	for _, name := range files {
+		out = append(out, entity.SettingSuggestion{Value: name, Label: fontLabel(name)})
+	}
+	return out
+}
+
+// fontLabel turns a filename into the face it holds: drop the extension, and
+// split the CamelCase and hyphenated halves foundries write filenames in.
+func fontLabel(name string) string {
+	base := strings.TrimSuffix(name, filepath.Ext(name))
+	base = strings.NewReplacer("-", " ", "_", " ").Replace(base)
+	var b strings.Builder
+	b.Grow(len(base) + 4)
+	for i, r := range base {
+		if i > 0 && unicode.IsUpper(r) && !unicode.IsUpper(rune(base[i-1])) && base[i-1] != ' ' {
+			b.WriteByte(' ')
+		}
+		b.WriteRune(r)
+	}
+	return strings.Join(strings.Fields(b.String()), " ")
 }
 
 // narrationOptions reads how a chapter should sound from the rows belonging to

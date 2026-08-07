@@ -17,11 +17,9 @@ var _ provider.IconGenerator = (*Icon)(nil)
 // NewIcon wires the icon backend to a client.
 func NewIcon(c *Client) *Icon { return &Icon{c: c} }
 
-// Generate draws one tile and returns its content address.
-//
-// The size on the request is used for both edges: an icon is square by the
-// port's definition, and asking the model for the square directly is what keeps
-// the renderer from scaling a rectangle into one.
+// Generate draws one tile and returns its content address. The request's size
+// is both edges — an icon is square by the port's definition, and asking for
+// the square directly keeps the renderer from scaling a rectangle into one.
 func (i *Icon) Generate(ctx context.Context, req provider.IconRequest) (entity.AssetID, error) {
 	size := req.Size
 	if size < 1 {

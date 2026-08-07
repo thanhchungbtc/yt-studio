@@ -10,10 +10,8 @@ import (
 	"github.com/tbui/yt-studio/domain/repository"
 )
 
-// ComposeChapterClip joins one chapter's narration and slides into a clip.
-//
-// It is the join point of the DAG's two independent branches: the script/TTS
-// branch and the prompt/slide branch.
+// ComposeChapterClip joins one chapter's narration and slides into a clip,
+// where the DAG's two independent branches meet.
 //
 //nolint:revive // the parameter list is the dependency list
 func ComposeChapterClip(

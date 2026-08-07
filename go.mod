@@ -12,7 +12,6 @@ require (
 	golang.org/x/image v0.44.0
 	golang.org/x/sync v0.22.0
 	modernc.org/sqlite v1.54.0
-	pgregory.net/rapid v1.3.0
 )
 
 require (

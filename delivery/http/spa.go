@@ -10,14 +10,12 @@ import (
 	"time"
 )
 
-// bundleDir is where Vite writes its content-hashed output. It is deliberately
-// not "assets": that prefix is the server's artifact route.
+// bundleDir is where Vite writes its content-hashed output. Not "assets": that
+// prefix is the server's artifact route.
 const bundleDir = "app"
 
-// spaHandler serves the built React app from an embed.FS.
-//
-// Any unknown path falls through to index.html, because the client owns routing
-// — a deep link to /videos/DSS-14 must load the shell, not 404.
+// spaHandler serves the built React app from an embed.FS. An unknown path falls
+// through to index.html, because the client owns routing.
 func spaHandler(dist fs.FS) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if dist == nil {
@@ -45,9 +43,8 @@ func spaHandler(dist fs.FS) http.HandlerFunc {
 			serveIndex(w, r, dist)
 			return
 		}
-		// Vite emits content-hashed filenames under /app, so those are immutable;
-		// index.html must never be cached or a rebuild would serve a stale shell
-		// pointing at bundles that no longer exist.
+		// Names under /app are content-hashed and so immutable; a cached
+		// index.html would point at bundles a rebuild has already replaced.
 		if strings.HasPrefix(name, bundleDir+"/") {
 			w.Header().Set("Cache-Control", immutableCacheControl)
 		} else {

@@ -10,20 +10,14 @@ import (
 )
 
 // DeleteVideo removes a video, its chapters, its task graph and the files only
-// it was using.
+// it was using. The order is forced by what each step can undo: the scheduler
+// first, since it would otherwise keep working against rows about to vanish;
+// the rows next, in one transaction that also computes what nobody references;
+// the files last, because a stray file is waste the sweep collects while an
+// early unlink can take a file from a video the commit failed to delete.
 //
-// The order is forced by what each step can undo. The scheduler is told first,
-// because it holds the cancel function for whatever is running and would
-// otherwise keep working against rows that are about to disappear. The rows go
-// next, as one transaction, which is also what computes the set of files nobody
-// references any more. The files go last: unlinking before the commit risks
-// taking a file from a video the commit then failed to delete, while a file left
-// behind after it is only waste that `yt-studio sweep` collects.
-//
-// A file another video also uses is left alone. Identical bytes across two
-// videos are ordinary rather than exotic — the sample backends serve one
-// narration recording and a handful of slides to every video — so the store
-// keeps one copy and each video records a row against it.
+// A file another video also uses is left alone — identical bytes across videos
+// are ordinary, so the store keeps one copy with a row per owner.
 func DeleteVideo(
 	ctx context.Context,
 	videos repository.VideoReader,
@@ -48,12 +42,10 @@ func DeleteVideo(
 	return nil
 }
 
-// reclaim unlinks files whose last owner is gone.
-//
-// A failure here is logged rather than returned: the delete the operator asked
-// for has already committed, and reporting it as failed would invite a retry of
-// a video that no longer exists. What is left behind is disk, which the sweep
-// reclaims on the next run.
+// reclaim unlinks files whose last owner is gone. A failure is logged rather
+// than returned: the delete has already committed, so reporting failure would
+// invite a retry of a video that no longer exists, and the sweep collects what
+// is left.
 func reclaim(
 	ctx context.Context,
 	store provider.AssetStore,

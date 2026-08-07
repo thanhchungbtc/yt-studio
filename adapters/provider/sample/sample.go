@@ -2,23 +2,18 @@
 // files on disk, so the pipeline can be exercised against production-shaped
 // input without a GPU or a network call.
 //
-// It is a real backend, not a mock: it does real work, takes as long as that
-// work takes, and fails only when something is genuinely wrong. A video
-// composed from these files is one you can actually watch.
-//
-// The files are operator-supplied and sit beside the other fixed production
-// assets under the resources directory, discovered by pattern at first use:
+// It is a real backend, not a mock: a video composed from these files is one
+// you can actually watch. They are operator-supplied, under the resources
+// directory, and discovered by pattern at first use:
 //
 //	<resources>/sample/*.wav       narration, reused by every chapter
 //	<resources>/sample/img*.jpg    slides, rotated across chapters
 //	<resources>/sample/icon*.jpg   thumbnail tiles, one per grid cell
 //	<resources>/sample/video.mp4   the composed clip, and the final render
 //
-// The icons and the video are optional: they arrived after the first three, and
-// a library without them still serves narration and slides. Selecting this
-// backend for the icon or composer port without them is what reports the
-// absence, rather than a startup check failing over a file an operator may
-// never have wanted.
+// The icons and the video are optional: they arrived after the rest, so a
+// library without them still serves the others, and only Icons()/Video()
+// report the absence.
 package sample
 
 import (
@@ -32,17 +27,13 @@ import (
 	"github.com/tbui/yt-studio/domain/provider"
 )
 
-// ErrUnavailable reports missing or unusable sample media. It wraps the port's
-// sentinel, so a task fails once and says why instead of retrying a directory
-// that will not appear on its own.
+// ErrUnavailable reports missing or unusable sample media. Wrapping the port's
+// sentinel stops a task retrying a directory that will not appear on its own.
 var ErrUnavailable = fmt.Errorf("sample provider: %w", provider.ErrUnavailable)
 
-// Library is the discovered media, shared by both backends.
-//
-// Scanning lazily behind a sync.Once mirrors the ffmpeg composer: construction
-// touches no filesystem, so wiring cannot fail, and the operator learns about a
-// missing directory from Check at startup rather than from the first chapter of
-// a fifty-chapter video.
+// Library is the discovered media, shared by every backend here. It scans
+// lazily behind a sync.Once, so construction touches no filesystem and Check
+// reports a missing directory at startup.
 type Library struct {
 	dir string
 
@@ -54,9 +45,8 @@ type Library struct {
 	video  string
 }
 
-// NewLibrary points at the sample directory inside a resources root. Sharing
-// that flag is deliberate: these are fixed, operator-supplied,
-// too-large-to-commit files, which is exactly what the directory already holds.
+// NewLibrary points at the sample directory inside a resources root, which
+// already holds exactly this kind of operator-supplied file.
 func NewLibrary(resourcesDir string) *Library {
 	return &Library{dir: filepath.Join(resourcesDir, "sample")}
 }
@@ -64,8 +54,8 @@ func NewLibrary(resourcesDir string) *Library {
 // Dir returns the directory the media is read from.
 func (l *Library) Dir() string { return l.dir }
 
-// Check reports whether the media is present and usable, so startup can say so
-// once instead of every task saying it separately.
+// Check reports whether the media is present and usable, so startup says it
+// once rather than every task saying it separately.
 func (l *Library) Check() error {
 	l.once.Do(func() { l.err = l.scan() })
 	return l.err
@@ -91,12 +81,10 @@ func (l *Library) scan() error {
 	if err != nil {
 		return err
 	}
-	// Optional, so a missing set is not an error here — Icons is where it is
-	// reported, to whoever actually asked for one.
+	// Optional, so a missing set is reported by Icons, to whoever asked.
 	icons, _ := l.glob("icon*.jpg")
-	// Optional for the same reason, and reported by Video. The convention is
-	// video.mp4; the glob is what lets an operator keep the take they are using
-	// beside the ones they are not.
+	// Optional too, and reported by Video. The convention is video.mp4; the
+	// glob lets an operator keep the take in use beside the ones that are not.
 	video, _ := l.glob("*.mp4")
 
 	l.audio, l.slides, l.icons = audio[0], slides, icons
@@ -117,9 +105,7 @@ func (l *Library) Icons() ([]string, error) {
 	return l.icons, nil
 }
 
-// Video returns the sample render, or says why there is none. Optional for the
-// same reason as the icons: a library assembled before this backend existed
-// still serves the three ports it was assembled for.
+// Video returns the sample render, or says why there is none.
 func (l *Library) Video() (string, error) {
 	if err := l.Check(); err != nil {
 		return "", err
@@ -144,9 +130,8 @@ func (l *Library) glob(pattern string) ([]string, error) {
 	return matches, nil
 }
 
-// checkRIFF rejects a file that is not a WAV up front. The composer reads the
-// header directly to time a chapter, so a mislabelled file would otherwise
-// surface much later as a confusing composition failure.
+// checkRIFF rejects a non-WAV up front: the composer reads the header to time
+// a chapter, so a mislabelled file would surface much later.
 func checkRIFF(path string) error {
 	file, err := os.Open(path) //nolint:gosec // path comes from the resources directory
 	if err != nil {

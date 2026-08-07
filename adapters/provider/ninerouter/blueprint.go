@@ -24,13 +24,9 @@ type blueprintPrompt struct {
 	ExpectedOutputSchema string
 }
 
-// newBlueprintPrompt resolves the video's spoken-word budget.
-//
-// A target duration is the honest input — you want three hours and do not much
-// mind how many chapters that takes — so when one is set the budget comes from
-// it. Without one the length is whatever the requested chapters come to at the
-// default size, which is how videos planned before durations existed keep the
-// shape they were planned with.
+// newBlueprintPrompt resolves the video's spoken-word budget. A target duration
+// is the honest input, so it wins when set; without one the length is whatever
+// the requested chapters come to at the default size.
 func newBlueprintPrompt(req provider.BlueprintRequest) (blueprintPrompt, error) {
 	rate := entity.DefaultWordsPerMinute
 	total := req.TargetDurationMinutes * rate
@@ -50,17 +46,11 @@ func newBlueprintPrompt(req provider.BlueprintRequest) (blueprintPrompt, error) 
 	}, nil
 }
 
-// blueprintDoc is the outline as the model returns it and as the store keeps
-// it, in full.
-//
-// It is much richer than provider.Blueprint, deliberately. The brief a script
-// writer needs is a structured thing, and the port carries a title and a
-// sentence — so the whole document is what lands in the asset store, and only
-// the collapse below crosses the boundary. Nothing is lost, and widening the
-// port later is a change to the collapse rather than to the prompt.
-// The doc tags are the prompt's field descriptions. They read close to the
-// annotations they replaced because they are those annotations, moved to the
-// one place a generated schema can find them.
+// blueprintDoc is the outline in full, as the model returns it and the store
+// keeps it. It is richer than provider.Blueprint on purpose: the whole document
+// lands in the asset store and only the collapse below crosses the port, so
+// widening the port later is a change to the collapse rather than the prompt.
+// The doc tags are the prompt's field descriptions.
 type blueprintDoc struct {
 	Title    string       `json:"title" doc:"the video's working title, kept as given"`
 	Summary  string       `json:"summary" doc:"two or three sentences describing the whole video"`
@@ -81,22 +71,17 @@ type chapterDoc struct {
 	EstimatedWords int      `json:"estimated_words" doc:"this chapter's share of the video's spoken-word budget"`
 }
 
-// storedBlueprint is what lands in the asset store: the outline the model wrote
-// plus the identity the caller stamps on it. Keeping the two apart is what lets
-// the schema handed to the model describe only what the model supplies.
+// storedBlueprint is the outline plus the identity the caller stamps on it.
+// Kept apart so the schema handed to the model describes only its own output.
 type storedBlueprint struct {
 	Video entity.VideoID `json:"video"`
 	Ref   entity.Ref     `json:"ref"`
 	blueprintDoc
 }
 
-// Blueprint plans a video's chapters.
-//
-// There is almost no validation here on purpose. What the model returns is
-// trusted; the layers that already have an opinion enforce it — the tolerance
-// band in the use case owns the chapter count, and entity.NewChapter owns what
-// makes a chapter well formed. Checking any of it a second time here would only
-// mean two places to change.
+// Blueprint plans a video's chapters. There is almost no validation here on
+// purpose: the use case's tolerance band owns the chapter count and
+// entity.NewChapter owns what makes a chapter well formed.
 func (c *Client) Blueprint(ctx context.Context, req provider.BlueprintRequest) (provider.Blueprint, error) {
 	prompt, err := newBlueprintPrompt(req)
 	if err != nil {
@@ -116,9 +101,8 @@ func (c *Client) Blueprint(ctx context.Context, req provider.BlueprintRequest) (
 		return provider.Blueprint{}, err
 	}
 
-	// No fence stripping and no seeking for the outermost brace. The output
-	// contract is the last thing the system prompt says, and a response that
-	// ignores it is a bad roll rather than a shape to unwrap.
+	// No fence stripping and no seeking for the outermost brace: the contract is
+	// the last thing the prompt says, and ignoring it is a bad roll.
 	var doc blueprintDoc
 	if err := json.Unmarshal([]byte(content), &doc); err != nil {
 		return provider.Blueprint{}, fmt.Errorf("blueprint response is not JSON: %w (%s)",
@@ -153,10 +137,8 @@ func (c *Client) Blueprint(ctx context.Context, req provider.BlueprintRequest) (
 }
 
 // normalise renumbers the chapters from their position and falls back to the
-// requested title.
-//
-// Order is reassigned rather than trusted because it is the key the DAG and the
-// chapter table are addressed by; everything else the model said stands.
+// requested title. Order is reassigned rather than trusted because the DAG and
+// the chapter table are addressed by it; everything else the model said stands.
 func (d *blueprintDoc) normalise(req provider.BlueprintRequest) {
 	if strings.TrimSpace(d.Title) == "" {
 		d.Title = req.Title
@@ -166,12 +148,9 @@ func (d *blueprintDoc) normalise(req provider.BlueprintRequest) {
 	}
 }
 
-// brief renders one chapter's plan as the text the script writer receives.
-//
-// provider.BlueprintChapter carries a Summary, and a summary is not what a
-// writer needs — so the whole brief is folded into that field rather than
-// dropped. It reads as a block of direction rather than a sentence, which is
-// deliberate until the port grows fields of its own.
+// brief renders one chapter's plan as the text the script writer receives. The
+// port carries only a Summary, so the whole brief is folded into that field —
+// a block of direction rather than a sentence, until the port grows fields.
 func (c chapterDoc) brief() string {
 	var b strings.Builder
 	if concept := strings.TrimSpace(c.CoreConcept); concept != "" {
@@ -180,8 +159,7 @@ func (c chapterDoc) brief() string {
 
 	if points := trimmed(c.KeyPoints); len(points) > 0 {
 		section(&b)
-		// The first beat is the opening directive and reads as a heading; the rest
-		// are beats and read as a tight list beneath it.
+		// The first beat is the opening directive and reads as a heading.
 		b.WriteString(points[0])
 		for _, point := range points[1:] {
 			b.WriteString("\n- " + point)
@@ -206,8 +184,7 @@ func (c chapterDoc) brief() string {
 	return b.String()
 }
 
-// meta is the one-line direction footer: how this chapter should feel, how deep
-// it should go, and how long it should run.
+// meta is the one-line direction footer: feel, depth, length.
 func (c chapterDoc) meta() string {
 	parts := make([]string, 0, 4)
 	for _, field := range []string{c.Role, c.Tone, c.Pacing} {
@@ -221,8 +198,8 @@ func (c chapterDoc) meta() string {
 	return strings.Join(parts, " · ")
 }
 
-// trimmed drops blank entries and trims what is left, so a model that padded a
-// list with empty strings does not produce a brief full of stray bullets.
+// trimmed drops blank entries, so a padded list is not a brief full of stray
+// bullets.
 func trimmed(in []string) []string {
 	out := make([]string, 0, len(in))
 	for _, s := range in {
@@ -250,10 +227,9 @@ func (c *Client) putText(ctx context.Context, kind entity.AssetKind, text string
 	return stored.ID, nil
 }
 
-// putJSON stores a document and returns its content address.
-//
-// The encoding is indented so the asset viewer shows something legible, and
-// stable so two identical outlines share one address.
+// putJSON stores a document and returns its content address. Indented so the
+// asset viewer shows something legible, and stable so identical outlines share
+// one address.
 func (c *Client) putJSON(ctx context.Context, kind entity.AssetKind, v any) (entity.AssetID, error) {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
