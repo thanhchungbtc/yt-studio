@@ -20,8 +20,6 @@ type retryQueue struct {
 	items []retryItem
 }
 
-func (q *retryQueue) len() int { return len(q.items) }
-
 func (q *retryQueue) push(it retryItem) {
 	q.items = append(q.items, it)
 	i := len(q.items) - 1

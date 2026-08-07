@@ -5,6 +5,7 @@
 package http
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/tbui/yt-studio/domain/entity"
@@ -121,6 +122,12 @@ type VideoDTO struct {
 	FinalAssetID          string `json:"finalAssetId,omitempty"`
 	ThumbnailAssetID      string `json:"thumbnailAssetId,omitempty"`
 	//nolint:lll // one field, one line
+	ThumbnailOverrideAssetID string `json:"thumbnailOverrideAssetId,omitempty" doc:"A thumbnail the operator built in the editor; when present this is what publishes"`
+	//nolint:lll // one field, one line
+	EffectiveThumbnailAssetID string `json:"effectiveThumbnailAssetId,omitempty" doc:"The thumbnail that will actually publish: the override if there is one, otherwise the rendered one"`
+	//nolint:lll // one field, one line
+	ThumbnailDesign any `json:"thumbnailDesign,omitempty" doc:"The browser editor's document. Arbitrary JSON: the editor owns its shape and the server never interprets it"`
+	//nolint:lll // one field, one line
 	ThumbnailPlan []ThumbnailCellDTO `json:"thumbnailPlan" doc:"One entry per grid cell, in reading order; empty until the plan has run"`
 	//nolint:lll // one field, one line
 	ThumbnailIconIDs []string      `json:"thumbnailIconIds" doc:"The icon drawn for each cell, by index; an empty entry is a cell not yet drawn"`
@@ -161,6 +168,23 @@ func videoFrom(v entity.Video, counts repository.TaskCounts) VideoDTO {
 	}
 	if v.ThumbnailAssetID != nil {
 		dto.ThumbnailAssetID = string(*v.ThumbnailAssetID)
+	}
+	if v.ThumbnailOverrideAssetID != nil {
+		dto.ThumbnailOverrideAssetID = string(*v.ThumbnailOverrideAssetID)
+	}
+	// Sent alongside both rather than left to the client to work out, so the
+	// screen and the upload cannot come to different answers about which of the
+	// two images is live.
+	dto.EffectiveThumbnailAssetID = string(v.EffectiveThumbnailAssetID())
+	// Handed back as a JSON value rather than a string, so the editor reads its
+	// own document instead of parsing one out of a field. A document that will
+	// not decode is dropped rather than failing the whole video: it was written
+	// by a browser and nothing here depends on it.
+	if len(v.ThumbnailDesign) > 0 {
+		var doc any
+		if err := json.Unmarshal(v.ThumbnailDesign, &doc); err == nil {
+			dto.ThumbnailDesign = doc
+		}
 	}
 	// Never null: an unplanned grid is an empty list, so the client's cell loop
 	// is the same either way.

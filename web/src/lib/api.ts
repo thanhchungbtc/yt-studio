@@ -153,6 +153,34 @@ export const api = {
     post<Video>(`/api/videos/${encodeURIComponent(key)}/thumbnail/cells/${index}/generate`, {
       prompt,
     }),
+  /**
+   * Saves the thumbnail editor's working document. Autosaved as the operator
+   * edits, so this deliberately changes nothing about which image publishes.
+   */
+  saveThumbnailDesign: (key: string, design: unknown) =>
+    request<Video>(`/api/videos/${encodeURIComponent(key)}/thumbnail/design`, {
+      method: 'PUT',
+      body: JSON.stringify({ design }),
+    }),
+  /**
+   * Publishes the image the editor produced. Sent as raw PNG bytes rather than
+   * JSON: this is the finished picture, not a description of one.
+   *
+   * The rendered thumbnail is left where it is, so re-running that task — which
+   * redrawing any icon does — cannot discard this, and revert always works.
+   */
+  applyThumbnailOverride: (key: string, png: Blob) =>
+    request<Video>(`/api/videos/${encodeURIComponent(key)}/thumbnail/override`, {
+      method: 'POST',
+      body: png,
+      headers: { 'Content-Type': 'image/png' },
+    }),
+  /** Drops the hand-built thumbnail; the editor's document is kept. */
+  clearThumbnailOverride: (key: string) =>
+    request<Video>(`/api/videos/${encodeURIComponent(key)}/thumbnail/override`, {
+      method: 'DELETE',
+    }),
+
   retryChapter: (key: string, ordinal: number) =>
     post<void>(`/api/videos/${encodeURIComponent(key)}/chapters/${ordinal}/retry`),
 

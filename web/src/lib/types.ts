@@ -102,6 +102,18 @@ export interface Video {
   blueprintAssetId?: string
   finalAssetId?: string
   thumbnailAssetId?: string
+  /** A thumbnail built by hand in the editor. When set, this is what publishes. */
+  thumbnailOverrideAssetId?: string
+  /** The thumbnail that will actually publish: the override if there is one. */
+  effectiveThumbnailAssetId?: string
+  /**
+   * The editor's saved document. `unknown` on purpose: the server stores it
+   * without interpreting it, so this side is the only thing that knows the
+   * shape, and it has to check rather than assume — see `readDesign`.
+   *
+   * Absent from the video list, which strips it: only the editor reads it.
+   */
+  thumbnailDesign?: unknown
   /** One entry per grid cell, in reading order; empty until the plan has run. */
   thumbnailPlan: ThumbnailCell[]
   /** The icon drawn for each cell, by index; an empty entry is a cell not yet drawn. */

@@ -88,7 +88,13 @@ func getVideos(videos repository.VideoReader, tasks repository.TaskReader) func(
 		out := &VideosOutput{}
 		out.Body.Videos = make([]VideoDTO, 0, len(rows))
 		for _, r := range rows {
-			out.Body.Videos = append(out.Body.Videos, videoFrom(r.Video, r.Counts))
+			dto := videoFrom(r.Video, r.Counts)
+			// The editor document is the largest thing on a video and only the
+			// editor reads it, which opens one video at a time. This list is
+			// refetched on every scheduler event, so carrying a document per row
+			// would put kilobytes on the wire per tick for nobody.
+			dto.ThumbnailDesign = nil
+			out.Body.Videos = append(out.Body.Videos, dto)
 		}
 		out.Body.Total = total
 		return out, nil

@@ -21,8 +21,9 @@ INSERT INTO videos (
     id, channel_id, ref, title, topic, state, chapter_count, slides_per_chapter,
     target_duration_minutes, thumbnail_cells, blueprint_asset_id, final_asset_id,
     thumbnail_asset_id, thumbnail_plan_json, thumbnail_icon_ids_json,
+    thumbnail_override_asset_id, thumbnail_design_json,
     metadata_json, upload_json, error, created_at, updated_at, started_at, completed_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: UpdateVideo :exec
 UPDATE videos
@@ -30,6 +31,7 @@ SET title = ?, topic = ?, state = ?, chapter_count = ?, slides_per_chapter = ?,
     target_duration_minutes = ?, thumbnail_cells = ?,
     blueprint_asset_id = ?, final_asset_id = ?, thumbnail_asset_id = ?,
     thumbnail_plan_json = ?, thumbnail_icon_ids_json = ?,
+    thumbnail_override_asset_id = ?, thumbnail_design_json = ?,
     metadata_json = ?, upload_json = ?, error = ?, updated_at = ?,
     started_at = ?, completed_at = ?
 WHERE id = ?;
@@ -54,6 +56,22 @@ UPDATE videos SET final_asset_id = ?, updated_at = ? WHERE id = ?;
 
 -- name: SetVideoThumbnailAsset :exec
 UPDATE videos SET thumbnail_asset_id = ?, updated_at = ? WHERE id = ?;
+
+-- name: SetVideoThumbnailDesign :exec
+-- The browser editor's document, autosaved as it is edited. Scoped to its own
+-- column so saving a work in progress never touches which image is published.
+UPDATE videos SET thumbnail_design_json = ?, updated_at = ? WHERE id = ?;
+
+-- name: SetVideoThumbnailOverride :exec
+-- The hand-built thumbnail becomes the one that publishes. thumbnail_asset_id
+-- is deliberately untouched: the renderer still owns it, so the generated image
+-- remains on the row to compare against and to fall back to.
+UPDATE videos SET thumbnail_override_asset_id = ?, updated_at = ? WHERE id = ?;
+
+-- name: ClearVideoThumbnailOverride :exec
+-- Revert to the rendered thumbnail. The design is left alone, so the operator
+-- can reopen the editor on what they built and re-apply it.
+UPDATE videos SET thumbnail_override_asset_id = NULL, updated_at = ? WHERE id = ?;
 
 -- name: SetVideoThumbnailPlan :exec
 -- The plan and the slots its icons will land in are written together: a plan

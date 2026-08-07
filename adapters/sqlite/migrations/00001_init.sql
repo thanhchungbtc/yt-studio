@@ -56,7 +56,22 @@ CREATE TABLE videos (
     -- when the index is past the end -- an out-of-order write into an empty
     -- array would land in the wrong cell, and the icons finish in whatever
     -- order the image pool hands them back.
-    thumbnail_icon_ids_json TEXT NOT NULL DEFAULT '[]'
+    thumbnail_icon_ids_json TEXT NOT NULL DEFAULT '[]',
+    -- A thumbnail the operator built by hand in the browser editor, which wins
+    -- over the rendered one at upload.
+    --
+    -- Its own column rather than overwriting thumbnail_asset_id, because the
+    -- renderer keeps owning that one: redrawing a single icon re-runs the
+    -- thumbnail task, and a shared column would mean every cell edit silently
+    -- discarded the operator's work. Two columns also keep both images on the
+    -- row, so the screen can show what the renderer would have produced.
+    -- Cleared to fall back, which is why the design below outlives it.
+    thumbnail_override_asset_id TEXT,
+    -- The editor's own document: element positions, text, colours. Opaque here
+    -- and never parsed by the server -- the browser both writes it and is the
+    -- only thing that can render it. Stored so reopening the editor restores
+    -- what was built rather than reseeding from the renderer's layout.
+    thumbnail_design_json TEXT
 );
 
 CREATE INDEX idx_videos_channel_created ON videos (channel_id, created_at DESC);

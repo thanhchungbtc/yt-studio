@@ -30,10 +30,12 @@ func PublishVideo(
 	if video.Metadata == nil {
 		return entity.Failed{Err: fmt.Errorf("%w: video has no metadata", ErrValidation), Retryable: true}
 	}
-	// The thumbnail is a dependency, so a missing one means its task succeeded
-	// without recording anything. Better another attempt than letting YouTube
-	// pick a frame.
-	if video.ThumbnailAssetID == nil || *video.ThumbnailAssetID == "" {
+	// The one the operator built if there is one, otherwise what the renderer
+	// produced. The thumbnail is a dependency, so neither being present means
+	// its task succeeded without recording anything. Better another attempt
+	// than letting YouTube pick a frame.
+	thumbnailAssetID := video.EffectiveThumbnailAssetID()
+	if thumbnailAssetID == "" {
 		return entity.Failed{Err: fmt.Errorf("%w: video has no thumbnail", ErrValidation), Retryable: true}
 	}
 	channel, err := channels.ChannelByID(ctx, video.ChannelID)
@@ -58,7 +60,7 @@ func PublishVideo(
 		VideoRef:         video.Ref,
 		ChannelSlug:      channel.Slug,
 		FinalAssetID:     *video.FinalAssetID,
-		ThumbnailAssetID: *video.ThumbnailAssetID,
+		ThumbnailAssetID: thumbnailAssetID,
 		Metadata:         *video.Metadata,
 		DryRun:           dry,
 	})

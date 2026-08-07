@@ -27,6 +27,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.applyTaskTransitionStmt, err = db.PrepareContext(ctx, applyTaskTransition); err != nil {
 		return nil, fmt.Errorf("error preparing query ApplyTaskTransition: %w", err)
 	}
+	if q.clearVideoThumbnailOverrideStmt, err = db.PrepareContext(ctx, clearVideoThumbnailOverride); err != nil {
+		return nil, fmt.Errorf("error preparing query ClearVideoThumbnailOverride: %w", err)
+	}
 	if q.countAssetOwnersStmt, err = db.PrepareContext(ctx, countAssetOwners); err != nil {
 		return nil, fmt.Errorf("error preparing query CountAssetOwners: %w", err)
 	}
@@ -168,8 +171,14 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.setVideoThumbnailCellPromptStmt, err = db.PrepareContext(ctx, setVideoThumbnailCellPrompt); err != nil {
 		return nil, fmt.Errorf("error preparing query SetVideoThumbnailCellPrompt: %w", err)
 	}
+	if q.setVideoThumbnailDesignStmt, err = db.PrepareContext(ctx, setVideoThumbnailDesign); err != nil {
+		return nil, fmt.Errorf("error preparing query SetVideoThumbnailDesign: %w", err)
+	}
 	if q.setVideoThumbnailIconStmt, err = db.PrepareContext(ctx, setVideoThumbnailIcon); err != nil {
 		return nil, fmt.Errorf("error preparing query SetVideoThumbnailIcon: %w", err)
+	}
+	if q.setVideoThumbnailOverrideStmt, err = db.PrepareContext(ctx, setVideoThumbnailOverride); err != nil {
+		return nil, fmt.Errorf("error preparing query SetVideoThumbnailOverride: %w", err)
 	}
 	if q.setVideoThumbnailPlanStmt, err = db.PrepareContext(ctx, setVideoThumbnailPlan); err != nil {
 		return nil, fmt.Errorf("error preparing query SetVideoThumbnailPlan: %w", err)
@@ -203,6 +212,11 @@ func (q *Queries) Close() error {
 	if q.applyTaskTransitionStmt != nil {
 		if cerr := q.applyTaskTransitionStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing applyTaskTransitionStmt: %w", cerr)
+		}
+	}
+	if q.clearVideoThumbnailOverrideStmt != nil {
+		if cerr := q.clearVideoThumbnailOverrideStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing clearVideoThumbnailOverrideStmt: %w", cerr)
 		}
 	}
 	if q.countAssetOwnersStmt != nil {
@@ -440,9 +454,19 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing setVideoThumbnailCellPromptStmt: %w", cerr)
 		}
 	}
+	if q.setVideoThumbnailDesignStmt != nil {
+		if cerr := q.setVideoThumbnailDesignStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing setVideoThumbnailDesignStmt: %w", cerr)
+		}
+	}
 	if q.setVideoThumbnailIconStmt != nil {
 		if cerr := q.setVideoThumbnailIconStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing setVideoThumbnailIconStmt: %w", cerr)
+		}
+	}
+	if q.setVideoThumbnailOverrideStmt != nil {
+		if cerr := q.setVideoThumbnailOverrideStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing setVideoThumbnailOverrideStmt: %w", cerr)
 		}
 	}
 	if q.setVideoThumbnailPlanStmt != nil {
@@ -525,6 +549,7 @@ type Queries struct {
 	db                              DBTX
 	tx                              *sql.Tx
 	applyTaskTransitionStmt         *sql.Stmt
+	clearVideoThumbnailOverrideStmt *sql.Stmt
 	countAssetOwnersStmt            *sql.Stmt
 	countTasksByVideoStmt           *sql.Stmt
 	countVideosStmt                 *sql.Stmt
@@ -572,7 +597,9 @@ type Queries struct {
 	setVideoStateStmt               *sql.Stmt
 	setVideoThumbnailAssetStmt      *sql.Stmt
 	setVideoThumbnailCellPromptStmt *sql.Stmt
+	setVideoThumbnailDesignStmt     *sql.Stmt
 	setVideoThumbnailIconStmt       *sql.Stmt
+	setVideoThumbnailOverrideStmt   *sql.Stmt
 	setVideoThumbnailPlanStmt       *sql.Stmt
 	setVideoUploadStmt              *sql.Stmt
 	updateChannelStmt               *sql.Stmt
@@ -588,6 +615,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		db:                              tx,
 		tx:                              tx,
 		applyTaskTransitionStmt:         q.applyTaskTransitionStmt,
+		clearVideoThumbnailOverrideStmt: q.clearVideoThumbnailOverrideStmt,
 		countAssetOwnersStmt:            q.countAssetOwnersStmt,
 		countTasksByVideoStmt:           q.countTasksByVideoStmt,
 		countVideosStmt:                 q.countVideosStmt,
@@ -635,7 +663,9 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		setVideoStateStmt:               q.setVideoStateStmt,
 		setVideoThumbnailAssetStmt:      q.setVideoThumbnailAssetStmt,
 		setVideoThumbnailCellPromptStmt: q.setVideoThumbnailCellPromptStmt,
+		setVideoThumbnailDesignStmt:     q.setVideoThumbnailDesignStmt,
 		setVideoThumbnailIconStmt:       q.setVideoThumbnailIconStmt,
+		setVideoThumbnailOverrideStmt:   q.setVideoThumbnailOverrideStmt,
 		setVideoThumbnailPlanStmt:       q.setVideoThumbnailPlanStmt,
 		setVideoUploadStmt:              q.setVideoUploadStmt,
 		updateChannelStmt:               q.updateChannelStmt,

@@ -114,11 +114,14 @@ func videoFromRow(r sqlcgen.Video) (entity.Video, error) {
 		BlueprintAssetID:      toAssetID(r.BlueprintAssetID),
 		FinalAssetID:          toAssetID(r.FinalAssetID),
 		ThumbnailAssetID:      toAssetID(r.ThumbnailAssetID),
-		Error:                 r.Error,
-		CreatedAt:             fromUnix(r.CreatedAt),
-		UpdatedAt:             fromUnix(r.UpdatedAt),
-		StartedAt:             fromUnixPtr(r.StartedAt),
-		CompletedAt:           fromUnixPtr(r.CompletedAt),
+		// Nil unless the operator built their own thumbnail; the entity's
+		// EffectiveThumbnailAssetID is what decides between the two.
+		ThumbnailOverrideAssetID: toAssetID(r.ThumbnailOverrideAssetID),
+		Error:                    r.Error,
+		CreatedAt:                fromUnix(r.CreatedAt),
+		UpdatedAt:                fromUnix(r.UpdatedAt),
+		StartedAt:                fromUnixPtr(r.StartedAt),
+		CompletedAt:              fromUnixPtr(r.CompletedAt),
 	}
 	if r.MetadataJson != nil && *r.MetadataJson != "" {
 		var m entity.Metadata
@@ -136,6 +139,11 @@ func videoFromRow(r sqlcgen.Video) (entity.Video, error) {
 	}
 	if err := decodeJSON(r.ThumbnailIconIdsJson, &v.ThumbnailIconAssetIDs); err != nil {
 		return entity.Video{}, err
+	}
+	// Handed back as the bytes that were stored. Decoding it would mean naming
+	// its shape, and the browser owns that.
+	if r.ThumbnailDesignJson != nil && *r.ThumbnailDesignJson != "" {
+		v.ThumbnailDesign = entity.ThumbnailDesign(*r.ThumbnailDesignJson)
 	}
 	if r.UploadJson != nil && *r.UploadJson != "" {
 		var u entity.UploadRecord

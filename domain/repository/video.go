@@ -48,6 +48,17 @@ type VideoFieldWriter interface {
 	// caption alone.
 	SetVideoThumbnailCellPrompt(ctx context.Context, id entity.VideoID, index int, prompt string) error
 	SetVideoThumbnailAsset(ctx context.Context, id entity.VideoID, assetID entity.AssetID) error
+	// SetVideoThumbnailDesign stores the browser editor's document. Separate
+	// from the override below because the editor autosaves as it is edited, and
+	// saving a draft must not change which image publishes.
+	SetVideoThumbnailDesign(ctx context.Context, id entity.VideoID, d entity.ThumbnailDesign) error
+	// SetVideoThumbnailOverride makes a hand-built thumbnail the published one.
+	// It leaves the rendered thumbnail in place, so the renderer keeps owning
+	// its own field and re-running that task cannot destroy the operator's work.
+	SetVideoThumbnailOverride(ctx context.Context, id entity.VideoID, assetID entity.AssetID) error
+	// ClearVideoThumbnailOverride reverts to the rendered thumbnail, keeping the
+	// design so the editor reopens on what was built.
+	ClearVideoThumbnailOverride(ctx context.Context, id entity.VideoID) error
 	SetVideoMetadata(ctx context.Context, id entity.VideoID, m entity.Metadata) error
 	SetVideoUpload(ctx context.Context, id entity.VideoID, r entity.UploadRecord) error
 }

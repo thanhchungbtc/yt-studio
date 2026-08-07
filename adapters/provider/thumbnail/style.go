@@ -3,6 +3,8 @@ package thumbnail
 import (
 	"image"
 	"image/color"
+
+	"github.com/tbui/yt-studio/domain/entity"
 )
 
 // Every tunable of the thumbnail's look, as numbers rather than logic, so the
@@ -16,9 +18,11 @@ import (
 // ------------------------------------------------------------------ frame ---
 
 const (
-	// YouTube's thumbnail size.
-	frameWidth  = 1280
-	frameHeight = 720
+	// YouTube's thumbnail size. Taken from the entity rather than restated, so
+	// this renderer and the check on a hand-built upload cannot disagree about
+	// what size a thumbnail is.
+	frameWidth  = entity.ThumbnailWidth
+	frameHeight = entity.ThumbnailHeight
 
 	// backgroundBrightness is how much of the backdrop survives, out of 255.
 	// Lower is darker: white type over an undimmed photograph is unreadable.

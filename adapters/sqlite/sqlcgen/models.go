@@ -84,26 +84,28 @@ type TaskDep struct {
 }
 
 type Video struct {
-	ID                    string
-	ChannelID             string
-	Ref                   string
-	Title                 string
-	Topic                 string
-	State                 string
-	ChapterCount          int64
-	SlidesPerChapter      int64
-	BlueprintAssetID      *string
-	FinalAssetID          *string
-	MetadataJson          *string
-	UploadJson            *string
-	Error                 string
-	CreatedAt             int64
-	UpdatedAt             int64
-	StartedAt             *int64
-	CompletedAt           *int64
-	TargetDurationMinutes int64
-	ThumbnailAssetID      *string
-	ThumbnailCells        int64
-	ThumbnailPlanJson     *string
-	ThumbnailIconIdsJson  string
+	ID                       string
+	ChannelID                string
+	Ref                      string
+	Title                    string
+	Topic                    string
+	State                    string
+	ChapterCount             int64
+	SlidesPerChapter         int64
+	BlueprintAssetID         *string
+	FinalAssetID             *string
+	MetadataJson             *string
+	UploadJson               *string
+	Error                    string
+	CreatedAt                int64
+	UpdatedAt                int64
+	StartedAt                *int64
+	CompletedAt              *int64
+	TargetDurationMinutes    int64
+	ThumbnailAssetID         *string
+	ThumbnailCells           int64
+	ThumbnailPlanJson        *string
+	ThumbnailIconIdsJson     string
+	ThumbnailOverrideAssetID *string
+	ThumbnailDesignJson      *string
 }

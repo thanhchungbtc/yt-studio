@@ -469,6 +469,7 @@ func (c *serveCmd) Run() error {
 		Chapters:      store,
 		ChapterFields: store,
 		Assets:        store,
+		AssetWriter:   store,
 		Tasks:         store,
 		Store:         assets,
 		Settings:      settings,
@@ -502,6 +503,9 @@ func (c *serveCmd) Run() error {
 		Version:  version,
 		Started:  started,
 		Dist:     dist,
+		// The same background and typefaces the builtin renderer draws with, so
+		// the browser editor composes what the operator will actually get.
+		Resources: os.DirFS(c.Resources),
 	})
 
 	srv := &http.Server{

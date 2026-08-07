@@ -478,6 +478,50 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/videos/{key}/thumbnail/design': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Save the thumbnail editor's working document
+     * @description Stores the browser editor's document so reopening it restores what was built. The document is opaque to the server. This changes nothing about which image publishes -- the editor autosaves as it is edited, and a draft must not become the listing.
+     */
+    put: operations['saveThumbnailDesign']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/videos/{key}/thumbnail/override': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Publish a thumbnail built in the editor
+     * @description Stores the image the editor produced and makes it the thumbnail this video publishes with. The rendered thumbnail is left untouched on its own field, so re-running the thumbnail task -- which redrawing any single icon does -- cannot discard this, and reverting is always available.
+     */
+    post: operations['applyThumbnailOverride']
+    /**
+     * Revert to the rendered thumbnail
+     * @description Drops the hand-built thumbnail so the renderer's own image publishes again. The editor document is kept, so the work can be reopened and re-applied.
+     */
+    delete: operations['clearThumbnailOverride']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
 export type webhooks = Record<string, never>
 export interface components {
@@ -803,6 +847,16 @@ export interface components {
       /** @description Tasks that will be flagged stale rather than run */
       stale: components['schemas']['TaskDTO'][]
     }
+    SaveThumbnailDesignInputBody: {
+      /**
+       * Format: uri
+       * @description A URL to the JSON Schema for this object.
+       * @example https://example.com/schemas/SaveThumbnailDesignInputBody.json
+       */
+      readonly $schema?: string
+      /** @description Opaque editor document */
+      design: unknown
+    }
     SchedulerStatusDTO: {
       /**
        * Format: uri
@@ -1035,6 +1089,8 @@ export interface components {
       counts: components['schemas']['TaskCountsDTO']
       /** Format: date-time */
       createdAt: string
+      /** @description The thumbnail that will actually publish: the override if there is one, otherwise the rendered one */
+      effectiveThumbnailAssetId?: string
       error?: string
       finalAssetId?: string
       id: string
@@ -1059,8 +1115,12 @@ export interface components {
        * @description Tiles in the thumbnail grid; one icon is generated per tile
        */
       thumbnailCells: number
+      /** @description The browser editor's document. Arbitrary JSON: the editor owns its shape and the server never interprets it */
+      thumbnailDesign?: unknown
       /** @description The icon drawn for each cell, by index; an empty entry is a cell not yet drawn */
       thumbnailIconIds: string[]
+      /** @description A thumbnail the operator built in the editor; when present this is what publishes */
+      thumbnailOverrideAssetId?: string
       /** @description One entry per grid cell, in reading order; empty until the plan has run */
       thumbnailPlan: components['schemas']['ThumbnailCellDTO'][]
       title: string
@@ -2100,6 +2160,110 @@ export interface operations {
         'application/json': components['schemas']['RegenerateIconInputBody']
       }
     }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['VideoDTO']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  saveThumbnailDesign: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Video ref or id */
+        key: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SaveThumbnailDesignInputBody']
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['VideoDTO']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  applyThumbnailOverride: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Video ref or id */
+        key: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'image/png': string
+      }
+    }
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['VideoDTO']
+        }
+      }
+      /** @description Error */
+      default: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['ErrorModel']
+        }
+      }
+    }
+  }
+  clearThumbnailOverride: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description Video ref or id */
+        key: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
     responses: {
       /** @description OK */
       200: {

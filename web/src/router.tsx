@@ -47,6 +47,19 @@ const videoDetailRoute = createRoute({
   component: VideoDetailRoute,
 })
 
+/**
+ * The thumbnail editor is its own route rather than a modal over the detail
+ * pane: it wants the whole width, it is reached from the upload gate as often
+ * as from the artifact list, and being a URL means a half-finished design
+ * survives a reload. Split out of the initial bundle — it carries a renderer
+ * and most sessions never open it.
+ */
+const thumbnailEditorRoute = createRoute({
+  getParentRoute: () => videosLayoutRoute,
+  path: '$ref/thumbnail',
+  component: lazyRouteComponent(() => import('@/routes/thumbnail-editor'), 'ThumbnailEditorRoute'),
+})
+
 const channelsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/channels',
@@ -78,7 +91,7 @@ const settingsRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
-  videosLayoutRoute.addChildren([videosIndexRoute, videoDetailRoute]),
+  videosLayoutRoute.addChildren([videosIndexRoute, videoDetailRoute, thumbnailEditorRoute]),
   channelsRoute,
   schedulerRoute,
   settingsRoute,

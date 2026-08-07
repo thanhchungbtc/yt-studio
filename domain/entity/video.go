@@ -1,6 +1,7 @@
 package entity
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -119,6 +120,62 @@ type ThumbnailPlan struct {
 	Cells []ThumbnailCell
 }
 
+// The frame a thumbnail is published at, and the ceiling on the file. These
+// are YouTube's numbers rather than a layout choice, which is why they are here
+// and not among the renderer's style constants: an image outside them is
+// refused at upload whatever drew it.
+const (
+	ThumbnailWidth    = 1280
+	ThumbnailHeight   = 720
+	MaxThumbnailBytes = 2 << 20
+)
+
+// MaxThumbnailDesignBytes bounds the editor document. Nothing on this side
+// parses it, so this is the only thing standing between a runaway browser blob
+// and a row that ships in every video response.
+const MaxThumbnailDesignBytes = 256 << 10
+
+// ThumbnailDesign is the browser thumbnail editor's document: element
+// positions, text and colours as the editor wrote them.
+//
+// Deliberately opaque. The browser both authors this and is the only thing that
+// can render it -- the image it produces is uploaded finished -- so a struct
+// here would be a second definition of the same shape, kept in step for no
+// reader. Validation asks only what storing it requires.
+type ThumbnailDesign json.RawMessage
+
+// MarshalJSON passes the document through verbatim. Without this a []byte would
+// reach the API base64-encoded, and the editor would have to decode its own
+// document back out of its own video.
+func (d ThumbnailDesign) MarshalJSON() ([]byte, error) {
+	if len(d) == 0 {
+		return []byte("null"), nil
+	}
+	return d, nil
+}
+
+// UnmarshalJSON keeps the raw bytes rather than interpreting them.
+func (d *ThumbnailDesign) UnmarshalJSON(b []byte) error {
+	*d = append((*d)[:0], b...)
+	return nil
+}
+
+// Validate reports whether the design can be stored: well-formed JSON, and
+// bounded. An empty design is valid and means the editor was never opened.
+func (d ThumbnailDesign) Validate() error {
+	if len(d) == 0 {
+		return nil
+	}
+	if len(d) > MaxThumbnailDesignBytes {
+		return fmt.Errorf("%w: thumbnail design is %d bytes, over the %d limit",
+			ErrInvalidVideo, len(d), MaxThumbnailDesignBytes)
+	}
+	if !json.Valid(d) {
+		return fmt.Errorf("%w: thumbnail design is not valid JSON", ErrInvalidVideo)
+	}
+	return nil
+}
+
 // UploadRecord is the durable receipt of an upload attempt.
 type UploadRecord struct {
 	VideoID    string
@@ -150,6 +207,13 @@ type Video struct {
 	BlueprintAssetID *AssetID
 	FinalAssetID     *AssetID
 	ThumbnailAssetID *AssetID
+	// ThumbnailOverrideAssetID is a thumbnail the operator built by hand, which
+	// wins over the rendered one. Held apart from ThumbnailAssetID so that
+	// re-running the thumbnail task -- which redrawing any single icon does --
+	// cannot discard it. Nil means the rendered thumbnail publishes.
+	ThumbnailOverrideAssetID *AssetID
+	// ThumbnailDesign is the browser editor's document, opaque to the server.
+	ThumbnailDesign ThumbnailDesign
 	// ThumbnailIconAssetIDs is one slot per cell, sized when the plan is written
 	// so an out-of-order icon has a slot to land in rather than an array to grow.
 	ThumbnailIconAssetIDs []AssetID
@@ -162,6 +226,20 @@ type Video struct {
 	UpdatedAt   time.Time
 	StartedAt   *time.Time
 	CompletedAt *time.Time
+}
+
+// EffectiveThumbnailAssetID is the image that fronts the published video: the
+// one the operator built if there is one, otherwise what the renderer produced.
+// Every caller asks here, so the upload, the gate and the screen cannot come to
+// different answers about which of the two is live. Empty means neither exists.
+func (v Video) EffectiveThumbnailAssetID() AssetID {
+	if v.ThumbnailOverrideAssetID != nil && *v.ThumbnailOverrideAssetID != "" {
+		return *v.ThumbnailOverrideAssetID
+	}
+	if v.ThumbnailAssetID != nil {
+		return *v.ThumbnailAssetID
+	}
+	return ""
 }
 
 // NewVideo validates and constructs a Video in the draft state.

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useParams } from '@tanstack/react-router'
+import { Link, useParams } from '@tanstack/react-router'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   Ban,
@@ -481,14 +481,25 @@ function GateBanner({
           )}
           {/* The gate sits on the thumbnail so that this link exists: what is
               being approved is the listing, and the thumbnail is most of it. */}
-          {task.gate === 'upload' && video.thumbnailAssetId && (
+          {task.gate === 'upload' && video.effectiveThumbnailAssetId && (
             <button
               type="button"
               className="text-[hsl(var(--accent))] underline-offset-2 hover:underline"
-              onClick={() => openAt(video.thumbnailAssetId ?? '')}
+              onClick={() => openAt(video.effectiveThumbnailAssetId ?? '')}
             >
               Review the thumbnail
             </button>
+          )}
+          {/* The gate is the moment the thumbnail is judged, so it is also the
+              moment to change it — the editor is one click from the verdict. */}
+          {task.gate === 'upload' && (
+            <Link
+              to="/videos/$ref/thumbnail"
+              params={{ ref: video.ref }}
+              className="text-[hsl(var(--accent))] underline-offset-2 hover:underline"
+            >
+              Edit the thumbnail
+            </Link>
           )}
         </div>
       </div>
@@ -664,20 +675,31 @@ function Overview({
                 </PanelHeader>
                 <div className="space-y-2 px-3 py-2.5 text-[12px]">
                   {/* The listing as YouTube will show it: the thumbnail is what
-                      the title is read against, not a separate artifact. */}
-                  {video.thumbnailAssetId && (
+                      the title is read against, not a separate artifact. The
+                      one shown is whichever actually publishes — a hand-built
+                      thumbnail if there is one, else the rendered one. */}
+                  {video.effectiveThumbnailAssetId && (
                     <button
                       type="button"
                       className="block w-full overflow-hidden rounded"
-                      onClick={() => openAt(video.thumbnailAssetId ?? '')}
+                      onClick={() => openAt(video.effectiveThumbnailAssetId ?? '')}
                     >
                       <img
-                        src={assetUrl(video.thumbnailAssetId)}
+                        src={assetUrl(video.effectiveThumbnailAssetId)}
                         alt={`Thumbnail for ${video.title}`}
                         className="aspect-video w-full bg-black object-cover"
                       />
                     </button>
                   )}
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="xs" asChild>
+                      <Link to="/videos/$ref/thumbnail" params={{ ref: video.ref }}>
+                        <Pencil className="h-3 w-3" />
+                        Edit thumbnail
+                      </Link>
+                    </Button>
+                    {video.thumbnailOverrideAssetId && <Badge tone="violet">Hand-built</Badge>}
+                  </div>
                   <p className="font-medium text-fg">{video.metadata.title}</p>
                   {/* The hook competes for the same glance the title does, so it
                       reads next to it rather than buried under the tags. */}

@@ -30,6 +30,7 @@ type Deps struct {
 	Chapters      repository.ChapterReader
 	ChapterFields repository.ChapterFieldWriter
 	Assets        repository.AssetReader
+	AssetWriter   repository.AssetWriter
 	Tasks         repository.TaskReader
 	Store         provider.AssetStore
 	Settings      *service.Settings
@@ -65,6 +66,11 @@ type Deps struct {
 	// Dist is the built web UI, embedded in production builds. A nil value serves
 	// a clear error instead of a blank page.
 	Dist fs.FS
+	// Resources is the operator-supplied media directory, served so the browser
+	// thumbnail editor can compose against the same background and typefaces
+	// the builtin renderer uses. A directory rather than a path, so this layer
+	// never learns where resources live on disk.
+	Resources fs.FS
 }
 
 // Every list this API returns is make()d and never nil, so the client never has
@@ -98,7 +104,8 @@ func NewRouter(d Deps) (http.Handler, huma.API) {
 		d.Store, d.Settings, d.NewID, d.Now, d.Log)
 	registerChapterRoutes(api, d.Videos, d.Chapters, d.ChapterFields, d.Notifier, d.ChapRetry,
 		d.Prompts, d.StaleMark, d.Rerunner)
-	registerThumbnailRoutes(api, d.Videos, d.VideoFields, d.Tasks, d.Rerunner)
+	registerThumbnailRoutes(api, d.Videos, d.VideoFields, d.AssetWriter, d.Store,
+		d.Tasks, d.Rerunner, d.Now)
 	registerTaskRoutes(api, d.Videos, d.Tasks, d.TaskRetry, d.Prompts,
 		d.Rerunner, d.StaleRun, d.StaleOK)
 	registerSettingRoutes(api, d.Settings, d.Pools, d.Coalescer, d.LogLevel)
@@ -107,6 +114,7 @@ func NewRouter(d Deps) (http.Handler, huma.API) {
 
 	r.Get("/assets/{id}", assetHandler(d.Assets, d.Store))
 	r.Get("/events", eventsHandler(d.Events, d.Log))
+	r.Get("/resources/*", resourceHandler(d.Resources))
 
 	r.NotFound(spaHandler(d.Dist))
 	return r, api

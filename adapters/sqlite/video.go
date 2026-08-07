@@ -130,13 +130,17 @@ func createVideoParams(v entity.Video) (sqlcgen.CreateVideoParams, error) {
 		ThumbnailAssetID:      assetIDPtr(v.ThumbnailAssetID),
 		ThumbnailPlanJson:     plan,
 		ThumbnailIconIdsJson:  icons,
-		MetadataJson:          metadata,
-		UploadJson:            upload,
-		Error:                 v.Error,
-		CreatedAt:             toUnix(v.CreatedAt),
-		UpdatedAt:             toUnix(v.UpdatedAt),
-		StartedAt:             toUnixPtr(v.StartedAt),
-		CompletedAt:           toUnixPtr(v.CompletedAt),
+		// The operator's own thumbnail and the editor document behind it. Both
+		// are null on a new video: neither exists until the editor is opened.
+		ThumbnailOverrideAssetID: assetIDPtr(v.ThumbnailOverrideAssetID),
+		ThumbnailDesignJson:      blobs.design,
+		MetadataJson:             metadata,
+		UploadJson:               upload,
+		Error:                    v.Error,
+		CreatedAt:                toUnix(v.CreatedAt),
+		UpdatedAt:                toUnix(v.UpdatedAt),
+		StartedAt:                toUnixPtr(v.StartedAt),
+		CompletedAt:              toUnixPtr(v.CompletedAt),
 	}, nil
 }
 
@@ -147,6 +151,10 @@ type videoBlobs struct {
 	upload   *string
 	plan     *string
 	icons    string
+	// design is the editor document, stored verbatim rather than re-encoded:
+	// the browser authored this JSON and nothing here understands it, so a
+	// round trip through a Go value could only lose something.
+	design *string
 }
 
 func videoJSON(v entity.Video) (videoBlobs, error) {
@@ -183,6 +191,9 @@ func videoJSON(v entity.Video) (videoBlobs, error) {
 		return videoBlobs{}, fmt.Errorf("encode thumbnail icon ids: %w", err)
 	}
 	b.icons = s
+	if len(v.ThumbnailDesign) > 0 {
+		b.design = strPtr(string(v.ThumbnailDesign))
+	}
 	return b, nil
 }
 
@@ -207,13 +218,19 @@ func (s *Store) UpdateVideo(ctx context.Context, v entity.Video) error {
 			ThumbnailAssetID:      assetIDPtr(v.ThumbnailAssetID),
 			ThumbnailPlanJson:     plan,
 			ThumbnailIconIdsJson:  icons,
-			MetadataJson:          metadata,
-			UploadJson:            upload,
-			Error:                 v.Error,
-			UpdatedAt:             toUnix(v.UpdatedAt),
-			StartedAt:             toUnixPtr(v.StartedAt),
-			CompletedAt:           toUnixPtr(v.CompletedAt),
-			ID:                    string(v.ID),
+			// Carried here too, so a whole-row write stays a whole-row write.
+			// The field setters are what the editor uses; this is the path a
+			// caller holding an entity.Video takes, and dropping the two
+			// columns from it would silently revert them.
+			ThumbnailOverrideAssetID: assetIDPtr(v.ThumbnailOverrideAssetID),
+			ThumbnailDesignJson:      blobs.design,
+			MetadataJson:             metadata,
+			UploadJson:               upload,
+			Error:                    v.Error,
+			UpdatedAt:                toUnix(v.UpdatedAt),
+			StartedAt:                toUnixPtr(v.StartedAt),
+			CompletedAt:              toUnixPtr(v.CompletedAt),
+			ID:                       string(v.ID),
 		})
 	})
 }
@@ -385,6 +402,48 @@ func (s *Store) SetVideoThumbnailAsset(ctx context.Context, id entity.VideoID, a
 			ThumbnailAssetID: &value,
 			UpdatedAt:        toUnix(time.Now()),
 			ID:               string(id),
+		})
+	})
+}
+
+// SetVideoThumbnailDesign stores the browser editor's document as the operator
+// works. It touches no asset field, so autosaving a draft cannot change which
+// image publishes.
+func (s *Store) SetVideoThumbnailDesign(ctx context.Context, id entity.VideoID, d entity.ThumbnailDesign) error {
+	var value *string
+	if len(d) > 0 {
+		encoded := string(d)
+		value = &encoded
+	}
+	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
+		return q.SetVideoThumbnailDesign(ctx, sqlcgen.SetVideoThumbnailDesignParams{
+			ThumbnailDesignJson: value,
+			UpdatedAt:           toUnix(time.Now()),
+			ID:                  string(id),
+		})
+	})
+}
+
+// SetVideoThumbnailOverride makes a hand-built thumbnail the published one,
+// leaving the rendered thumbnail's own field untouched.
+func (s *Store) SetVideoThumbnailOverride(ctx context.Context, id entity.VideoID, assetID entity.AssetID) error {
+	value := string(assetID)
+	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
+		return q.SetVideoThumbnailOverride(ctx, sqlcgen.SetVideoThumbnailOverrideParams{
+			ThumbnailOverrideAssetID: &value,
+			UpdatedAt:                toUnix(time.Now()),
+			ID:                       string(id),
+		})
+	})
+}
+
+// ClearVideoThumbnailOverride reverts to the rendered thumbnail, keeping the
+// design so the editor reopens on what was built.
+func (s *Store) ClearVideoThumbnailOverride(ctx context.Context, id entity.VideoID) error {
+	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
+		return q.ClearVideoThumbnailOverride(ctx, sqlcgen.ClearVideoThumbnailOverrideParams{
+			UpdatedAt: toUnix(time.Now()),
+			ID:        string(id),
 		})
 	})
 }
