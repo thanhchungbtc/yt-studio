@@ -7,7 +7,7 @@ import type {
 } from 'react'
 import { forwardRef, useId } from 'react'
 
-import { cn } from '@/lib/utils'
+import { cn } from '@/core/utils'
 
 const CONTROL =
   'w-full rounded-[var(--radius-sm)] border border-[hsl(var(--border-strong))] bg-[hsl(var(--bg))] px-2.5 text-[13px] text-fg ' +

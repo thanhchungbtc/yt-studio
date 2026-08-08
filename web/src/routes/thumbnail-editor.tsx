@@ -17,13 +17,13 @@ import {
   Skeleton,
   Toolbar,
 } from '@/components/ui/primitives'
-import { api, assetUrl, qk } from '@/lib/api'
-import type { Design, DesignElement, TextElement, TileElement } from '@/lib/thumbnail/doc'
-import { FRAME_HEIGHT, FRAME_WIDTH, isText, isTile, readDesign } from '@/lib/thumbnail/doc'
-import { fontFamilyOf, resourceUrl, useFont, useImages } from '@/lib/thumbnail/loading'
-import { imageUrls, measureTracked } from '@/lib/thumbnail/render'
-import { seedDesign } from '@/lib/thumbnail/seed'
-import type { Video } from '@/lib/types'
+import { api, assetUrl, qk } from '@/core/api'
+import type { Design, DesignElement, TextElement, TileElement } from '@/core/thumbnail/doc'
+import { FRAME_HEIGHT, FRAME_WIDTH, isText, isTile, readDesign } from '@/core/thumbnail/doc'
+import { fontFamilyOf, resourceUrl, useFont, useImages } from '@/core/thumbnail/loading'
+import { imageUrls, measureTracked } from '@/core/thumbnail/render'
+import { seedDesign } from '@/core/thumbnail/seed'
+import type { Video } from '@/core/types'
 
 /** YouTube's ceiling, mirrored from entity.MaxThumbnailBytes so the operator
  *  sees the budget while they work rather than at the moment Apply is refused. */

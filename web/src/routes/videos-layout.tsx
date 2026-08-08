@@ -5,8 +5,8 @@ import { VideoSidebar } from '@/components/video-sidebar'
 import { Button } from '@/components/ui/button'
 import { Tooltip } from '@/components/ui/primitives'
 import { Splitter } from '@/components/ui/splitter'
-import { useHotkeys } from '@/lib/hotkeys'
-import { SIDEBAR_MAX, SIDEBAR_MIN, SIDEBAR_DEFAULT, useSidebar } from '@/lib/workspace'
+import { useHotkeys } from '@/core/hotkeys'
+import { SIDEBAR_MAX, SIDEBAR_MIN, SIDEBAR_DEFAULT, useSidebar } from '@/core/workspace'
 
 /**
  * The `/videos` workspace: sidebar, splitter, detail.

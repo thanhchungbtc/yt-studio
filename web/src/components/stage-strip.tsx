@@ -5,10 +5,10 @@ import { useAssetViewer } from '@/components/asset-viewer'
 import { RerunDialog } from '@/components/stale'
 import { ContextMenu, ContextMenuItem, ContextMenuLabel } from '@/components/ui/menu'
 import { Tooltip } from '@/components/ui/primitives'
-import type { ViewerItem } from '@/lib/assets'
-import { TASK_KIND_ORDER, taskLabel } from '@/lib/format'
-import type { Task, TaskKind } from '@/lib/types'
-import { cn } from '@/lib/utils'
+import type { ViewerItem } from '@/core/assets'
+import { TASK_KIND_ORDER, taskLabel } from '@/core/format'
+import type { Task, TaskKind } from '@/core/types'
+import { cn } from '@/core/utils'
 
 /**
  * The pipeline, as the scheduler actually runs it. The DAG has no stage barriers

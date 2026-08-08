@@ -3,7 +3,9 @@ import {
   createRoute,
   createRouter,
   lazyRouteComponent,
+  Outlet,
   redirect,
+  useRouterState,
 } from '@tanstack/react-router'
 
 import { AppShell } from '@/components/app-shell'
@@ -13,7 +15,17 @@ import { VideoDetailRoute } from '@/routes/video-detail'
 import { VideosLayout } from '@/routes/videos-layout'
 import { VideosStartRoute } from '@/routes/videos-start'
 
-const rootRoute = createRootRoute({ component: AppShell })
+/**
+ * The shell wraps every route except the workbench experiment, which draws its
+ * own title bar, rail and status bar and would otherwise be nested inside a
+ * second set of them.
+ */
+function Root() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  return pathname.startsWith('/workbench') ? <Outlet /> : <AppShell />
+}
+
+const rootRoute = createRootRoute({ component: Root })
 
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -89,12 +101,21 @@ const settingsRoute = createRoute({
     typeof search.section === 'string' && search.section !== '' ? { section: search.section } : {},
 })
 
+// The UI experiment. Split out of the initial bundle — it is a whole second
+// shell, and a session that never opens it should not pay for it.
+const workbenchRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/workbench',
+  component: lazyRouteComponent(() => import('@/routes/workbench'), 'WorkbenchRoute'),
+})
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   videosLayoutRoute.addChildren([videosIndexRoute, videoDetailRoute, thumbnailEditorRoute]),
   channelsRoute,
   schedulerRoute,
   settingsRoute,
+  workbenchRoute,
 ])
 
 export const router = createRouter({

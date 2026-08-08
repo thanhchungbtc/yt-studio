@@ -19,11 +19,11 @@ import type { ReactNode } from 'react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { Kbd } from '@/components/ui/primitives'
-import { api, qk } from '@/lib/api'
-import { useAppCommands } from '@/lib/app-commands'
-import { videoStateLabel } from '@/lib/format'
-import { useSidebar, useTheme } from '@/lib/workspace'
-import { cn } from '@/lib/utils'
+import { api, qk } from '@/core/api'
+import { useAppCommands } from '@/core/app-commands'
+import { videoStateLabel } from '@/core/format'
+import { useSidebar, useTheme } from '@/core/workspace'
+import { cn } from '@/core/utils'
 
 interface Command {
   id: string

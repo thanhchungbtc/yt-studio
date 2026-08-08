@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
+import { useCallback, useRef, useSyncExternalStore } from 'react'
 
 /**
  * Workspace state: the bits of the window a desktop application remembers
@@ -77,27 +77,10 @@ export function usePersisted<T>(
 
 /* ------------------------------------------------------------------ theme */
 
-export type Theme = 'dark' | 'light'
-
-export function applyTheme(theme: Theme): void {
-  document.documentElement.classList.toggle('dark', theme === 'dark')
-  document.documentElement.classList.toggle('light', theme === 'light')
-}
-
-export function useTheme(): [Theme, () => void] {
-  const [theme, setTheme] = usePersisted<Theme>(
-    'theme',
-    document.documentElement.classList.contains('dark') ? 'dark' : 'light',
-  )
-
-  useEffect(() => applyTheme(theme), [theme])
-
-  const toggle = useCallback(
-    () => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark')),
-    [setTheme],
-  )
-  return [theme, toggle]
-}
+// The theme moved to `core/theme`: it is a property of the document, read by
+// both shells and applied before React mounts. Re-exported here so the call
+// sites in the original UI keep working unchanged.
+export { applyTheme, useTheme, type Theme } from './theme'
 
 /* -------------------------------------------------------------- geometry */
 

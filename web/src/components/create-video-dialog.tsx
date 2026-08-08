@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Field, Input, Select, Textarea } from '@/components/ui/field'
 import { ErrorNotice, Modal } from '@/components/ui/primitives'
-import { api, qk } from '@/lib/api'
+import { api, qk } from '@/core/api'
 
 /**
  * Creating a video is the one destructive-ish action in the application, so it

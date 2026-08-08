@@ -43,8 +43,8 @@ import {
   Skeleton,
   Tooltip,
 } from '@/components/ui/primitives'
-import { api, qk } from '@/lib/api'
-import type { ViewerItem } from '@/lib/assets'
+import { api, qk } from '@/core/api'
+import type { ViewerItem } from '@/core/assets'
 import {
   formatAbsolute,
   formatCompactDuration,
@@ -54,11 +54,11 @@ import {
   taskLabel,
   taskSeconds,
   taskStateLabel,
-} from '@/lib/format'
-import { useHotkeys } from '@/lib/hotkeys'
-import type { Chapter, Task, TaskState, Video } from '@/lib/types'
-import { cn } from '@/lib/utils'
-import { usePersisted } from '@/lib/workspace'
+} from '@/core/format'
+import { useHotkeys } from '@/core/hotkeys'
+import type { Chapter, Task, TaskState, Video } from '@/core/types'
+import { cn } from '@/core/utils'
+import { usePersisted } from '@/core/workspace'
 
 /*
   The task table.

@@ -43,7 +43,7 @@ import {
   Toolbar,
   Tooltip,
 } from '@/components/ui/primitives'
-import { api, assetUrl, qk } from '@/lib/api'
+import { api, assetUrl, qk } from '@/core/api'
 import {
   artifactKindFor,
   chapterSlideItems,
@@ -53,8 +53,8 @@ import {
   producingTaskId,
   thumbnailCellItems,
   videoAssetItems,
-} from '@/lib/assets'
-import type { ViewerItem } from '@/lib/assets'
+} from '@/core/assets'
+import type { ViewerItem } from '@/core/assets'
 import {
   chapterKey,
   formatAbsolute,
@@ -62,10 +62,10 @@ import {
   formatRelative,
   percent,
   taskLabel,
-} from '@/lib/format'
-import { useHotkeys } from '@/lib/hotkeys'
-import type { Chapter, GateKind, Task, TaskKind, Video } from '@/lib/types'
-import { cn } from '@/lib/utils'
+} from '@/core/format'
+import { useHotkeys } from '@/core/hotkeys'
+import type { Chapter, GateKind, Task, TaskKind, Video } from '@/core/types'
+import { cn } from '@/core/utils'
 
 type Tab = 'overview' | 'chapters' | 'tasks' | 'artifacts'
 

@@ -4,7 +4,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import { TooltipProvider } from '@/components/ui/primitives'
-import { applyTheme } from '@/lib/workspace'
+import { applyTheme } from '@/core/workspace'
 import { router } from '@/router'
 
 import './styles.css'

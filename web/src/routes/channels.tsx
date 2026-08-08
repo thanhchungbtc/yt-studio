@@ -19,10 +19,10 @@ import {
   Skeleton,
   Tooltip,
 } from '@/components/ui/primitives'
-import { api, qk } from '@/lib/api'
-import { useAppCommands } from '@/lib/app-commands'
-import { formatAbsolute } from '@/lib/format'
-import type { Channel } from '@/lib/types'
+import { api, qk } from '@/core/api'
+import { useAppCommands } from '@/core/app-commands'
+import { formatAbsolute } from '@/core/format'
+import type { Channel } from '@/core/types'
 
 const CREDENTIAL_TONES: Record<Channel['credentials'], Tone> = {
   valid: 'success',

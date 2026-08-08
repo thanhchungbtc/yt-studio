@@ -5,10 +5,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ErrorNotice, Modal, Tooltip } from '@/components/ui/primitives'
-import { api, qk } from '@/lib/api'
-import { taskLabel } from '@/lib/format'
-import type { Task, Video } from '@/lib/types'
-import { cn } from '@/lib/utils'
+import { api, qk } from '@/core/api'
+import { taskLabel } from '@/core/format'
+import type { Task, Video } from '@/core/types'
+import { cn } from '@/core/utils'
 
 /* -------------------------------------------------------------- the mark */
 

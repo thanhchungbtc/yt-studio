@@ -3,8 +3,8 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { CommandPalette } from '@/components/command-palette'
 import { CreateVideoDialog } from '@/components/create-video-dialog'
 import { ShortcutsSheet } from '@/components/shortcuts-sheet'
-import { AppCommandsContext, type AppCommands } from '@/lib/app-commands'
-import { useHotkeys } from '@/lib/hotkeys'
+import { AppCommandsContext, type AppCommands } from '@/core/app-commands'
+import { useHotkeys } from '@/core/hotkeys'
 
 /**
  * The window-level surfaces — the command palette, the new-video dialog, the

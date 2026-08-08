@@ -18,6 +18,8 @@
 
 # Dependencies
 /web/node_modules/
+# Bundles the smoke tests build to run under node.
+/web/test/.tmp/
 
 # Editors
 .DS_Store

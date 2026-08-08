@@ -2,7 +2,7 @@ import { Slot } from '@radix-ui/react-slot'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { forwardRef } from 'react'
 
-import { cn } from '@/lib/utils'
+import { cn } from '@/core/utils'
 
 type Variant = 'default' | 'primary' | 'ghost' | 'danger' | 'success' | 'outline'
 type Size = 'xs' | 'sm' | 'md' | 'icon'

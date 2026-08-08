@@ -1,9 +1,9 @@
 import { memo } from 'react'
 
 import { Tooltip } from '@/components/ui/primitives'
-import { poolLabel } from '@/lib/format'
-import type { PoolName, PoolStat } from '@/lib/types'
-import { cn } from '@/lib/utils'
+import { poolLabel } from '@/core/format'
+import type { PoolName, PoolStat } from '@/core/types'
+import { cn } from '@/core/utils'
 
 /**
  * One pool per hue, so the status bar reads as a picture rather than a list of

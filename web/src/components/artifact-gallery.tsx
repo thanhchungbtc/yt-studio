@@ -44,14 +44,14 @@ import {
   Skeleton,
   Tooltip,
 } from '@/components/ui/primitives'
-import { assetUrl } from '@/lib/api'
-import { artifactKindRank, downloadName, kindTitle, mediaTypeOf, shortId } from '@/lib/assets'
-import type { ViewerItem } from '@/lib/assets'
-import { formatBytes, formatRelative } from '@/lib/format'
-import { useHotkeys } from '@/lib/hotkeys'
-import type { Video } from '@/lib/types'
-import { cn } from '@/lib/utils'
-import { usePersisted } from '@/lib/workspace'
+import { assetUrl } from '@/core/api'
+import { artifactKindRank, downloadName, kindTitle, mediaTypeOf, shortId } from '@/core/assets'
+import type { ViewerItem } from '@/core/assets'
+import { formatBytes, formatRelative } from '@/core/format'
+import { useHotkeys } from '@/core/hotkeys'
+import type { Video } from '@/core/types'
+import { cn } from '@/core/utils'
+import { usePersisted } from '@/core/workspace'
 
 /*
   The gallery.

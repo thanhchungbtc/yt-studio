@@ -40,11 +40,11 @@ import {
   Tooltip,
 } from '@/components/ui/primitives'
 import { Switch } from '@/components/ui/switch'
-import { api, qk } from '@/lib/api'
-import { formatRelative, poolLabel } from '@/lib/format'
-import { useHotkeys } from '@/lib/hotkeys'
-import type { PoolStat, Preset, PresetValue, Setting, SettingSuggestion } from '@/lib/types'
-import { cn } from '@/lib/utils'
+import { api, qk } from '@/core/api'
+import { formatRelative, poolLabel } from '@/core/format'
+import { useHotkeys } from '@/core/hotkeys'
+import type { PoolStat, Preset, PresetValue, Setting, SettingSuggestion } from '@/core/types'
+import { cn } from '@/core/utils'
 
 interface GroupMeta {
   title: string

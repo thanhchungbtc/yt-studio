@@ -1,13 +1,13 @@
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
 
-import type { Design, DesignElement } from '@/lib/thumbnail/doc'
-import { FRAME_HEIGHT, FRAME_WIDTH, hitTest } from '@/lib/thumbnail/doc'
-import type { ImageBank } from '@/lib/thumbnail/render'
-import { renderDesign } from '@/lib/thumbnail/render'
-import { resourceUrl } from '@/lib/thumbnail/loading'
-import { assetUrl } from '@/lib/api'
-import { cn } from '@/lib/utils'
+import type { Design, DesignElement } from '@/core/thumbnail/doc'
+import { FRAME_HEIGHT, FRAME_WIDTH, hitTest } from '@/core/thumbnail/doc'
+import type { ImageBank } from '@/core/thumbnail/render'
+import { renderDesign } from '@/core/thumbnail/render'
+import { resourceUrl } from '@/core/thumbnail/loading'
+import { assetUrl } from '@/core/api'
+import { cn } from '@/core/utils'
 
 /** The corner grips, and the whole-element drag. */
 type Grip = 'nw' | 'ne' | 'sw' | 'se' | 'move'

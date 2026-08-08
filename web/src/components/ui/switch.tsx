@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils'
+import { cn } from '@/core/utils'
 
 /**
  * A boolean as a switch rather than a two-option dropdown: the state is legible

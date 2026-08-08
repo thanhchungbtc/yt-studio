@@ -5,8 +5,8 @@ import type { HTMLAttributes, ReactNode, RefObject } from 'react'
 import { useEffect, useRef, useState } from 'react'
 
 import { TONE_FILL, type Tone } from '@/components/ui/badge'
-import { keycaps } from '@/lib/hotkeys'
-import { cn } from '@/lib/utils'
+import { keycaps } from '@/core/hotkeys'
+import { cn } from '@/core/utils'
 
 /* --------------------------------------------------------------- surfaces */
 

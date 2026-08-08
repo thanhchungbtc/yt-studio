@@ -1,9 +1,9 @@
 import { memo } from 'react'
 
 import { Badge, TONE_FILL, type Tone } from '@/components/ui/badge'
-import { taskStateLabel, videoStateLabel } from '@/lib/format'
-import type { TaskState, VideoState } from '@/lib/types'
-import { cn } from '@/lib/utils'
+import { taskStateLabel, videoStateLabel } from '@/core/format'
+import type { TaskState, VideoState } from '@/core/types'
+import { cn } from '@/core/utils'
 
 export const VIDEO_TONES: Record<VideoState, Tone> = {
   draft: 'neutral',

@@ -17,10 +17,10 @@ import {
   PanelTitle,
   Skeleton,
 } from '@/components/ui/primitives'
-import { api, qk } from '@/lib/api'
-import { formatDuration, formatRelative, poolLabel, taskLabel } from '@/lib/format'
-import type { Task, TaskState } from '@/lib/types'
-import { cn } from '@/lib/utils'
+import { api, qk } from '@/core/api'
+import { formatDuration, formatRelative, poolLabel, taskLabel } from '@/core/format'
+import type { Task, TaskState } from '@/core/types'
+import { cn } from '@/core/utils'
 
 const ROW_HEIGHT = 30
 const COLUMNS = '110px 100px 52px 76px 104px 56px minmax(0,1fr) 84px 64px'

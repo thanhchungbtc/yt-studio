@@ -16,6 +16,23 @@ import type {
 export type ConnectionState = 'connecting' | 'live' | 'offline'
 
 /**
+ * A read-only tap on the stream, for views that want to *watch* it rather than
+ * be kept current by it — the output log, chiefly.
+ *
+ * Listeners are notified before the cache is patched and cannot alter the
+ * frame: the stream's job is to keep the cache true, and an observer that could
+ * interfere with that would make the cache a function of who was watching.
+ */
+type StreamListener = (event: StreamEvent) => void
+
+const listeners = new Set<StreamListener>()
+
+export function subscribeStream(listener: StreamListener): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
+}
+
+/**
  * The single multiplexed SSE stream.
  *
  * Events carry deltas, applied to the query cache in place; the UI never
@@ -34,7 +51,17 @@ export function useEventStream(): ConnectionState {
 
     const onBatch = (event: MessageEvent<string>) => {
       try {
-        applyEvent(clientRef.current, JSON.parse(event.data) as StreamEvent)
+        const frame = JSON.parse(event.data) as StreamEvent
+        for (const listener of listeners) {
+          // Guarded one at a time: an observer is a spectator, and a throwing
+          // spectator must not stop the cache being patched.
+          try {
+            listener(frame)
+          } catch {
+            /* ignored */
+          }
+        }
+        applyEvent(clientRef.current, frame)
       } catch {
         // A malformed frame must not take the stream down.
       }

@@ -14,9 +14,9 @@ import {
   Skeleton,
   Toolbar,
 } from '@/components/ui/primitives'
-import { api, qk } from '@/lib/api'
-import { useAppCommands } from '@/lib/app-commands'
-import { formatRelative, videoStateLabel } from '@/lib/format'
+import { api, qk } from '@/core/api'
+import { useAppCommands } from '@/core/app-commands'
+import { formatRelative, videoStateLabel } from '@/core/format'
 
 /**
  * What fills the detail pane before a video is chosen.
