@@ -51,7 +51,22 @@ export function loadFont(file: string): Promise<boolean> {
 
 /** Loads a typeface and reports whether it is ready, so the canvas can wait for
  *  it rather than drawing one frame in the fallback face. */
-export function useFont(file: string): { family: string; ready: boolean; failed: boolean } {
+export function useFont(file: string): {
+  family: string
+  ready: boolean
+  failed: boolean
+  /**
+   * Whether the answer is in, either way.
+   *
+   * The editor waits on this rather than on `ready`, because the two are not
+   * the same question. Seeding wants the real face — the fitted headline size
+   * falls out of how wide the words measure — but a face that will not load is
+   * an answer too, and blocking on `ready` alone leaves the operator staring at
+   * an empty frame with no way to tell why. Better a substitute face and a
+   * warning that says so.
+   */
+  settled: boolean
+} {
   const family = fontFamilyOf(file)
   const [state, setState] = useState<'loading' | 'ready' | 'failed'>('loading')
 
@@ -66,7 +81,12 @@ export function useFont(file: string): { family: string; ready: boolean; failed:
     }
   }, [file])
 
-  return { family, ready: state === 'ready', failed: state === 'failed' }
+  return {
+    family,
+    ready: state === 'ready',
+    failed: state === 'failed',
+    settled: state !== 'loading',
+  }
 }
 
 const imageCache: ImageBank = new Map()

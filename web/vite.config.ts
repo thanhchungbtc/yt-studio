@@ -36,6 +36,11 @@ export default defineConfig(({ mode }) => {
       proxy: {
         '/api': { target: apiTarget, changeOrigin: true },
         '/assets/': { target: apiTarget, changeOrigin: true },
+        // The operator-supplied backdrop and typefaces the thumbnail editor
+        // draws with. Without this the SPA fallback answers with index.html at
+        // 200, which fails to parse as a font and leaves the editor composing
+        // in a substitute face against no background.
+        '/resources/': { target: apiTarget, changeOrigin: true },
         '/events': {
           target: apiTarget,
           changeOrigin: true,

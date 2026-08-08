@@ -83,7 +83,10 @@ export function ThumbnailEditorRoute() {
   const loadedFor = useRef<string | undefined>(undefined)
   useEffect(() => {
     const v = video.data
-    if (!v || !font.ready || loadedFor.current === v.id) return
+    // Waits for the typeface to settle rather than to succeed: seeding measures
+    // with the real face, but a face that will not load must still open the
+    // editor in a fallback rather than leaving an empty frame.
+    if (!v || !font.settled || loadedFor.current === v.id) return
     if (!settings.data) return
     loadedFor.current = v.id
     const stored = readDesign(v.thumbnailDesign)
@@ -91,7 +94,7 @@ export function ThumbnailEditorRoute() {
       stored ??
         seedFrom(v, fontSetting?.value ?? 'CabinSketch-Bold.ttf', Number(rowsSetting?.value ?? 2)),
     )
-  }, [video.data, settings.data, font.ready, seedFrom, fontSetting?.value, rowsSetting?.value])
+  }, [video.data, settings.data, font.settled, seedFrom, fontSetting?.value, rowsSetting?.value])
 
   /* ------------------------------------------------------------- editing */
 
@@ -303,6 +306,18 @@ export function ThumbnailEditorRoute() {
             />
           ) : (
             <Skeleton className="mx-auto aspect-video w-full max-w-[960px]" />
+          )}
+
+          {/* A video whose grid has not been planned yet opens on a headline
+              and nothing else. That is correct, and it looks exactly like a
+              broken screen, so it says which one it is. */}
+          {v.thumbnailPlan.length === 0 && (
+            <p className="mx-auto mt-3 max-w-[960px] rounded-[var(--radius-sm)] border border-[hsl(var(--border-strong))] bg-subtle px-3 py-2 text-[11.5px] leading-relaxed text-muted">
+              This video has no thumbnail grid yet — only the headline is on the frame. The cells
+              and their icons appear here once the thumbnail plan and icon tasks have run, and{' '}
+              <strong>Reset to the rendered layout</strong> will lay them out. You can still design
+              against the backdrop in the meantime.
+            </p>
           )}
 
           <p className="mx-auto mt-3 max-w-[960px] text-[11px] leading-relaxed text-subtle">
