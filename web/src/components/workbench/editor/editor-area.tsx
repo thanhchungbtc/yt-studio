@@ -29,7 +29,12 @@ export function EditorArea({ onNewVideo, onOpenPalette }: EditorAreaProps) {
           // after the last column.
           <Fragment key={group.id}>
             {index > 0 && <Handle />}
-            <Panel id={group.id} order={index} minSize={pct(320, 80 / groups.length)} className="flex min-w-0 flex-col">
+            <Panel
+              id={group.id}
+              order={index}
+              minSize={pct(320, 80 / groups.length)}
+              className="flex min-w-0 flex-col"
+            >
               <EditorGroup
                 group={group}
                 focused={group.id === focusedGroupId}

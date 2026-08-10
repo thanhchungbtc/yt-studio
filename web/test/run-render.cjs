@@ -20,6 +20,8 @@ global.AbortController = w.AbortController
 global.AbortSignal = w.AbortSignal
 global.MutationObserver = w.MutationObserver
 global.DOMRect = w.DOMRect
+// jsdom implements no scrolling at all.
+w.Element.prototype.scrollIntoView = function () {}
 class RO { observe() {} unobserve() {} disconnect() {} }
 global.ResizeObserver = RO; w.ResizeObserver = RO
 class IO { observe() {} unobserve() {} disconnect() {} }
@@ -60,10 +62,11 @@ async function main() {
     `subject ${first.ref} (${first.state})`)
   global.SUBJECT = first
   const { mount } = require('./.tmp/render.cjs')
+  const other = videos.videos[1] || videos.videos[0]
   mount(w.document.getElementById('root'), seed, [
-    { kind: 'video', ref: first.ref },
     { kind: 'channel', slug: channels[0].slug },
     { kind: 'settings' },
+    { kind: 'video', ref: other.ref },
     { kind: 'video', ref: first.ref },
   ], 'output')
 }
@@ -76,9 +79,10 @@ setTimeout(() => {
   const checks = {
     'shell chrome': text.includes('yt-studio') && text.includes('Explorer'),
     'explorer lists the subject': text.includes(s.ref),
-    'tab strip has four tabs': (html.match(/role="tab"/g) || []).length >= 4,
+    'tab strip holds four distinct tabs': (html.match(/data-tab-id=/g) || []).length >= 4,
+    'active tab is distinguished': html.includes('aria-selected="true"'),
     'settings tab present': text.includes('Settings'),
-    'breadcrumb + view dropdown': text.includes('Chapters'),
+    'view tabs are all one click': ['Chapters', 'Artifacts', 'Info'].every((v) => text.includes(v)),
     'video document body': text.includes(s.title || '\u0000'),
     'run panel': text.includes('Pipeline') || text.includes('RUN') || text.includes('Run'),
     'bottom panel tabs': text.includes('Console') && text.includes('Output'),

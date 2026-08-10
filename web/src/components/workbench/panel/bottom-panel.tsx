@@ -48,8 +48,8 @@ export function BottomPanel() {
         ))}
 
         <div className="ml-auto flex items-center gap-1">
-          <Kbd keys="$mod+KeyJ" className="opacity-60" />
-          <Tooltip label="Hide the panel" keys="$mod+KeyJ" side="top">
+          <Kbd keys="$mod+Digit2" className="opacity-60" />
+          <Tooltip label="Hide the panel" keys="$mod+Digit2" side="top">
             <IconButton aria-label="Hide the panel" onClick={toggleBottom}>
               <X className="h-3.5 w-3.5" />
             </IconButton>

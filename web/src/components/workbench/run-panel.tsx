@@ -42,7 +42,7 @@ export function RunPanel({ videoRef, onClose }: { videoRef: string; onClose: () 
   return (
     <div className="flex h-full min-h-0 flex-col bg-panel">
       <PaneHeader title="Run">
-        <Tooltip label="Hide the run panel" keys="$mod+Shift+KeyB" side="bottom">
+        <Tooltip label="Hide the run panel" keys="$mod+Digit3" side="bottom">
           <IconButton aria-label="Hide the run panel" onClick={onClose}>
             <PanelRightClose className="h-3.5 w-3.5" />
           </IconButton>

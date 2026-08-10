@@ -99,7 +99,6 @@ interface State {
   focusGroup: (groupId: string) => void
 
   toggleExplorer: () => void
-  showExplorer: () => void
   toggleAside: () => void
   toggleBottom: () => void
   showBottom: (view: BottomView) => void
@@ -344,7 +343,6 @@ export const useWorkbenchStore = create<State>()(
       focusGroup: (groupId) => set({ focusedGroupId: groupId }),
 
       toggleExplorer: () => set((s) => ({ explorerVisible: !s.explorerVisible })),
-      showExplorer: () => set({ explorerVisible: true }),
       toggleAside: () => set((s) => ({ asideVisible: !s.asideVisible })),
       toggleBottom: () => set((s) => ({ bottomVisible: !s.bottomVisible })),
       showBottom: (view) => set({ bottomVisible: true, bottomView: view }),

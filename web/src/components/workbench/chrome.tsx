@@ -67,7 +67,7 @@ export function TitleBar({ onOpenPalette }: { onOpenPalette: () => void }) {
       <div className="flex flex-1 shrink-0 items-center justify-end gap-0.5">
         <Tooltip
           label={explorerVisible ? 'Hide the explorer' : 'Show the explorer'}
-          keys="$mod+KeyB"
+          keys="$mod+Digit1"
           side="bottom"
         >
           <IconButton
@@ -80,7 +80,7 @@ export function TitleBar({ onOpenPalette }: { onOpenPalette: () => void }) {
         </Tooltip>
         <Tooltip
           label={bottomVisible ? 'Hide the panel' : 'Show the panel'}
-          keys="$mod+KeyJ"
+          keys="$mod+Digit2"
           side="bottom"
         >
           <IconButton aria-label="Toggle the panel" active={bottomVisible} onClick={toggleBottom}>
@@ -89,7 +89,7 @@ export function TitleBar({ onOpenPalette }: { onOpenPalette: () => void }) {
         </Tooltip>
         <Tooltip
           label={asideVisible ? 'Hide the run panel' : 'Show the run panel'}
-          keys="$mod+Shift+KeyB"
+          keys="$mod+Digit3"
           side="bottom"
         >
           <IconButton
@@ -143,7 +143,7 @@ export function ActivityBar() {
     >
       <RailButton
         label="Explorer"
-        keys="$mod+Shift+KeyE"
+        keys="$mod+Digit1"
         // Active means "this view is showing", so clicking the lit icon puts the
         // panel away — the toggle every editor rail has.
         active={explorerVisible}

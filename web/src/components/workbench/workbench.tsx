@@ -61,7 +61,6 @@ function Shell() {
 
   const explorerVisible = useWorkbenchStore((s) => s.explorerVisible)
   const toggleExplorer = useWorkbenchStore((s) => s.toggleExplorer)
-  const showExplorer = useWorkbenchStore((s) => s.showExplorer)
   const asideVisible = useWorkbenchStore((s) => s.asideVisible)
   const toggleAside = useWorkbenchStore((s) => s.toggleAside)
   const bottomVisible = useWorkbenchStore((s) => s.bottomVisible)
@@ -69,6 +68,7 @@ function Shell() {
   const openDoc = useWorkbenchStore((s) => s.open)
   const split = useWorkbenchStore((s) => s.split)
   const close = useWorkbenchStore((s) => s.close)
+  const activate = useWorkbenchStore((s) => s.activate)
 
   const group = useFocusedGroup()
   const tab = useActiveTab()
@@ -106,6 +106,14 @@ function Shell() {
     queryFn: () => api.getVideo(videoRef ?? ''),
     enabled: Boolean(videoRef),
   })
+
+  /** Walks the focused group's tabs, wrapping at both ends. */
+  const stepTab = (delta: number) => {
+    if (!group || group.tabs.length === 0) return
+    const current = group.tabs.findIndex((t) => t.id === group.activeId)
+    const next = group.tabs[(current + delta + group.tabs.length) % group.tabs.length]
+    if (next) activate(group.id, next.id)
+  }
 
   useCommands([
     {
@@ -150,33 +158,40 @@ function Shell() {
       },
     },
     {
-      id: 'view.explorer',
-      label: 'Toggle the explorer',
+      id: 'view.primary',
+      label: 'Toggle the primary sidebar',
       category: 'View',
-      keys: '$mod+KeyB',
+      keys: '$mod+Digit1',
       run: toggleExplorer,
     },
     {
-      id: 'view.revealExplorer',
-      label: 'Reveal the explorer',
+      id: 'view.bottom',
+      label: 'Toggle the bottom panel',
       category: 'View',
-      keys: '$mod+Shift+KeyE',
-      run: showExplorer,
+      keys: '$mod+Digit2',
+      run: toggleBottom,
     },
     {
-      id: 'view.run',
-      label: 'Toggle the run panel',
+      id: 'view.secondary',
+      label: 'Toggle the secondary sidebar',
       category: 'View',
-      keys: '$mod+Shift+KeyB',
+      keys: '$mod+Digit3',
       disabled: !asideAvailable,
       run: toggleAside,
     },
     {
-      id: 'view.panel',
-      label: 'Toggle the bottom panel',
-      category: 'View',
-      keys: '$mod+KeyJ',
-      run: toggleBottom,
+      id: 'editor.nextTab',
+      label: 'Next tab',
+      category: 'Go',
+      keys: '$mod+Alt+ArrowRight',
+      run: () => stepTab(1),
+    },
+    {
+      id: 'editor.previousTab',
+      label: 'Previous tab',
+      category: 'Go',
+      keys: '$mod+Alt+ArrowLeft',
+      run: () => stepTab(-1),
     },
     {
       id: 'view.split',

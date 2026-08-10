@@ -64,7 +64,7 @@ export function Welcome({
             </Action>
             <Action
               icon={<Terminal className="h-3.5 w-3.5" />}
-              keys="$mod+KeyJ"
+              keys="$mod+Digit2"
               onClick={() => showBottom('console')}
             >
               Console
@@ -100,12 +100,14 @@ export function Welcome({
           <dl className="grid gap-x-8 gap-y-1 text-[11.5px] sm:grid-cols-2">
             <Shortcut keys="$mod+KeyP" label="Go to a video or channel" />
             <Shortcut keys="$mod+Shift+KeyP" label="Run a command" />
-            <Shortcut keys="$mod+KeyB" label="Explorer" />
-            <Shortcut keys="$mod+Shift+KeyB" label="Run panel" />
-            <Shortcut keys="$mod+KeyJ" label="Bottom panel" />
+            <Shortcut keys="$mod+Digit1" label="Primary sidebar" />
+            <Shortcut keys="$mod+Digit2" label="Bottom panel" />
+            <Shortcut keys="$mod+Digit3" label="Secondary sidebar" />
             <Shortcut keys="$mod+Backslash" label="Split the editor" />
             <Shortcut keys="$mod+KeyW" label="Close the tab" />
+            <Shortcut keys="$mod+Alt+ArrowRight" label="Next tab" />
             <Shortcut keys="Alt+ArrowDown" label="Next video (preview)" />
+            <Shortcut keys="$mod+Enter" label="Approve the open gate" />
           </dl>
           <p className="px-2 pt-2 text-[11px] text-subtle">
             A single click previews — one italic tab, reused. Double-click, or press Enter, to keep
