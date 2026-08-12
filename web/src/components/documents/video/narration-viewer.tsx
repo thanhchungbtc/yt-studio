@@ -46,6 +46,7 @@ export function NarrationViewer({
   return (
     <Modal
       open
+      wide
       onOpenChange={(next) => {
         if (!next) onClose()
       }}
@@ -71,12 +72,35 @@ export function NarrationViewer({
         </>
       }
     >
-      <div className="flex flex-col items-center gap-5 py-2">
-        <Waveform />
-        {/* Autoplays: opening this is the act of asking to hear it. */}
-        <audio controls autoPlay preload="metadata" src={url} className="w-full max-w-md">
-          <track kind="captions" />
-        </audio>
+      <div className="flex min-h-0 flex-col gap-4">
+        <div className="flex shrink-0 flex-col items-center gap-4">
+          <Waveform />
+          {/* Autoplays: opening this is the act of asking to hear it. */}
+          <audio controls autoPlay preload="metadata" src={url} className="w-full max-w-md">
+            <track kind="captions" />
+          </audio>
+        </div>
+
+        {/* The words being spoken, to read along with. Its own scroller rather
+            than the dialog's, so the transport stays put while the script moves.
+            Set in the reading face, not the mono one the script *editor* uses:
+            this is prose being followed, not a document being changed. */}
+        <div className="min-h-0 flex-1">
+          <p className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-subtle">
+            Script
+          </p>
+          <div className="max-h-[38vh] overflow-y-auto rounded-[var(--radius-sm)] border border-[hsl(var(--border))] bg-subtle px-3 py-2.5">
+            {chapter.script ? (
+              <p className="whitespace-pre-wrap text-[12.5px] leading-[1.7] text-fg">
+                {chapter.script}
+              </p>
+            ) : (
+              <p className="text-[12px] text-subtle">
+                Not written yet — this narration has no script behind it.
+              </p>
+            )}
+          </div>
+        </div>
       </div>
     </Modal>
   )

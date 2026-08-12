@@ -171,6 +171,8 @@ async function main() {
     `subject ${first.ref} (${first.state})`)
   global.SUBJECT = first
   global.GATED = seed.tasks.some((task) => task.state === 'awaiting_approval')
+  const scripted = best.chapters.find((c) => (c.script || '').length > 60)
+  global.SCRIPT_HEAD = scripted ? scripted.script.slice(0, 60) : ''
   const { mount, useWorkbenchStore } = require('./.tmp/render.cjs')
   global.STORE = useWorkbenchStore
   const other = (scored[1] || scored[0]).v
@@ -263,6 +265,11 @@ async function assertAll() {
       'narration viewer opens': after.includes('Narration') && after.includes('Download'),
       'it names the chapter': /#\d/.test(after),
       'it has an audio transport': Boolean(w.document.querySelector('audio')),
+      'the script reads along beside it':
+        after.includes('Script') &&
+        Boolean(
+          global.SCRIPT_HEAD && after.includes(global.SCRIPT_HEAD),
+        ),
       'it is one artifact, not a gallery':
         !/\d+ \/ \d+/.test(after) &&
         !w.document.querySelector('[aria-label="Next"],[aria-label="Previous"]'),
