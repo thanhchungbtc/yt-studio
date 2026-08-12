@@ -63,7 +63,21 @@ const j = async (path) => (await fetch(API + path)).json()
 async function main() {
   const videos = await j('/api/videos?limit=200')
   const channels = (await j('/api/channels')).channels
-  const first = videos.videos[0]
+
+  // Chosen by what it can actually exercise, not by position. Picking
+  // videos[0] meant a new empty draft silently gutted half the assertions.
+  const scored = []
+  for (const v of videos.videos) {
+    const chapters = (await j('/api/videos/' + v.ref + '/chapters')).chapters
+    scored.push({ v, chapters, score: chapters.length * 10 + (v.state === 'awaiting_approval' ? 5 : 0) })
+  }
+  scored.sort((a, b) => b.score - a.score)
+  const best = scored[0]
+  if (!best || best.chapters.length === 0) {
+    console.log('render: skipped — no video on this server has chapters\n')
+    process.exit(0)
+  }
+  const first = best.v
   const video = await j('/api/videos/' + first.ref)
   const seed = {
     videos, channels, video,
@@ -71,7 +85,7 @@ async function main() {
     scheduler: await j('/api/scheduler'),
     settings: (await j('/api/settings')).settings,
     recentTasks: (await j('/api/tasks?limit=300')).tasks,
-    chapters: (await j('/api/videos/' + first.ref + '/chapters')).chapters,
+    chapters: best.chapters,
     tasks: (await j('/api/videos/' + first.ref + '/tasks')).tasks,
     assets: (await j('/api/videos/' + first.ref + '/assets')).assets,
   }
@@ -80,7 +94,7 @@ async function main() {
     `subject ${first.ref} (${first.state})`)
   global.SUBJECT = first
   const { mount } = require('./.tmp/render.cjs')
-  const other = videos.videos[1] || videos.videos[0]
+  const other = (scored[1] || scored[0]).v
   mount(w.document.getElementById('root'), seed, [
     { kind: 'channel', slug: channels[0].slug },
     { kind: 'settings' },
@@ -106,6 +120,11 @@ setTimeout(() => {
     ),
     'chapter rows render (virtualized)': (html.match(/data-chapter-row/g) || []).length > 0,
     'blueprint budget shown': /~\d+w/.test(text),
+    'summary shown in full, uncut': text.includes(
+      'Hand-off: If you replace every single part of an object',
+    ),
+    'no line clamp on the summary': !html.includes('line-clamp'),
+    'rows measure themselves': html.includes('data-index='),
     'written words shown beside it': /data-script-words="[1-9]\d*"/.test(html),
     'narration duration shown': /\d+:\d\d/.test(text),
     'slide thumbnails rendered': html.includes('/assets/') && html.includes('alt="Slide'),

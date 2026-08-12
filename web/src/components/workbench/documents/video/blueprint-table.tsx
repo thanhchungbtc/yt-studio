@@ -15,7 +15,8 @@ import { ClipCell, NarrationCell, ScriptCell, SlidesCell } from './cells'
 import { ScriptDialog } from './script-dialog'
 import { SLIDES_COLUMN, columnTotals, slideThumbWidth, stagesByChapter, wordsIn } from './stages'
 
-const ROW = 60
+/** A typical row, used only until the real one has been measured. */
+const ROW_ESTIMATE = 76
 const HEAD = 38
 
 /** The grid, in one place so the header and every row cannot disagree. */
@@ -68,7 +69,11 @@ export function BlueprintTable({
   const rows = useVirtualizer({
     count: chapters.length,
     getScrollElement: () => parent.current,
-    estimateSize: () => ROW,
+    estimateSize: () => ROW_ESTIMATE,
+    // A chapter summary is shown in full however long it runs, so rows are as
+    // tall as their own content and the virtualizer has to measure rather than
+    // assume.
+    measureElement: (element) => element.getBoundingClientRect().height,
     overscan: 10,
   })
 
@@ -142,6 +147,8 @@ export function BlueprintTable({
               return (
                 <Row
                   key={chapter.id}
+                  index={item.index}
+                  measureRef={rows.measureElement}
                   chapter={chapter}
                   stage={stage}
                   video={video}
@@ -201,6 +208,8 @@ function Count({ done, total }: { done: number; total?: number }) {
 }
 
 function Row({
+  index,
+  measureRef,
   chapter,
   stage,
   video,
@@ -209,6 +218,8 @@ function Row({
   onOpenScript,
   onOpenAsset,
 }: {
+  index: number
+  measureRef: (node: Element | null) => void
   chapter: Chapter
   stage: ReturnType<typeof stagesByChapter> extends Map<string, infer S> ? S : never
   video: Video
@@ -239,33 +250,39 @@ function Row({
       }
     >
       <div
+        ref={measureRef}
+        data-index={index}
         data-chapter-row={chapter.ordinal}
-        className="group absolute inset-x-0 grid items-center border-b border-[hsl(var(--border))] bg-app transition-colors hover:bg-[hsl(var(--bg-hover))]"
-        style={{ gridTemplateColumns: COLUMNS, height: ROW, transform: `translateY(${top}px)` }}
+        // 60px is a slide thumbnail plus its padding: a one-line summary must
+        // not crush the row below what the pictures beside it need.
+        className="group absolute inset-x-0 grid min-h-[60px] border-b border-[hsl(var(--border))] bg-app transition-colors hover:bg-[hsl(var(--bg-hover))]"
+        style={{ gridTemplateColumns: COLUMNS, transform: `translateY(${top}px)` }}
       >
         {/* Frozen while the rest scrolls sideways, so a narrow window never
             loses which chapter a cell belongs to. */}
-        <div className="sticky left-0 z-10 flex h-full items-center justify-end bg-app px-2 group-hover:bg-[hsl(var(--bg-hover))]">
+        <div className="sticky left-0 z-10 flex items-center justify-end bg-app px-2 pt-[9px] group-hover:bg-[hsl(var(--bg-hover))]">
           <span className="tabular text-[11px] font-semibold text-subtle">{chapter.ordinal}</span>
         </div>
 
-        <Tooltip label={chapter.summary || 'No summary'} side="right">
-          <div className="sticky left-10 z-10 flex h-full min-w-0 flex-col justify-center gap-0.5 bg-app px-2 group-hover:bg-[hsl(var(--bg-hover))]">
-            <div className="flex items-baseline gap-2">
-              <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-fg">
-                {chapter.title || <span className="text-subtle">Untitled</span>}
+        <div className="sticky left-10 z-10 flex min-w-0 flex-col justify-center gap-0.5 bg-app px-2 py-2 group-hover:bg-[hsl(var(--bg-hover))]">
+          <div className="flex items-baseline gap-2">
+            <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-fg">
+              {chapter.title || <span className="text-subtle">Untitled</span>}
+            </span>
+            {chapter.estimatedWords > 0 && (
+              <span className="tabular shrink-0 text-[10.5px] text-subtle">
+                ~{chapter.estimatedWords}w
               </span>
-              {chapter.estimatedWords > 0 && (
-                <span className="tabular shrink-0 text-[10.5px] text-subtle">
-                  ~{chapter.estimatedWords}w
-                </span>
-              )}
-            </div>
-            <p className="line-clamp-2 text-[11px] leading-[14px] text-muted">{chapter.summary}</p>
+            )}
           </div>
-        </Tooltip>
+          {/* In full, however long it runs, and with the blueprint's own line
+              breaks kept — the plan is the thing being reviewed here. */}
+          <p className="whitespace-pre-wrap text-[11px] leading-[15px] text-muted">
+            {chapter.summary}
+          </p>
+        </div>
 
-        <div className="flex h-full items-center px-2">
+        <div className="flex items-start px-2 pt-2">
           <ScriptCell
             cell={stage.script}
             words={words}
@@ -275,7 +292,7 @@ function Row({
           />
         </div>
 
-        <div className="flex h-full items-center px-2">
+        <div className="flex items-start px-2 pt-2">
           <NarrationCell
             cell={stage.narration}
             assetId={chapter.audioAssetId}
@@ -285,7 +302,7 @@ function Row({
           />
         </div>
 
-        <div className="flex h-full items-center px-2">
+        <div className="flex items-start px-2 pt-2">
           <SlidesCell
             chapter={chapter}
             cells={stage.slides}
@@ -294,7 +311,7 @@ function Row({
           />
         </div>
 
-        <div className="flex h-full items-center px-2">
+        <div className="flex items-start px-2 pt-2">
           <ClipCell
             cell={stage.clip}
             videoRef={video.ref}
@@ -303,7 +320,7 @@ function Row({
           />
         </div>
 
-        <div className="flex h-full items-center justify-center">
+        <div className="flex items-start justify-center pt-1.5">
           <Tooltip label="Re-run this chapter">
             <button
               type="button"
