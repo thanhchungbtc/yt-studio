@@ -22,7 +22,25 @@ global.MutationObserver = w.MutationObserver
 global.DOMRect = w.DOMRect
 // jsdom implements no scrolling at all.
 w.Element.prototype.scrollIntoView = function () {}
-class RO { observe() {} unobserve() {} disconnect() {} }
+// A no-op ResizeObserver silently disables every virtualized list: react-virtual
+// learns the viewport size from here and nowhere else, so it measures zero and
+// renders no rows. Report a plausible box instead.
+class RO {
+  constructor(cb) { this.cb = cb }
+  observe(el) {
+    const box = { inlineSize: 1440, blockSize: 900 }
+    const entry = {
+      target: el,
+      contentRect: { width: 1440, height: 900, top: 0, left: 0, right: 1440, bottom: 900 },
+      borderBoxSize: [box],
+      contentBoxSize: [box],
+      devicePixelContentBoxSize: [box],
+    }
+    setTimeout(() => this.cb([entry], this), 0)
+  }
+  unobserve() {}
+  disconnect() {}
+}
 global.ResizeObserver = RO; w.ResizeObserver = RO
 class IO { observe() {} unobserve() {} disconnect() {} }
 global.IntersectionObserver = IO; w.IntersectionObserver = IO
@@ -82,7 +100,15 @@ setTimeout(() => {
     'tab strip holds four distinct tabs': (html.match(/data-tab-id=/g) || []).length >= 4,
     'active tab is distinguished': html.includes('aria-selected="true"'),
     'settings tab present': text.includes('Settings'),
-    'view tabs are all one click': ['Chapters', 'Artifacts', 'Info'].every((v) => text.includes(v)),
+    'view tabs are all one click': ['Blueprint', 'Publish'].every((v) => text.includes(v)),
+    'table column heads': ['CHAPTER', 'SCRIPT', 'NARRATION', 'SLIDES', 'CLIP'].every((c) =>
+      text.toUpperCase().includes(c),
+    ),
+    'chapter rows render (virtualized)': (html.match(/data-chapter-row/g) || []).length > 0,
+    'blueprint budget shown': /~\d+w/.test(text),
+    'written words shown beside it': /data-script-words="[1-9]\d*"/.test(html),
+    'narration duration shown': /\d+:\d\d/.test(text),
+    'slide thumbnails rendered': html.includes('/assets/') && html.includes('alt="Slide'),
     'video document body': text.includes(s.title || '\u0000'),
     'run panel': text.includes('Pipeline') || text.includes('RUN') || text.includes('Run'),
     'bottom panel tabs': text.includes('Console') && text.includes('Output'),

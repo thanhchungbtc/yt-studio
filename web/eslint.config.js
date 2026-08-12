@@ -17,21 +17,23 @@ import tseslint from 'typescript-eslint'
  *               UI": a second copy would drift from the OpenAPI document it is
  *               generated against.
  *
- *   the two components named below, which have not been ported yet.
+ *   the one component named below, which has not been ported yet.
  *
  * No recommended ruleset is enabled. The point is one enforceable boundary, not
  * a thousand-warning front across code that already ships.
  */
 
 /**
- * ~2,100 lines of asset viewer and artifact gallery still owned by the original
- * UI. They come across when they are rewritten. Listing them here — rather than
- * quietly allowing `@/components/*` — is what keeps two exceptions from becoming
- * five.
+ * The one component still owned by the original UI: the asset viewer, ~1,000
+ * lines of lightbox that is worth keeping rather than rewriting. The artifact
+ * gallery left this list when the blueprint table replaced it.
+ *
+ * Listing the files by name — rather than quietly allowing `@/components/*` —
+ * is what keeps one exception from becoming five.
  */
 const PENDING_PORT = {
   'src/components/workbench/workbench.tsx': '@/components/asset-viewer',
-  'src/components/workbench/documents/video-doc.tsx': '@/components/artifact-gallery',
+  'src/components/workbench/documents/video/blueprint-table.tsx': '@/components/asset-viewer',
 }
 
 const FORBIDDEN = {
