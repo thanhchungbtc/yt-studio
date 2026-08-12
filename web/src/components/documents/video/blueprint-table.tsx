@@ -11,6 +11,7 @@ import { cn } from '@/core/utils'
 import { ClipCell, NarrationCell, ScriptCell, SlidesCell } from './cells'
 import { NarrationViewer } from './narration-viewer'
 import { ScriptDialog } from './script-dialog'
+import { SlideViewer } from './slide-viewer'
 import { useWorkbenchStore } from '../../lib/store'
 import {
   columnTotals,
@@ -83,6 +84,8 @@ export function BlueprintTable({
   const parent = useRef<HTMLDivElement>(null)
   const [scripting, setScripting] = useState<Chapter | null>(null)
   const [hearing, setHearing] = useState<Chapter | null>(null)
+  // Addressed by slot, not by asset: an undrawn square has no asset to name.
+  const [slide, setSlide] = useState<{ chapterId: string; slot: number } | null>(null)
 
   const stored = useWorkbenchStore((s) => s.columnWidths)
   const widths = useMemo(
@@ -193,6 +196,7 @@ export function BlueprintTable({
                   top={item.start}
                   onOpenScript={() => setScripting(chapter)}
                   onOpenNarration={() => setHearing(chapter)}
+                  onOpenSlide={(slot) => setSlide({ chapterId: chapter.id, slot })}
                   onOpenAsset={open}
                 />
               )
@@ -200,6 +204,20 @@ export function BlueprintTable({
           </div>
         </div>
       </div>
+
+      {slide &&
+        (() => {
+          const chapter = chapters.find((c) => c.id === slide.chapterId)
+          return chapter ? (
+            <SlideViewer
+              key={`${slide.chapterId}:${slide.slot}`}
+              video={video}
+              chapter={chapter}
+              slot={slide.slot}
+              onClose={() => setSlide(null)}
+            />
+          ) : null
+        })()}
 
       {hearing && (
         <NarrationViewer
@@ -376,6 +394,7 @@ function Row({
   top,
   onOpenScript,
   onOpenNarration,
+  onOpenSlide,
   onOpenAsset,
 }: {
   template: string
@@ -387,6 +406,7 @@ function Row({
   top: number
   onOpenScript: () => void
   onOpenNarration: () => void
+  onOpenSlide: (slot: number) => void
   onOpenAsset: (assetId: string | undefined) => void
 }) {
   return (
@@ -444,7 +464,7 @@ function Row({
           chapter={chapter}
           cells={stage.slides}
           thumbWidth={thumbWidth}
-          onOpenSlide={(slot) => onOpenAsset(chapter.slideAssetIds[slot])}
+          onOpenSlide={onOpenSlide}
         />
       </div>
 

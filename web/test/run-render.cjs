@@ -166,6 +166,16 @@ async function main() {
     tasks: (await j('/api/videos/' + first.ref + '/tasks')).tasks,
     assets: (await j('/api/videos/' + first.ref + '/assets')).assets,
   }
+  // Blank one slot so the undrawn case is exercised: clicking a dashed square
+  // used to do nothing at all, because the handler was given an asset id and an
+  // undrawn slot has none.
+  const last = seed.chapters[seed.chapters.length - 1]
+  if (last && last.slideAssetIds.length > 1) {
+    last.slideAssetIds = [...last.slideAssetIds]
+    last.slideAssetIds[last.slideAssetIds.length - 1] = ''
+    global.BLANKED = true
+  }
+
   console.log(`seeded: ${videos.videos.length} videos, ${channels.length} channels, ` +
     `${seed.chapters.length} chapters, ${seed.tasks.length} tasks, ${seed.settings.length} settings; ` +
     `subject ${first.ref} (${first.state})`)
@@ -173,6 +183,16 @@ async function main() {
   global.GATED = seed.tasks.some((task) => task.state === 'awaiting_approval')
   const scripted = best.chapters.find((c) => (c.script || '').length > 60)
   global.SCRIPT_HEAD = scripted ? scripted.script.slice(0, 60) : ''
+  // The tail of the subject's longest summary, so "shown in full" is checked
+  // against whatever this server actually holds. It used to be a string copied
+  // out of one video's chapter 2, which stopped existing the moment a
+  // higher-scoring video appeared.
+  const longest = best.chapters.reduce(
+    (a, c) => ((c.summary || '').length > (a?.summary || '').length ? c : a),
+    null,
+  )
+  global.SUMMARY_TAIL =
+    longest && longest.summary.length > 200 ? longest.summary.slice(-60) : ''
   const { mount, useWorkbenchStore } = require('./.tmp/render.cjs')
   global.STORE = useWorkbenchStore
   const other = (scored[1] || scored[0]).v
@@ -216,9 +236,9 @@ async function assertAll() {
     ),
     'chapter rows render (virtualized)': (html.match(/data-chapter-row/g) || []).length > 0,
     'blueprint budget shown': /~\d+w/.test(text),
-    'summary shown in full, uncut': text.includes(
-      'Hand-off: If you replace every single part of an object',
-    ),
+    ...(global.SUMMARY_TAIL
+      ? { 'summary shown in full, uncut': text.includes(global.SUMMARY_TAIL) }
+      : { '~ summary in full (skipped: no summary long enough to truncate)': true }),
     'no line clamp on the summary': !html.includes('line-clamp'),
     'rows measure themselves': html.includes('data-index='),
     'every column has a resize handle': (html.match(/Resize the \w+ column/g) || []).length === 5,
@@ -234,6 +254,7 @@ async function assertAll() {
     'written words shown beside it': /data-script-words="[1-9]\d*"/.test(html),
     'narration duration shown': /\d+:\d\d/.test(text),
     'slide thumbnails rendered': html.includes('/assets/') && html.includes('alt="Slide'),
+    'undrawn slots draw as placeholders': !global.BLANKED || html.includes('border-dashed'),
     'video document body': text.includes(s.title || '\u0000'),
     'run panel': text.includes('Pipeline') || text.includes('RUN') || text.includes('Run'),
     'bottom panel tabs': text.includes('Console') && text.includes('Output'),
@@ -277,6 +298,42 @@ async function assertAll() {
     const close = w.document.querySelector('[aria-label="Close"]')
     if (close) close.click()
     await wait(150)
+  }
+
+  // ── the slide viewer, including an undrawn slot ─────────────────────────
+  const slides = [...w.document.querySelectorAll('[aria-label^="Slide "]')]
+  if (slides.length === 0) {
+    report({ '~ slide viewer (skipped: no slide cells rendered)': true })
+  } else {
+    slides[0].click()
+    await wait(300)
+    const after = w.document.body.textContent || ''
+    report({
+      'slide viewer opens on a slot': /Slide \d/.test(after),
+      'it shows the prompt to edit': Boolean(w.document.querySelector('[aria-label="Prompt"]')),
+      'it offers Generate': after.includes('Generate'),
+      'it carries no artifact navigation':
+        !/\d+ \/ \d+/.test(after) &&
+        !w.document.querySelector('[aria-label="Next"],[aria-label="Previous"]'),
+    })
+    let close = w.document.querySelector('[aria-label="Close"]')
+    if (close) close.click()
+    await wait(150)
+
+    if (global.BLANKED) {
+      slides[slides.length - 1].click()
+      await wait(300)
+      const undrawn = w.document.body.textContent || ''
+      report({
+        'an undrawn slot opens too': undrawn.includes('Nothing drawn here yet'),
+        'and still offers its prompt': Boolean(
+          w.document.querySelector('[aria-label="Prompt"]'),
+        ),
+      })
+      close = w.document.querySelector('[aria-label="Close"]')
+      if (close) close.click()
+      await wait(150)
+    }
   }
 
   // ── the thumbnail editor ────────────────────────────────────────────────
