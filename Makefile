@@ -29,9 +29,12 @@ GOBIN    := $(shell go env GOPATH)/bin
 APP_NAME := yt-studio
 APP_ID   := com.tbui.yt-studio
 APP_DIR  := $(BUILD)/desktop
+# The icon is committed rather than built on demand: iconutil is macOS-only, and
+# a checkout should be able to produce a bundle without redrawing the artwork.
+ICON     := cmd/desktop/icon.icns
 APP      := $(APP_DIR)/$(APP_NAME).app
 
-.PHONY: help dev dev-desktop build desktop run test bench lint fmt generate clean reset distclean
+.PHONY: help dev dev-desktop build desktop icon run test bench lint fmt generate clean reset distclean
 
 ## help: list the targets
 help:
@@ -105,6 +108,7 @@ desktop: build $(DESKTOP)
 	@mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources
 	@cp $(BINARY) $(APP)/Contents/MacOS/yt-studio
 	@cp $(DESKTOP) $(APP)/Contents/MacOS/yt-studio-desktop
+	@cp $(ICON) $(APP)/Contents/Resources/icon.icns
 	@printf '%s\n' \
 		'<?xml version="1.0" encoding="UTF-8"?>' \
 		'<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
@@ -117,6 +121,7 @@ desktop: build $(DESKTOP)
 		'	<key>CFBundleShortVersionString</key><string>$(VERSION)</string>' \
 		'	<key>CFBundlePackageType</key><string>APPL</string>' \
 		'	<key>CFBundleExecutable</key><string>yt-studio-desktop</string>' \
+		'	<key>CFBundleIconFile</key><string>icon</string>' \
 		'	<key>LSMinimumSystemVersion</key><string>11.0</string>' \
 		'	<key>NSHighResolutionCapable</key><true/>' \
 		'</dict>' \
@@ -134,6 +139,15 @@ desktop: build $(DESKTOP)
 	@echo "over once - nothing renders without them:"
 	@echo
 	@echo "  mkdir -p ~/.yt-studio && cp -r $(DEV_HOME)/resources ~/.yt-studio/"
+
+## icon: redraw the application icon from cmd/icon and refresh the .icns
+#
+# Only needed after changing the artwork. --preview writes a contact sheet of
+# every size on one canvas, which is the only honest way to judge a change: an
+# icon that looks considered at 1024 is often a smudge at 32.
+icon:
+	go run ./cmd/icon --out $(ICON) --preview $(BUILD)/icon-preview.png
+	@echo "preview: $(BUILD)/icon-preview.png"
 
 ## run: build, then serve - settings live in the database, not a config file
 run: build
