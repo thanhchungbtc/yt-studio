@@ -107,6 +107,7 @@ main()
 setTimeout(() => {
   const text = w.document.body.textContent || ''
   const html = w.document.body.innerHTML
+  const rowEls = [...w.document.querySelectorAll('[data-chapter-row]')]
   const s = global.SUBJECT || {}
   const checks = {
     'shell chrome': text.includes('yt-studio') && text.includes('Explorer'),
@@ -126,6 +127,13 @@ setTimeout(() => {
     'no line clamp on the summary': !html.includes('line-clamp'),
     'rows measure themselves': html.includes('data-index='),
     'every column has a resize handle': (html.match(/Resize the \w+ column/g) || []).length === 5,
+    // Scoped to the row subtrees. Slicing the raw html caught the run panel's
+    // tooltips and reported a problem that was never in the table.
+    'no radix roots inside rows': rowEls.every(
+      (el) => !el.querySelector('[data-state],[data-radix-popper-content-wrapper]'),
+    ),
+    'rows stay light': rowEls.every((el) => el.querySelectorAll('button').length <= 6),
+    'no colour transition on rows': !/data-chapter-row[^>]*transition-colors/.test(html),
     'chapter column is no longer 1fr':
       /gridTemplateColumns|grid-template-columns/.test(html) && !/minmax\(240px,1fr\)/.test(html),
     'written words shown beside it': /data-script-words="[1-9]\d*"/.test(html),

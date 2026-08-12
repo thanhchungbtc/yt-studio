@@ -1,13 +1,10 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { FileText, MoreHorizontal, RotateCw } from 'lucide-react'
+import { FileText } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 import { useAssetViewer } from '@/components/asset-viewer'
-import { ContextMenu, MenuItem, MenuLabel } from '../../ui/menu'
-import { EmptyState, Skeleton, Tooltip } from '../../ui/primitives'
-import { api, qk } from '@/core/api'
+import { EmptyState, Skeleton } from '../../ui/primitives'
 import type { ViewerItem } from '@/core/assets'
 import type { Chapter, Task, Video } from '@/core/types'
 import { cn } from '@/core/utils'
@@ -52,9 +49,8 @@ const COLUMNS: ColumnDef[] = [
   { id: 'clip', label: 'Clip', width: 60, min: 48, max: 160 },
 ]
 
-/** Fixed: an ordinal and an icon button have one right size. */
+/** Fixed: an ordinal has one right size. */
 const ORDINAL = 40
-const ACTIONS = 40
 
 /**
  * The blueprint, as a table.
@@ -97,8 +93,8 @@ export function BlueprintTable({
   )
   // A trailing `1fr` soaks up whatever is left over, so the table fills a wide
   // window without any single column having to stretch to do it.
-  const template = `${ORDINAL}px ${widths.map((c) => `${c.width}px`).join(' ')} ${ACTIONS}px 1fr`
-  const totalWidth = ORDINAL + widths.reduce((sum, c) => sum + c.width, 0) + ACTIONS
+  const template = `${ORDINAL}px ${widths.map((c) => `${c.width}px`).join(' ')} 1fr`
+  const totalWidth = ORDINAL + widths.reduce((sum, c) => sum + c.width, 0)
   const slidesWidth = widths.find((c) => c.id === 'slides')?.width ?? 220
 
   const stages = useMemo(
@@ -175,7 +171,6 @@ export function BlueprintTable({
               </HeadCell>
             ))}
             <HeadCell />
-            <HeadCell />
           </div>
 
           <div className="relative" style={{ height: rows.getTotalSize() }}>
@@ -192,7 +187,6 @@ export function BlueprintTable({
                   measureRef={rows.measureElement}
                   chapter={chapter}
                   stage={stage}
-                  video={video}
                   thumbWidth={thumbWidth}
                   top={item.start}
                   onOpenScript={() => setScripting(chapter)}
@@ -365,7 +359,6 @@ function Row({
   measureRef,
   chapter,
   stage,
-  video,
   thumbWidth,
   top,
   onOpenScript,
@@ -376,128 +369,76 @@ function Row({
   measureRef: (node: Element | null) => void
   chapter: Chapter
   stage: ReturnType<typeof stagesByChapter> extends Map<string, infer S> ? S : never
-  video: Video
   thumbWidth: number | null
   top: number
   onOpenScript: () => void
   onOpenAsset: (assetId: string | undefined) => void
 }) {
-  const queryClient = useQueryClient()
-  const retryChapter = useMutation({
-    mutationFn: () => api.retryChapter(video.ref, chapter.ordinal),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: qk.videoTasks(video.id) })
-      void queryClient.invalidateQueries({ queryKey: qk.video(video.ref) })
-    },
-  })
-
-  const words = wordsIn(chapter.script)
-
   return (
-    <ContextMenu
-      items={
-        <>
-          <MenuLabel>{`${chapter.ordinal}. ${chapter.title}`}</MenuLabel>
-          <MenuItem onSelect={onOpenScript}>Open the script</MenuItem>
-          <MenuItem onSelect={() => retryChapter.mutate()}>Re-run this chapter</MenuItem>
-        </>
-      }
+    <div
+      ref={measureRef}
+      data-index={index}
+      data-chapter-row={chapter.ordinal}
+      // No colour transition anywhere on the row. The frozen cells paint their
+      // own background — they have to, or the columns behind them show through —
+      // and a transition on the row alone made the two halves arrive a frame
+      // apart, which is what read as a flash when the pointer crossed a row.
+      className="group absolute inset-x-0 grid min-h-[60px] border-b border-[hsl(var(--border))] bg-app hover:bg-[hsl(var(--bg-hover))]"
+      style={{ gridTemplateColumns: template, transform: `translateY(${top}px)` }}
     >
-      <div
-        ref={measureRef}
-        data-index={index}
-        data-chapter-row={chapter.ordinal}
-        // 60px is a slide thumbnail plus its padding: a one-line summary must
-        // not crush the row below what the pictures beside it need.
-        className="group absolute inset-x-0 grid min-h-[60px] border-b border-[hsl(var(--border))] bg-app transition-colors hover:bg-[hsl(var(--bg-hover))]"
-        style={{ gridTemplateColumns: template, transform: `translateY(${top}px)` }}
-      >
-        {/* Frozen while the rest scrolls sideways, so a narrow window never
-            loses which chapter a cell belongs to. */}
-        <div className="sticky left-0 z-10 flex items-center justify-end bg-app px-2 pt-[9px] group-hover:bg-[hsl(var(--bg-hover))]">
-          <span className="tabular text-[11px] font-semibold text-subtle">{chapter.ordinal}</span>
-        </div>
-
-        <div
-          style={{ left: ORDINAL }}
-          className="sticky z-10 flex min-w-0 flex-col justify-center gap-0.5 bg-app px-2 py-2 group-hover:bg-[hsl(var(--bg-hover))]"
-        >
-          <div className="flex items-baseline gap-2">
-            <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-fg">
-              {chapter.title || <span className="text-subtle">Untitled</span>}
-            </span>
-            {chapter.estimatedWords > 0 && (
-              <span className="tabular shrink-0 text-[10.5px] text-subtle">
-                ~{chapter.estimatedWords}w
-              </span>
-            )}
-          </div>
-          {/* In full, however long it runs, and with the blueprint's own line
-              breaks kept — the plan is the thing being reviewed here. */}
-          <p className="whitespace-pre-wrap text-[11px] leading-[15px] text-muted">
-            {chapter.summary}
-          </p>
-        </div>
-
-        <div className="flex items-start px-2 pt-2">
-          <ScriptCell
-            cell={stage.script}
-            words={words}
-            videoRef={video.ref}
-            videoId={video.id}
-            onOpen={onOpenScript}
-          />
-        </div>
-
-        <div className="flex items-start px-2 pt-2">
-          <NarrationCell
-            cell={stage.narration}
-            assetId={chapter.audioAssetId}
-            seconds={chapter.durationSeconds}
-            videoRef={video.ref}
-            videoId={video.id}
-          />
-        </div>
-
-        <div className="flex items-start px-2 pt-2">
-          <SlidesCell
-            chapter={chapter}
-            cells={stage.slides}
-            thumbWidth={thumbWidth}
-            onOpenSlide={(slot) => onOpenAsset(chapter.slideAssetIds[slot])}
-          />
-        </div>
-
-        <div className="flex items-start px-2 pt-2">
-          <ClipCell
-            cell={stage.clip}
-            videoRef={video.ref}
-            videoId={video.id}
-            onOpen={() => onOpenAsset(chapter.clipAssetId)}
-          />
-        </div>
-
-        <div className="flex items-start justify-center pt-1.5">
-          <Tooltip label="Re-run this chapter">
-            <button
-              type="button"
-              aria-label="Re-run this chapter"
-              disabled={retryChapter.isPending}
-              onClick={() => retryChapter.mutate()}
-              className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-xs)] text-subtle opacity-0 transition-opacity hover:bg-[hsl(var(--bg-hover))] hover:text-fg focus-visible:opacity-100 group-hover:opacity-100"
-            >
-              {retryChapter.isPending ? (
-                <RotateCw className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <MoreHorizontal className="h-3.5 w-3.5" />
-              )}
-            </button>
-          </Tooltip>
-        </div>
-
-        {/* Soaks up leftover width so the row's hover runs the full table. */}
-        <div />
+      <div className="sticky left-0 z-10 flex items-center justify-end bg-app px-2 pt-[9px] group-hover:bg-[hsl(var(--bg-hover))]">
+        <span className="tabular text-[11px] font-semibold text-subtle">{chapter.ordinal}</span>
       </div>
-    </ContextMenu>
+
+      <div
+        style={{ left: ORDINAL }}
+        className="sticky z-10 flex min-w-0 flex-col justify-center gap-0.5 bg-app px-2 py-2 group-hover:bg-[hsl(var(--bg-hover))]"
+      >
+        <div className="flex items-baseline gap-2">
+          <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-fg">
+            {chapter.title || <span className="text-subtle">Untitled</span>}
+          </span>
+          {chapter.estimatedWords > 0 && (
+            <span className="tabular shrink-0 text-[10.5px] text-subtle">
+              ~{chapter.estimatedWords}w
+            </span>
+          )}
+        </div>
+        {/* In full, however long it runs, and with the blueprint's own line
+            breaks kept — the plan is the thing being reviewed here. */}
+        <p className="whitespace-pre-wrap text-[11px] leading-[15px] text-muted">
+          {chapter.summary}
+        </p>
+      </div>
+
+      <div className="flex items-start px-2 pt-2">
+        <ScriptCell cell={stage.script} words={wordsIn(chapter.script)} onOpen={onOpenScript} />
+      </div>
+
+      <div className="flex items-start px-2 pt-2">
+        <NarrationCell
+          cell={stage.narration}
+          assetId={chapter.audioAssetId}
+          seconds={chapter.durationSeconds}
+          onOpen={() => onOpenAsset(chapter.audioAssetId)}
+        />
+      </div>
+
+      <div className="flex items-start px-2 pt-2">
+        <SlidesCell
+          chapter={chapter}
+          cells={stage.slides}
+          thumbWidth={thumbWidth}
+          onOpenSlide={(slot) => onOpenAsset(chapter.slideAssetIds[slot])}
+        />
+      </div>
+
+      <div className="flex items-start px-2 pt-2">
+        <ClipCell cell={stage.clip} onOpen={() => onOpenAsset(chapter.clipAssetId)} />
+      </div>
+
+      {/* Soaks up leftover width so the row's hover runs the full table. */}
+      <div />
+    </div>
   )
 }
