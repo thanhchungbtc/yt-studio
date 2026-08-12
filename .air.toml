@@ -1,20 +1,22 @@
 # Hot reload for the server during `make dev`. Vite serves the web UI and
 # proxies /api and /events here, so only Go sources trigger a rebuild.
 root = "."
-tmp_dir = "var/air"
+tmp_dir = "var/build/air"
 
 [build]
-  cmd = "go build -o ./var/air/yt-studio ./cmd/server"
+  cmd = "go build -o ./var/build/air/yt-studio ./cmd/server"
   # entrypoint takes the binary and its arguments as separate list entries.
   # The deprecated `bin` string is handed to /bin/sh as a single path, which
   # fails the moment the command has arguments.
   #
-  # --home var is what keeps development in the repository. The binary's own
-  # default is ~/.yt-studio, which is where a packaged application belongs and
-  # not where a checkout does: var/ already holds the database, the assets and
-  # the gigabyte of resources this has always used. air runs from the repository
-  # root, so the relative path resolves there.
-  entrypoint = ["./var/air/yt-studio", "serve", "--home", "var"]
+  # --home var/home is what keeps development in the repository. The binary's
+  # own default is ~/.yt-studio, which is where a packaged application belongs
+  # and not where a checkout does. var/home has the same layout — db/, assets/,
+  # resources/, transcripts/, log/ — so a checkout runs against the shape the
+  # bundle ships, and the build output next door in var/build is never mixed in
+  # with it. air runs from the repository root, so the relative path resolves
+  # there.
+  entrypoint = ["./var/build/air/yt-studio", "serve", "--home", "var/home"]
   include_ext = ["go", "sql"]
   exclude_dir = ["web", "var", ".git", ".github"]
   exclude_regex = ["_test\\.go"]

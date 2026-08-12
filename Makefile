@@ -1,35 +1,37 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
-# Everything generated — the binary, the database, the asset store, coverage —
-# lives under var/. One directory to ignore.
-VAR     := var
-# KEEP is the exception: var/resources is operator-supplied media, not output.
-# It sits under var/ because it is equally untracked, but deleting it costs
-# files that no build step can put back — bg.mp4 alone is a gigabyte that came
-# from somewhere else. clean removes var/'s contents around it.
-KEEP    := resources
-BINARY  := $(VAR)/bin/yt-studio
-DESKTOP := $(VAR)/bin/yt-studio-desktop
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+# Everything untracked lives under var/, split by what it would cost to lose.
+#
+#   var/build/  output. Every file in it is reproducible from a command, so
+#               clean deletes the whole directory without asking.
+#   var/home/   the development installation, laid out exactly as ~/.yt-studio
+#               is: db/, assets/, resources/, transcripts/, log/. `make dev`
+#               passes --home var/home, so what a checkout runs against has the
+#               same shape as what the bundle ships. clean does not touch it.
+#
+# The split is the safeguard. var/home/resources holds operator-supplied media
+# no build step can put back — bg.mp4 alone is a gigabyte that came from
+# somewhere else — and a clean that has to remember an exception is a clean that
+# eventually forgets one.
+VAR      := var
+BUILD    := $(VAR)/build
+DEV_HOME := $(VAR)/home
+BINARY   := $(BUILD)/bin/yt-studio
+DESKTOP  := $(BUILD)/bin/yt-studio-desktop
+VERSION  ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 # Where the server will be listening, matching the binary's default. The
 # Makefile needs this only to poll for readiness and to print a URL.
-LISTEN  ?= 127.0.0.1:8080
-GOBIN   := $(shell go env GOPATH)/bin
+LISTEN   ?= 127.0.0.1:8080
+GOBIN    := $(shell go env GOPATH)/bin
 # The macOS bundle. APP_NAME is what the Finder shows and what the bundle is
 # named; the identifier is what launchd and the keychain key off.
-#
-# Packaging output gets its own directory rather than sitting at the root of
-# var/. `make dev` runs with --home var, so var/ is also the installation
-# directory a development server reads and writes — the database and the asset
-# store are down there. A bundle beside them reads as data, and `rm -rf
-# var/desktop` should re-do the packaging without going anywhere near either.
 APP_NAME := yt-studio
 APP_ID   := com.tbui.yt-studio
-APP_DIR  := $(VAR)/desktop
+APP_DIR  := $(BUILD)/desktop
 APP      := $(APP_DIR)/$(APP_NAME).app
 
-.PHONY: help dev dev-desktop build desktop run test bench lint fmt generate clean
+.PHONY: help dev dev-desktop build desktop run test bench lint fmt generate clean reset distclean
 
 ## help: list the targets
 help:
@@ -86,7 +88,7 @@ dev-desktop: web/node_modules $(DESKTOP)
 ## build: build the single binary with the web UI embedded
 build: web/node_modules
 	npm --prefix web run build
-	@mkdir -p $(VAR)/bin
+	@mkdir -p $(BUILD)/bin
 	CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=$(VERSION)" -o $(BINARY) ./cmd/server
 	@echo "$(BINARY)  $$(du -h $(BINARY) | cut -f1)"
 
@@ -94,7 +96,7 @@ build: web/node_modules
 # the window is a separate binary at all — the server stays CGO_ENABLED=0, and
 # its pure-Go SQLite is why that is worth keeping.
 $(DESKTOP): $(shell find cmd/desktop -name '*.go')
-	@mkdir -p $(VAR)/bin
+	@mkdir -p $(BUILD)/bin
 	CGO_ENABLED=1 go build -trimpath -ldflags="-s -w" -o $(DESKTOP) ./cmd/desktop
 
 ## desktop: build yt-studio.app, a double-clickable bundle in var/
@@ -131,7 +133,7 @@ desktop: build $(DESKTOP)
 	@echo "It keeps its data in ~/.yt-studio, not in $(VAR). Copy the resources"
 	@echo "over once - nothing renders without them:"
 	@echo
-	@echo "  mkdir -p ~/.yt-studio && cp -r $(VAR)/$(KEEP) ~/.yt-studio/"
+	@echo "  mkdir -p ~/.yt-studio && cp -r $(DEV_HOME)/resources ~/.yt-studio/"
 
 ## run: build, then serve - settings live in the database, not a config file
 run: build
@@ -167,12 +169,35 @@ generate:
 	$(GOBIN)/sqlc generate
 	go build ./...
 
-## clean: delete everything generated, keeping var/resources
+## clean: delete the build output, leaving the installation untouched
+#
+# Only var/build. The development installation under var/home is not output, so
+# rebuilding never costs a database — that is what reset is for.
 clean:
-	@if [ -d $(VAR) ]; then find $(VAR) -mindepth 1 -maxdepth 1 ! -name $(KEEP) -exec rm -rf {} +; fi
+	rm -rf $(BUILD)
 	rm -rf web/dist
 	@mkdir -p web/dist && cp web/placeholder.html web/dist/index.html
 	go clean -testcache
+
+## reset: empty the development installation, keeping var/home/resources
+#
+# The counterpart to clean: clean deletes what building made, reset deletes what
+# running made — the database, the asset store, the transcripts, the log. What
+# survives is resources, the one thing under var/home that no command can put
+# back.
+#
+# It names what to delete rather than what to keep. An exclusion is only correct
+# until somebody adds a directory the author of the exclusion never saw, and
+# then it deletes a gigabyte of somebody else's video; a list of four names can
+# only ever be incomplete, which costs a `rm -rf` and not a re-download.
+RESET_DIRS := db assets transcripts log
+
+reset:
+	rm -rf $(addprefix $(DEV_HOME)/,$(RESET_DIRS))
+	@echo "emptied $(DEV_HOME) - kept resources ($$(du -sh $(DEV_HOME)/resources 2>/dev/null | cut -f1 || echo none))"
+
+## distclean: clean and reset together - everything but var/home/resources
+distclean: clean reset
 
 web/node_modules:
 	npm --prefix web ci --no-audit --no-fund
