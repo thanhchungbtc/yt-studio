@@ -9,6 +9,7 @@ import type { ViewerItem } from '@/core/assets'
 import type { Chapter, Task, Video } from '@/core/types'
 import { cn } from '@/core/utils'
 import { ClipCell, NarrationCell, ScriptCell, SlidesCell } from './cells'
+import { NarrationViewer } from './narration-viewer'
 import { ScriptDialog } from './script-dialog'
 import { useWorkbenchStore } from '../../lib/store'
 import {
@@ -81,6 +82,7 @@ export function BlueprintTable({
   const openViewer = useAssetViewer()
   const parent = useRef<HTMLDivElement>(null)
   const [scripting, setScripting] = useState<Chapter | null>(null)
+  const [hearing, setHearing] = useState<Chapter | null>(null)
 
   const stored = useWorkbenchStore((s) => s.columnWidths)
   const widths = useMemo(
@@ -190,6 +192,7 @@ export function BlueprintTable({
                   thumbWidth={thumbWidth}
                   top={item.start}
                   onOpenScript={() => setScripting(chapter)}
+                  onOpenNarration={() => setHearing(chapter)}
                   onOpenAsset={open}
                 />
               )
@@ -197,6 +200,16 @@ export function BlueprintTable({
           </div>
         </div>
       </div>
+
+      {hearing && (
+        <NarrationViewer
+          key={hearing.id}
+          videoRef={video.ref}
+          // Read back out of the list so a redraw is reflected without reopening.
+          chapter={chapters.find((c) => c.id === hearing.id) ?? hearing}
+          onClose={() => setHearing(null)}
+        />
+      )}
 
       {scripting && (
         <ScriptDialog
@@ -362,6 +375,7 @@ function Row({
   thumbWidth,
   top,
   onOpenScript,
+  onOpenNarration,
   onOpenAsset,
 }: {
   template: string
@@ -372,6 +386,7 @@ function Row({
   thumbWidth: number | null
   top: number
   onOpenScript: () => void
+  onOpenNarration: () => void
   onOpenAsset: (assetId: string | undefined) => void
 }) {
   return (
@@ -420,7 +435,7 @@ function Row({
           cell={stage.narration}
           assetId={chapter.audioAssetId}
           seconds={chapter.durationSeconds}
-          onOpen={() => onOpenAsset(chapter.audioAssetId)}
+          onOpen={onOpenNarration}
         />
       </div>
 

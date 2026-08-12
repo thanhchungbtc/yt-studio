@@ -16,8 +16,42 @@ global.cancelAnimationFrame = w.cancelAnimationFrame
 global.localStorage = w.localStorage
 global.CSS = { escape: (s) => s }
 // jsdom rejects a Node AbortSignal passed to its own addEventListener.
-global.AbortController = w.AbortController
-global.AbortSignal = w.AbortSignal
+// Take jsdom's DOM classes wholesale rather than discovering them one crash at
+// a time — which is exactly how this was written, through NodeFilter, then
+// HTMLInputElement, then whatever came next.
+//
+// Two rules. Anything jsdom defines that Node does not (HTMLInputElement,
+// NodeFilter, TreeWalker) has to exist at all. And for the handful Node *also*
+// defines, jsdom's must win: it rejects a foreign Event passed to its own
+// dispatchEvent, which is how a Radix dialog opens.
+const NODE_SHADOWED = new Set([
+  'Event',
+  'CustomEvent',
+  'EventTarget',
+  'AbortController',
+  'AbortSignal',
+  'MessageEvent',
+  'MessageChannel',
+  'MessagePort',
+  'Blob',
+  'File',
+  'FormData',
+  'Headers',
+  'URL',
+  'URLSearchParams',
+  'DOMException',
+])
+for (const key of Object.getOwnPropertyNames(w)) {
+  // Uppercase only: the ECMAScript built-ins share this realm, and reassigning
+  // Array or Promise from the window would be a no-op at best.
+  if (!/^[A-Z]/.test(key)) continue
+  if (key in globalThis && !NODE_SHADOWED.has(key)) continue
+  try {
+    globalThis[key] = w[key]
+  } catch {
+    /* getter-only on the window */
+  }
+}
 global.MutationObserver = w.MutationObserver
 global.DOMRect = w.DOMRect
 // jsdom implements no scrolling at all.
@@ -149,18 +183,31 @@ async function main() {
 }
 main()
 
-setTimeout(() => {
+const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+
+/** Reports a group of checks and folds the result into `ok`. */
+let ok = true
+function report(checks) {
+  for (const [name, pass] of Object.entries(checks)) {
+    console.log(`${pass ? '  ok  ' : ' FAIL '} ${name}`)
+    if (!pass) ok = false
+  }
+}
+
+async function assertAll() {
+  await wait(1200)
+
   const text = w.document.body.textContent || ''
   const html = w.document.body.innerHTML
   const rowEls = [...w.document.querySelectorAll('[data-chapter-row]')]
   const s = global.SUBJECT || {}
-  const checks = {
+
+  report({
     'shell chrome': text.includes('yt-studio') && text.includes('Explorer'),
     'explorer lists the subject': text.includes(s.ref),
     'tab strip holds four distinct tabs': (html.match(/data-tab-id=/g) || []).length >= 4,
     'active tab is distinguished': html.includes('aria-selected="true"'),
     'settings tab present': text.includes('Settings'),
-
     'view tabs are all one click': ['Blueprint', 'Publish'].every((v) => text.includes(v)),
     'table column heads': ['CHAPTER', 'SCRIPT', 'NARRATION', 'SLIDES', 'CLIP'].every((c) =>
       text.toUpperCase().includes(c),
@@ -200,27 +247,48 @@ setTimeout(() => {
     'pipeline stages named': text.includes('Blueprint') && text.includes('Narration'),
     'status bar version': text.includes('running') && text.includes('ready'),
     'panel groups': html.includes('data-panel-group'),
+  })
+
+  // ── the dedicated narration viewer ──────────────────────────────────────
+  const play = w.document.querySelector('[aria-label="Play the narration"]')
+  if (!play) {
+    report({ '~ narration viewer (skipped: no rendered narration)': true })
+  } else {
+    play.click()
+    // A click is not a render. Reading the DOM in the same tick asserts on the
+    // frame before the one the click produced.
+    await wait(300)
+    const after = w.document.body.textContent || ''
+    report({
+      'narration viewer opens': after.includes('Narration') && after.includes('Download'),
+      'it names the chapter': /#\d/.test(after),
+      'it has an audio transport': Boolean(w.document.querySelector('audio')),
+      'it is one artifact, not a gallery':
+        !/\d+ \/ \d+/.test(after) &&
+        !w.document.querySelector('[aria-label="Next"],[aria-label="Previous"]'),
+    })
+    const close = w.document.querySelector('[aria-label="Close"]')
+    if (close) close.click()
+    await wait(150)
   }
-  let ok = true
-  for (const [name, pass] of Object.entries(checks)) {
-    console.log(`${pass ? '  ok  ' : ' FAIL '} ${name}`)
-    if (!pass) ok = false
-  }
+
+  // ── the thumbnail editor ────────────────────────────────────────────────
   global.STORE.getState().open({ kind: 'thumbnail', ref: s.ref }, { preview: false })
-  setTimeout(() => {
-    const t2 = w.document.body.textContent || ''
-    const second = {
-      'thumbnail editor mounts': t2.includes('Thumbnail') && t2.includes('Use this thumbnail'),
-      'its inspector renders': t2.includes('Typeface') && t2.includes('Backdrop brightness'),
-      'its frame is stated': /1280|frame is/.test(t2),
-    }
-    for (const [name, pass] of Object.entries(second)) {
-      console.log(`${pass ? '  ok  ' : ' FAIL '} ${name}`)
-      if (!pass) ok = false
-    }
-    const real = errors.filter((e) => !/not wrapped in act|Warning: /.test(e))
-    if (real.length) { console.log('\nconsole.error output:'); real.slice(0, 6).forEach((e) => console.log('  ' + e.slice(0, 400))) }
-    console.log(`\nhtml ${w.document.body.innerHTML.length} bytes`)
-    process.exit(ok && real.length === 0 ? 0 : 1)
-  }, 700)
-}, 1200)
+  await wait(700)
+  const t2 = w.document.body.textContent || ''
+  report({
+    'thumbnail editor mounts': t2.includes('Thumbnail') && t2.includes('Use this thumbnail'),
+    'its inspector renders': t2.includes('Typeface') && t2.includes('Backdrop brightness'),
+    'its frame is stated': /1280|frame is/.test(t2),
+  })
+
+  const real = errors.filter((e) => !/not wrapped in act|Warning: /.test(e))
+  if (real.length) {
+    console.log('\nconsole.error output:')
+    real.slice(0, 6).forEach((e) => console.log('  ' + e.slice(0, 400)))
+  }
+  console.log(`\nhtml ${w.document.body.innerHTML.length} bytes`)
+  process.exit(ok && real.length === 0 ? 0 : 1)
+}
+
+void assertAll()
