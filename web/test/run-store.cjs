@@ -69,5 +69,13 @@ get().setView('video:A', 'artifacts')
 get().setView('video:B', 'info')
 is('view is per tab', get().groups[0].tabs.map((t) => t.view), ['artifacts', 'info'])
 
+// Column widths are remembered per column, and resetting drops the override
+// rather than writing a default back over it.
+get().setColumnWidth('slides', 320)
+get().setColumnWidth('chapter', 200)
+is('column widths are stored', get().columnWidths, { slides: 320, chapter: 200 })
+get().resetColumnWidth('slides')
+is('reset removes the override', get().columnWidths, { chapter: 200 })
+
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)

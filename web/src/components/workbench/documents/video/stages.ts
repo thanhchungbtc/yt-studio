@@ -159,21 +159,24 @@ export function columnTotals(chapters: Chapter[], slidesPerChapter: number): Col
 }
 
 /**
- * How wide a slide thumbnail can be, given a fixed column and a slot count.
+ * How wide a slide thumbnail can be, given the column's current width and a slot
+ * count.
  *
- * The column keeps one width whatever the video's slide count, so the table
- * never has a ragged right edge — the pictures shrink instead. Below the floor
- * a thumbnail stops being a picture and the cell switches to a state strip.
+ * Derived from the column rather than fixed, so dragging the Slides column wider
+ * genuinely enlarges the pictures instead of padding them — and a chapter with
+ * six slides that collapsed to a strip comes back as thumbnails once there is
+ * room for them.
  */
-export const SLIDES_COLUMN = 190
 const SLIDE_GAP = 4
 const SLIDE_PADDING = 16
-const SLIDE_MAX = 78
+/** Capped so a very wide column cannot turn every row into a contact sheet. */
+const SLIDE_MAX = 120
+/** Below this a thumbnail stops being a picture, and the cell draws a strip. */
 const SLIDE_MIN = 40
 
-export function slideThumbWidth(count: number): number | null {
+export function slideThumbWidth(count: number, columnWidth: number): number | null {
   if (count <= 0) return null
-  const available = SLIDES_COLUMN - SLIDE_PADDING - (count - 1) * SLIDE_GAP
+  const available = columnWidth - SLIDE_PADDING - (count - 1) * SLIDE_GAP
   const width = Math.min(SLIDE_MAX, Math.floor(available / count))
   return width >= SLIDE_MIN ? width : null
 }

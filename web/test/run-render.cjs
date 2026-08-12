@@ -125,6 +125,9 @@ setTimeout(() => {
     ),
     'no line clamp on the summary': !html.includes('line-clamp'),
     'rows measure themselves': html.includes('data-index='),
+    'every column has a resize handle': (html.match(/Resize the \w+ column/g) || []).length === 5,
+    'chapter column is no longer 1fr':
+      /gridTemplateColumns|grid-template-columns/.test(html) && !/minmax\(240px,1fr\)/.test(html),
     'written words shown beside it': /data-script-words="[1-9]\d*"/.test(html),
     'narration duration shown': /\d+:\d\d/.test(text),
     'slide thumbnails rendered': html.includes('/assets/') && html.includes('alt="Slide'),

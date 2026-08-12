@@ -1,7 +1,7 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { FileText, MoreHorizontal, RotateCw } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { useMemo, useRef, useState } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 import { useAssetViewer } from '@/components/asset-viewer'
@@ -13,15 +13,48 @@ import type { Chapter, Task, Video } from '@/core/types'
 import { cn } from '@/core/utils'
 import { ClipCell, NarrationCell, ScriptCell, SlidesCell } from './cells'
 import { ScriptDialog } from './script-dialog'
-import { SLIDES_COLUMN, columnTotals, slideThumbWidth, stagesByChapter, wordsIn } from './stages'
+import { useWorkbenchStore } from '../../lib/store'
+import {
+  columnTotals,
+  slideThumbWidth,
+  stagesByChapter,
+  wordsIn,
+  type ColumnTotals,
+} from './stages'
 
 /** A typical row, used only until the real one has been measured. */
 const ROW_ESTIMATE = 76
 const HEAD = 38
 
-/** The grid, in one place so the header and every row cannot disagree. */
-const COLUMNS = `40px minmax(240px,1fr) 76px 92px ${SLIDES_COLUMN}px 56px 36px`
-const MIN_WIDTH = 40 + 240 + 76 + 92 + SLIDES_COLUMN + 56 + 36
+/**
+ * The columns, with the widths they start at.
+ *
+ * Chapter is a plain width rather than `1fr`, which is the change that made the
+ * rest of the table usable: as a flex column it swallowed every spare pixel —
+ * 710 of them on a wide window — and left the columns that actually hold the
+ * artifacts pinned at their minimums.
+ *
+ * Every width here is a starting point. They are draggable and remembered.
+ */
+interface ColumnDef {
+  id: string
+  label: string
+  width: number
+  min: number
+  max: number
+}
+
+const COLUMNS: ColumnDef[] = [
+  { id: 'chapter', label: 'Chapter', width: 280, min: 180, max: 900 },
+  { id: 'script', label: 'Script', width: 84, min: 64, max: 200 },
+  { id: 'narration', label: 'Narration', width: 100, min: 80, max: 240 },
+  { id: 'slides', label: 'Slides', width: 220, min: 120, max: 560 },
+  { id: 'clip', label: 'Clip', width: 60, min: 48, max: 160 },
+]
+
+/** Fixed: an ordinal and an icon button have one right size. */
+const ORDINAL = 40
+const ACTIONS = 40
 
 /**
  * The blueprint, as a table.
@@ -53,6 +86,21 @@ export function BlueprintTable({
   const parent = useRef<HTMLDivElement>(null)
   const [scripting, setScripting] = useState<Chapter | null>(null)
 
+  const stored = useWorkbenchStore((s) => s.columnWidths)
+  const widths = useMemo(
+    () =>
+      COLUMNS.map((column) => ({
+        ...column,
+        width: clamp(stored[column.id] ?? column.width, column.min, column.max),
+      })),
+    [stored],
+  )
+  // A trailing `1fr` soaks up whatever is left over, so the table fills a wide
+  // window without any single column having to stretch to do it.
+  const template = `${ORDINAL}px ${widths.map((c) => `${c.width}px`).join(' ')} ${ACTIONS}px 1fr`
+  const totalWidth = ORDINAL + widths.reduce((sum, c) => sum + c.width, 0) + ACTIONS
+  const slidesWidth = widths.find((c) => c.id === 'slides')?.width ?? 220
+
   const stages = useMemo(
     () => stagesByChapter(chapters, tasks, video.slidesPerChapter),
     [chapters, tasks, video.slidesPerChapter],
@@ -62,8 +110,8 @@ export function BlueprintTable({
     [chapters, video.slidesPerChapter],
   )
   const thumbWidth = useMemo(
-    () => slideThumbWidth(Math.max(1, video.slidesPerChapter)),
-    [video.slidesPerChapter],
+    () => slideThumbWidth(Math.max(1, video.slidesPerChapter), slidesWidth),
+    [video.slidesPerChapter, slidesWidth],
   )
 
   const rows = useVirtualizer({
@@ -106,35 +154,27 @@ export function BlueprintTable({
   return (
     <>
       <div ref={parent} className="h-full overflow-auto">
-        <div style={{ minWidth: MIN_WIDTH }}>
+        <div style={{ minWidth: totalWidth }}>
           {/* The header is the progress summary. `SLIDES 24/80` says how far one
               stage has got across the whole video, which is the question a table
               can answer and a list cannot. */}
           <div
-            className="sticky top-0 z-20 grid items-center border-b border-[hsl(var(--border))] bg-subtle no-select"
-            style={{ gridTemplateColumns: COLUMNS, height: HEAD }}
+            className="sticky top-0 z-20 grid border-b border-[hsl(var(--border))] bg-subtle no-select"
+            style={{ gridTemplateColumns: template, height: HEAD }}
           >
-            <HeadCell className="sticky left-0 z-10 bg-subtle text-right">#</HeadCell>
-            <HeadCell className="sticky left-10 z-10 bg-subtle">
-              Chapter
-              <Count done={chapters.length} />
-            </HeadCell>
-            <HeadCell>
-              Script
-              <Count done={totals.script.done} total={totals.script.total} />
-            </HeadCell>
-            <HeadCell>
-              Narration
-              <Count done={totals.narration.done} total={totals.narration.total} />
-            </HeadCell>
-            <HeadCell>
-              Slides
-              <Count done={totals.slides.done} total={totals.slides.total} />
-            </HeadCell>
-            <HeadCell>
-              Clip
-              <Count done={totals.clip.done} total={totals.clip.total} />
-            </HeadCell>
+            <HeadCell className="sticky left-0 z-10 justify-end bg-subtle">#</HeadCell>
+            {widths.map((column, index) => (
+              <HeadCell
+                key={column.id}
+                className={cn(column.id === 'chapter' && 'sticky z-10 bg-subtle')}
+                style={column.id === 'chapter' ? { left: ORDINAL } : undefined}
+              >
+                {column.label}
+                {countFor(column.id, chapters.length, totals)}
+                <ColumnResizer column={column} first={index === 0} />
+              </HeadCell>
+            ))}
+            <HeadCell />
             <HeadCell />
           </div>
 
@@ -147,6 +187,7 @@ export function BlueprintTable({
               return (
                 <Row
                   key={chapter.id}
+                  template={template}
                   index={item.index}
                   measureRef={rows.measureElement}
                   chapter={chapter}
@@ -178,17 +219,128 @@ export function BlueprintTable({
   )
 }
 
-function HeadCell({ className, children }: { className?: string; children?: ReactNode }) {
+function HeadCell({
+  className,
+  style,
+  children,
+}: {
+  className?: string
+  style?: CSSProperties
+  children?: ReactNode
+}) {
   return (
     <div
+      style={style}
       className={cn(
-        'flex h-full items-center gap-1.5 px-2 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-subtle',
+        'relative flex h-full items-center gap-1.5 px-2 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-subtle',
         className,
       )}
     >
       {children}
     </div>
   )
+}
+
+/** Which count a column's head carries, if any. */
+function countFor(id: string, chapters: number, totals: ColumnTotals): ReactNode {
+  switch (id) {
+    case 'chapter':
+      return <Count done={chapters} />
+    case 'script':
+      return <Count done={totals.script.done} total={totals.script.total} />
+    case 'narration':
+      return <Count done={totals.narration.done} total={totals.narration.total} />
+    case 'slides':
+      return <Count done={totals.slides.done} total={totals.slides.total} />
+    case 'clip':
+      return <Count done={totals.clip.done} total={totals.clip.total} />
+    default:
+      return null
+  }
+}
+
+/**
+ * The grab area on a column's trailing edge. One pixel of rule, seven of target
+ * — the same bargain the panel splitters make, for the same reason.
+ *
+ * Double-click restores the default, which is the only way back from a width
+ * dragged to somewhere unusable.
+ */
+function ColumnResizer({ column, first }: { column: ColumnDef; first: boolean }) {
+  const setColumnWidth = useWorkbenchStore((s) => s.setColumnWidth)
+  const resetColumnWidth = useWorkbenchStore((s) => s.resetColumnWidth)
+  const [dragging, setDragging] = useState(false)
+  const origin = useRef({ x: 0, width: column.width })
+
+  useEffect(() => {
+    if (!dragging) return
+    const onMove = (event: PointerEvent) => {
+      const { x, width } = origin.current
+      setColumnWidth(column.id, clamp(width + (event.clientX - x), column.min, column.max))
+    }
+    const stop = () => setDragging(false)
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', stop)
+    window.addEventListener('pointercancel', stop)
+    const previous = document.body.style.cursor
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', stop)
+      window.removeEventListener('pointercancel', stop)
+      document.body.style.cursor = previous
+      document.body.style.userSelect = ''
+    }
+  }, [column.id, column.max, column.min, dragging, setColumnWidth])
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={`Resize the ${column.label} column`}
+      aria-valuenow={column.width}
+      aria-valuemin={column.min}
+      aria-valuemax={column.max}
+      tabIndex={0}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return
+        event.preventDefault()
+        origin.current = { x: event.clientX, width: column.width }
+        setDragging(true)
+      }}
+      onDoubleClick={() => resetColumnWidth(column.id)}
+      onKeyDown={(event) => {
+        const step = event.shiftKey ? 32 : 8
+        if (event.key === 'ArrowLeft') {
+          setColumnWidth(column.id, clamp(column.width - step, column.min, column.max))
+        } else if (event.key === 'ArrowRight') {
+          setColumnWidth(column.id, clamp(column.width + step, column.min, column.max))
+        } else {
+          return
+        }
+        event.preventDefault()
+      }}
+      className={cn(
+        'group/resize absolute inset-y-0 right-0 z-20 w-[7px] translate-x-[3px] cursor-col-resize touch-none',
+        first && 'right-[-1px]',
+      )}
+    >
+      <span
+        aria-hidden
+        className={cn(
+          'absolute inset-y-[9px] left-[3px] w-px transition-colors',
+          dragging
+            ? 'bg-[hsl(var(--accent))]'
+            : 'bg-[hsl(var(--border))] group-hover/resize:bg-[hsl(var(--accent)/0.7)]',
+        )}
+      />
+    </div>
+  )
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.round(Math.min(max, Math.max(min, value)))
 }
 
 function Count({ done, total }: { done: number; total?: number }) {
@@ -208,6 +360,7 @@ function Count({ done, total }: { done: number; total?: number }) {
 }
 
 function Row({
+  template,
   index,
   measureRef,
   chapter,
@@ -218,6 +371,7 @@ function Row({
   onOpenScript,
   onOpenAsset,
 }: {
+  template: string
   index: number
   measureRef: (node: Element | null) => void
   chapter: Chapter
@@ -256,7 +410,7 @@ function Row({
         // 60px is a slide thumbnail plus its padding: a one-line summary must
         // not crush the row below what the pictures beside it need.
         className="group absolute inset-x-0 grid min-h-[60px] border-b border-[hsl(var(--border))] bg-app transition-colors hover:bg-[hsl(var(--bg-hover))]"
-        style={{ gridTemplateColumns: COLUMNS, transform: `translateY(${top}px)` }}
+        style={{ gridTemplateColumns: template, transform: `translateY(${top}px)` }}
       >
         {/* Frozen while the rest scrolls sideways, so a narrow window never
             loses which chapter a cell belongs to. */}
@@ -264,7 +418,10 @@ function Row({
           <span className="tabular text-[11px] font-semibold text-subtle">{chapter.ordinal}</span>
         </div>
 
-        <div className="sticky left-10 z-10 flex min-w-0 flex-col justify-center gap-0.5 bg-app px-2 py-2 group-hover:bg-[hsl(var(--bg-hover))]">
+        <div
+          style={{ left: ORDINAL }}
+          className="sticky z-10 flex min-w-0 flex-col justify-center gap-0.5 bg-app px-2 py-2 group-hover:bg-[hsl(var(--bg-hover))]"
+        >
           <div className="flex items-baseline gap-2">
             <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-fg">
               {chapter.title || <span className="text-subtle">Untitled</span>}
@@ -337,6 +494,9 @@ function Row({
             </button>
           </Tooltip>
         </div>
+
+        {/* Soaks up leftover width so the row's hover runs the full table. */}
+        <div />
       </div>
     </ContextMenu>
   )

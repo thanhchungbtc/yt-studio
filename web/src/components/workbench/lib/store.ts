@@ -84,6 +84,8 @@ interface State {
 
   filter: Filter
   folded: string[]
+  /** Blueprint table column widths, by column id. Absent means the default. */
+  columnWidths: Record<string, number>
 
   open: (doc: Doc, options?: { preview?: boolean; groupId?: string }) => void
   pin: (groupId: string, tabId: string) => void
@@ -102,6 +104,9 @@ interface State {
   toggleAside: () => void
   toggleBottom: () => void
   showBottom: (view: BottomView) => void
+
+  setColumnWidth: (id: string, width: number) => void
+  resetColumnWidth: (id: string) => void
 
   setFilter: (filter: Filter) => void
   toggleFold: (channelId: string) => void
@@ -160,6 +165,7 @@ export const useWorkbenchStore = create<State>()(
 
       filter: 'all',
       folded: [],
+      columnWidths: {},
 
       open: (doc, options) => {
         const preview = options?.preview ?? true
@@ -347,6 +353,15 @@ export const useWorkbenchStore = create<State>()(
       toggleBottom: () => set((s) => ({ bottomVisible: !s.bottomVisible })),
       showBottom: (view) => set({ bottomVisible: true, bottomView: view }),
 
+      setColumnWidth: (id, width) =>
+        set((s) => ({ columnWidths: { ...s.columnWidths, [id]: width } })),
+      resetColumnWidth: (id) =>
+        set((s) => {
+          const next = { ...s.columnWidths }
+          delete next[id]
+          return { columnWidths: next }
+        }),
+
       setFilter: (filter) => set({ filter }),
       toggleFold: (channelId) =>
         set((s) => ({
@@ -373,6 +388,7 @@ export const useWorkbenchStore = create<State>()(
         bottomView: state.bottomView,
         filter: state.filter,
         folded: state.folded,
+        columnWidths: state.columnWidths,
       }),
       merge: (persisted, current) => {
         const stored = persisted as Partial<State> | undefined
