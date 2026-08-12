@@ -3,11 +3,15 @@ import { Check } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 import { DocFrame } from '../editor/doc-frame'
+import { Presets } from './settings/presets'
 import { Input, Select, Switch } from '../ui/controls'
 import { ErrorNotice, SearchField, Skeleton } from '../ui/primitives'
 import { api, qk } from '@/core/api'
 import type { Setting } from '@/core/types'
 import { cn } from '@/core/utils'
+
+/** The section that owns no settings rows, only the buttons that move them. */
+const PRESETS = 'presets'
 
 /**
  * Settings as a document rather than as a sidebar view.
@@ -26,9 +30,14 @@ export function SettingsDoc({
   onView: (view: string) => void
 }) {
   const settings = useQuery({ queryKey: qk.settings, queryFn: api.listSettings })
+  const presets = useQuery({ queryKey: qk.presets, queryFn: api.listPresets })
+  // Free from cache — the status bar keeps this warm — and it turns an abstract
+  // switch into what that switch is currently interrupting.
+  const scheduler = useQuery({ queryKey: qk.scheduler, queryFn: api.schedulerStatus })
   const [query, setQuery] = useState('')
 
   const rows = useMemo(() => settings.data ?? [], [settings.data])
+  const hasPresets = (presets.data?.length ?? 0) > 0
 
   /**
    * Sections in the order the server lists their rows. That order is meaningful
@@ -43,8 +52,10 @@ export function SettingsDoc({
       if (list) list.push(row)
       else map.set(group, [row])
     }
-    return [...map.entries()].map(([name, list]) => ({ name, rows: list }))
-  }, [rows])
+    const groups = [...map.entries()].map(([name, list]) => ({ name, rows: list }))
+    // Owns no rows of its own; listed when the server has any presets at all.
+    return hasPresets ? [{ name: PRESETS, rows: [] }, ...groups] : groups
+  }, [rows, hasPresets])
 
   const needle = query.trim().toLowerCase()
   const matches = (row: Setting) =>
@@ -116,7 +127,11 @@ export function SettingsDoc({
                     needle && hits > 0 ? 'text-[hsl(var(--accent))]' : 'text-subtle',
                   )}
                 >
-                  {needle ? hits : section.rows.length}
+                  {section.name === PRESETS
+                    ? (presets.data?.length ?? 0)
+                    : needle
+                      ? hits
+                      : section.rows.length}
                 </span>
               </button>
             )
@@ -125,15 +140,21 @@ export function SettingsDoc({
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           {settings.isError && <ErrorNotice error={settings.error} className="m-4" />}
-          <ul className="divide-y divide-[hsl(var(--border))]">
-            {visible.map((row) => (
-              <SettingRow key={row.key} row={row} />
-            ))}
-          </ul>
-          {active && visible.length === 0 && (
-            <p className="p-6 text-center text-[12px] text-subtle">
-              Nothing in this section matches. The rail counts where else it does.
-            </p>
+          {active?.name === PRESETS ? (
+            <Presets rows={rows} running={scheduler.data?.running ?? 0} />
+          ) : (
+            <>
+              <ul className="divide-y divide-[hsl(var(--border))]">
+                {visible.map((row) => (
+                  <SettingRow key={row.key} row={row} />
+                ))}
+              </ul>
+              {active && visible.length === 0 && (
+                <p className="p-6 text-center text-[12px] text-subtle">
+                  Nothing in this section matches. The rail counts where else it does.
+                </p>
+              )}
+            </>
           )}
         </div>
       </div>

@@ -3,7 +3,7 @@ import { FileText } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { useAssetViewer } from '@/components/asset-viewer'
+import { useAssetViewer } from '../../asset-viewer'
 import { EmptyState, Skeleton } from '../../ui/primitives'
 import type { ViewerItem } from '@/core/assets'
 import type { Chapter, Task, Video } from '@/core/types'

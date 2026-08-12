@@ -3,8 +3,7 @@ import { RouterProvider } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
-import { TooltipProvider } from '@/components/ui/primitives'
-import { applyTheme } from '@/core/workspace'
+import { applyTheme } from '@/core/theme'
 import { router } from '@/router'
 
 import './styles.css'
@@ -49,9 +48,7 @@ if (!container) throw new Error('#root is missing from index.html')
 createRoot(container).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <RouterProvider router={router} />
-      </TooltipProvider>
+      <RouterProvider router={router} />
     </QueryClientProvider>
   </StrictMode>,
 )

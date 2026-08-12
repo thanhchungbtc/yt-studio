@@ -1,7 +1,8 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as TooltipPrimitive from '@radix-ui/react-tooltip'
-import { Search, X } from 'lucide-react'
+import { Check, Copy, Search, X } from 'lucide-react'
 import type { HTMLAttributes, ReactNode, RefObject } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { TONE_FILL, type Tone } from './controls'
 import { keycaps } from '../lib/keys'
@@ -437,5 +438,76 @@ export function PaneHeader({ title, children }: { title: string; children?: Reac
       </h2>
       {children && <div className="ml-auto flex shrink-0 items-center gap-0.5">{children}</div>}
     </div>
+  )
+}
+
+/* -------------------------------------------------------------- surfaces */
+
+/** A bordered card. The inspector and the preset grid are built from these. */
+export function Panel({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn('surface', className)} {...props} />
+}
+
+export function PanelHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={cn(
+        'flex items-center justify-between gap-3 border-b border-[hsl(var(--border))] px-3 py-2',
+        className,
+      )}
+      {...props}
+    />
+  )
+}
+
+export function PanelTitle({ className, ...props }: HTMLAttributes<HTMLHeadingElement>) {
+  return (
+    <h2
+      className={cn('text-[11px] font-semibold uppercase tracking-wider text-subtle', className)}
+      {...props}
+    />
+  )
+}
+
+/**
+ * Copies a value and says so in place rather than through a toast: the
+ * confirmation belongs next to the thing that was copied.
+ */
+export function CopyButton({
+  value,
+  label = 'Copy',
+  className,
+}: {
+  value: string
+  label?: string
+  className?: string
+}) {
+  const [copied, setCopied] = useState(false)
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  useEffect(() => () => clearTimeout(timer.current), [])
+
+  return (
+    <Tooltip label={copied ? 'Copied' : label}>
+      <button
+        type="button"
+        aria-label={label}
+        onClick={() => {
+          void navigator.clipboard.writeText(value).then(() => {
+            setCopied(true)
+            clearTimeout(timer.current)
+            timer.current = setTimeout(() => setCopied(false), 1400)
+          })
+        }}
+        className={cn(
+          'inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-xs)]',
+          'text-subtle transition-colors hover:bg-[hsl(var(--bg-hover))] hover:text-fg',
+          copied && 'text-[hsl(var(--success))]',
+          className,
+        )}
+      >
+        {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+      </button>
+    </Tooltip>
   )
 }

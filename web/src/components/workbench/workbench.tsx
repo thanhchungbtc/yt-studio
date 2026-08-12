@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useCallback, useRef, useState } from 'react'
 import { Panel, PanelGroup, type ImperativePanelHandle } from 'react-resizable-panels'
 
-import { AssetViewerProvider } from '@/components/asset-viewer'
+import { AssetViewerProvider } from './asset-viewer'
 import { ActivityBar, StatusBar, TitleBar } from './chrome'
 import { CreateVideo } from './create-video'
 import { EditorArea } from './editor/editor-area'

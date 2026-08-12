@@ -25,7 +25,9 @@ import type { Cell } from './stages'
 function Placeholder({ cell }: { cell: Cell }) {
   switch (cell.state) {
     case 'running':
-      return <span className="sweep h-4 w-10 rounded-[var(--radius-xs)] bg-[hsl(var(--bg-hover))]" />
+      return (
+        <span className="sweep h-4 w-10 rounded-[var(--radius-xs)] bg-[hsl(var(--bg-hover))]" />
+      )
     case 'queued':
       return <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--info))]" title="queued" />
     case 'failed':

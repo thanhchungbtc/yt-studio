@@ -1,7 +1,8 @@
-import { Download, ExternalLink, ImageOff } from 'lucide-react'
+import { Download, ExternalLink, ImageOff, Pencil } from 'lucide-react'
 
 import { Badge, Button } from '../../ui/controls'
 import { EmptyState, KeyValue, Section } from '../../ui/primitives'
+import { useWorkbenchStore } from '../../lib/store'
 import { assetUrl } from '@/core/api'
 import { formatAbsolute } from '@/core/format'
 import type { Video } from '@/core/types'
@@ -14,6 +15,7 @@ import type { Video } from '@/core/types'
  * view rather than a block bolted underneath forty rows.
  */
 export function PublishView({ video }: { video: Video }) {
+  const open = useWorkbenchStore((s) => s.open)
   const nothingYet = !video.metadata && !video.finalAssetId && !video.effectiveThumbnailAssetId
 
   if (nothingYet) {
@@ -22,6 +24,16 @@ export function PublishView({ video }: { video: Video }) {
         icon={<ImageOff />}
         title="Nothing to publish yet"
         description="The thumbnail, the listing and the final render appear here once the pipeline reaches them."
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => open({ kind: 'thumbnail', ref: video.ref }, { preview: false })}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Open the thumbnail editor
+          </Button>
+        }
       />
     )
   }
@@ -29,7 +41,19 @@ export function PublishView({ video }: { video: Video }) {
   return (
     <div className="h-full overflow-y-auto p-4">
       <div className="mx-auto max-w-3xl space-y-5">
-        <Section title="Listing">
+        <Section
+          title="Listing"
+          actions={
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => open({ kind: 'thumbnail', ref: video.ref }, { preview: false })}
+            >
+              <Pencil className="h-3 w-3" />
+              Edit thumbnail
+            </Button>
+          }
+        >
           <div className="surface flex items-start gap-3 p-3">
             {video.effectiveThumbnailAssetId ? (
               <img

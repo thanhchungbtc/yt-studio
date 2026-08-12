@@ -1,5 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, Columns2, Film, Settings as SettingsIcon, Tv, X } from 'lucide-react'
+import {
+  ChevronDown,
+  Columns2,
+  Film,
+  Image as ImageIcon,
+  Settings as SettingsIcon,
+  Tv,
+  X,
+} from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 import { Button, IconButton } from '../ui/controls'
@@ -309,6 +317,8 @@ function TabIcon({ tab }: { tab: Tab }) {
   switch (tab.doc.kind) {
     case 'video':
       return <VideoTabIcon videoRef={tab.doc.ref} />
+    case 'thumbnail':
+      return <ImageIcon className="h-3.5 w-3.5 shrink-0 text-subtle" aria-hidden />
     case 'channel':
       return <Tv className="h-3.5 w-3.5 shrink-0 text-subtle" aria-hidden />
     case 'settings':

@@ -4,6 +4,8 @@ import { qk } from '@/core/api'
 import { Workbench } from '@/components/workbench/workbench'
 import { useWorkbenchStore, type Doc } from '@/components/workbench/lib/store'
 
+export { useWorkbenchStore }
+
 export function mount(el: HTMLElement, seed: Record<string, unknown>, docs: Doc[], bottom?: string) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
   const v = seed.video as { id: string; ref: string }

@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 
 import { ChannelDoc } from '../documents/channel-doc'
 import { SettingsDoc } from '../documents/settings-doc'
+import { ThumbnailDoc } from '../documents/thumbnail-doc'
 import { VideoDoc } from '../documents/video-doc'
 import { Welcome } from '../documents/welcome'
 import { useWorkbenchStore, type Tab } from '../lib/store'
@@ -31,6 +32,8 @@ export function Document({
       return <VideoDoc videoRef={tab.doc.ref} view={tab.view} onView={onView} />
     case 'channel':
       return <ChannelDoc slug={tab.doc.slug} onNewVideo={onNewVideo} onDirty={onDirty} />
+    case 'thumbnail':
+      return <ThumbnailDoc videoRef={tab.doc.ref} />
     case 'settings':
       return <SettingsDoc view={tab.view} onView={onView} />
     case 'welcome':

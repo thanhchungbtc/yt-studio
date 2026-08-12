@@ -18,6 +18,7 @@ export type Doc =
   | { kind: 'welcome' }
   | { kind: 'video'; ref: string }
   | { kind: 'channel'; slug: string }
+  | { kind: 'thumbnail'; ref: string }
   | { kind: 'settings' }
 
 /** A document's identity, and therefore its tab's. Opening the same doc twice in
@@ -28,6 +29,10 @@ export function docId(doc: Doc): string {
       return `video:${doc.ref}`
     case 'channel':
       return `channel:${doc.slug}`
+    case 'thumbnail':
+      // Distinct from the video's own tab: the editor is a different document
+      // about the same video, and both can be open at once.
+      return `thumbnail:${doc.ref}`
     default:
       return doc.kind
   }
@@ -40,6 +45,8 @@ export function docTitle(doc: Doc): string {
       return doc.ref
     case 'channel':
       return doc.slug
+    case 'thumbnail':
+      return `${doc.ref} thumbnail`
     case 'settings':
       return 'Settings'
     case 'welcome':
@@ -440,6 +447,7 @@ function isTab(value: unknown): value is Tab {
   if (typeof tab.id !== 'string' || !tab.doc || typeof tab.doc !== 'object') return false
   switch (tab.doc.kind) {
     case 'video':
+    case 'thumbnail':
       return typeof tab.doc.ref === 'string' && tab.doc.ref.length > 0
     case 'channel':
       return typeof tab.doc.slug === 'string' && tab.doc.slug.length > 0

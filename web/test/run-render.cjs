@@ -22,6 +22,32 @@ global.MutationObserver = w.MutationObserver
 global.DOMRect = w.DOMRect
 // jsdom implements no scrolling at all.
 w.Element.prototype.scrollIntoView = function () {}
+
+// jsdom has no canvas, so the thumbnail editor's seeding — which measures text
+// with the real face to fit the headline — silently returns undefined and the
+// editor opens on a skeleton. That is correct degradation, and it also means the
+// whole seed/render path goes untested. A permissive 2D stub exercises it:
+// data properties are real, every drawing call is a no-op, and anything that
+// returns an object (gradients, patterns) returns the stub so chains work.
+function context2d() {
+  const target = {
+    font: '',
+    canvas: { width: 1280, height: 720 },
+    measureText: (s) => ({
+      width: String(s || '').length * 8,
+      actualBoundingBoxAscent: 8,
+      actualBoundingBoxDescent: 2,
+    }),
+  }
+  const proxy = new Proxy(target, {
+    get: (o, k) => (k in o ? o[k] : () => proxy),
+    set: (o, k, v) => ((o[k] = v), true),
+  })
+  return proxy
+}
+w.HTMLCanvasElement.prototype.getContext = function () {
+  return context2d()
+}
 // A no-op ResizeObserver silently disables every virtualized list: react-virtual
 // learns the viewport size from here and nowhere else, so it measures zero and
 // renders no rows. Report a plausible box instead.
@@ -48,6 +74,23 @@ class ES { constructor() { this.readyState = 0 } addEventListener() {} removeEve
 global.EventSource = ES; w.EventSource = ES
 w.matchMedia = w.matchMedia || (() => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }))
 global.matchMedia = w.matchMedia
+// The editor preloads icon art through `new Image()`; jsdom has the constructor
+// but never fires load, so every image stays pending forever. Resolve them.
+global.Image = class {
+  constructor() {
+    setTimeout(() => this.onload && this.onload(), 0)
+  }
+  set src(_value) {}
+  get complete() {
+    return true
+  }
+}
+global.FontFace = class {
+  load() {
+    return Promise.resolve(this)
+  }
+}
+w.document.fonts = w.document.fonts || { add() {}, delete() {}, ready: Promise.resolve() }
 // jsdom lays nothing out, so every measurement is zero; give panels a window.
 w.HTMLElement.prototype.getBoundingClientRect = function () {
   return { width: 1440, height: 900, top: 0, left: 0, right: 1440, bottom: 900, x: 0, y: 0, toJSON() {} }
@@ -93,7 +136,8 @@ async function main() {
     `${seed.chapters.length} chapters, ${seed.tasks.length} tasks, ${seed.settings.length} settings; ` +
     `subject ${first.ref} (${first.state})`)
   global.SUBJECT = first
-  const { mount } = require('./.tmp/render.cjs')
+  const { mount, useWorkbenchStore } = require('./.tmp/render.cjs')
+  global.STORE = useWorkbenchStore
   const other = (scored[1] || scored[0]).v
   mount(w.document.getElementById('root'), seed, [
     { kind: 'channel', slug: channels[0].slug },
@@ -115,6 +159,7 @@ setTimeout(() => {
     'tab strip holds four distinct tabs': (html.match(/data-tab-id=/g) || []).length >= 4,
     'active tab is distinguished': html.includes('aria-selected="true"'),
     'settings tab present': text.includes('Settings'),
+
     'view tabs are all one click': ['Blueprint', 'Publish'].every((v) => text.includes(v)),
     'table column heads': ['CHAPTER', 'SCRIPT', 'NARRATION', 'SLIDES', 'CLIP'].every((c) =>
       text.toUpperCase().includes(c),
@@ -156,8 +201,21 @@ setTimeout(() => {
     console.log(`${pass ? '  ok  ' : ' FAIL '} ${name}`)
     if (!pass) ok = false
   }
-  const real = errors.filter((e) => !/not wrapped in act|Warning: /.test(e))
-  if (real.length) { console.log('\nconsole.error output:'); real.slice(0, 6).forEach((e) => console.log('  ' + e.slice(0, 400))) }
-  console.log(`\nhtml ${html.length} bytes`)
-  process.exit(ok && real.length === 0 ? 0 : 1)
+  global.STORE.getState().open({ kind: 'thumbnail', ref: s.ref }, { preview: false })
+  setTimeout(() => {
+    const t2 = w.document.body.textContent || ''
+    const second = {
+      'thumbnail editor mounts': t2.includes('Thumbnail') && t2.includes('Use this thumbnail'),
+      'its inspector renders': t2.includes('Typeface') && t2.includes('Backdrop brightness'),
+      'its frame is stated': /1280|frame is/.test(t2),
+    }
+    for (const [name, pass] of Object.entries(second)) {
+      console.log(`${pass ? '  ok  ' : ' FAIL '} ${name}`)
+      if (!pass) ok = false
+    }
+    const real = errors.filter((e) => !/not wrapped in act|Warning: /.test(e))
+    if (real.length) { console.log('\nconsole.error output:'); real.slice(0, 6).forEach((e) => console.log('  ' + e.slice(0, 400))) }
+    console.log(`\nhtml ${w.document.body.innerHTML.length} bytes`)
+    process.exit(ok && real.length === 0 ? 0 : 1)
+  }, 700)
 }, 1200)

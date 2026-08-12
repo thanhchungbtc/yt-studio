@@ -1,12 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useParams } from '@tanstack/react-router'
-import { ArrowLeft, Check, Copy, RotateCcw, Trash2, Undo2, Upload } from 'lucide-react'
+import { Check, Copy, RotateCcw, Trash2, Undo2, Upload } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import type { ThumbnailCanvasHandle } from '@/components/thumbnail-canvas'
-import { ThumbnailCanvas } from '@/components/thumbnail-canvas'
-import { Button } from '@/components/ui/button'
-import { Field, Input, Select } from '@/components/ui/field'
+import type { ThumbnailCanvasHandle } from './thumbnail/canvas'
+import { ThumbnailCanvas } from './thumbnail/canvas'
+import { Button, Field, Input, Select } from '../ui/controls'
 import {
   Divider,
   EmptyState,
@@ -15,8 +13,8 @@ import {
   PanelHeader,
   PanelTitle,
   Skeleton,
-  Toolbar,
-} from '@/components/ui/primitives'
+} from '../ui/primitives'
+import { DocFrame } from '../editor/doc-frame'
 import { api, assetUrl, qk } from '@/core/api'
 import type { Design, DesignElement, TextElement, TileElement } from '@/core/thumbnail/doc'
 import { FRAME_HEIGHT, FRAME_WIDTH, isText, isTile, readDesign } from '@/core/thumbnail/doc'
@@ -31,8 +29,12 @@ const MAX_BYTES = 2 * 1024 * 1024
 
 const AUTOSAVE_MS = 800
 
-export function ThumbnailEditorRoute() {
-  const { ref } = useParams({ from: '/videos/$ref/thumbnail' })
+/**
+ * The thumbnail editor, unchanged apart from what tied it to the old shell: the
+ * ref arrives as a prop instead of from the URL, and the tab strip is how you
+ * leave rather than a back button in a toolbar.
+ */
+export function ThumbnailDoc({ videoRef: ref }: { videoRef: string }) {
   const queryClient = useQueryClient()
 
   const video = useQuery({ queryKey: qk.video(ref), queryFn: () => api.getVideo(ref) })
@@ -153,7 +155,6 @@ export function ThumbnailEditorRoute() {
     return () => window.clearTimeout(timer)
     // saveDesign is a stable mutation object; depending on it would restart the
     // timer on every status change and never save.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [design])
 
   /* --------------------------------------------------------------- apply */
@@ -224,28 +225,41 @@ export function ThumbnailEditorRoute() {
 
   if (video.isLoading || settings.isLoading) {
     return (
-      <div className="p-4">
-        <Skeleton className="h-9 w-full" />
-      </div>
+      <DocFrame crumbs={[ref, 'Thumbnail']}>
+        <div className="p-4">
+          <Skeleton className="h-9 w-full" />
+        </div>
+      </DocFrame>
     )
   }
-  if (video.error) return <ErrorNotice error={video.error} />
+  if (video.error) {
+    return (
+      <DocFrame crumbs={[ref, 'Thumbnail']}>
+        <ErrorNotice error={video.error} className="m-4" />
+      </DocFrame>
+    )
+  }
   const v = video.data
-  if (!v) return <EmptyState title="No such video" />
+  if (!v) {
+    return (
+      <DocFrame crumbs={[ref, 'Thumbnail']}>
+        <EmptyState title="No such video" />
+      </DocFrame>
+    )
+  }
 
   const hasOverride = Boolean(v.thumbnailOverrideAssetId)
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <Toolbar>
-        <Button variant="ghost" size="sm" asChild>
-          <Link to="/videos/$ref" params={{ ref }}>
-            <ArrowLeft className="h-3.5 w-3.5" />
-            {v.ref}
-          </Link>
-        </Button>
-        <span className="text-[12px] text-subtle">Thumbnail editor</span>
-        <div className="ml-auto flex items-center gap-2">
+    <DocFrame
+      crumbs={[
+        <span key="ref" className="font-mono font-semibold text-[hsl(var(--accent))]">
+          {v.ref}
+        </span>,
+        'Thumbnail',
+      ]}
+      actions={
+        <>
           {font.failed && (
             <span className="text-[11px] text-[hsl(var(--danger))]">
               {design?.font} did not load — laying out in a fallback face
@@ -254,34 +268,34 @@ export function ThumbnailEditorRoute() {
           <span className="text-[11px] text-subtle">
             {saveDesign.isPending ? 'Saving…' : 'Saved'}
           </span>
-          <Button variant="ghost" size="sm" onClick={undo} disabled={history.length === 0}>
-            <Undo2 className="h-3.5 w-3.5" />
+          <Button variant="ghost" size="xs" onClick={undo} disabled={history.length === 0}>
+            <Undo2 className="h-3 w-3" />
             Undo
           </Button>
           {hasOverride && (
             <Button
               variant="outline"
-              size="sm"
+              size="xs"
               onClick={() => revert.mutate()}
               disabled={revert.isPending}
             >
-              <RotateCcw className="h-3.5 w-3.5" />
+              <RotateCcw className="h-3 w-3" />
               Use rendered
             </Button>
           )}
           <Button
             variant="primary"
-            size="sm"
+            size="xs"
             onClick={() => apply.mutate()}
             disabled={apply.isPending || !design}
           >
-            <Upload className="h-3.5 w-3.5" />
+            <Upload className="h-3 w-3" />
             {apply.isPending ? 'Applying…' : 'Use this thumbnail'}
           </Button>
-        </div>
-      </Toolbar>
-
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+        </>
+      }
+    >
+      <div className="flex h-full min-h-0 overflow-hidden">
         <div className="min-w-0 flex-1 overflow-auto p-4">
           {status && (
             <div className="mb-3 rounded-[var(--radius-sm)] border border-[hsl(var(--success))] bg-[hsl(var(--success))]/10 px-3 py-2 text-[12px]">
@@ -353,7 +367,7 @@ export function ThumbnailEditorRoute() {
           />
         </aside>
       </div>
-    </div>
+    </DocFrame>
   )
 }
 

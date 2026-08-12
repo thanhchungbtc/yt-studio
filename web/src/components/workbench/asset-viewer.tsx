@@ -23,17 +23,14 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { ReactNode } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 
-import { Badge, TONE_FILL } from '@/components/ui/badge'
-import type { Tone } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/field'
-import { CopyButton, ErrorNotice, Kbd, Skeleton, Tooltip } from '@/components/ui/primitives'
-import { RerunDialog } from '@/components/stale'
+import { Badge, Button, TONE_FILL, Textarea, type Tone } from './ui/controls'
+import { CopyButton, ErrorNotice, Kbd, Skeleton, Tooltip } from './ui/primitives'
+import { RerunDialog } from './documents/video/rerun-dialog'
 import { api, assetUrl, qk } from '@/core/api'
 import { downloadName, mediaTypeOf, pendingIconId, pendingSlideId, shortId } from '@/core/assets'
 import type { MediaType, ViewerItem } from '@/core/assets'
 import { formatAbsolute, formatBytes } from '@/core/format'
-import { useHotkeys } from '@/core/hotkeys'
+import { useCommands } from './lib/keys'
 import type { Chapter, Task } from '@/core/types'
 import { cn } from '@/core/utils'
 
@@ -329,36 +326,50 @@ function AssetLightbox({
     anchor.click()
   }, [item])
 
-  useHotkeys([
+  // Bare keys, and correct as such: this component only exists while the
+  // lightbox is open, so the bindings arrive and leave with it. Hidden from the
+  // palette because they mean nothing anywhere else.
+  useCommands([
     {
-      keys: 'arrowright',
+      id: 'viewer.next',
       label: 'Next artifact',
-      group: 'Preview',
+      category: 'Preview',
+      keys: 'ArrowRight',
       hidden: true,
       run: () => go(1),
     },
     {
-      keys: 'arrowleft',
+      id: 'viewer.previous',
       label: 'Previous artifact',
-      group: 'Preview',
+      category: 'Preview',
+      keys: 'ArrowLeft',
       hidden: true,
       run: () => go(-1),
     },
     {
-      keys: 'f',
+      id: 'viewer.fit',
       label: 'Fit or actual size',
-      group: 'Preview',
+      category: 'Preview',
+      keys: 'KeyF',
       hidden: true,
       run: () => setActualSize((prev) => !prev),
     },
     {
-      keys: 'i',
+      id: 'viewer.inspector',
       label: 'Toggle the inspector',
-      group: 'Preview',
+      category: 'Preview',
+      keys: 'KeyI',
       hidden: true,
       run: () => setInspector((prev) => !prev),
     },
-    { keys: 'd', label: 'Download', group: 'Preview', hidden: true, run: download },
+    {
+      id: 'viewer.download',
+      label: 'Download',
+      category: 'Preview',
+      keys: 'KeyD',
+      hidden: true,
+      run: download,
+    },
   ])
 
   if (!item) return null
@@ -634,7 +645,6 @@ function Stage({
   if (media === 'video') {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center bg-black p-4">
-        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
         <video controls autoPlay preload="metadata" src={url} className="max-h-full max-w-full" />
       </div>
     )
