@@ -136,6 +136,7 @@ async function main() {
     `${seed.chapters.length} chapters, ${seed.tasks.length} tasks, ${seed.settings.length} settings; ` +
     `subject ${first.ref} (${first.state})`)
   global.SUBJECT = first
+  global.GATED = seed.tasks.some((task) => task.state === 'awaiting_approval')
   const { mount, useWorkbenchStore } = require('./.tmp/render.cjs')
   global.STORE = useWorkbenchStore
   const other = (scored[1] || scored[0]).v
@@ -188,10 +189,14 @@ setTimeout(() => {
     'run panel': text.includes('Pipeline') || text.includes('RUN') || text.includes('Run'),
     'bottom panel tabs': text.includes('Console') && text.includes('Output'),
     'output view (live log)': text.includes('events') && text.includes('Task and scheduler frames'),
-    'gate card on a gated video':
-      /(blueprint|upload) gate/.test(text) &&
-      text.includes('Approve') &&
-      text.includes('holding here until you approve'),
+    ...(global.GATED
+      ? {
+          'gate card on a gated video':
+            /(blueprint|upload) gate/.test(text) &&
+            text.includes('Approve') &&
+            text.includes('holding here until you approve'),
+        }
+      : { '~ gate card (skipped: nothing is gated on this server)': true }),
     'pipeline stages named': text.includes('Blueprint') && text.includes('Narration'),
     'status bar version': text.includes('running') && text.includes('ready'),
     'panel groups': html.includes('data-panel-group'),

@@ -1,1 +1,1 @@
-export { useWorkbenchStore, docId } from '@/components/workbench/lib/store'
+export { useWorkbenchStore, docId } from '@/components/lib/store'

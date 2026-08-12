@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot } from 'react-dom/client'
 import { qk } from '@/core/api'
-import { Workbench } from '@/components/workbench/workbench'
-import { useWorkbenchStore, type Doc } from '@/components/workbench/lib/store'
+import { Workbench } from '@/components/workbench'
+import { useWorkbenchStore, type Doc } from '@/components/lib/store'
 
 export { useWorkbenchStore }
 

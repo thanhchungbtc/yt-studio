@@ -1,6 +1,6 @@
 import { createRootRoute, createRouter } from '@tanstack/react-router'
 
-import { Workbench } from '@/components/workbench/workbench'
+import { Workbench } from '@/components/workbench'
 
 /**
  * One route, because there is one window.
