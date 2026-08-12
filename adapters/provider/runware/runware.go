@@ -75,9 +75,11 @@ const defaultIconSize = 512
 
 // Config is everything needed to reach the API.
 type Config struct {
-	// APIKey is the bearer token; there is no anonymous access, so an empty one
-	// is a wiring error reported at startup rather than at the first task.
-	APIKey string
+	// APIKey resolves the bearer token; there is no anonymous access, so an empty
+	// one leaves this backend unavailable. A function, for the same reason Model
+	// is one: a key pasted on the settings screen applies to the next generation
+	// rather than the next restart.
+	APIKey func() string
 	// Model resolves the checkpoint's AIR identifier, e.g. runware:101@1. A
 	// function, so a model picked on the settings screen applies to the next
 	// generation rather than the next restart.
@@ -107,6 +109,9 @@ type Client struct {
 
 // New validates the configuration and wires the client, touching no network.
 func New(cfg Config, store provider.AssetStore, log *slog.Logger) (*Client, error) {
+	if cfg.APIKey == nil {
+		return nil, fmt.Errorf("%w: no API key resolver was given", ErrUnavailable)
+	}
 	if cfg.Model == nil {
 		return nil, fmt.Errorf("%w: no model resolver was given", ErrUnavailable)
 	}
@@ -141,11 +146,15 @@ func New(cfg Config, store provider.AssetStore, log *slog.Logger) (*Client, erro
 // Model returns the currently selected checkpoint, for the startup log line.
 func (c *Client) Model() string { return strings.TrimSpace(c.cfg.Model()) }
 
+// apiKey returns the key as currently set, which is read per request: it may be
+// pasted on the settings screen long after this client was wired.
+func (c *Client) apiKey() string { return strings.TrimSpace(c.cfg.APIKey()) }
+
 // Check reports whether a generation could run at all. It makes no request —
 // the cheapest probe still costs a generation — so it catches the failure that
 // actually happens: the key was never set.
 func (c *Client) Check() error {
-	if strings.TrimSpace(c.cfg.APIKey) == "" {
+	if c.apiKey() == "" {
 		return fmt.Errorf("%w: no API key is set", ErrUnavailable)
 	}
 	if c.Model() == "" {
@@ -187,7 +196,7 @@ type inferenceResponse struct {
 // is a parameter, so a caller that must not carry the house style passes none
 // rather than this growing a flag.
 func (c *Client) generate(ctx context.Context, prompt string, width, height int, negative string) ([]byte, error) {
-	if strings.TrimSpace(c.cfg.APIKey) == "" {
+	if c.apiKey() == "" {
 		return nil, fmt.Errorf("%w: no API key is set", ErrUnavailable)
 	}
 	model := c.Model()
@@ -247,7 +256,7 @@ func (c *Client) infer(ctx context.Context, task inferenceTask) (string, error) 
 		return "", fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+c.cfg.APIKey)
+	req.Header.Set("Authorization", "Bearer "+c.apiKey())
 
 	resp, err := c.inference.Do(req)
 	if err != nil {

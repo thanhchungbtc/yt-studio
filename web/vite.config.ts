@@ -1,6 +1,6 @@
 import { fileURLToPath, URL } from 'node:url'
 
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -10,14 +10,13 @@ import tailwindcss from '@tailwindcss/vite'
 //
 // "server" is ambiguous in this file -- Vite has one too -- so the Go one is
 // named outright throughout.
-export default defineConfig(({ mode }) => {
-  // yt-studio's address comes from the same .env yt-studio reads, one level up
-  // from here: a port written in two places is a port that will disagree with
-  // itself. The empty prefix loads every key rather than only VITE_ ones, and
-  // nothing from it is put in `define`, so no value here reaches the bundle --
-  // it is read for the proxy target and nothing else.
-  const env = loadEnv(mode, fileURLToPath(new URL('..', import.meta.url)), '')
-  const apiTarget = `http://${env.YTS_LISTEN || '127.0.0.1:8080'}`
+export default defineConfig(() => {
+  // yt-studio's address comes from the environment variable yt-studio itself
+  // reads, and from the same default when it is unset: a port written in two
+  // places is a port that will disagree with itself. Read for the proxy target
+  // and nothing else -- nothing from here is put in `define`, so no value
+  // reaches the bundle.
+  const apiTarget = `http://${process.env.YTS_LISTEN || '127.0.0.1:8080'}`
 
   return {
     plugins: [react(), tailwindcss()],

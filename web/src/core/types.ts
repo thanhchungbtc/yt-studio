@@ -210,6 +210,18 @@ export interface Setting {
    * from lives on someone else's server and runs to thousands.
    */
   suggestions: SettingSuggestion[]
+  /**
+   * The value is write-only. A credential that round-trips would sit in this
+   * cache, in the network log and in every screenshot, and nothing here needs to
+   * read one — so `value` arrives empty however many times it has been set.
+   */
+  secret: boolean
+  /**
+   * A secret row has a value stored. This is the whole of what the screen may
+   * know about it: whether to say "set" or "not set". Always false for a row
+   * that is not secret, which carries its value outright.
+   */
+  configured: boolean
   updatedAt: string
 }
 

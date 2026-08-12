@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -47,26 +48,79 @@ import (
 var version = "dev"
 
 // bootstrap holds the only configuration that must exist before the database is
-// open. Everything else is a settings row.
+// open: where the data lives, and how to reach it. Everything else — every
+// credential, every endpoint, every knob — is a settings row, edited on the
+// settings screen.
+//
+// One directory rather than four paths. The database, the asset store, the
+// resources and the transcripts are one installation, and a desktop app that
+// asked an operator to place four of them separately would be asking a question
+// with only one sensible answer. `--home var` is what reproduces the layout the
+// repository has always used, which is what `make dev` passes.
 type bootstrap struct {
-	DB     string `help:"SQLite database file." default:"var/yt-studio.db" env:"YTS_DB" type:"path"`
-	Assets string `help:"Content-addressed asset store root." default:"var/assets" env:"YTS_ASSETS" type:"path"`
 	//nolint:lll // one flag, one line
-	Resources string `help:"Fixed production assets: chalkboard.jpg, bg.mp4, bg.mp3, fonts/." default:"var/resources" env:"YTS_RESOURCES" type:"path"`
-	Listen    string `help:"Listen address." default:"127.0.0.1:8080" env:"YTS_LISTEN"`
+	Home string `help:"Installation directory: db/, assets/, resources/, transcripts/ and log/ live under it." default:"~/.yt-studio" env:"YTS_HOME" type:"path"`
 	//nolint:lll // one flag, one line
-	NineRouterURL string `help:"9router gateway base URL." default:"http://127.0.0.1:20128" env:"NINEROUTER_URL"`
-	//nolint:lll // one flag, one line
-	NineRouterKey string `help:"9router API key. A gateway running with auth off needs none." env:"NINEROUTER_KEY"`
-	//nolint:lll // one flag, one line
-	RunwareKey string `help:"Runware API key, for the runware image and thumbnail-icon backends." env:"RUNWARE_KEY"`
-	//nolint:lll // one flag, one line
-	XTTSURL string `help:"AllTalk/XTTS server root, for the xtts narration backend. The root only: no /api/tts-generate." default:"http://127.0.0.1:7851" env:"XTTS_URL"`
-	//nolint:lll // one flag, one line
-	Transcripts string `help:"Where each LLM prompt and response is written for inspection. Empty disables." default:"var/transcripts" env:"YTS_TRANSCRIPTS" type:"path"`
+	Listen string `help:"Listen address. Empty picks a free port, which is what the desktop shell wants." default:"127.0.0.1:8080" env:"YTS_LISTEN"`
 	//nolint:lll // one flag, one line
 	LogLevel string `help:"Startup log level; the settings table takes over once loaded." default:"info" env:"YTS_LOG_LEVEL" enum:"debug,info,warn,error"`
 }
+
+// The layout under Home, which is one directory of directories:
+//
+//	~/.yt-studio/
+//	    db/           yt-studio.db, and the -wal and -shm SQLite keeps beside it
+//	    assets/       the content-addressed store
+//	    resources/    operator-supplied media: chalkboard.jpg, bg.mp4, fonts/
+//	    transcripts/  one file per LLM exchange
+//	    log/          server.log, rewritten each run
+//
+// The database has a directory of its own because it is three files rather than
+// one: SQLite writes -wal and -shm beside it, they appear and disappear with the
+// connection, and loose at the root they read as debris. Nothing but directories
+// at the top means a listing says what the installation is made of.
+//
+// Named here rather than spelled at each use, so the one place that decides
+// where a thing lives is this block.
+func (b bootstrap) db() string          { return filepath.Join(b.Home, "db", "yt-studio.db") }
+func (b bootstrap) assets() string      { return filepath.Join(b.Home, "assets") }
+func (b bootstrap) resources() string   { return filepath.Join(b.Home, "resources") }
+func (b bootstrap) transcripts() string { return filepath.Join(b.Home, "transcripts") }
+
+// ensureHome creates the installation directory before anything writes inside
+// it, and does so at 0700.
+//
+// The permission is the point. The settings table holds API keys now, so this
+// directory is the credential store; every path below it inherits the fact that
+// nobody else can traverse in. It runs before the logger, which would otherwise
+// create the same directory at 0755 on its way to the log file.
+//
+// An existing directory is left as it is, permissions included: quietly
+// tightening a directory an operator placed and shared is not this program's
+// call to make.
+// The resources directory is made here too, empty, because nothing else ever
+// makes it: the other four are written to and appear on their own, but this one
+// is only ever read, so on a fresh installation it would be missing exactly when
+// somebody needs to be told where to put a background video.
+func (b bootstrap) ensureHome() error {
+	if err := os.MkdirAll(b.Home, 0o700); err != nil {
+		return fmt.Errorf("create %s: %w", b.Home, err)
+	}
+	if err := os.MkdirAll(b.resources(), 0o755); err != nil {
+		return fmt.Errorf("create %s: %w", b.resources(), err)
+	}
+	return nil
+}
+
+// logFile is where serve mirrors its log. A bundled application has no terminal
+// attached, so stderr goes nowhere an operator can read; this is the only record
+// of why a backend reported itself unavailable. The short-lived commands do not
+// use it — they are run from a terminal, and clobbering the server's log to say
+// what a sweep freed would be a poor trade.
+// The name is the process, not the product: inside ~/.yt-studio/log/ the
+// product name says nothing, and it leaves the obvious room beside it if the
+// desktop window ever needs one of its own.
+func (b bootstrap) logFile() string { return filepath.Join(b.Home, "log", "server.log") }
 
 type serveCmd struct {
 	bootstrap
@@ -81,7 +135,7 @@ type sweepCmd struct {
 	//nolint:lll // one flag, one line
 	Apply bool `help:"Actually delete. Without it the sweep only reports what it would free." default:"false"`
 	//nolint:lll // one flag, one line
-	Force bool `help:"Sweep even when the database references no assets at all, which normally means --db is wrong." default:"false"`
+	Force bool `help:"Sweep even when the database references no assets at all, which normally means --home is wrong." default:"false"`
 }
 
 type versionCmd struct{}
@@ -95,12 +149,8 @@ type cli struct {
 
 func main() {
 	var root cli
-	// Before the parse: kong reads its `env:` tags through os.Getenv while
-	// parsing, so the file's values have to be in the environment by now.
-	if err := loadEnvFile(); err != nil {
-		fmt.Fprintln(os.Stderr, "yt-studio:", err)
-		os.Exit(1)
-	}
+	// Before anything is wired, because the composer resolves ffmpeg through it.
+	widenPath()
 	kctx := kong.Parse(&root,
 		kong.Name("yt-studio"),
 		kong.Description("Local automation for long-form slideshow videos."),
@@ -121,9 +171,15 @@ func (c *seedCmd) Run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	_, log := newLogger(c.LogLevel)
+	_, log, _, err := newLogger(c.LogLevel, "")
+	if err != nil {
+		return err
+	}
+	if err := c.ensureHome(); err != nil {
+		return err
+	}
 
-	store, err := sqlite.Open(ctx, sqlite.Options{Path: c.DB}, log)
+	store, err := sqlite.Open(ctx, sqlite.Options{Path: c.db()}, log)
 	if err != nil {
 		return err
 	}
@@ -143,9 +199,15 @@ func (c *sweepCmd) Run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	_, log := newLogger(c.LogLevel)
+	_, log, _, err := newLogger(c.LogLevel, "")
+	if err != nil {
+		return err
+	}
+	if err := c.ensureHome(); err != nil {
+		return err
+	}
 
-	store, err := sqlite.Open(ctx, sqlite.Options{Path: c.DB}, log)
+	store, err := sqlite.Open(ctx, sqlite.Options{Path: c.db()}, log)
 	if err != nil {
 		return err
 	}
@@ -153,7 +215,7 @@ func (c *sweepCmd) Run() error {
 	writerCtx, stopWriter := context.WithCancel(gctx)
 	g.Go(func() error { return store.Run(writerCtx) })
 
-	err = sweep(gctx, store, c.Assets, c.Apply, c.Force, log)
+	err = sweep(gctx, store, c.assets(), c.Apply, c.Force, log)
 	stopWriter()
 	return errors.Join(err, g.Wait(), store.Close())
 }
@@ -239,17 +301,18 @@ func (c *serveCmd) Run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	level, log := newLogger(c.LogLevel)
-	if envFileLoaded != "" {
-		// The path and the count, never the values: a key in a log line is a
-		// leaked key.
-		log.Info("loaded environment file",
-			slog.String("path", envFileLoaded),
-			slog.Int("vars", envVarsLoaded))
+	if err := c.ensureHome(); err != nil {
+		return err
 	}
 
+	level, log, closeLog, err := newLogger(c.LogLevel, c.logFile())
+	if err != nil {
+		return err
+	}
+	defer closeLog()
+
 	// --- adapters -----------------------------------------------------------
-	store, err := sqlite.Open(ctx, sqlite.Options{Path: c.DB}, log)
+	store, err := sqlite.Open(ctx, sqlite.Options{Path: c.db()}, log)
 	if err != nil {
 		return err
 	}
@@ -271,7 +334,7 @@ func (c *serveCmd) Run() error {
 
 	settings := service.NewSettings(store, store)
 
-	assets, err := assetstore.New(c.Assets)
+	assets, err := assetstore.New(c.assets())
 	if err != nil {
 		return err
 	}
@@ -286,30 +349,32 @@ func (c *serveCmd) Run() error {
 
 	// Backends are registered before the settings are loaded, so a row naming one
 	// that does not exist fails at startup rather than at first task.
-	ffmpegComposer := ffmpeg.New(assets, c.Resources, log)
-	thumbnails := thumbnail.New(assets, c.Resources, func() thumbnail.Options {
+	ffmpegComposer := ffmpeg.New(assets, c.resources(), log)
+	thumbnails := thumbnail.New(assets, c.resources(), func() thumbnail.Options {
 		return thumbnail.Options{
 			Font: settings.String(entity.SettingThumbnailFont),
 			Rows: settings.Int(entity.SettingThumbnailGridRows),
 		}
 	}, log)
-	samples := sample.NewLibrary(c.Resources)
+	samples := sample.NewLibrary(c.resources())
 
-	// A closure rather than a captured value: settings load after registration,
-	// and a model picked on the screen applies to the next generation.
+	// Closures rather than captured values: settings load after registration, so
+	// nothing here has a value yet, and an address or a key entered on the screen
+	// applies to the next generation rather than the next restart. That is also
+	// why none of these constructors validates an address — an empty one is what
+	// they would see, and the real check belongs to Check and to the request.
 	nineRouter, err := ninerouter.New(ninerouter.Config{
-		BaseURL:       c.NineRouterURL,
-		APIKey:        c.NineRouterKey,
+		BaseURL:       func() string { return settings.String(entity.SettingNineRouterURL) },
+		APIKey:        func() string { return settings.String(entity.SettingNineRouterKey) },
 		Model:         func() string { return settings.String(entity.SettingNineRouterModel) },
-		TranscriptDir: c.Transcripts,
+		TranscriptDir: c.transcripts(),
 	}, assets, nineRouterContextLookup(store))
 	if err != nil {
 		return err
 	}
 
-	// Same closure treatment, for the same reason.
 	runwareClient, err := runware.New(runware.Config{
-		APIKey: c.RunwareKey,
+		APIKey: func() string { return settings.String(entity.SettingRunwareKey) },
 		Model:  func() string { return settings.String(entity.SettingRunwareModel) },
 		SlideSize: func() (int, int) {
 			return settings.Int(entity.SettingRunwareWidth), settings.Int(entity.SettingRunwareHeight)
@@ -319,10 +384,10 @@ func (c *serveCmd) Run() error {
 		return err
 	}
 
-	// Same again, and only this backend's own knobs: how a chapter should sound
-	// arrives on the request, from app.NarrationOptions below.
+	// Only this backend's own knobs: how a chapter should sound arrives on the
+	// request, from app.NarrationOptions below.
 	xttsClient, err := tts.New(tts.Config{
-		BaseURL: c.XTTSURL,
+		BaseURL: func() string { return settings.String(entity.SettingXTTSURL) },
 		Options: func() tts.Options {
 			return tts.Options{
 				ChunkMinChars:      settings.Int(entity.SettingXTTSChunkMinChars),
@@ -353,7 +418,7 @@ func (c *serveCmd) Run() error {
 	// checked for exhaustiveness, and only a few rows have a shortlist.
 	suggestions := make(map[entity.SettingKey][]entity.SettingSuggestion, 1)
 	suggestions[entity.SettingRunwareModel] = modelSuggestions(runware.Models())
-	suggestions[entity.SettingThumbnailFont] = fontSuggestions(thumbnail.Fonts(c.Resources))
+	suggestions[entity.SettingThumbnailFont] = fontSuggestions(thumbnail.Fonts(c.resources()))
 	settings.Suggest(suggestions)
 	if err := settings.Load(ctx); err != nil {
 		return err
@@ -372,12 +437,12 @@ func (c *serveCmd) Run() error {
 	if err := ffmpegComposer.Check(); err != nil {
 		log.Info("ffmpeg composer is not available",
 			slog.String("reason", err.Error()),
-			slog.String("resources", c.Resources))
+			slog.String("resources", c.resources()))
 	}
 	if err := thumbnails.Check(); err != nil {
 		log.Info("the built-in thumbnail renderer is not available",
 			slog.String("reason", err.Error()),
-			slog.String("resources", c.Resources))
+			slog.String("resources", c.resources()))
 	}
 	if err := samples.Check(); err != nil {
 		log.Info("sample backends are not available",
@@ -387,12 +452,12 @@ func (c *serveCmd) Run() error {
 	if err := nineRouter.Check(ctx); err != nil {
 		log.Info("9router is not available",
 			slog.String("reason", err.Error()),
-			slog.String("url", c.NineRouterURL))
+			slog.String("url", nineRouter.BaseURL()))
 	} else {
 		log.Info("9router is available",
-			slog.String("url", c.NineRouterURL),
+			slog.String("url", nineRouter.BaseURL()),
 			slog.String("model", nineRouter.Model()),
-			slog.String("transcripts", c.Transcripts))
+			slog.String("transcripts", c.transcripts()))
 	}
 	if err := runwareClient.Check(); err != nil {
 		log.Info("runware image backends are not available",
@@ -406,10 +471,10 @@ func (c *serveCmd) Run() error {
 	if err := xttsClient.Check(ctx); err != nil {
 		log.Info("xtts narration is not available",
 			slog.String("reason", err.Error()),
-			slog.String("url", c.XTTSURL))
+			slog.String("url", xttsClient.BaseURL()))
 	} else {
 		log.Info("xtts narration is available",
-			slog.String("url", c.XTTSURL),
+			slog.String("url", xttsClient.BaseURL()),
 			slog.String("voice", settings.String(entity.SettingXTTSVoice)),
 			slog.Float64("speed", settings.Float(entity.SettingXTTSSpeed)))
 	}
@@ -505,7 +570,7 @@ func (c *serveCmd) Run() error {
 		Dist:     dist,
 		// The same background and typefaces the builtin renderer draws with, so
 		// the browser editor composes what the operator will actually get.
-		Resources: os.DirFS(c.Resources),
+		Resources: os.DirFS(c.resources()),
 	})
 
 	srv := &http.Server{
@@ -547,7 +612,7 @@ func (c *serveCmd) Run() error {
 	log.Info("yt-studio serving",
 		slog.String("version", version),
 		slog.String("addr", listener.Addr().String()),
-		slog.String("db", c.DB),
+		slog.String("db", c.db()),
 		slog.String("assets", assets.Root()),
 		slog.Int("resumed_videos", resumed),
 		slog.Duration("startup", time.Since(started)))
@@ -697,13 +762,36 @@ func (e *lateExpander) Expand(ctx context.Context, videoID entity.VideoID, tail 
 	return e.sched.Expand(ctx, videoID, tail)
 }
 
-func newLogger(startupLevel string) (*slog.LevelVar, *slog.Logger) {
+// newLogger builds the logger, optionally mirroring it to a file.
+//
+// An empty path means stderr alone, which is what the short-lived commands
+// want. A path is written as well as stderr, not instead of it: `make
+// dev:desktop` runs from a terminal and should still print.
+//
+// The file is truncated at startup rather than rotated. One run's worth is what
+// answers "why did that not render", and a desktop application that quietly
+// grew a log forever would be a worse bug than the one it was kept for.
+func newLogger(startupLevel, path string) (*slog.LevelVar, *slog.Logger, func(), error) {
 	level := &slog.LevelVar{}
 	if parsed, err := app.ParseLogLevel(startupLevel); err == nil {
 		level.Set(parsed)
 	}
-	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})
-	log := slog.New(handler)
+
+	var out io.Writer = os.Stderr
+	closeLog := func() {}
+	if path != "" {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return nil, nil, nil, fmt.Errorf("log directory: %w", err)
+		}
+		file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("log file: %w", err)
+		}
+		out = io.MultiWriter(os.Stderr, file)
+		closeLog = func() { _ = file.Close() }
+	}
+
+	log := slog.New(slog.NewTextHandler(out, &slog.HandlerOptions{Level: level}))
 	slog.SetDefault(log)
-	return level, log
+	return level, log, closeLog, nil
 }

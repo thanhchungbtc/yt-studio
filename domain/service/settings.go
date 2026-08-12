@@ -31,6 +31,9 @@ type Settings struct {
 	// optional carries the keys an empty value is legal for.
 	optional map[entity.SettingKey]bool
 
+	// secret carries the keys whose value may be written but not read back.
+	secret map[entity.SettingKey]bool
+
 	// suggestions carries the known-good values worth offering for a key.
 	suggestions map[entity.SettingKey][]entity.SettingSuggestion
 
@@ -45,10 +48,14 @@ type Settings struct {
 func NewSettings(reader repository.SettingReader, writer repository.SettingWriter) *Settings {
 	defaults := entity.DefaultSettings()
 	optional := make(map[entity.SettingKey]bool, len(defaults))
+	secret := make(map[entity.SettingKey]bool, len(defaults))
 	backend := make(map[entity.SettingKey]string, len(defaults))
 	for _, d := range defaults {
 		if d.Optional {
 			optional[d.Key] = true
+		}
+		if d.Secret {
+			secret[d.Key] = true
 		}
 		if d.Backend != "" {
 			backend[d.Key] = d.Backend
@@ -58,6 +65,7 @@ func NewSettings(reader repository.SettingReader, writer repository.SettingWrite
 		reader:   reader,
 		writer:   writer,
 		optional: optional,
+		secret:   secret,
 		backend:  backend,
 		cache:    make(map[entity.SettingKey]entity.Setting, len(defaults)),
 	}
@@ -80,6 +88,7 @@ func (s *Settings) constrain(row entity.Setting) entity.Setting {
 	row.Options = s.options[row.Key]
 	row.Suggestions = s.suggestions[row.Key]
 	row.Optional = s.optional[row.Key]
+	row.Secret = s.secret[row.Key]
 	row.Backend = s.backend[row.Key]
 	return row
 }

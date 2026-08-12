@@ -162,6 +162,81 @@ export function SettingsDoc({
   )
 }
 
+/* ------------------------------------------------------------------ secret */
+
+/**
+ * A credential. It differs from every other field in one way that shapes the
+ * rest: the value is never sent back, so this cannot show what is stored — only
+ * whether something is.
+ *
+ * That makes an empty box ambiguous, which is why nothing commits on blur here.
+ * A blank field means "leave it alone", saving takes Enter or the button, and
+ * removing a stored key is its own explicit action rather than the accident of
+ * tabbing through a form.
+ */
+function SecretField({
+  row,
+  draft,
+  setDraft,
+  commit,
+}: {
+  row: Setting
+  draft: string
+  setDraft: (value: string) => void
+  commit: (value: string) => void
+}) {
+  const typed = draft.trim() !== ''
+
+  return (
+    <>
+      <div className="flex items-center gap-1.5">
+        <Input
+          value={draft}
+          aria-label={row.key}
+          type="password"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder={row.configured ? '•••••••• stored' : 'not set'}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              if (typed) commit(draft)
+            } else if (event.key === 'Escape') {
+              event.stopPropagation()
+              setDraft('')
+            }
+          }}
+        />
+        {typed && (
+          <button
+            type="button"
+            onClick={() => commit(draft)}
+            className="shrink-0 rounded border border-[hsl(var(--border))] px-1.5 text-[10px] leading-[20px] text-muted transition-colors hover:text-fg"
+          >
+            Save
+          </button>
+        )}
+      </div>
+      <p className="mt-1 flex items-center gap-1.5 text-[10.5px] text-subtle">
+        <span>{row.configured ? 'A key is stored.' : 'No key is stored.'}</span>
+        {row.configured && !typed && (
+          <button
+            type="button"
+            onClick={() => {
+              setDraft('')
+              commit('')
+            }}
+            className="text-[hsl(var(--danger))] transition-opacity hover:opacity-80"
+          >
+            Remove
+          </button>
+        )}
+      </p>
+    </>
+  )
+}
+
 /* --------------------------------------------------------------------- row */
 
 /**
@@ -190,6 +265,10 @@ function SettingRow({ row }: { row: Setting }) {
     if (value === row.value) return
     update.mutate(value)
   }
+
+  // A secret's value never arrives, so `value === row.value` cannot tell an
+  // untouched field from a cleared one. Clearing is its own button instead.
+  const commitSecret = (value: string) => update.mutate(value)
 
   return (
     <li className="flex items-start gap-4 px-4 py-2.5 transition-colors hover:bg-[hsl(var(--bg-hover))]">
@@ -222,6 +301,8 @@ function SettingRow({ row }: { row: Setting }) {
               aria-label={row.key}
             />
           </div>
+        ) : row.secret ? (
+          <SecretField row={row} draft={draft} setDraft={setDraft} commit={commitSecret} />
         ) : row.options.length > 0 ? (
           <Select
             value={draft}

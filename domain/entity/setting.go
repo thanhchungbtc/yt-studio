@@ -70,6 +70,11 @@ const (
 	// provider.uploader says who publishes, this says whether it is real.
 	SettingUploadDryRun SettingKey = "upload.dry_run"
 
+	// SettingNineRouterURL is the gateway root the 9router backend talks to.
+	SettingNineRouterURL SettingKey = "ninerouter.url"
+	// SettingNineRouterKey authenticates against that gateway. Empty is
+	// meaningful: a gateway running with auth off needs none, which is usual.
+	SettingNineRouterKey SettingKey = "ninerouter.key"
 	// SettingNineRouterModel picks which upstream the 9router backend routes to.
 	SettingNineRouterModel SettingKey = "ninerouter.model"
 	// SettingBlueprintChapterTolerancePercent bounds how far an accepted
@@ -80,6 +85,9 @@ const (
 	// voice is an opaque handle scoped to one server, and a language code or a
 	// speed range one engine accepts is not one another does.
 	//
+	// SettingXTTSURL is the AllTalk server root. The root only: the endpoints are
+	// appended to it.
+	SettingXTTSURL SettingKey = "xtts.url"
 	// SettingXTTSVoice names a voice file on the AllTalk server. Empty is
 	// meaningful — it lets the server pick its own default.
 	SettingXTTSVoice SettingKey = "xtts.voice"
@@ -94,6 +102,9 @@ const (
 	// an audible splice.
 	SettingXTTSChunkSilenceMillis SettingKey = "xtts.chunk.silence_ms"
 
+	// SettingRunwareKey authenticates against the Runware API. There is no
+	// anonymous access, so an empty one leaves those backends unavailable.
+	SettingRunwareKey SettingKey = "runware.key"
 	// SettingRunwareModel is the checkpoint the Runware backend draws with, as an
 	// AIR identifier. It draws the thumbnail icons too when pointed at that port.
 	SettingRunwareModel SettingKey = "runware.model"
@@ -176,6 +187,12 @@ type Setting struct {
 	// Optional allows a string setting to be empty, where empty is meaningful
 	// rather than missing.
 	Optional bool
+	// Secret marks a value that may be written but never read back: the API sends
+	// an empty string and a "configured" flag in its place. A credential that
+	// round-trips through the client is a credential in every cache and
+	// screenshot, and nothing needs to read one except the backend using it.
+	// Not persisted — which rows are secret is a property of the binary.
+	Secret bool
 	// Suggestions are advisory where Options are binding: a checkpoint catalogue
 	// lives on someone else's server, and a stale copy here would refuse an
 	// identifier the API would have drawn. Not persisted.
@@ -343,10 +360,16 @@ func DefaultSettings() []Setting {
 		{Key: SettingUploadDryRun, Value: "true", Type: SettingTypeBool, Group: GroupProviders, Description: "The uploader does everything but the irreversible call, and produces a local receipt. Turning this off is what makes a publish real."},
 
 		//nolint:lll // one row, one line
+		{Key: SettingNineRouterURL, Value: "http://127.0.0.1:20128", Type: SettingTypeString, Group: GroupWriting, Backend: BackendNineRouter, Description: "Gateway root, e.g. http://127.0.0.1:20128. The root only — /v1/chat/completions is appended."},
+		//nolint:lll // one row, one line
+		{Key: SettingNineRouterKey, Value: "", Type: SettingTypeString, Group: GroupWriting, Backend: BackendNineRouter, Optional: true, Secret: true, Description: "Bearer token for the gateway. Empty is usual: a gateway running locally with auth off needs none."},
+		//nolint:lll // one row, one line
 		{Key: SettingNineRouterModel, Value: "ag/gemini-3-flash", Type: SettingTypeString, Group: GroupWriting, Backend: BackendNineRouter, Description: "Which upstream the 9router backend routes to, e.g. ag/gemini-3-flash. See GET /v1/models on the gateway."},
 		//nolint:lll // one row, one line
 		{Key: SettingBlueprintChapterTolerancePercent, Value: "20", Type: SettingTypeInt, Group: GroupWriting, Min: 0, Max: 100, Description: "How far an accepted blueprint's chapter count may fall from the target, as a percentage. A roll outside it is rejected and written again."},
 
+		//nolint:lll // one row, one line
+		{Key: SettingXTTSURL, Value: "http://127.0.0.1:7851", Type: SettingTypeString, Group: GroupNarration, Backend: BackendXTTS, Description: "AllTalk server root, e.g. http://127.0.0.1:7851. The root only — not /api/tts-generate, which is appended."},
 		//nolint:lll // one row, one line
 		{Key: SettingXTTSVoice, Value: "", Type: SettingTypeString, Group: GroupNarration, Backend: BackendXTTS, Optional: true, Description: "Voice file on the AllTalk server, e.g. female_01.wav. Empty lets the server pick its own default."},
 		//nolint:lll // one row, one line
@@ -358,6 +381,8 @@ func DefaultSettings() []Setting {
 		//nolint:lll // one row, one line
 		{Key: SettingXTTSChunkSilenceMillis, Value: "200", Type: SettingTypeInt, Group: GroupNarration, Backend: BackendXTTS, Min: 0, Max: 2000, Description: "Pause inserted between narration chunks when they are rejoined, so a sentence boundary is not an audible splice."},
 
+		//nolint:lll // one row, one line
+		{Key: SettingRunwareKey, Value: "", Type: SettingTypeString, Group: GroupSlides, Backend: BackendRunware, Optional: true, Secret: true, Description: "API key from my.runware.ai/keys. There is no anonymous access: without it the Runware slide and icon backends are unavailable."},
 		//nolint:lll // one row, one line
 		{Key: SettingRunwareModel, Value: "runware:100@1", Type: SettingTypeString, Group: GroupSlides, Backend: BackendRunware, Description: "Checkpoint the Runware backend draws with, as an AIR identifier, e.g. runware:100@1. It draws the thumbnail icons too, when that port is pointed at it."},
 		//nolint:lll // one row, one line

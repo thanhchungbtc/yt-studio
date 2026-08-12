@@ -6,6 +6,7 @@ package http
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/tbui/yt-studio/domain/entity"
@@ -385,7 +386,11 @@ type SettingDTO struct {
 	Backend string `json:"backend" doc:"The backend that reads this row, when only one does; empty means the row applies whatever is selected"`
 	//nolint:lll // one field, one line
 	Suggestions []SettingSuggestionDTO `json:"suggestions" doc:"Known-good values worth offering, with the name a human uses for each; advisory, the field still takes anything"`
-	UpdatedAt   time.Time              `json:"updatedAt"`
+	//nolint:lll // one field, one line
+	Secret bool `json:"secret" doc:"The value is write-only: it is never sent back, so value is always empty and configured says whether one is stored"`
+	//nolint:lll // one field, one line
+	Configured bool      `json:"configured" doc:"A secret row has a value stored. Always false for a row that is not secret, which carries its value outright"`
+	UpdatedAt  time.Time `json:"updatedAt"`
 }
 
 // SettingSuggestionDTO is one known-good value and the name it goes by.
@@ -403,9 +408,17 @@ func settingFrom(s entity.Setting) SettingDTO {
 	for _, sg := range s.Suggestions {
 		suggestions = append(suggestions, SettingSuggestionDTO{Value: sg.Value, Label: sg.Label})
 	}
+	// A secret's value never leaves the server, not even to the client that just
+	// wrote it: the screen needs to know whether one is set, which is what
+	// `configured` answers, and nothing more.
+	value, configured := s.Value, false
+	if s.Secret {
+		configured = strings.TrimSpace(value) != ""
+		value = ""
+	}
 	return SettingDTO{
 		Key:         string(s.Key),
-		Value:       s.Value,
+		Value:       value,
 		Type:        string(s.Type),
 		Group:       s.Group,
 		Description: s.Description,
@@ -414,6 +427,8 @@ func settingFrom(s entity.Setting) SettingDTO {
 		Options:     options,
 		Backend:     s.Backend,
 		Suggestions: suggestions,
+		Secret:      s.Secret,
+		Configured:  configured,
 		UpdatedAt:   s.UpdatedAt,
 	}
 }

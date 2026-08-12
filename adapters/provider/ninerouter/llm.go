@@ -43,11 +43,14 @@ const defaultTimeout = 20 * time.Minute
 
 // Config is everything needed to reach a 9router instance.
 type Config struct {
-	// BaseURL is the gateway root, e.g. http://localhost:20128.
-	BaseURL string
-	// APIKey is sent as a bearer token when set. A local gateway may run with
-	// auth disabled, in which case it is empty and no header is sent.
-	APIKey string
+	// BaseURL resolves the gateway root, e.g. http://localhost:20128. A function
+	// for the same reason Model is one: the gateway can be moved on the settings
+	// screen, and a malformed one is reported by Check rather than refusing to
+	// start a server whose other backends are fine.
+	BaseURL func() string
+	// APIKey resolves the bearer token, sent only when non-empty. A local gateway
+	// may run with auth disabled, which is the usual case.
+	APIKey func() string
 	// Model resolves the namespaced upstream id, e.g. ag/gemini-3-flash. A
 	// function, so a model picked on the settings screen applies to the next
 	// generation rather than the next restart.
@@ -77,18 +80,22 @@ type Client struct {
 
 var _ provider.LLM = (*Client)(nil)
 
-// New validates the configuration and wires the client, touching no network.
+// New wires the client, touching no network.
+//
+// The gateway address is resolved per call rather than checked here: it is a
+// settings row, so it is not known at wiring time and can change afterwards.
+// A missing or malformed one surfaces through Check and through the first
+// request, both as ErrUnavailable.
 //
 // lookup resolves a video id into the plan its slides illustrate. Only
 // SlidePrompts needs it, being handed an id and nothing else, so a nil lookup
 // leaves that one method unavailable and the rest working.
 func New(cfg Config, store provider.AssetStore, lookup ContextLookup) (*Client, error) {
-	if strings.TrimSpace(cfg.BaseURL) == "" {
-		return nil, fmt.Errorf("%w: base url must not be empty", ErrUnavailable)
+	if cfg.BaseURL == nil {
+		return nil, fmt.Errorf("%w: no base url resolver was given", ErrUnavailable)
 	}
-	parsed, err := url.Parse(cfg.BaseURL)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return nil, fmt.Errorf("%w: base url %q is not an absolute http url", ErrUnavailable, cfg.BaseURL)
+	if cfg.APIKey == nil {
+		return nil, fmt.Errorf("%w: no API key resolver was given", ErrUnavailable)
 	}
 	if cfg.Model == nil {
 		return nil, fmt.Errorf("%w: no model resolver was given", ErrUnavailable)
@@ -96,7 +103,6 @@ func New(cfg Config, store provider.AssetStore, lookup ContextLookup) (*Client, 
 	if store == nil {
 		return nil, fmt.Errorf("%w: asset store must not be nil", ErrUnavailable)
 	}
-	cfg.BaseURL = strings.TrimRight(cfg.BaseURL, "/")
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = defaultTimeout
 	}
@@ -119,11 +125,40 @@ func New(cfg Config, store provider.AssetStore, lookup ContextLookup) (*Client, 
 // Model returns the currently selected upstream id, for the startup log line.
 func (c *Client) Model() string { return c.cfg.Model() }
 
+// BaseURL returns the gateway root as currently configured, for log lines and
+// error messages. Empty when the row is unset or unusable.
+func (c *Client) BaseURL() string {
+	base, err := c.baseURL()
+	if err != nil {
+		return ""
+	}
+	return base
+}
+
+// baseURL resolves and checks the gateway root. The check lives here rather
+// than in New because the value is a settings row: it is empty at wiring time
+// and may be corrected while the server runs.
+func (c *Client) baseURL() (string, error) {
+	raw := strings.TrimSpace(c.cfg.BaseURL())
+	if raw == "" {
+		return "", fmt.Errorf("%w: no gateway address is set", ErrUnavailable)
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "", fmt.Errorf("%w: %q is not an absolute http url", ErrUnavailable, raw)
+	}
+	return strings.TrimRight(raw, "/"), nil
+}
+
 // Check probes the gateway, so an unreachable one is known at startup rather
 // than at the first chapter. The result is not cached: a gateway that was down
 // at boot may be up now.
 func (c *Client) Check(ctx context.Context) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.cfg.BaseURL+"/api/health", http.NoBody)
+	base, err := c.baseURL()
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/api/health", http.NoBody)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
@@ -131,21 +166,21 @@ func (c *Client) Check(ctx context.Context) error {
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("%w: %s: %w", ErrUnavailable, c.cfg.BaseURL, err)
+		return fmt.Errorf("%w: %s: %w", ErrUnavailable, base, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<12))
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("%w: %s: health returned %s: %s",
-			ErrUnavailable, c.cfg.BaseURL, resp.Status, snippet(string(body)))
+			ErrUnavailable, base, resp.Status, snippet(string(body)))
 	}
 	var health struct {
 		OK bool `json:"ok"`
 	}
 	if err := json.Unmarshal(body, &health); err != nil || !health.OK {
 		return fmt.Errorf("%w: %s: health is not ok: %s",
-			ErrUnavailable, c.cfg.BaseURL, snippet(string(body)))
+			ErrUnavailable, base, snippet(string(body)))
 	}
 	return nil
 }
@@ -211,6 +246,10 @@ func (c *Client) complete(ctx context.Context, system, user string) (string, *ch
 	if model == "" {
 		return "", nil, fmt.Errorf("%w: no model is selected", ErrUnavailable)
 	}
+	base, err := c.baseURL()
+	if err != nil {
+		return "", nil, err
+	}
 	payload, err := json.Marshal(chatRequest{
 		Model: model,
 		Messages: []chatMessage{
@@ -224,7 +263,7 @@ func (c *Client) complete(ctx context.Context, system, user string) (string, *ch
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		c.cfg.BaseURL+"/v1/chat/completions", bytes.NewReader(payload))
+		base+"/v1/chat/completions", bytes.NewReader(payload))
 	if err != nil {
 		return "", nil, fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
@@ -235,7 +274,7 @@ func (c *Client) complete(ctx context.Context, system, user string) (string, *ch
 	if err != nil {
 		// An unreachable gateway is not fixed by attempts. A cancelled context
 		// lands here too, and app.classify recognises it for what it is.
-		return "", nil, fmt.Errorf("%w: %s: %w", ErrUnavailable, c.cfg.BaseURL, err)
+		return "", nil, fmt.Errorf("%w: %s: %w", ErrUnavailable, base, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -268,8 +307,8 @@ func (c *Client) complete(ctx context.Context, system, user string) (string, *ch
 }
 
 func (c *Client) authorize(req *http.Request) {
-	if c.cfg.APIKey != "" {
-		req.Header.Set("Authorization", "Bearer "+c.cfg.APIKey)
+	if key := strings.TrimSpace(c.cfg.APIKey()); key != "" {
+		req.Header.Set("Authorization", "Bearer "+key)
 	}
 }
 

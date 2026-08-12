@@ -895,6 +895,8 @@ export interface components {
       readonly $schema?: string
       /** @description The backend that reads this row, when only one does; empty means the row applies whatever is selected */
       backend: string
+      /** @description A secret row has a value stored. Always false for a row that is not secret, which carries its value outright */
+      configured: boolean
       description: string
       group: string
       key: string
@@ -904,6 +906,8 @@ export interface components {
       min: number
       /** @description The only accepted values, when the setting is constrained to a fixed set; empty means free-form */
       options: string[]
+      /** @description The value is write-only: it is never sent back, so value is always empty and configured says whether one is stored */
+      secret: boolean
       /** @description Known-good values worth offering, with the name a human uses for each; advisory, the field still takes anything */
       suggestions: components['schemas']['SettingSuggestionDTO'][]
       /** @enum {string} */

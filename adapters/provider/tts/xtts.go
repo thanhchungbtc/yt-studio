@@ -96,9 +96,11 @@ func voiceOf(req provider.SpeakRequest) voice {
 
 // Config is everything needed to reach one AllTalk instance.
 type Config struct {
-	// BaseURL is the server root, e.g. http://127.0.0.1:7851. Endpoints are
-	// appended to it and a generation's audio URL is resolved against it.
-	BaseURL string
+	// BaseURL resolves the server root, e.g. http://127.0.0.1:7851. Endpoints are
+	// appended to it and a generation's audio URL is resolved against it. A
+	// function, so the server can be moved on the settings screen without a
+	// restart.
+	BaseURL func() string
 	// Timeout bounds one request; zero means defaultTimeout.
 	Timeout time.Duration
 	// Options resolves the settings-sourced knobs, per call.
@@ -114,30 +116,17 @@ type Client struct {
 
 var _ provider.TTS = (*Client)(nil)
 
-// New validates the configuration and wires the client, touching no network —
-// Check reports a server that is down. A bad BaseURL fails here rather than at
-// the first chapter of fifty.
+// New wires the client, touching no network — Check reports a server that is
+// down.
+//
+// The address is resolved per call rather than checked here: it is a settings
+// row, so it is not known at wiring time and can change afterwards. A malformed
+// one surfaces through Check and through the first chapter, both as
+// ErrUnavailable.
 func New(cfg Config, store provider.AssetStore) (*Client, error) {
-	base := strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")
-	if base == "" {
-		return nil, fmt.Errorf("%w: base URL must not be empty", ErrUnavailable)
+	if cfg.BaseURL == nil {
+		return nil, fmt.Errorf("%w: no base URL resolver was given", ErrUnavailable)
 	}
-	parsed, err := url.Parse(base)
-	if err != nil {
-		return nil, fmt.Errorf("%w: base URL %q: %w", ErrUnavailable, cfg.BaseURL, err)
-	}
-	if !parsed.IsAbs() || parsed.Host == "" {
-		return nil, fmt.Errorf("%w: base URL %q must be absolute, e.g. http://127.0.0.1:7851",
-			ErrUnavailable, cfg.BaseURL)
-	}
-	// The server root, not the generate endpoint: the Python this replaces
-	// configured the full endpoint, so pasting that value across is a mistake
-	// worth catching rather than a convention to remember.
-	if parsed.Path != "" {
-		return nil, fmt.Errorf("%w: base URL %q must be the server root, without %q",
-			ErrUnavailable, cfg.BaseURL, parsed.Path)
-	}
-	cfg.BaseURL = base
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = defaultTimeout
 	}
@@ -148,17 +137,56 @@ func New(cfg Config, store provider.AssetStore) (*Client, error) {
 	}, nil
 }
 
+// BaseURL returns the server root as currently configured, for log lines.
+// Empty when the row is unset or unusable.
+func (c *Client) BaseURL() string {
+	base, err := c.baseURL()
+	if err != nil {
+		return ""
+	}
+	return base
+}
+
+// baseURL resolves and checks the server root. The checks live here rather than
+// in New because the value is a settings row, correctable while the server runs
+// — which is also why the endpoint-not-root mistake still has to be caught: the
+// Python this replaces configured the full endpoint, so pasting that value
+// across is a mistake worth naming rather than a convention to remember.
+func (c *Client) baseURL() (string, error) {
+	raw := strings.TrimRight(strings.TrimSpace(c.cfg.BaseURL()), "/")
+	if raw == "" {
+		return "", fmt.Errorf("%w: no server address is set", ErrUnavailable)
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return "", fmt.Errorf("%w: base URL %q: %w", ErrUnavailable, raw, err)
+	}
+	if !parsed.IsAbs() || parsed.Host == "" {
+		return "", fmt.Errorf("%w: base URL %q must be absolute, e.g. http://127.0.0.1:7851",
+			ErrUnavailable, raw)
+	}
+	if parsed.Path != "" {
+		return "", fmt.Errorf("%w: base URL %q must be the server root, without %q",
+			ErrUnavailable, raw, parsed.Path)
+	}
+	return raw, nil
+}
+
 // Check probes the server, so an unreachable one is known at startup rather
 // than at the first chapter. The result is not cached: a server that was down
 // at boot may be up now.
 func (c *Client) Check(ctx context.Context) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.cfg.BaseURL+endpointReady, http.NoBody)
+	base, err := c.baseURL()
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+endpointReady, http.NoBody)
 	if err != nil {
 		return fmt.Errorf("xtts: build ready request: %w", err)
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("%w: %s is unreachable: %w", ErrUnavailable, c.cfg.BaseURL, err)
+		return fmt.Errorf("%w: %s is unreachable: %w", ErrUnavailable, base, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, readyBodyLimit))
@@ -172,7 +200,7 @@ func (c *Client) Check(ctx context.Context) error {
 	// process is up but the model is not loaded.
 	if !strings.EqualFold(strings.TrimSpace(string(body)), "Ready") {
 		return fmt.Errorf("%w: %s answered %q rather than Ready",
-			ErrUnavailable, c.cfg.BaseURL+endpointReady, snippet(string(body)))
+			ErrUnavailable, base+endpointReady, snippet(string(body)))
 	}
 	return nil
 }
@@ -223,6 +251,10 @@ type generateResponse struct {
 // synthesize speaks one chunk and returns its WAV bytes: generate, then fetch
 // what the generation reported.
 func (c *Client) synthesize(ctx context.Context, chunk string, v voice) ([]byte, error) {
+	base, err := c.baseURL()
+	if err != nil {
+		return nil, err
+	}
 	form := url.Values{
 		"text_input":          {chunk},
 		"character_voice_gen": {v.name},
@@ -231,7 +263,7 @@ func (c *Client) synthesize(ctx context.Context, chunk string, v voice) ([]byte,
 		"speed": {strconv.FormatFloat(v.speed, 'g', -1, 64)},
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		c.cfg.BaseURL+endpointGenerate, strings.NewReader(form.Encode()))
+		base+endpointGenerate, strings.NewReader(form.Encode()))
 	if err != nil {
 		return nil, fmt.Errorf("xtts: build generate request: %w", err)
 	}
@@ -307,9 +339,13 @@ func (c *Client) audioURL(reported string) (string, error) {
 	if parsed.IsAbs() {
 		return parsed.String(), nil
 	}
-	base, err := url.Parse(c.cfg.BaseURL)
+	root, err := c.baseURL()
 	if err != nil {
-		return "", fmt.Errorf("xtts: base URL %q: %w", c.cfg.BaseURL, err)
+		return "", err
+	}
+	base, err := url.Parse(root)
+	if err != nil {
+		return "", fmt.Errorf("xtts: base URL %q: %w", root, err)
 	}
 	return base.ResolveReference(parsed).String(), nil
 }

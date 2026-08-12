@@ -9,11 +9,12 @@ tmp_dir = "var/air"
   # The deprecated `bin` string is handed to /bin/sh as a single path, which
   # fails the moment the command has arguments.
   #
-  # No flags: the database, the asset root and the address are what .env says,
-  # or the binary's defaults, which are the same values these used to pass. A
-  # flag here would beat the file and silently ignore it. air runs from the
-  # repository root, so .env is where the server looks.
-  entrypoint = ["./var/air/yt-studio", "serve"]
+  # --home var is what keeps development in the repository. The binary's own
+  # default is ~/.yt-studio, which is where a packaged application belongs and
+  # not where a checkout does: var/ already holds the database, the assets and
+  # the gigabyte of resources this has always used. air runs from the repository
+  # root, so the relative path resolves there.
+  entrypoint = ["./var/air/yt-studio", "serve", "--home", "var"]
   include_ext = ["go", "sql"]
   exclude_dir = ["web", "var", ".git", ".github"]
   exclude_regex = ["_test\\.go"]

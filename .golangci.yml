@@ -138,6 +138,10 @@ linters:
 
   exclusions:
     generated: lax
+    paths:
+      # A JavaScript dependency that happens to ship Go source is not ours to
+      # style, and npm decides when it appears.
+      - web/node_modules
     rules:
       # Generated code is not ours to style.
       - path: adapters/sqlite/sqlcgen/
