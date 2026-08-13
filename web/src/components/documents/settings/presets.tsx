@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertCircle, ArrowRight, Check, Loader2, Wand2 } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Check, Loader2, Wand2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 
 import { Badge, Button } from '../../ui/controls'
@@ -58,19 +58,21 @@ export function Presets({ rows, running }: { rows: Setting[]; running: number })
   }
 
   return (
-    <div className="p-4">
+    <div className="mx-auto w-full max-w-[1120px] p-5">
       {running > 0 && (
-        <p className="mb-3 flex items-center gap-1.5 text-[11.5px] text-[hsl(var(--warning))]">
-          <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          {running} task{running === 1 ? ' is' : 's are'} running. A backend is resolved when a task
-          is dispatched, so the work already in flight finishes on the old one and the rest starts
-          on the new.
+        <p className="mb-3 flex items-start gap-2 rounded-[var(--radius-md)] border border-[hsl(var(--warning)/0.35)] bg-[hsl(var(--warning-soft))] px-3 py-2 text-[11.5px] leading-[1.55] text-[hsl(var(--warning))]">
+          <AlertTriangle className="mt-[2px] h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span>
+            {running} task{running === 1 ? ' is' : 's are'} running. A backend is resolved when a
+            task is dispatched, so the work already in flight finishes on the old one and the rest
+            starts on the new.
+          </span>
         </p>
       )}
 
       {error !== undefined && <ErrorNotice error={error} className="mb-3" />}
 
-      <ul className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+      <ul className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
         {diffs.map(({ preset, changes }) => (
           <PresetCard
             key={preset.name}
@@ -106,43 +108,52 @@ function PresetCard({
   return (
     <li
       className={cn(
-        'flex flex-col rounded-[var(--radius-md)] border bg-[hsl(var(--bg-elevated))] p-3 elev-1',
-        inForce ? 'border-[hsl(var(--accent))]' : 'border-[hsl(var(--border))]',
+        'flex flex-col rounded-[var(--radius-md)] border bg-[hsl(var(--bg-elevated))] transition-shadow elev-1 hover:elev-2',
+        inForce
+          ? 'border-[hsl(var(--accent))] ring-1 ring-[hsl(var(--accent)/0.25)]'
+          : 'border-[hsl(var(--border))]',
       )}
     >
-      <div className="flex items-center gap-1.5">
-        <h3 className="text-[12.5px] font-semibold text-fg">{preset.title}</h3>
-        <span className="font-mono text-[11px] text-subtle">{preset.name}</span>
+      <div className="flex items-start gap-2 px-3.5 pb-2 pt-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-[12.5px] font-semibold leading-5 text-fg">{preset.title}</h3>
+          <code className="font-mono text-[10.5px] text-subtle">{preset.name}</code>
+        </div>
         {inForce && (
-          <Badge tone="success" className="ml-auto shrink-0">
-            <Check className="h-3 w-3" aria-hidden />
+          <Badge tone="success" className="shrink-0 px-1.5 text-[10px] leading-[15px]">
+            <Check className="h-2.5 w-2.5" aria-hidden />
             In force
           </Badge>
         )}
       </div>
 
-      <p className="mt-1 text-[11.5px] leading-[1.5] text-muted">{preset.description}</p>
+      <p className="px-3.5 text-[11.5px] leading-[1.55] text-muted">{preset.description}</p>
 
       {/* The diff before the click: which rows move, and from what. */}
       {!inForce && (
-        <ul className="mt-2 space-y-0.5">
-          {changes.map((change) => (
-            <li key={change.key} className="flex items-center gap-1 font-mono text-[10.5px]">
-              <span className="min-w-0 flex-1 truncate text-subtle">{change.key}</span>
-              <span className="shrink-0 text-subtle line-through">
-                {current.get(change.key) || '—'}
-              </span>
-              <ArrowRight className="h-3 w-3 shrink-0 text-subtle" aria-hidden />
-              <span className="shrink-0 font-medium text-fg">{change.value}</span>
-            </li>
-          ))}
-        </ul>
+        <div className="mx-3.5 mt-2.5 rounded-[var(--radius-sm)] border border-[hsl(var(--border))] bg-subtle px-2 py-1.5">
+          <ul className="space-y-1">
+            {changes.map((change) => (
+              <li key={change.key} className="flex items-center gap-1.5 font-mono text-[10.5px]">
+                <span className="min-w-0 flex-1 truncate text-subtle" title={change.key}>
+                  {change.key}
+                </span>
+                <span className="shrink-0 text-subtle line-through">
+                  {current.get(change.key) || '—'}
+                </span>
+                <ArrowRight className="h-3 w-3 shrink-0 text-subtle" aria-hidden />
+                <span className="shrink-0 font-medium text-fg">{change.value}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
-      <div className="mt-2.5 flex items-center gap-2 pt-0.5">
+      <div className="mt-auto px-3.5 pb-3.5 pt-3">
         <Button
           variant={inForce ? 'outline' : 'primary'}
           size="sm"
+          className="w-full justify-center"
           disabled={inForce || saving || disabled}
           onClick={onApply}
         >

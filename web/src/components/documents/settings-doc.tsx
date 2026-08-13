@@ -1,17 +1,25 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { PlugZap, SearchX } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { DocFrame } from '../editor/doc-frame'
+import { PRESETS, activeBackends, groupMeta, isDormant, settingTitle } from './settings/meta'
 import { Presets } from './settings/presets'
-import { Input, Select, Switch } from '../ui/controls'
-import { ErrorNotice, SearchField, Skeleton } from '../ui/primitives'
+import { SectionRail, type RailSection } from './settings/section-rail'
+import { SettingRow } from './settings/setting-row'
+import { Button } from '../ui/controls'
+import { EmptyState, ErrorNotice, SearchField, Skeleton, Tooltip } from '../ui/primitives'
 import { api, qk } from '@/core/api'
 import type { Setting } from '@/core/types'
 import { cn } from '@/core/utils'
 
-/** The section that owns no settings rows, only the buttons that move them. */
-const PRESETS = 'presets'
+/**
+ * A settings table stops being readable well before a wide window runs out of
+ * room: past about this, the eye has to cross a field of nothing to get from a
+ * description on the left to the control it belongs to on the right. Rows are
+ * capped and centred rather than stretched.
+ */
+const SHELL = 'mx-auto w-full max-w-[1120px]'
 
 /**
  * Settings as a document rather than as a sidebar view.
@@ -21,6 +29,11 @@ const PRESETS = 'presets'
  * and 288 pixels of sidebar would strangle it. The gear at the bottom of the
  * activity bar opens it here instead — which is also what the reference does,
  * and the reason its gear is not a view either.
+ *
+ * Filtering switches the body from one section to a result list across all of
+ * them. A filter that only searched the section already open would be a filter
+ * that answers "where is that setting" with "not here", which is the one
+ * question a forty-row table is opened to ask.
  */
 export function SettingsDoc({
   view,
@@ -37,7 +50,7 @@ export function SettingsDoc({
   const [query, setQuery] = useState('')
 
   const rows = useMemo(() => settings.data ?? [], [settings.data])
-  const hasPresets = (presets.data?.length ?? 0) > 0
+  const presetCount = presets.data?.length ?? 0
 
   /**
    * Sections in the order the server lists their rows. That order is meaningful
@@ -54,15 +67,23 @@ export function SettingsDoc({
     }
     const groups = [...map.entries()].map(([name, list]) => ({ name, rows: list }))
     // Owns no rows of its own; listed when the server has any presets at all.
-    return hasPresets ? [{ name: PRESETS, rows: [] }, ...groups] : groups
-  }, [rows, hasPresets])
+    return presetCount > 0 ? [{ name: PRESETS, rows: [] as Setting[] }, ...groups] : groups
+  }, [rows, presetCount])
 
   const needle = query.trim().toLowerCase()
-  const matches = (row: Setting) =>
-    !needle ||
-    row.key.toLowerCase().includes(needle) ||
-    row.description.toLowerCase().includes(needle) ||
-    row.value.toLowerCase().includes(needle)
+  const filtering = needle !== ''
+
+  const matches = useCallback(
+    (row: Setting) =>
+      !needle ||
+      row.key.toLowerCase().includes(needle) ||
+      settingTitle(row).toLowerCase().includes(needle) ||
+      row.description.toLowerCase().includes(needle) ||
+      row.backend.toLowerCase().includes(needle) ||
+      groupMeta(row.group).title.toLowerCase().includes(needle) ||
+      (!row.secret && row.value.toLowerCase().includes(needle)),
+    [needle],
+  )
 
   // A remembered section can name a group this build no longer has, so the
   // fallback is the first one rather than an empty pane.
@@ -72,14 +93,50 @@ export function SettingsDoc({
     if (active && active.name !== view) onView(active.name)
   }, [active, onView, view])
 
-  const visible = active?.rows.filter(matches) ?? []
+  /** Every section that still has something once the filter is applied. */
+  const results = useMemo(
+    () =>
+      filtering
+        ? sections
+            .map((section) => ({ name: section.name, rows: section.rows.filter(matches) }))
+            .filter((section) => section.rows.length > 0)
+        : [],
+    [filtering, matches, sections],
+  )
+
+  const hitCount = results.reduce((total, section) => total + section.rows.length, 0)
+
+  const rail: RailSection[] = sections.map((section) => ({
+    name: section.name,
+    total: section.name === PRESETS ? presetCount : section.rows.length,
+    hits: section.rows.filter(matches).length,
+  }))
+
+  // Clicking a section while filtering scrolls to it rather than dropping the
+  // filter: the rail is showing where the matches are, so it should go there.
+  const anchors = useRef(new Map<string, HTMLElement>())
+  const select = (name: string) => {
+    onView(name)
+    if (filtering) anchors.current.get(name)?.scrollIntoView({ block: 'start' })
+  }
+
+  const backends = useMemo(() => activeBackends(rows), [rows])
+  const dormant = active ? active.rows.filter((row) => isDormant(row, backends)).length : 0
+  // Which idle backends this section is waiting on, so the notice can name them
+  // and the operator can go and select one.
+  const idle = active
+    ? [...new Set(active.rows.filter((row) => isDormant(row, backends)).map((row) => row.backend))]
+    : []
+  const hasProviders = sections.some((section) => section.name === 'providers')
+  const meta = groupMeta(active?.name ?? '')
+  const SectionIcon = meta.icon
 
   return (
     <DocFrame
-      crumbs={['Settings', active?.name ?? '']}
+      crumbs={['Settings', filtering ? `“${query.trim()}”` : meta.title]}
       actions={
         <>
-          <span className="tabular text-[11px] text-subtle">{rows.length} rows</span>
+          <span className="tabular text-[11px] text-subtle">{rows.length} settings</span>
           <SearchField
             value={query}
             onChange={setQuery}
@@ -90,71 +147,157 @@ export function SettingsDoc({
       }
     >
       <div className="flex h-full min-h-0">
-        {/* The document's own rail. It is navigation inside one document, which
-            is why it lives here and not in the primary sidebar. */}
-        <nav
-          aria-label="Settings sections"
-          className="w-48 shrink-0 overflow-y-auto border-r border-[hsl(var(--border))] bg-subtle py-2"
-        >
-          {settings.isPending && (
-            <div className="space-y-1 px-2">
-              {Array.from({ length: 6 }, (_, i) => (
-                <Skeleton key={i} className="h-6 w-full" />
-              ))}
-            </div>
-          )}
-          {sections.map((section) => {
-            const hits = needle ? section.rows.filter(matches).length : 0
-            return (
-              <button
-                key={section.name}
-                type="button"
-                onClick={() => onView(section.name)}
-                aria-current={active?.name === section.name ? 'page' : undefined}
-                className={cn(
-                  'flex w-full items-center gap-2 px-3 py-1 text-left text-[12px] transition-colors',
-                  active?.name === section.name
-                    ? 'bg-[hsl(var(--bg-active))] font-medium text-fg'
-                    : 'text-muted hover:bg-[hsl(var(--bg-hover))] hover:text-fg',
-                )}
-              >
-                <span className="min-w-0 flex-1 truncate capitalize">
-                  {section.name.replace(/[._-]/g, ' ')}
-                </span>
-                <span
-                  className={cn(
-                    'tabular shrink-0 text-[10.5px]',
-                    needle && hits > 0 ? 'text-[hsl(var(--accent))]' : 'text-subtle',
-                  )}
-                >
-                  {section.name === PRESETS
-                    ? (presets.data?.length ?? 0)
-                    : needle
-                      ? hits
-                      : section.rows.length}
-                </span>
-              </button>
-            )
-          })}
-        </nav>
+        <SectionRail
+          sections={rail}
+          active={active?.name ?? ''}
+          filtering={filtering}
+          loading={settings.isPending}
+          onSelect={select}
+        />
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {settings.isError && <ErrorNotice error={settings.error} className="m-4" />}
-          {active?.name === PRESETS ? (
-            <Presets rows={rows} running={scheduler.data?.running ?? 0} />
-          ) : (
+          {settings.isError && <ErrorNotice error={settings.error} className="m-5" />}
+          {settings.isPending && <LoadingRows />}
+
+          {filtering ? (
             <>
-              <ul className="divide-y divide-[hsl(var(--border))]">
-                {visible.map((row) => (
-                  <SettingRow key={row.key} row={row} />
-                ))}
-              </ul>
-              {active && visible.length === 0 && (
-                <p className="p-6 text-center text-[12px] text-subtle">
-                  Nothing in this section matches. The rail counts where else it does.
-                </p>
+              <div className="sticky top-0 z-20 border-b border-[hsl(var(--border))] bg-[hsl(var(--bg)/0.85)] backdrop-blur">
+                <div className={cn(SHELL, 'flex h-9 items-center gap-2 px-5')}>
+                  <p className="min-w-0 flex-1 truncate text-[11.5px] text-muted">
+                    <span className="tabular font-medium text-fg">{hitCount}</span>
+                    {hitCount === 1 ? ' setting matches ' : ' settings match '}
+                    <span className="font-medium text-fg">“{query.trim()}”</span>
+                    {results.length > 0 && (
+                      <span className="text-subtle">
+                        {' '}
+                        in {results.length} section{results.length === 1 ? '' : 's'}
+                      </span>
+                    )}
+                  </p>
+                  <Button variant="ghost" size="xs" onClick={() => setQuery('')}>
+                    Clear
+                  </Button>
+                </div>
+              </div>
+
+              {results.map((section) => {
+                const sectionMeta = groupMeta(section.name)
+                const Icon = sectionMeta.icon
+                return (
+                  <section
+                    key={section.name}
+                    ref={(node) => {
+                      if (node) anchors.current.set(section.name, node)
+                      else anchors.current.delete(section.name)
+                    }}
+                  >
+                    <h2 className="sticky top-9 z-10 border-y border-[hsl(var(--border))] bg-subtle text-[10.5px] font-semibold uppercase tracking-[0.08em] text-subtle">
+                      <span className={cn(SHELL, 'flex items-center gap-2 px-5 py-1.5')}>
+                        <Icon className="h-3 w-3" aria-hidden />
+                        {sectionMeta.title}
+                        <span className="tabular ml-auto font-normal">{section.rows.length}</span>
+                      </span>
+                    </h2>
+                    <ul className={cn(SHELL, 'divide-y divide-[hsl(var(--border))]')}>
+                      {section.rows.map((row) => (
+                        <SettingRow key={row.key} row={row} dormant={isDormant(row, backends)} />
+                      ))}
+                    </ul>
+                  </section>
+                )
+              })}
+
+              {hitCount === 0 && !settings.isPending && (
+                <EmptyState
+                  icon={<SearchX />}
+                  title="Nothing matches that"
+                  description="The filter reads a setting's name, its key, its description and its value."
+                  action={
+                    <Button size="sm" onClick={() => setQuery('')}>
+                      Clear the filter
+                    </Button>
+                  }
+                />
               )}
             </>
+          ) : (
+            active && (
+              <>
+                <header className="sticky top-0 z-10 border-b border-[hsl(var(--border))] bg-[hsl(var(--bg)/0.85)] backdrop-blur">
+                  <div className={cn(SHELL, 'flex items-start gap-3 px-5 py-3.5')}>
+                    <span
+                      aria-hidden
+                      className="mt-[1px] flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[hsl(var(--accent)/0.1)] text-[hsl(var(--accent))]"
+                    >
+                      <SectionIcon className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-[13.5px] font-semibold leading-5 text-fg">
+                        {meta.title}
+                      </h2>
+                      {meta.blurb && (
+                        <p className="mt-0.5 max-w-prose text-[11.5px] leading-[1.55] text-muted">
+                          {meta.blurb}
+                        </p>
+                      )}
+                    </div>
+                    {active.name !== PRESETS && (
+                      <p className="tabular flex shrink-0 items-center gap-1.5 pt-0.5 text-[11px] text-subtle">
+                        <span>
+                          {active.rows.length} setting{active.rows.length === 1 ? '' : 's'}
+                        </span>
+                        {dormant > 0 && (
+                          <Tooltip
+                            label={`${dormant} of these belong to a backend no provider is set to. They still save — nothing reads them until that backend is selected.`}
+                          >
+                            <span className="cursor-default rounded-full bg-[hsl(var(--fg)/0.07)] px-1.5 leading-[16px]">
+                              {dormant} idle
+                            </span>
+                          </Tooltip>
+                        )}
+                      </p>
+                    )}
+                  </div>
+                </header>
+
+                {/* Said once here rather than on every row: a whole section of
+                    "idle" badges is noise, and this one can offer the fix. */}
+                {idle.length > 0 && (
+                  <div className={cn(SHELL, 'px-5 pt-3.5')}>
+                    <div className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-[hsl(var(--border))] bg-subtle px-3 py-1.5 text-[11px] leading-[1.5] text-muted">
+                      <PlugZap className="h-3.5 w-3.5 shrink-0 text-subtle" aria-hidden />
+                      <p className="min-w-0 flex-1">
+                        Nothing reads{' '}
+                        {dormant === active.rows.length ? 'these' : `${dormant} of these`}: no
+                        provider is set to{' '}
+                        <span className="font-medium text-fg">{idle.join(' or ')}</span>. They still
+                        save.
+                      </p>
+                      {hasProviders && (
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          className="shrink-0"
+                          onClick={() => select('providers')}
+                        >
+                          Providers
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {active.name === PRESETS ? (
+                  <Presets rows={rows} running={scheduler.data?.running ?? 0} />
+                ) : (
+                  <ul className={cn(SHELL, 'divide-y divide-[hsl(var(--border))]')}>
+                    {active.rows.map((row) => (
+                      <SettingRow key={row.key} row={row} dormant={isDormant(row, backends)} />
+                    ))}
+                  </ul>
+                )}
+              </>
+            )
           )}
         </div>
       </div>
@@ -162,208 +305,20 @@ export function SettingsDoc({
   )
 }
 
-/* ------------------------------------------------------------------ secret */
-
-/**
- * A credential. It differs from every other field in one way that shapes the
- * rest: the value is never sent back, so this cannot show what is stored — only
- * whether something is.
- *
- * That makes an empty box ambiguous, which is why nothing commits on blur here.
- * A blank field means "leave it alone", saving takes Enter or the button, and
- * removing a stored key is its own explicit action rather than the accident of
- * tabbing through a form.
- */
-function SecretField({
-  row,
-  draft,
-  setDraft,
-  commit,
-}: {
-  row: Setting
-  draft: string
-  setDraft: (value: string) => void
-  commit: (value: string) => void
-}) {
-  const typed = draft.trim() !== ''
-
+/** The shape of the table before it arrives, so the pane does not flash empty. */
+function LoadingRows() {
   return (
-    <>
-      <div className="flex items-center gap-1.5">
-        <Input
-          value={draft}
-          aria-label={row.key}
-          type="password"
-          autoComplete="off"
-          spellCheck={false}
-          placeholder={row.configured ? '•••••••• stored' : 'not set'}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault()
-              if (typed) commit(draft)
-            } else if (event.key === 'Escape') {
-              event.stopPropagation()
-              setDraft('')
-            }
-          }}
-        />
-        {typed && (
-          <button
-            type="button"
-            onClick={() => commit(draft)}
-            className="shrink-0 rounded border border-[hsl(var(--border))] px-1.5 text-[10px] leading-[20px] text-muted transition-colors hover:text-fg"
-          >
-            Save
-          </button>
-        )}
-      </div>
-      <p className="mt-1 flex items-center gap-1.5 text-[10.5px] text-subtle">
-        <span>{row.configured ? 'A key is stored.' : 'No key is stored.'}</span>
-        {row.configured && !typed && (
-          <button
-            type="button"
-            onClick={() => {
-              setDraft('')
-              commit('')
-            }}
-            className="text-[hsl(var(--danger))] transition-opacity hover:opacity-80"
-          >
-            Remove
-          </button>
-        )}
-      </p>
-    </>
-  )
-}
-
-/* --------------------------------------------------------------------- row */
-
-/**
- * One setting. A control that carries its own value — a switch, a select —
- * commits the moment it changes; a free-text field waits for blur or Enter, so
- * a half-typed number is never sent.
- */
-function SettingRow({ row }: { row: Setting }) {
-  const queryClient = useQueryClient()
-  const [draft, setDraft] = useState(row.value)
-  const [saved, setSaved] = useState(false)
-
-  // Another client — or the server itself — can move a value under us.
-  useEffect(() => setDraft(row.value), [row.value])
-
-  const update = useMutation({
-    mutationFn: (value: string) => api.updateSetting(row.key, value),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: qk.settings })
-      setSaved(true)
-      window.setTimeout(() => setSaved(false), 1200)
-    },
-  })
-
-  const commit = (value: string) => {
-    if (value === row.value) return
-    update.mutate(value)
-  }
-
-  // A secret's value never arrives, so `value === row.value` cannot tell an
-  // untouched field from a cleared one. Clearing is its own button instead.
-  const commitSecret = (value: string) => update.mutate(value)
-
-  return (
-    <li className="flex items-start gap-4 px-4 py-2.5 transition-colors hover:bg-[hsl(var(--bg-hover))]">
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <code className="font-mono text-[11.5px] font-medium text-fg">{row.key}</code>
-          {row.backend && (
-            <span className="rounded-full bg-[hsl(var(--fg)/0.08)] px-1.5 text-[10px] leading-[15px] text-subtle">
-              {row.backend}
-            </span>
-          )}
-          {saved && <Check className="h-3 w-3 text-[hsl(var(--success))]" aria-label="Saved" />}
-        </div>
-        {row.description && (
-          <p className="mt-0.5 text-[11.5px] leading-snug text-muted">{row.description}</p>
-        )}
-        {update.isError && <ErrorNotice error={update.error} className="mt-1.5" />}
-      </div>
-
-      <div className="w-64 shrink-0">
-        {row.type === 'bool' ? (
-          <div className="flex h-7 items-center">
-            <Switch
-              checked={draft === 'true'}
-              onCheckedChange={(next) => {
-                const value = next ? 'true' : 'false'
-                setDraft(value)
-                commit(value)
-              }}
-              aria-label={row.key}
-            />
+    <div className={cn(SHELL, 'divide-y divide-[hsl(var(--border))]')}>
+      {Array.from({ length: 6 }, (_, i) => (
+        <div key={i} className="grid grid-cols-[minmax(0,1fr)_268px] gap-8 px-5 py-3.5">
+          <div className="space-y-1.5">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-3 w-full max-w-md" />
+            <Skeleton className="h-3 w-28" />
           </div>
-        ) : row.secret ? (
-          <SecretField row={row} draft={draft} setDraft={setDraft} commit={commitSecret} />
-        ) : row.options.length > 0 ? (
-          <Select
-            value={draft}
-            aria-label={row.key}
-            onChange={(event) => {
-              setDraft(event.target.value)
-              commit(event.target.value)
-            }}
-          >
-            {row.options.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </Select>
-        ) : (
-          <>
-            <Input
-              value={draft}
-              aria-label={row.key}
-              type={row.type === 'int' || row.type === 'float' ? 'number' : 'text'}
-              {...(row.min !== row.max ? { min: row.min, max: row.max } : {})}
-              onChange={(event) => setDraft(event.target.value)}
-              onBlur={() => commit(draft)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault()
-                  commit(draft)
-                } else if (event.key === 'Escape') {
-                  event.stopPropagation()
-                  setDraft(row.value)
-                }
-              }}
-            />
-            {/* Advisory: the catalogue these come from lives on someone else's
-                server, so the field still takes anything. */}
-            {row.suggestions.length > 0 && (
-              <div className="mt-1 flex flex-wrap gap-1">
-                {row.suggestions.slice(0, 4).map((suggestion) => (
-                  <button
-                    key={suggestion.value}
-                    type="button"
-                    onClick={() => {
-                      setDraft(suggestion.value)
-                      commit(suggestion.value)
-                    }}
-                    className={cn(
-                      'rounded-full border px-1.5 text-[10px] leading-[16px] transition-colors',
-                      suggestion.value === draft
-                        ? 'border-[hsl(var(--accent))] text-[hsl(var(--accent))]'
-                        : 'border-[hsl(var(--border))] text-subtle hover:text-fg',
-                    )}
-                  >
-                    {suggestion.label || suggestion.value}
-                  </button>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    </li>
+          <Skeleton className="h-8 w-full" />
+        </div>
+      ))}
+    </div>
   )
 }
