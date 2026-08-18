@@ -14,7 +14,8 @@ import { cn } from '@/core/utils'
  */
 
 const CONTENT =
-  'animate-in-fade z-50 min-w-[180px] rounded-[var(--radius-sm)] border border-[hsl(var(--border-strong))] bg-[hsl(var(--bg-elevated))] p-1 elev-3'
+  'animate-in-popover data-[state=closed]:animate-out-popover z-50 min-w-[180px] ' +
+  'rounded-[var(--radius-sm)] border border-[hsl(var(--border-strong))] bg-[hsl(var(--bg-elevated))] p-1 elev-3'
 
 const ITEM =
   'flex cursor-default select-none items-center gap-2 rounded-[var(--radius-xs)] px-2 py-1 text-[12px] outline-none'

@@ -55,10 +55,15 @@ export function Palette({
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="animate-in-fade fixed inset-0 z-40 bg-black/45 backdrop-blur-[2px]" />
+        <DialogPrimitive.Overlay className="animate-in-scrim data-[state=closed]:animate-out-scrim fixed inset-0 z-40 bg-black/40" />
+        {/* Centred by auto margins rather than by translating itself, so the
+            animation owns `transform` outright. The previous version centred
+            with a transform and animated one too: the keyframe was written for
+            a dialog centred on both axes, and against a palette that is centred
+            on one it worked out as a 300-pixel leap up the window. */}
         <DialogPrimitive.Content
           aria-describedby={undefined}
-          className="animate-in-pop fixed left-1/2 top-[12vh] z-50 flex max-h-[70vh] w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--border-strong))] bg-[hsl(var(--bg-elevated))] elev-3"
+          className="animate-in-dialog data-[state=closed]:animate-out-dialog fixed inset-x-0 top-[12vh] z-50 mx-auto flex max-h-[70vh] w-[calc(100vw-2rem)] max-w-xl flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[hsl(var(--border-strong))] bg-[hsl(var(--bg-elevated))] elev-3"
         >
           <DialogPrimitive.Title className="sr-only">
             {commanding ? 'Run a command' : 'Go to'}

@@ -37,7 +37,7 @@ export function Tooltip({
         <TooltipPrimitive.Content
           side={side}
           sideOffset={6}
-          className="animate-in-fade z-50 flex max-w-xs items-center gap-2 rounded-[var(--radius-sm)] border border-[hsl(var(--border-strong))] bg-[hsl(var(--bg-elevated))] px-2 py-1 text-[11.5px] text-fg elev-2"
+          className="animate-in-popover data-[state=closed]:animate-out-popover z-50 flex max-w-xs items-center gap-2 rounded-[var(--radius-sm)] border border-[hsl(var(--border-strong))] bg-[hsl(var(--bg-elevated))] px-2 py-1 text-[11.5px] text-fg elev-2"
         >
           <span className="min-w-0">{label}</span>
           {keys && <Kbd keys={keys} />}
@@ -85,10 +85,15 @@ export function Modal({
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="animate-in-fade fixed inset-0 z-40 bg-black/55 backdrop-blur-[2px]" />
+        <DialogPrimitive.Overlay className="animate-in-scrim data-[state=closed]:animate-out-scrim fixed inset-0 z-40 bg-black/40" />
+        {/* Centred by auto margins against a filled inset rather than by
+            translating itself, which leaves `transform` to the animation. It
+            cannot be wrapped in a positioning div instead: the portal gives
+            every child of its own a Presence, and a plain div has no animation
+            to wait for, so the whole subtree would vanish on close. */}
         <DialogPrimitive.Content
           className={cn(
-            'animate-in-pop fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col',
+            'animate-in-dialog data-[state=closed]:animate-out-dialog fixed inset-0 z-50 m-auto flex h-fit max-h-[85vh] w-[calc(100vw-2rem)] flex-col',
             'rounded-[var(--radius-lg)] border border-[hsl(var(--border-strong))] bg-[hsl(var(--bg-elevated))] elev-3',
             wide ? 'max-w-3xl' : 'max-w-lg',
           )}

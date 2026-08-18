@@ -379,7 +379,7 @@ function AssetLightbox({
   return (
     <DialogPrimitive.Root open onOpenChange={(open) => !open && onClose()}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="animate-in-fade fixed inset-0 z-40 bg-black/70 backdrop-blur-[3px]" />
+        <DialogPrimitive.Overlay className="animate-in-scrim data-[state=closed]:animate-out-scrim fixed inset-0 z-40 bg-black/70" />
         <DialogPrimitive.Content
           aria-describedby={undefined}
           onOpenAutoFocus={(event) => {
@@ -389,6 +389,11 @@ function AssetLightbox({
             ;(event.target as HTMLElement).focus()
           }}
           className={cn(
+            // The one surface with no matching exit. The provider mounts this
+            // component only while the lightbox is open, which is what lets the
+            // bare key bindings below arrive and leave with it — and an exit
+            // animation needs the node to outlive the close. Fading out is not
+            // worth keeping ArrowRight bound to a window that has gone.
             'animate-in-zoom fixed inset-3 z-50 flex flex-col overflow-hidden sm:inset-6',
             'rounded-[var(--radius-xl)] border border-[hsl(var(--border-strong))] bg-[hsl(var(--bg-elevated))] elev-3',
           )}

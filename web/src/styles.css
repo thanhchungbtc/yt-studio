@@ -19,6 +19,27 @@
   --radius-md: 7px;
   --radius-lg: 10px;
   --radius-xl: 14px;
+
+  /*
+    One motion vocabulary for every surface that appears over another.
+
+    Two rules hold it together. A surface leaves faster than it arrives —
+    dismissal should feel answered, not sat through — and it moves by a few
+    pixels rather than scaling, because a scale reads as a thing popping and an
+    offset reads as a thing settling.
+
+    Prefixed rather than named --ease-out and --duration-*: those are Tailwind's
+    own theme namespaces, and writing to them would redefine `ease-out` and
+    every duration utility in the application.
+  */
+  --motion-in: 160ms;
+  --motion-out: 110ms;
+  /* Anchored surfaces — menus, tooltips — are small and near the pointer. */
+  --motion-in-fast: 90ms;
+  --motion-out-fast: 70ms;
+  /* Decelerating on the way in, accelerating on the way out. */
+  --motion-ease-enter: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --motion-ease-exit: cubic-bezier(0.4, 0, 1, 1);
 }
 
 @layer base {
@@ -270,30 +291,71 @@
   }
 }
 
-@utility animate-in-fade {
-  animation: in-fade 120ms ease-out;
+/*
+  Overlay motion, in pairs.
+
+  Each has an -out to match, and the pair is what makes a dialog feel finished:
+  Radix keeps a closing surface mounted for as long as an animation is running
+  on it, so a missing -out is a surface that vanishes between two frames however
+  carefully it arrived.
+
+  Under prefers-reduced-motion the animation is dropped entirely rather than
+  shortened. On the way out that also drops the delay before unmounting, which
+  is the behaviour someone who asked for no motion wants.
+*/
+
+/* The scrim. Opacity only — it has nowhere to arrive from. */
+@utility animate-in-scrim {
+  animation: fade-in var(--motion-in) var(--motion-ease-enter);
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+@utility animate-out-scrim {
+  animation: fade-out var(--motion-out) var(--motion-ease-exit);
   @media (prefers-reduced-motion: reduce) {
     animation: none;
   }
 }
 
-@utility animate-in-pop {
-  animation: in-pop 140ms cubic-bezier(0.16, 1, 0.3, 1);
+/* A dialog: it settles the last few pixels into place, and leaves the same way. */
+@utility animate-in-dialog {
+  animation: dialog-in var(--motion-in) var(--motion-ease-enter);
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+@utility animate-out-dialog {
+  animation: dialog-out var(--motion-out) var(--motion-ease-exit);
   @media (prefers-reduced-motion: reduce) {
     animation: none;
   }
 }
 
-@utility animate-in-slide {
-  animation: in-slide 160ms cubic-bezier(0.16, 1, 0.3, 1);
+/* Anchored to a trigger: less travel, and quicker, because it is already there. */
+@utility animate-in-popover {
+  animation: popover-in var(--motion-in-fast) var(--motion-ease-enter);
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+@utility animate-out-popover {
+  animation: popover-out var(--motion-out-fast) var(--motion-ease-exit);
   @media (prefers-reduced-motion: reduce) {
     animation: none;
   }
 }
 
-/* For surfaces that own the viewport rather than float in the middle of it. */
+/*
+  For a surface that owns the viewport rather than floating in the middle of it.
+  The one place a scale is right: an inset panel has no direction to arrive from,
+  and the scale is small enough to read as focus rather than as a zoom.
+
+  The one without an -out, too. Its only user is the asset lightbox, which is
+  mounted exactly as long as it is open — see the note at that call site.
+*/
 @utility animate-in-zoom {
-  animation: in-zoom 170ms cubic-bezier(0.16, 1, 0.3, 1);
+  animation: zoom-in var(--motion-in) var(--motion-ease-enter);
   @media (prefers-reduced-motion: reduce) {
     animation: none;
   }
@@ -346,29 +408,86 @@
   }
 }
 
-@keyframes in-fade {
+/*
+  Both ends of every overlay keyframe are written out.
+
+  An open-ended `from` interpolates towards whatever transform the element
+  already carries, which is how a keyframe written for a centred dialog moved
+  the command palette by a third of its own height: the palette is centred
+  horizontally only, so `-48%` was measured against nothing. Every surface these
+  drive is now positioned by its container, and the transform belongs to the
+  animation alone.
+*/
+
+@keyframes fade-in {
   from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
     opacity: 0;
   }
 }
 
-@keyframes in-pop {
+@keyframes dialog-in {
   from {
     opacity: 0;
-    transform: translate(-50%, -48%) scale(0.97);
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-@keyframes in-slide {
+@keyframes dialog-out {
   from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(4px);
   }
 }
 
-@keyframes in-zoom {
+@keyframes popover-in {
   from {
     opacity: 0;
-    transform: scale(0.985);
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes popover-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+}
+
+@keyframes zoom-in {
+  from {
+    opacity: 0;
+    transform: scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }
