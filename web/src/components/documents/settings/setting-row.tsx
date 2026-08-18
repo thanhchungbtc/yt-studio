@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Check, ChevronDown, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react'
+import { Check, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 import { settingTitle, settingUnit } from './meta'
-import { Badge, Button, Input, Select, Switch } from '../../ui/controls'
+import { Badge, Button, Input, Segmented, Switch } from '../../ui/controls'
 import { CopyButton, ErrorNotice, Tooltip } from '../../ui/primitives'
 import { api, qk } from '@/core/api'
 import { formatRelative } from '@/core/format'
@@ -144,27 +144,20 @@ export function SettingRow({ row, dormant }: { row: Setting; dormant: boolean })
         ) : row.secret ? (
           <SecretField row={row} draft={draft} setDraft={setDraft} commit={commitSecret} />
         ) : row.options.length > 0 ? (
-          <div className="relative">
-            <Select
-              value={draft}
-              aria-label={row.key}
-              className="appearance-none pr-8 font-medium"
-              onChange={(event) => {
-                setDraft(event.target.value)
-                commit(event.target.value)
-              }}
-            >
-              {row.options.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </Select>
-            <ChevronDown
-              className="pointer-events-none absolute right-2.5 top-2.5 h-3.5 w-3.5 text-subtle"
-              aria-hidden
-            />
-          </div>
+          /* The same control the Providers section uses, at the width a
+             two-column row allows. Filtering is the only way a provider row is
+             reached from here, and a different control in that one place would
+             be a different answer to the same question. */
+          <Segmented
+            aria-label={row.key}
+            size="sm"
+            value={draft}
+            onChange={(next) => {
+              setDraft(next)
+              commit(next)
+            }}
+            options={row.options.map((option) => ({ value: option, label: option }))}
+          />
         ) : (
           <>
             <div className="relative">

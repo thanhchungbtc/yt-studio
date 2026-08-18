@@ -11,9 +11,9 @@ import (
 // headers where this needs the frames — and shelling out would put a second
 // process on the slowest path in the pipeline.
 
-// errNotWAV reports bytes this cannot read. A sentinel because cleanTail treats
+// errNotWAV reports bytes this cannot read. A sentinel because CleanTail treats
 // it as "leave the audio alone" rather than as a failure.
-var errNotWAV = errors.New("xtts: not a readable RIFF/WAVE file")
+var errNotWAV = errors.New("tts: not a readable RIFF/WAVE file")
 
 // headerSize is the canonical RIFF/WAVE header this package writes: 12 bytes of
 // RIFF, a 24-byte `fmt ` chunk, an 8-byte `data` header.

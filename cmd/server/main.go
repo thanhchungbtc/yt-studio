@@ -32,7 +32,8 @@ import (
 	"github.com/tbui/yt-studio/adapters/provider/runware"
 	"github.com/tbui/yt-studio/adapters/provider/sample"
 	"github.com/tbui/yt-studio/adapters/provider/thumbnail"
-	"github.com/tbui/yt-studio/adapters/provider/tts"
+	"github.com/tbui/yt-studio/adapters/provider/tts/kokoro"
+	"github.com/tbui/yt-studio/adapters/provider/tts/xtts"
 	"github.com/tbui/yt-studio/adapters/sqlite"
 	"github.com/tbui/yt-studio/app"
 	"github.com/tbui/yt-studio/cmd/server/internal/registry"
@@ -386,14 +387,25 @@ func (c *serveCmd) Run() error {
 
 	// Only this backend's own knobs: how a chapter should sound arrives on the
 	// request, from app.NarrationOptions below.
-	xttsClient, err := tts.New(tts.Config{
+	xttsClient, err := xtts.New(xtts.Config{
 		BaseURL: func() string { return settings.String(entity.SettingXTTSURL) },
-		Options: func() tts.Options {
-			return tts.Options{
+		Options: func() xtts.Options {
+			return xtts.Options{
 				ChunkMinChars:      settings.Int(entity.SettingXTTSChunkMinChars),
 				ChunkSilenceMillis: settings.Int(entity.SettingXTTSChunkSilenceMillis),
 			}
 		},
+	}, assets)
+	if err != nil {
+		return err
+	}
+
+	// Kokoro has no knobs of its own: it speaks a chapter in one request, so the
+	// chunking the backend above is configured for has nothing to configure here.
+	kokoroClient, err := kokoro.New(kokoro.Config{
+		BaseURL: func() string { return settings.String(entity.SettingKokoroURL) },
+		APIKey:  func() string { return settings.String(entity.SettingKokoroKey) },
+		Model:   func() string { return settings.String(entity.SettingKokoroModel) },
 	}, assets)
 	if err != nil {
 		return err
@@ -404,6 +416,7 @@ func (c *serveCmd) Run() error {
 	providers.RegisterLLM("9router", nineRouter)
 	providers.RegisterTTS("sample", sample.NewTTS(samples, assets))
 	providers.RegisterTTS("xtts", xttsClient)
+	providers.RegisterTTS("kokoro", kokoroClient)
 	providers.RegisterSlide("sample", sample.NewSlide(samples, assets))
 	providers.RegisterSlide("runware", runware.NewSlide(runwareClient))
 	providers.RegisterComposer("sample", sample.NewComposer(samples, assets))
@@ -477,6 +490,20 @@ func (c *serveCmd) Run() error {
 			slog.String("url", xttsClient.BaseURL()),
 			slog.String("voice", settings.String(entity.SettingXTTSVoice)),
 			slog.Float64("speed", settings.Float(entity.SettingXTTSSpeed)))
+	}
+	// The voice is passed rather than resolved: this backend can say whether the
+	// server offers it, which is the difference between finding out now and
+	// finding out on the first chapter.
+	if err := kokoroClient.Check(ctx, settings.String(entity.SettingKokoroVoice)); err != nil {
+		log.Info("kokoro narration is not available",
+			slog.String("reason", err.Error()),
+			slog.String("url", kokoroClient.BaseURL()))
+	} else {
+		log.Info("kokoro narration is available",
+			slog.String("url", kokoroClient.BaseURL()),
+			slog.String("model", kokoroClient.Model()),
+			slog.String("voice", settings.String(entity.SettingKokoroVoice)),
+			slog.Float64("speed", settings.Float(entity.SettingKokoroSpeed)))
 	}
 
 	// --- scheduler ----------------------------------------------------------

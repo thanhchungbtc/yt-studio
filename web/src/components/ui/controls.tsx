@@ -235,6 +235,83 @@ export function Field({
   )
 }
 
+/* -------------------------------------------------------------- segmented */
+
+export interface SegmentedOption {
+  value: string
+  label: string
+  /** Native tooltip, for anything the label alone cannot say. */
+  title?: string
+}
+
+/**
+ * A closed shortlist, laid out rather than folded away.
+ *
+ * It is the counterpart to Select, and the reason that one is now rarely right
+ * here: a dropdown earns its click when the list is long or unbounded, and
+ * costs one for nothing when the list is three registry names that would have
+ * fit on the row. Same job, opposite trade.
+ *
+ * The selected segment is lifted rather than coloured — a raised plate on a
+ * recessed track, the way bg-active marks a pressed IconButton — because the
+ * accent in this kit means "the thing you are about to do", and a setting that
+ * merely is what it is should not speak in the same voice as a primary button.
+ */
+export function Segmented({
+  value,
+  options,
+  onChange,
+  size = 'md',
+  disabled,
+  className,
+  'aria-label': ariaLabel,
+}: {
+  value: string
+  options: SegmentedOption[]
+  onChange: (value: string) => void
+  size?: 'sm' | 'md'
+  disabled?: boolean
+  className?: string
+  'aria-label'?: string
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={ariaLabel}
+      className={cn(
+        'inline-flex flex-wrap items-center gap-0.5 rounded-[var(--radius-sm)] border border-[hsl(var(--border))] bg-subtle p-0.5 no-select',
+        className,
+      )}
+    >
+      {options.map((option) => {
+        const on = option.value === value
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            disabled={disabled}
+            title={option.title}
+            onClick={() => {
+              if (option.value !== value) onChange(option.value)
+            }}
+            className={cn(
+              'min-w-0 truncate rounded-[var(--radius-xs)] font-medium transition-colors duration-100',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring)/0.45)]',
+              'disabled:pointer-events-none',
+              size === 'sm' ? 'h-[22px] px-2 text-[11px]' : 'h-6 px-2.5 text-[11.5px]',
+              on ? 'bg-[hsl(var(--bg-elevated))] text-fg elev-1' : 'text-muted hover:text-fg',
+            )}
+          >
+            {option.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 /**
  * A boolean as a switch. Hand-rolled on a `role="switch"` button: this is the
  * whole of the behaviour, and a dependency for it would be larger than it is.

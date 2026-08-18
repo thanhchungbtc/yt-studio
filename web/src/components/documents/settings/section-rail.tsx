@@ -1,4 +1,4 @@
-import { PRESETS, groupMeta } from './meta'
+import { bandStart, groupMeta } from './meta'
 import { Skeleton } from '../../ui/primitives'
 import { cn } from '@/core/utils'
 
@@ -50,11 +50,23 @@ export function SectionRail({
         const Icon = meta.icon
         const selected = section.name === active
         const empty = filtering && section.hits === 0
+        const band = bandStart(section.name)
         return (
           <div key={section.name}>
-            {/* The presets section owns no rows; a hairline says so. */}
-            {index === 1 && sections[0]?.name === PRESETS && (
-              <div className="mx-3 my-1.5 h-px bg-[hsl(var(--border))]" aria-hidden />
+            {/* A rule and a word, rather than a rule alone: a bare hairline says
+                two things are different without saying what either one is. */}
+            {band && (
+              <div
+                className={cn(
+                  'flex items-center gap-2 px-3 pb-1',
+                  index === 0 ? 'pt-1' : 'mt-2 pt-2',
+                )}
+              >
+                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-subtle">
+                  {band}
+                </span>
+                <span className="h-px flex-1 bg-[hsl(var(--border))]" aria-hidden />
+              </div>
             )}
             <button
               type="button"

@@ -1,4 +1,4 @@
-// Package tts is the narration backend for an AllTalk/XTTS server.
+// Package xtts is the narration backend for an AllTalk/XTTS server.
 //
 // A chapter is split on sentence boundaries into chunks of at least
 // xtts.chunk.min_chars, each synthesised alone and rejoined with a short
@@ -6,7 +6,7 @@
 // Every chunk costs two requests, because a generation answers with a URL
 // rather than audio. The chunking, concatenation and tail cleanup are ported
 // one for one from the Python this replaces, so the output sounds the same.
-package tts
+package xtts
 
 import (
 	"bytes"
@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tbui/yt-studio/adapters/provider/tts"
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 )
@@ -44,10 +45,6 @@ const (
 	defaultChunkMinChars      = 250
 	defaultChunkSilenceMillis = 200
 )
-
-// introOrdinal is the first chapter, the one whose title is not announced
-// because it has no topic to read out. Chapters are 1-based here.
-const introOrdinal = 1
 
 // The tail cleanup constants, carried over unchanged: trim trailing samples
 // below the threshold, then fade what survives below audibility.
@@ -189,18 +186,18 @@ func (c *Client) Check(ctx context.Context) error {
 		return fmt.Errorf("%w: %s is unreachable: %w", ErrUnavailable, base, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, readyBodyLimit))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, tts.ReadyBodyLimit))
 	if err != nil {
 		return fmt.Errorf("xtts: read ready response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return statusError(resp.StatusCode, resp.Status, body)
+		return tts.StatusError(ErrUnavailable, "xtts", resp.StatusCode, resp.Status, body)
 	}
 	// AllTalk answers with the bare word "Ready". Anything else means the
 	// process is up but the model is not loaded.
 	if !strings.EqualFold(strings.TrimSpace(string(body)), "Ready") {
 		return fmt.Errorf("%w: %s answered %q rather than Ready",
-			ErrUnavailable, base+endpointReady, snippet(string(body)))
+			ErrUnavailable, base+endpointReady, tts.Snippet(string(body)))
 	}
 	return nil
 }
@@ -211,9 +208,9 @@ func (c *Client) Speak(ctx context.Context, req provider.SpeakRequest) (entity.A
 	opts := c.options()
 	v := voiceOf(req)
 
-	text := normalize(req.Text)
+	text := tts.Normalize(req.Text)
 
-	text = prependChapterTitle(text, req.ChapterTitle, req.Ordinal == introOrdinal)
+	text = tts.PrependChapterTitle(text, req.ChapterTitle, req.Ordinal == tts.IntroOrdinal)
 
 	chunks := chunkTextBySentence(text, opts.ChunkMinChars)
 	if len(chunks) == 0 {
@@ -229,11 +226,11 @@ func (c *Client) Speak(ctx context.Context, req provider.SpeakRequest) (entity.A
 		parts = append(parts, part)
 	}
 
-	joined, err := concatWavs(parts, opts.ChunkSilenceMillis)
+	joined, err := tts.ConcatWavs(parts, opts.ChunkSilenceMillis)
 	if err != nil {
 		return "", err
 	}
-	audio := cleanTail(joined, defaultFadeMillis, defaultSilenceThreshold)
+	audio := tts.CleanTail(joined, defaultFadeMillis, defaultSilenceThreshold)
 
 	stored, err := c.store.Put(ctx, entity.AssetKindAudio, bytes.NewReader(audio))
 	if err != nil {
@@ -274,24 +271,24 @@ func (c *Client) synthesize(ctx context.Context, chunk string, v voice) ([]byte,
 		return nil, fmt.Errorf("xtts: generate: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, replyBodyLimit))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, tts.ReplyBodyLimit))
 	if err != nil {
 		return nil, fmt.Errorf("xtts: read generate response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, statusError(resp.StatusCode, resp.Status, body)
+		return nil, tts.StatusError(ErrUnavailable, "xtts", resp.StatusCode, resp.Status, body)
 	}
 
 	var decoded generateResponse
 	if err := json.Unmarshal(body, &decoded); err != nil {
 		return nil, fmt.Errorf("xtts: generate returned %q, which is not the expected JSON: %w",
-			snippet(string(body)), err)
+			tts.Snippet(string(body)), err)
 	}
 	if decoded.OutputFileURL == "" {
 		// A 200 with no URL means the server did nothing, and will keep doing
 		// nothing until something changes.
 		return nil, fmt.Errorf("%w: generate returned no output_file_url: %s",
-			ErrUnavailable, snippet(string(body)))
+			ErrUnavailable, tts.Snippet(string(body)))
 	}
 
 	audioURL, err := c.audioURL(decoded.OutputFileURL)
@@ -313,8 +310,8 @@ func (c *Client) fetchAudio(ctx context.Context, audioURL string) ([]byte, error
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, replyBodyLimit))
-		return nil, statusError(resp.StatusCode, resp.Status, body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, tts.ReplyBodyLimit))
+		return nil, tts.StatusError(ErrUnavailable, "xtts", resp.StatusCode, resp.Status, body)
 	}
 	audio, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -364,44 +361,4 @@ func (c *Client) options() Options {
 		opts.ChunkSilenceMillis = defaultChunkSilenceMillis
 	}
 	return opts
-}
-
-// statusError turns a non-200 into an error of the right retry class: a
-// rejected voice cannot land differently, a rate limit or a loading model can.
-func statusError(code int, status string, body []byte) error {
-	detail := snippet(string(body))
-	switch {
-	case code == http.StatusTooManyRequests, code >= 500:
-		return fmt.Errorf("xtts: %s: %s", status, detail)
-	case code >= 400:
-		return fmt.Errorf("%w: %s: %s", ErrUnavailable, status, detail)
-	default:
-		return fmt.Errorf("xtts: unexpected %s: %s", status, detail)
-	}
-}
-
-// The response-body ceilings: an error body describes a failure rather than
-// being kept, and the ready probe answers with one word.
-const (
-	replyBodyLimit = 64 << 10
-	readyBodyLimit = 1 << 10
-)
-
-// snippetLimit is enough of a response to recognise what came back, without
-// turning a log line into a transcript.
-const snippetLimit = 240
-
-// snippet flattens and truncates text for an error message.
-func snippet(s string) string {
-	s = strings.Join(strings.Fields(s), " ")
-	if len(s) <= snippetLimit {
-		return s
-	}
-	return s[:snippetLimit] + "…"
-}
-
-// normalize is the only tidying a script gets: surrounding whitespace, nothing
-// else. What the model was told to write is what the narrator reads.
-func normalize(text string) string {
-	return strings.TrimSpace(text)
 }

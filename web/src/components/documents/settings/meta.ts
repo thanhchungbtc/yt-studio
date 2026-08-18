@@ -7,9 +7,11 @@ import {
   PenLine,
   RefreshCw,
   Server,
+  Shapes,
   ShieldCheck,
   SlidersHorizontal,
   Speech,
+  UploadCloud,
   Wand2,
   type LucideIcon,
 } from 'lucide-react'
@@ -64,7 +66,7 @@ const GROUPS: Record<string, GroupMeta> = {
   },
   narration: {
     title: 'Narration',
-    blurb: 'The voice, and how a chapter is cut into pieces to synthesise it.',
+    blurb: 'The server that speaks each chapter, and the voice it speaks in.',
     icon: Speech,
   },
   slides: {
@@ -92,6 +94,31 @@ const GROUPS: Record<string, GroupMeta> = {
     blurb: 'Event batching and log verbosity. Applied without a restart.',
     icon: Server,
   },
+}
+
+/**
+ * The sections that open a band, and what to call it.
+ *
+ * Eleven sections in one flat column is a list nobody navigates by name — the
+ * eye has nothing to land on between "Concurrency" and "Server", so finding
+ * Narration means reading every row above it. Bands give it four stops instead
+ * of eleven.
+ *
+ * A band *starts*, rather than being declared as a membership list, so the
+ * server's order survives untouched: a section this table has never heard of
+ * simply continues whichever band it appears in, and cannot be dropped or
+ * reordered by being unknown.
+ */
+const BANDS: Record<string, string> = {
+  [PRESETS]: 'Setup',
+  pools: 'Execution',
+  providers: 'Backends',
+  video: 'System',
+}
+
+/** The band this section opens, or empty when it continues the one above. */
+export function bandStart(name: string): string {
+  return BANDS[name] ?? ''
 }
 
 export function groupMeta(name: string): GroupMeta {
@@ -194,4 +221,85 @@ export function activeBackends(rows: Setting[]): Set<string> {
 /** Whether a row's backend is idle, and so whether the row is currently read. */
 export function isDormant(row: Setting, active: Set<string>): boolean {
   return row.backend !== '' && !active.has(row.backend)
+}
+
+/* --------------------------------------------------------------- providers */
+
+export interface PortMeta {
+  /** What the port does, rather than what its key is called. */
+  title: string
+  icon: LucideIcon
+}
+
+/**
+ * A name and an icon for each provider row.
+ *
+ * The icons are the ones the settings sections use, so a port card and the
+ * section holding that backend's knobs are recognisably the same subject: the
+ * question "who narrates" and the question "how does the narrator sound" are
+ * one journey, and the operator should not have to learn that twice.
+ *
+ * A port this table does not know still renders, from its key.
+ */
+const PORTS: Record<string, PortMeta> = {
+  'provider.llm': { title: 'Writing', icon: PenLine },
+  'provider.tts': { title: 'Narration', icon: Speech },
+  'provider.slide': { title: 'Slides', icon: Images },
+  'provider.composer': { title: 'Composition', icon: Film },
+  'provider.thumbnail': { title: 'Thumbnail', icon: LayoutGrid },
+  'provider.thumbnail_icon': { title: 'Thumbnail icons', icon: Shapes },
+  'provider.uploader': { title: 'Publishing', icon: UploadCloud },
+}
+
+export function portMeta(key: string): PortMeta {
+  return PORTS[key] ?? { title: humanize(key.replace(/^provider\./, '')), icon: Boxes }
+}
+
+export interface BackendMeta {
+  title: string
+  /** One line: what this backend actually is, so a name is a choice. */
+  blurb: string
+}
+
+/**
+ * What each registered backend is.
+ *
+ * The server sends the names and nothing else — a registry entry is a string,
+ * and adding prose to it would put the description of a Runware account inside
+ * a Go package that must not know one exists. So the sentence lives here, on
+ * the same terms as the group headings above: an improvement on the fallback,
+ * not a whitelist. A backend this table has never heard of still renders, under
+ * its own name, and simply says less.
+ */
+const BACKENDS: Record<string, BackendMeta> = {
+  sample: {
+    title: 'Sample',
+    blurb:
+      'Operator-supplied files from the resources directory. Nothing leaves the machine and nothing costs a generation.',
+  },
+  builtin: { title: 'Built in', blurb: 'Drawn by this server, with no external service.' },
+  ffmpeg: { title: 'FFmpeg', blurb: 'The ffmpeg binary on this machine.' },
+  '9router': {
+    title: '9router',
+    blurb:
+      'An OpenAI-compatible gateway, which routes each call on to whichever upstream model it is pointed at.',
+  },
+  runware: {
+    title: 'Runware',
+    blurb: 'Hosted image generation. Billed per image, and needs an API key.',
+  },
+  xtts: {
+    title: 'XTTS',
+    blurb:
+      'An AllTalk server on hardware you run. Clones a voice from a sample, and is slow without a GPU.',
+  },
+  kokoro: {
+    title: 'Kokoro',
+    blurb:
+      'A Kokoro-FastAPI server. Fast enough on a CPU to outrun playback, with a fixed set of voices.',
+  },
+}
+
+export function backendMeta(name: string): BackendMeta {
+  return BACKENDS[name] ?? { title: humanize(name), blurb: '' }
 }

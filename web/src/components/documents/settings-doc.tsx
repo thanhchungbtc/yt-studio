@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DocFrame } from '../editor/doc-frame'
 import { PRESETS, activeBackends, groupMeta, isDormant, settingTitle } from './settings/meta'
 import { Presets } from './settings/presets'
+import { Providers } from './settings/providers'
 import { SectionRail, type RailSection } from './settings/section-rail'
 import { SettingRow } from './settings/setting-row'
 import { Button } from '../ui/controls'
@@ -244,7 +245,9 @@ export function SettingsDoc({
                     {active.name !== PRESETS && (
                       <p className="tabular flex shrink-0 items-center gap-1.5 pt-0.5 text-[11px] text-subtle">
                         <span>
-                          {active.rows.length} setting{active.rows.length === 1 ? '' : 's'}
+                          {active.name === 'providers'
+                            ? `${active.rows.length} port${active.rows.length === 1 ? '' : 's'}`
+                            : `${active.rows.length} setting${active.rows.length === 1 ? '' : 's'}`}
                         </span>
                         {dormant > 0 && (
                           <Tooltip
@@ -289,6 +292,8 @@ export function SettingsDoc({
 
                 {active.name === PRESETS ? (
                   <Presets rows={rows} running={scheduler.data?.running ?? 0} />
+                ) : active.name === 'providers' ? (
+                  <Providers rows={rows} />
                 ) : (
                   <ul className={cn(SHELL, 'divide-y divide-[hsl(var(--border))]')}>
                     {active.rows.map((row) => (

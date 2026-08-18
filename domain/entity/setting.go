@@ -42,6 +42,7 @@ const (
 	BackendNineRouter = "9router"
 	BackendRunware    = "runware"
 	BackendXTTS       = "xtts"
+	BackendKokoro     = "kokoro"
 )
 
 // The complete set of settings keys. Everything the server needs after the
@@ -98,6 +99,21 @@ const (
 	// SettingXTTSChunkMinChars floors a chunk's length: a chapter is split because
 	// XTTS degrades on long inputs.
 	SettingXTTSChunkMinChars SettingKey = "xtts.chunk.min_chars"
+	// SettingKokoroURL is the Kokoro-FastAPI server root. The root only: the
+	// endpoints are appended.
+	SettingKokoroURL SettingKey = "kokoro.url"
+	// SettingKokoroKey is the bearer token, empty for a server with auth off.
+	SettingKokoroKey SettingKey = "kokoro.key"
+	// SettingKokoroModel names which of the server's model ids to ask for.
+	SettingKokoroModel SettingKey = "kokoro.model"
+	// SettingKokoroVoice names a voice the server offers, e.g. af_heart. Unlike
+	// the XTTS backend's, it may not be empty: the voice's prefix is what selects
+	// the language, and the server answers a blank one with a crash.
+	SettingKokoroVoice SettingKey = "kokoro.voice"
+	// SettingKokoroSpeed is the playback rate asked of the server; 1.0 is
+	// unmodified.
+	SettingKokoroSpeed SettingKey = "kokoro.speed"
+
 	// SettingXTTSChunkSilenceMillis pads the joins so a sentence boundary is not
 	// an audible splice.
 	SettingXTTSChunkSilenceMillis SettingKey = "xtts.chunk.silence_ms"
@@ -380,6 +396,17 @@ func DefaultSettings() []Setting {
 		{Key: SettingXTTSChunkMinChars, Value: "250", Type: SettingTypeInt, Group: GroupNarration, Backend: BackendXTTS, Min: 50, Max: 5000, Description: "Floor on a narration chunk's length in characters. A chapter is synthesised in pieces at least this long, because XTTS degrades on long inputs."},
 		//nolint:lll // one row, one line
 		{Key: SettingXTTSChunkSilenceMillis, Value: "200", Type: SettingTypeInt, Group: GroupNarration, Backend: BackendXTTS, Min: 0, Max: 2000, Description: "Pause inserted between narration chunks when they are rejoined, so a sentence boundary is not an audible splice."},
+
+		//nolint:lll // one row, one line
+		{Key: SettingKokoroURL, Value: "http://127.0.0.1:8880", Type: SettingTypeString, Group: GroupNarration, Backend: BackendKokoro, Description: "Kokoro-FastAPI server root, e.g. http://127.0.0.1:8880. The root only — not /v1, which is appended."},
+		//nolint:lll // one row, one line
+		{Key: SettingKokoroKey, Value: "", Type: SettingTypeString, Group: GroupNarration, Backend: BackendKokoro, Optional: true, Secret: true, Description: "Bearer token for the narration server. Empty is usual: one running locally with auth off needs none."},
+		//nolint:lll // one row, one line
+		{Key: SettingKokoroModel, Value: "kokoro", Type: SettingTypeString, Group: GroupNarration, Backend: BackendKokoro, Description: "Which of the server's model ids to ask for, e.g. kokoro. See GET /v1/models on the server."},
+		//nolint:lll // one row, one line
+		{Key: SettingKokoroVoice, Value: "af_heart", Type: SettingTypeString, Group: GroupNarration, Backend: BackendKokoro, Description: "Voice the server speaks as, e.g. af_heart. See GET /v1/audio/voices. The prefix picks the language — af_ and am_ are American English, bf_ British, jf_ Japanese, zf_ Mandarin — so there is no language setting beside this one."},
+		//nolint:lll // one row, one line
+		{Key: SettingKokoroSpeed, Value: "1.0", Type: SettingTypeFloat, Group: GroupNarration, Backend: BackendKokoro, Min: 0.5, Max: 2.0, Description: "Playback rate asked of the narration server; 1.0 is unmodified. The server accepts up to 4.0, which no narration wants."},
 
 		//nolint:lll // one row, one line
 		{Key: SettingRunwareKey, Value: "", Type: SettingTypeString, Group: GroupSlides, Backend: BackendRunware, Optional: true, Secret: true, Description: "API key from my.runware.ai/keys. There is no anonymous access: without it the Runware slide and icon backends are unavailable."},
