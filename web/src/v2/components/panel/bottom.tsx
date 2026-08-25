@@ -7,17 +7,18 @@ import { DragRegion } from '../ui/drag-region'
  * progress — not about whichever document happens to be open above it. Indented
  * to one column it would claim the opposite.
  *
- * Translucent rather than opaque: it is chrome docked under the window, not
- * part of any document, and the seam between the two is what says so.
+ * The same material as the sidebars, not a shade of its own. Every pane that
+ * frames the document is one surface interrupted by seams; giving this one its
+ * own tone would make it a third kind of thing for no reason anyone could name.
  */
 export function BottomPanel() {
   return (
-    <div className="surface-chrome-strong hairline-t flex h-full flex-col">
+    <div className="surface-chrome flex h-full flex-col">
       <DragRegion className="flex h-[28px] shrink-0 items-center px-3">
         <span className="min-w-0 flex-1 truncate text-[11px] font-semibold tracking-[0.05em] text-tertiary uppercase">
           Console
         </span>
-        <span className="shrink-0 text-[11px] text-tertiary">⌘J</span>
+        <span className="shrink-0 text-[11px] text-tertiary">⌘2</span>
       </DragRegion>
       <div className="min-h-0 flex-1" />
     </div>

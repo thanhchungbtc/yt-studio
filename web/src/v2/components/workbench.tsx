@@ -107,22 +107,24 @@ export function WorkbenchV2() {
 }
 
 /**
- * The divider between two panes.
+ * The divider between two panes: one device pixel to look at, eight to grab.
  *
- * Nothing to look at and eight pixels to hit. The visible seam is the pane's
- * own hairline — one device pixel, the weight AppKit draws — and the sash is
- * the invisible strip of cursor target laid over it, because the target was
- * never the pixel.
+ * The sash *is* the seam. Neither pane draws an edge of its own, because two
+ * panes drawing their own edges on either side of a handle that occupies space
+ * is three things where there should be one — and that is exactly what a
+ * doubled, muddy divider is made of.
  *
- * It stays invisible while being dragged, too. A divider that lights up is a
- * web idiom; on macOS the only feedback is the panes moving, which is the
- * feedback that was asked for.
+ * It does not light up while being dragged. A divider that highlights under the
+ * cursor is a web idiom; on macOS the feedback is the panes moving, which is
+ * the feedback that was asked for.
  */
 function Sash({ direction }: { direction: 'horizontal' | 'vertical' }) {
   const horizontal = direction === 'horizontal'
   return (
     <PanelResizeHandle
-      className={horizontal ? 'relative z-20 w-px outline-none' : 'relative z-20 h-px outline-none'}
+      className={
+        horizontal ? 'seam-v relative z-20 outline-none' : 'seam-h relative z-20 outline-none'
+      }
     >
       <div
         className={

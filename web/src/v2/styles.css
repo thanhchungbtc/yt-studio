@@ -200,11 +200,6 @@
   backdrop-filter: saturate(180%) blur(20px);
 }
 
-@utility surface-chrome-strong {
-  background-color: var(--chrome-strong);
-  backdrop-filter: saturate(180%) blur(20px);
-}
-
 @utility surface-content {
   background-color: var(--content);
 }
@@ -224,7 +219,31 @@
     0 10px 34px -6px rgb(0 0 0 / 0.34);
 }
 
-/* The hairline macOS draws between panes: one physical pixel, never scaled. */
+/*
+  The seam between two panes, drawn by the sash that sits between them.
+
+  One element rather than a rule on each side: a pane that draws its own edge
+  and a resize handle that occupies space between the panes make *two* lines
+  with a gap of window between them, which is what a doubled, muddy divider
+  actually is. The divider and the thing you grab to move it are the same
+  object, so there is nowhere for a second line to come from.
+
+  A filled box rather than an inset shadow, too. WebKit snaps a background to
+  the device pixel grid far more willingly than it snaps a shadow, and a pane
+  edge lands on a fractional coordinate every time the split is dragged — which
+  is how a hairline turns into a soft two-pixel smudge.
+*/
+@utility seam-v {
+  width: var(--hairline);
+  background-color: var(--separator);
+}
+
+@utility seam-h {
+  height: var(--hairline);
+  background-color: var(--separator);
+}
+
+/* The same line, for edges inside a pane, where there is no sash to draw it. */
 @utility hairline-r {
   box-shadow: inset calc(-1 * var(--hairline)) 0 0 0 var(--separator);
 }

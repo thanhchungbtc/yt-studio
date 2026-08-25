@@ -25,7 +25,7 @@ import { Row } from './row'
  * what makes a long library navigable without a tree: two levels, no more.
  *
  * There is no search field and there are no pane toggles. Both were controls
- * standing in for a keystroke — ⌘1, ⌘3, ⌘J — and a sidebar that spends its
+ * standing in for a keystroke — ⌘1, ⌘2, ⌘3 — and a sidebar that spends its
  * first fifty pixels on chrome has fifty fewer for the library.
  */
 
@@ -116,7 +116,7 @@ export function PrimarySidebar() {
   const empty = scope === 'videos' ? groups.length === 0 : sortedChannels.length === 0
 
   return (
-    <div className="surface-chrome hairline-r flex h-full flex-col">
+    <div className="surface-chrome flex h-full flex-col">
       {/* The strip the traffic lights sit over, and the widest piece of chrome
           in the window to pick it up by. */}
       <DragRegion className="flex h-[38px] shrink-0 items-center pr-2 pl-[var(--traffic-lights)]" />

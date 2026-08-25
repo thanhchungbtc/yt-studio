@@ -9,9 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit && eslint src",
-    "gen:api": "openapi-typescript http://127.0.0.1:8080/api/openapi.json -o src/core/schema.d.ts",
-    "smoke": "node test/smoke.mjs",
-    "smoke:render": "node test/smoke.mjs --render"
+    "gen:api": "openapi-typescript http://127.0.0.1:8080/api/openapi.json -o src/core/schema.d.ts"
   },
   "dependencies": {
     "@radix-ui/react-context-menu": "^2.3.7",
@@ -41,7 +39,6 @@
     "@types/react-dom": "^19.0.3",
     "@vitejs/plugin-react": "^4.3.4",
     "eslint": "^9.39.5",
-    "jsdom": "^28.0.0",
     "openapi-typescript": "^7.6.1",
     "prettier": "^3.9.6",
     "tailwindcss": "^4.0.6",

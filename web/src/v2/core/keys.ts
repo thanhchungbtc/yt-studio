@@ -11,7 +11,7 @@ import { useWorkbench } from '../store/workbench'
  * standing in for a keystroke, taking permanent space to save a person who
  * already knows the keystroke nothing.
  *
- * The panes are numbered by where they are — ⌘1 on the left, ⌘3 on the right —
+ * The panes are numbered by where they are — ⌘1 left, ⌘2 below, ⌘3 right —
  * rather than named by what they hold. A number is a position, and a position
  * is the thing you are actually reaching for; ⌘B would have to be remembered as
  * standing for something.
@@ -28,13 +28,13 @@ export function useKeybindings(): void {
         event.preventDefault()
         store.togglePrimary()
       },
+      '$mod+Digit2': (event) => {
+        event.preventDefault()
+        store.toggleBottom()
+      },
       '$mod+Digit3': (event) => {
         event.preventDefault()
         store.toggleSecondary()
-      },
-      '$mod+KeyJ': (event) => {
-        event.preventDefault()
-        store.toggleBottom()
       },
       '$mod+KeyN': (event) => {
         event.preventDefault()

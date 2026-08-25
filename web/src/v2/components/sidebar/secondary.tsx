@@ -10,7 +10,7 @@ import { DragRegion } from '../ui/drag-region'
  */
 export function SecondarySidebar() {
   return (
-    <div className="surface-chrome hairline-l flex h-full flex-col">
+    <div className="surface-chrome flex h-full flex-col">
       <DragRegion className="h-[38px] shrink-0" />
       <DragRegion className="flex h-[30px] shrink-0 items-center px-3">
         <span className="min-w-0 flex-1 truncate text-[11px] font-semibold tracking-[0.06em] text-tertiary uppercase">
