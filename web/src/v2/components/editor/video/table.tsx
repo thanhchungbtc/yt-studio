@@ -1,9 +1,10 @@
 import { useMemo } from 'react'
 
+import { count, duration } from '../../../core/format'
 import type { Chapter, Task } from '../../../core/types'
 import { cn } from '../../../core/utils'
 import { Mark, SlotRow } from './mark'
-import { columnTotals, stagesByChapter } from './stages'
+import { columnTotals, projectedSeconds, stagesByChapter } from './stages'
 
 /**
  * The blueprint as a grid: chapters down, pipeline stages across.
@@ -18,11 +19,20 @@ import { columnTotals, stagesByChapter } from './stages'
  * scrolls, and one `grid-template-columns` shared by the head and every row is
  * a simpler way to keep them aligned than two elements agreeing to.
  *
- * A cell is a mark and nothing else. Every figure that used to sit beside one —
- * a word count, a projected runtime — was the same number the summary line
- * already gives as a total, printed once per row where it competed with the one
- * thing the grid exists to show. Forty rows of numbers nobody adds up is forty
- * rows of noise over the one amber arc that matters.
+ * The table is also where a blueprint is reviewed, and that is what the first
+ * three columns are for. At the gate nothing has been generated, so every stage
+ * cell is an empty ring — the grid is at its least informative at exactly the
+ * moment the decision is hardest. What is decidable then is the *plan*: what
+ * each chapter covers, and how long it is meant to run.
+ *
+ * So the summary is printed in full, wrapped, never clamped. A one-line ellipsis
+ * of the sentence you are being asked to approve is worse than not showing it,
+ * because it looks like you have read it.
+ *
+ * The stage cells stay marks and nothing else. Figures there — a word count, a
+ * runtime — were the same numbers the summary line gives as totals, reprinted
+ * once per row where they competed with the one thing those columns exist to
+ * show.
  */
 
 /*
@@ -35,7 +45,7 @@ import { columnTotals, stagesByChapter } from './stages'
   supposed to prevent. Capping the title and parking the slack at the far end
   keeps the stages beside their chapter at any width.
 */
-const COLUMNS = '2.5rem minmax(10rem, 26rem) 4.75rem 5.75rem minmax(6rem, 12rem) 3.75rem 1fr'
+const COLUMNS = '2.25rem minmax(13rem, 34rem) 6.5rem 4.5rem 5.5rem minmax(6rem, 12rem) 3.5rem 1fr'
 
 interface ChapterTableProps {
   chapters: Chapter[]
@@ -70,30 +80,56 @@ export function ChapterTable({ chapters, tasks, slidesPerChapter }: ChapterTable
       >
         <span>#</span>
         <span>Chapter</span>
+        <span>Length</span>
         <Head label="Script" done={totals.script.done} total={totals.script.total} />
         <Head label="Narration" done={totals.narration.done} total={totals.narration.total} />
         <Head label="Slides" done={totals.slides.done} total={totals.slides.total} />
         <Head label="Clip" done={totals.clip.done} total={totals.clip.total} />
       </div>
 
-      {chapters.map((chapter) => {
+      {chapters.map((chapter, index) => {
         const stage = stages.get(chapter.id)
         if (!stage) return null
+        // The blueprint's budget, not what was written: it is the number the
+        // plan was approved on, and it does not move once the scripts land.
+        const seconds = projectedSeconds(chapter.estimatedWords)
         return (
           <div
             key={chapter.id}
             role="row"
             style={{ gridTemplateColumns: COLUMNS }}
-            className="grid items-center gap-3 px-4 py-2 hover:bg-[var(--hover)]"
+            className={cn(
+              // Aligned to the top, not the middle: a chapter is two lines tall
+              // now, and a mark floating beside the second one belongs to
+              // nothing the eye can name.
+              'grid items-start gap-3 px-4 py-2.5 hover:bg-[var(--hover)]',
+              index > 0 && 'hairline-t',
+            )}
           >
-            <span className="text-[12px] tabular-nums text-tertiary">{chapter.ordinal}</span>
-            <span className="truncate text-[13px] text-primary" title={chapter.title}>
-              {chapter.title || 'Untitled'}
-            </span>
-            <Mark cell={stage.script} />
-            <Mark cell={stage.narration} />
-            <SlotRow cells={stage.slides} />
-            <Mark cell={stage.clip} />
+            <span className="pt-px text-[12px] tabular-nums text-tertiary">{chapter.ordinal}</span>
+
+            <div className="min-w-0">
+              <div className="text-[13px] leading-snug text-primary">
+                {chapter.title || 'Untitled'}
+              </div>
+              {chapter.summary ? (
+                <p className="mt-1 text-[12px] leading-snug text-secondary">{chapter.summary}</p>
+              ) : null}
+            </div>
+
+            <div className="pt-px text-[12px] tabular-nums text-secondary">
+              {chapter.estimatedWords > 0 ? (
+                <>
+                  ~{count(chapter.estimatedWords)}w
+                  <span className="block text-[11px] text-tertiary">~{duration(seconds)}</span>
+                </>
+              ) : null}
+            </div>
+
+            <Mark cell={stage.script} className="pt-1" />
+            <Mark cell={stage.narration} className="pt-1" />
+            <SlotRow cells={stage.slides} className="pt-1" />
+            <Mark cell={stage.clip} className="pt-1" />
           </div>
         )
       })}

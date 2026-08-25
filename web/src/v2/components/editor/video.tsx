@@ -14,7 +14,7 @@ import { ChapterTable } from './video/table'
 import { FinalStrip } from './video/final'
 import { Legend } from './video/mark'
 import { GateStrip } from './video/gate'
-import { columnTotals } from './video/stages'
+import { columnTotals, projectedSeconds } from './video/stages'
 
 /**
  * The video editor.
@@ -130,9 +130,14 @@ function shapeOf(video: Video, totals: ReturnType<typeof columnTotals>): string 
   const words = totals.words || totals.estimatedWords
   // Always a projection, never a measurement: the seconds are the sum of each
   // chapter's words at the narration speed the blueprint budgeted with.
-  const runtime =
-    totals.seconds > 0 ? `~${duration(totals.seconds)}` : `~${video.targetDurationMinutes}m`
-  return `${video.chapterCount} chapters · ${count(words)} words · ${runtime}`
+  //
+  // Before any script is written that sum is zero, and this used to fall back
+  // to the *target* duration — which is what was asked for, not what was
+  // planned. A blueprint that budgets nine hundred words against a two-minute
+  // target then reported "~2m" for seven minutes of narration. Projecting the
+  // budget says what the plan actually is, which is the number you approve on.
+  const runtime = duration(totals.seconds > 0 ? totals.seconds : projectedSeconds(words))
+  return `${video.chapterCount} chapters · ${count(words)} words · ~${runtime}`
 }
 
 function SummaryLine({ video, totals }: { video: Video; totals: ReturnType<typeof columnTotals> }) {

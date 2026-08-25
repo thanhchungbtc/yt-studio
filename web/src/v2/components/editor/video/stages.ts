@@ -116,6 +116,21 @@ export function stagesByChapter(
   return result
 }
 
+/**
+ * The narration speed the blueprint budgets with.
+ *
+ * Mirrors `entity.DefaultWordsPerMinute`. Duplicated rather than fetched
+ * because it is a constant of the *plan*, not a setting — and the cost of it
+ * drifting is a projected runtime that reads a little long or a little short,
+ * which is a projection either way. Nothing downstream depends on it.
+ */
+export const NARRATION_WPM = 130
+
+/** How long a word count is expected to take to read aloud. */
+export function projectedSeconds(words: number): number {
+  return (words / NARRATION_WPM) * 60
+}
+
 /** Words in a written script. The blueprint's estimate is what it is compared to. */
 export function wordsIn(script: string): number {
   const trimmed = script.trim()

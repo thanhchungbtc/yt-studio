@@ -88,9 +88,9 @@ export function Mark({ cell, className }: { cell: Cell; className?: string }) {
 }
 
 /** One mark per slot: a half-drawn chapter says *which* slide is missing. */
-export function SlotRow({ cells }: { cells: Cell[] }) {
+export function SlotRow({ cells, className }: { cells: Cell[]; className?: string }) {
   return (
-    <span className="flex flex-wrap items-center gap-1.5">
+    <span className={cn('flex flex-wrap items-center gap-1.5', className)}>
       {cells.map((cell, index) => (
         <Mark key={index} cell={cell} />
       ))}
