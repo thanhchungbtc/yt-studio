@@ -415,6 +415,34 @@
 }
 
 /*
+  A popover.
+ 
+  Scale and opacity only, and safe to animate with `transform` where the dialog
+  was not: Radix puts the positioning translate on a wrapper element of its own,
+  so the content's transform is unclaimed. Quicker than a dialog in both
+  directions — this is a glance, and a glance should not have a ceremony.
+*/
+@keyframes popover-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.popover {
+  transform-origin: var(--radix-popover-content-transform-origin);
+  animation: popover-in 120ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.popover[data-state='closed'] {
+  animation: popover-in 90ms cubic-bezier(0.4, 0, 1, 1) reverse both;
+}
+
+/*
   Menu rows. Radix reports the pointer/keyboard highlight as data-highlighted,
   and macOS answers it with a full-width accent fill rather than a tint.
 */

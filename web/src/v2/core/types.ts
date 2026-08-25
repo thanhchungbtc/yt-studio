@@ -110,6 +110,8 @@ export interface Video {
   chapterCount: number
   slidesPerChapter: number
   targetDurationMinutes: number
+  /** The plan the pipeline was built from, as the LLM returned it. */
+  blueprintAssetId?: string
   finalAssetId?: string
   /** The thumbnail that will actually publish: the override if there is one. */
   effectiveThumbnailAssetId?: string

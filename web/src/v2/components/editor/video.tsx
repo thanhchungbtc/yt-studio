@@ -11,6 +11,7 @@ import type { DocPanelParams } from './dock'
 import { Placeholder } from './placeholder'
 import { EditorShell } from './shell'
 import { ChapterTable } from './video/table'
+import { BlueprintPopover } from './video/blueprint'
 import { FinalStrip } from './video/final'
 import { Legend } from './video/mark'
 import { GateStrip } from './video/gate'
@@ -159,6 +160,9 @@ function SummaryLine({ video, totals }: { video: Video; totals: ReturnType<typeo
           {video.error}
         </span>
       ) : null}
+      {/* The line above describes the plan, so the way to the plan itself
+          belongs on it. Hidden until there is one to read. */}
+      {video.blueprintAssetId ? <BlueprintPopover assetId={video.blueprintAssetId} /> : null}
       {running ? (
         <Button onClick={() => cancel.mutate()} disabled={cancel.isPending}>
           Cancel

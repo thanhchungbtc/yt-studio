@@ -89,6 +89,19 @@ export const api = {
   listTasks: (ref: string) =>
     request<{ tasks: Task[] }>(`/api/videos/${key(ref)}/tasks`).then((r) => r.tasks),
 
+  /**
+   * An asset's bytes, as text.
+   *
+   * Not `request`: an asset is not an API resource with a problem-detail error
+   * shape, it is a file at a content address. What comes back is whatever was
+   * stored, which for the blueprint is the JSON the model returned.
+   */
+  assetText: async (id: string) => {
+    const response = await fetch(`/assets/${key(id)}`)
+    if (!response.ok) throw new ApiError(response.status, response.statusText)
+    return response.text()
+  },
+
   listSettings: () => request<{ settings: Setting[] }>('/api/settings').then((r) => r.settings),
   updateSetting: (name: string, value: string) =>
     request<Setting>(`/api/settings/${key(name)}`, {
@@ -124,6 +137,8 @@ export const qk = {
   chapters: (videoId: string) => ['v2', 'chapters', videoId] as const,
   tasks: (videoId: string) => ['v2', 'tasks', videoId] as const,
   settings: ['v2', 'settings'] as const,
+  /** Content-addressed, so the key is the version and it never goes stale. */
+  asset: (id: string) => ['v2', 'asset', id] as const,
 }
 
 /** The content-addressed URL of an asset; the hash is the cache key. */
