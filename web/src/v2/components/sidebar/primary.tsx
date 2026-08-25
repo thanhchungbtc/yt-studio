@@ -7,6 +7,7 @@ import { listTimestamp } from '../../core/format'
 import type { Channel, Video, VideoState } from '../../core/types'
 import { useWorkbench, type SidebarScope } from '../../store/workbench'
 import { openDoc, pinPreview, docId } from '../editor/dock'
+import { newVideo } from '../new-video'
 import { avatarColor } from '../ui/avatar'
 import { DragRegion } from '../ui/drag-region'
 import { Menu } from '../ui/menu'
@@ -131,7 +132,7 @@ export function PrimarySidebar() {
               label: 'New Video',
               icon: SquarePen,
               shortcut: '⌘N',
-              onSelect: () => openDoc({ kind: 'new', of: 'video' }, 'New Video'),
+              onSelect: () => newVideo(scope === 'channels' ? (selected ?? undefined) : undefined),
             },
             {
               label: 'New Channel',

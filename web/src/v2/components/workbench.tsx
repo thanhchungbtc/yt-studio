@@ -3,9 +3,11 @@ import '../styles.css'
 
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 
+import { useEventStream } from '../core/events'
 import { useKeybindings } from '../core/keys'
 import { useWorkbench } from '../store/workbench'
 import { EditorArea } from './editor/area'
+import { NewVideoDialog } from './new-video'
 import { BottomPanel } from './panel/bottom'
 import { PrimarySidebar } from './sidebar/primary'
 import { SecondarySidebar } from './sidebar/secondary'
@@ -47,6 +49,10 @@ import { DragRegion } from './ui/drag-region'
  */
 export function WorkbenchV2() {
   useKeybindings()
+  // Mounted here and nowhere else: one connection for the whole application,
+  // and this is the one component guaranteed to outlive every document that
+  // depends on it.
+  useEventStream()
 
   const primaryVisible = useWorkbench((s) => s.primaryVisible)
   const secondaryVisible = useWorkbench((s) => s.secondaryVisible)
@@ -102,6 +108,7 @@ export function WorkbenchV2() {
       </PanelGroup>
 
       <StatusBar />
+      <NewVideoDialog />
     </div>
   )
 }

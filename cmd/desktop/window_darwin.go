@@ -157,6 +157,82 @@ static void ytsWindowZoom(void *handle) {
 		[window zoom:nil];
 	});
 }
+
+// ytsMenuItem hangs one item off a menu, with its key equivalent.
+static NSMenuItem *ytsMenuItem(NSMenu *menu, NSString *title, SEL action, NSString *key,
+                               NSEventModifierFlags mask) {
+	NSMenuItem *item = [menu addItemWithTitle:title action:action keyEquivalent:key];
+	if (mask != 0) {
+		[item setKeyEquivalentModifierMask:mask];
+	}
+	return item;
+}
+
+// ytsInstallMenu gives the application the menu bar macOS expects it to have.
+//
+// webview installs none at all, and on macOS a menu is not decoration — it is
+// how key equivalents are dispatched. Without one, ⌘Q does not quit, and
+// neither do ⌘C, ⌘V or ⌘Z inside a text field, because AppKit routes every one
+// of them through NSMenu before anything else sees them. An app with no menu
+// bar is an app whose text fields cannot paste.
+//
+// Quit is wired to `stop:` rather than `terminate:`, and that is the whole
+// reason this function is careful. `terminate:` ends the process where it
+// stands, and Go runs no deferred function on the way out — which would leave
+// the server running with nothing to close it, holding the database against the
+// next launch. `stop:` ends the run loop instead, so `Run` returns and the
+// window's own shutdown happens exactly as it does when it is closed by hand.
+// It is the same call webview's own terminate makes.
+//
+// There is deliberately no Close item. ⌘W belongs to the tab strip the page
+// draws, and a menu item would take it before the page ever saw it.
+static void ytsInstallMenu(void) {
+	ytsOnMain(^{
+		NSString *name = [[NSProcessInfo processInfo] processName];
+		NSMenu *bar = [[NSMenu alloc] initWithTitle:@""];
+
+		NSMenuItem *appItem = [bar addItemWithTitle:@"" action:NULL keyEquivalent:@""];
+		NSMenu *appMenu = [[NSMenu alloc] initWithTitle:name];
+		ytsMenuItem(appMenu, [@"About " stringByAppendingString:name],
+		            @selector(orderFrontStandardAboutPanel:), @"", 0);
+		[appMenu addItem:[NSMenuItem separatorItem]];
+		ytsMenuItem(appMenu, [@"Hide " stringByAppendingString:name], @selector(hide:), @"h", 0);
+		ytsMenuItem(appMenu, @"Hide Others", @selector(hideOtherApplications:), @"h",
+		            NSEventModifierFlagCommand | NSEventModifierFlagOption);
+		ytsMenuItem(appMenu, @"Show All", @selector(unhideAllApplications:), @"", 0);
+		[appMenu addItem:[NSMenuItem separatorItem]];
+		ytsMenuItem(appMenu, [@"Quit " stringByAppendingString:name], @selector(stop:), @"q", 0);
+		[appItem setSubmenu:appMenu];
+
+		// Editing. Every item here is a standard responder action the web view
+		// already implements; the menu exists only to carry the key equivalent.
+		NSMenuItem *editItem = [bar addItemWithTitle:@"" action:NULL keyEquivalent:@""];
+		NSMenu *editMenu = [[NSMenu alloc] initWithTitle:@"Edit"];
+		ytsMenuItem(editMenu, @"Undo", @selector(undo:), @"z", 0);
+		ytsMenuItem(editMenu, @"Redo", @selector(redo:), @"z",
+		            NSEventModifierFlagCommand | NSEventModifierFlagShift);
+		[editMenu addItem:[NSMenuItem separatorItem]];
+		ytsMenuItem(editMenu, @"Cut", @selector(cut:), @"x", 0);
+		ytsMenuItem(editMenu, @"Copy", @selector(copy:), @"c", 0);
+		ytsMenuItem(editMenu, @"Paste", @selector(paste:), @"v", 0);
+		ytsMenuItem(editMenu, @"Select All", @selector(selectAll:), @"a", 0);
+		[editItem setSubmenu:editMenu];
+
+		NSMenuItem *windowItem = [bar addItemWithTitle:@"" action:NULL keyEquivalent:@""];
+		NSMenu *windowMenu = [[NSMenu alloc] initWithTitle:@"Window"];
+		ytsMenuItem(windowMenu, @"Minimize", @selector(performMiniaturize:), @"m", 0);
+		ytsMenuItem(windowMenu, @"Zoom", @selector(performZoom:), @"", 0);
+		[windowItem setSubmenu:windowMenu];
+
+		[NSApp setMainMenu:bar];
+		[NSApp setWindowsMenu:windowMenu];
+
+		[appMenu release];
+		[editMenu release];
+		[windowMenu release];
+		[bar release];
+	});
+}
 */
 import "C"
 
@@ -170,6 +246,10 @@ only region macOS will move a window from is the AppKit titlebar — which this
 window hides, because the tab strip is drawn by the page. So the page is given
 the two verbs it cannot express in CSS, and hands the gesture straight back to
 AppKit.
+
+The menu is here for a related reason. webview installs none, and on macOS the
+menu bar is the dispatch table for key equivalents — no menu means no ⌘Q, and
+no ⌘C or ⌘V in a text field either.
 */
 
 // dressWindow applies the material and binds the window verbs the page calls.
@@ -179,6 +259,7 @@ AppKit.
 // have to be installed before a page loads to reach that page at all.
 func dressWindow(w webview.WebView) {
 	handle := w.Window()
+	C.ytsInstallMenu()
 	C.ytsMakeVibrant(handle)
 
 	// At document start, so the very first paint is already transparent. An

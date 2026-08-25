@@ -21,7 +21,7 @@ export type Doc =
   | { kind: 'video'; ref: string }
   | { kind: 'channel'; slug: string }
   | { kind: 'thumbnail'; ref: string }
-  | { kind: 'new'; of: 'video' | 'channel' }
+  | { kind: 'new'; of: 'channel' }
 
 /** Stable per document, so opening the same thing twice reuses one tab. */
 export function docId(doc: Doc): string {
@@ -108,7 +108,23 @@ export function pinPreview(id: string): void {
   if (previewId === id) setPreviewId(null)
 }
 
-/** Closes the active tab. Bound to ⌘W. */
+/** Closes the active tab. ⌘W. */
 export function closeActive(): void {
   useDock.getState().api?.activePanel?.api.close()
+}
+
+/**
+ * Closes everything except the active tab. ⇧⌘W.
+ *
+ * The list is copied before anything is closed: closing a panel mutates the
+ * collection being walked, and a live iteration over it silently skips every
+ * other tab — which reads as the shortcut half-working rather than as a bug.
+ */
+export function closeOthers(): void {
+  const { api } = useDock.getState()
+  const active = api?.activePanel
+  if (!api || !active) return
+  for (const panel of [...api.panels]) {
+    if (panel.id !== active.id) panel.api.close()
+  }
 }

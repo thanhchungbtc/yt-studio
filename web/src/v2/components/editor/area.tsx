@@ -33,7 +33,7 @@ import { VideoEditor } from './video'
   old layout. Bumping the suffix drops it instead, which costs one arrangement
   once and is the only honest answer while the shape is still moving.
 */
-const LAYOUT_KEY = 'yts.v2.layout.2'
+const LAYOUT_KEY = 'yts.v2.layout.3'
 
 /**
  * The theme is a class name plus the handful of behaviours that are not CSS.

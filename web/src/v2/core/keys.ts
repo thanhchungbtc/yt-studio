@@ -1,7 +1,9 @@
 import { useEffect } from 'react'
 import { tinykeys } from 'tinykeys'
 
-import { closeActive, openDoc } from '../components/editor/dock'
+import { closeActive, closeOthers, openDoc } from '../components/editor/dock'
+import { newVideo } from '../components/new-video'
+import { anyModalOpen } from '../components/ui/dialog'
 import { useWorkbench } from '../store/workbench'
 
 /**
@@ -20,34 +22,38 @@ import { useWorkbench } from '../store/workbench'
  * today, but writing Meta by hand is a decision this file has no reason to
  * make.
  */
+
+/**
+ * What a shortcut must not do while a dialog is up.
+ *
+ * A dialog is modal: the window behind it is not accepting instructions, so a
+ * ⌘W that closed a tab behind it, or a ⌘1 that moved a pane nobody can see,
+ * would be the application answering a question it was not asked. Escape and
+ * Return belong to the dialog and are never bound here.
+ */
+type Handler = (event: KeyboardEvent) => void
+
+function windowOnly(run: () => void): Handler {
+  return (event) => {
+    if (anyModalOpen()) return
+    event.preventDefault()
+    run()
+  }
+}
+
 export function useKeybindings(): void {
   useEffect(() => {
     const store = useWorkbench.getState()
     return tinykeys(window, {
-      '$mod+Digit1': (event) => {
-        event.preventDefault()
-        store.togglePrimary()
-      },
-      '$mod+Digit2': (event) => {
-        event.preventDefault()
-        store.toggleBottom()
-      },
-      '$mod+Digit3': (event) => {
-        event.preventDefault()
-        store.toggleSecondary()
-      },
-      '$mod+KeyN': (event) => {
-        event.preventDefault()
-        openDoc({ kind: 'new', of: 'video' }, 'New Video')
-      },
-      '$mod+Shift+KeyN': (event) => {
-        event.preventDefault()
-        openDoc({ kind: 'new', of: 'channel' }, 'New Channel')
-      },
-      '$mod+KeyW': (event) => {
-        event.preventDefault()
-        closeActive()
-      },
+      '$mod+Digit1': windowOnly(store.togglePrimary),
+      '$mod+Digit2': windowOnly(store.toggleBottom),
+      '$mod+Digit3': windowOnly(store.toggleSecondary),
+
+      '$mod+KeyW': windowOnly(closeActive),
+      '$mod+Shift+KeyW': windowOnly(closeOthers),
+
+      '$mod+KeyN': windowOnly(() => newVideo()),
+      '$mod+Shift+KeyN': windowOnly(() => openDoc({ kind: 'new', of: 'channel' }, 'New Channel')),
     })
   }, [])
 }
