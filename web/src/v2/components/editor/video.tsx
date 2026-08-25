@@ -12,6 +12,7 @@ import { Placeholder } from './placeholder'
 import { EditorShell } from './shell'
 import { ChapterTable } from './video/table'
 import { FinalStrip } from './video/final'
+import { Legend } from './video/mark'
 import { GateStrip } from './video/gate'
 import { columnTotals } from './video/stages'
 
@@ -118,6 +119,7 @@ export function VideoEditor({ params }: IDockviewPanelProps<DocPanelParams>) {
         slidesPerChapter={video.data.slidesPerChapter}
       />
 
+      <Legend />
       <FinalStrip video={video.data} tasks={tasks.data ?? []} />
     </div>,
   )
@@ -126,7 +128,10 @@ export function VideoEditor({ params }: IDockviewPanelProps<DocPanelParams>) {
 /** The shape of the thing: what it is made of, and how long it runs. */
 function shapeOf(video: Video, totals: ReturnType<typeof columnTotals>): string {
   const words = totals.words || totals.estimatedWords
-  const runtime = totals.seconds > 0 ? duration(totals.seconds) : `~${video.targetDurationMinutes}m`
+  // Always a projection, never a measurement: the seconds are the sum of each
+  // chapter's words at the narration speed the blueprint budgeted with.
+  const runtime =
+    totals.seconds > 0 ? `~${duration(totals.seconds)}` : `~${video.targetDurationMinutes}m`
   return `${video.chapterCount} chapters · ${count(words)} words · ${runtime}`
 }
 

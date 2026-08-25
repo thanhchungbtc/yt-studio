@@ -1,10 +1,9 @@
 import { useMemo } from 'react'
 
-import { count, duration } from '../../../core/format'
 import type { Chapter, Task } from '../../../core/types'
 import { cn } from '../../../core/utils'
-import { MarkCell, SlotRow } from './mark'
-import { columnTotals, stagesByChapter, wordsIn } from './stages'
+import { Mark, SlotRow } from './mark'
+import { columnTotals, stagesByChapter } from './stages'
 
 /**
  * The blueprint as a grid: chapters down, pipeline stages across.
@@ -18,9 +17,25 @@ import { columnTotals, stagesByChapter, wordsIn } from './stages'
  * A grid rather than a `<table>` because the header has to stick while the body
  * scrolls, and one `grid-template-columns` shared by the head and every row is
  * a simpler way to keep them aligned than two elements agreeing to.
+ *
+ * A cell is a mark and nothing else. Every figure that used to sit beside one —
+ * a word count, a projected runtime — was the same number the summary line
+ * already gives as a total, printed once per row where it competed with the one
+ * thing the grid exists to show. Forty rows of numbers nobody adds up is forty
+ * rows of noise over the one amber arc that matters.
  */
 
-const COLUMNS = '2.25rem minmax(8rem, 1fr) 6rem 6rem minmax(5rem, 12rem) 4rem'
+/*
+  The trailing `1fr` is a spacer, and it is the only reason the grid is legible
+  in a wide window.
+
+  Without it the chapter column takes every spare pixel, and on a wide screen
+  the marks end up half a metre from the title they belong to — the eye has to
+  travel a blank gap to pair them, which is exactly the failure a table is
+  supposed to prevent. Capping the title and parking the slack at the far end
+  keeps the stages beside their chapter at any width.
+*/
+const COLUMNS = '2.5rem minmax(10rem, 26rem) 4.75rem 5.75rem minmax(6rem, 12rem) 3.75rem 1fr'
 
 interface ChapterTableProps {
   chapters: Chapter[]
@@ -64,7 +79,6 @@ export function ChapterTable({ chapters, tasks, slidesPerChapter }: ChapterTable
       {chapters.map((chapter) => {
         const stage = stages.get(chapter.id)
         if (!stage) return null
-        const written = wordsIn(chapter.script)
         return (
           <div
             key={chapter.id}
@@ -76,12 +90,10 @@ export function ChapterTable({ chapters, tasks, slidesPerChapter }: ChapterTable
             <span className="truncate text-[13px] text-primary" title={chapter.title}>
               {chapter.title || 'Untitled'}
             </span>
-            <MarkCell cell={stage.script}>{written ? `${count(written)}w` : ''}</MarkCell>
-            <MarkCell cell={stage.narration}>
-              {chapter.durationSeconds > 0 ? duration(chapter.durationSeconds) : ''}
-            </MarkCell>
+            <Mark cell={stage.script} />
+            <Mark cell={stage.narration} />
             <SlotRow cells={stage.slides} />
-            <MarkCell cell={stage.clip} />
+            <Mark cell={stage.clip} />
           </div>
         )
       })}

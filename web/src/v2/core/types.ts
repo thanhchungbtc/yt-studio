@@ -120,6 +120,33 @@ export interface Video {
   updatedAt: string
 }
 
+/** One value the operator can change, and everything needed to draw it. */
+export interface Setting {
+  key: string
+  value: string
+  type: 'int' | 'bool' | 'string' | 'float'
+  group: string
+  description: string
+  min: number
+  max: number
+  /** A closed set: the value must be one of these. */
+  options: string[]
+  /**
+   * Known-good values that are not the only ones allowed. A model name is the
+   * case: the list is helpful and out of date the week it ships.
+   */
+  suggestions: { value: string; label: string }[]
+  /**
+   * The backend this belongs to. Non-empty means the setting only matters while
+   * that backend is the one selected — thirteen narration settings for a server
+   * you are not using is noise, not configurability.
+   */
+  backend: string
+  /** Never echoed back by the server; `configured` is how you know it is set. */
+  secret: boolean
+  configured: boolean
+}
+
 /* ------------------------------------------------------------------ events */
 
 /**

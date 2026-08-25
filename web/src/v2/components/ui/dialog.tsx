@@ -2,6 +2,8 @@ import * as Radix from '@radix-ui/react-dialog'
 import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { create } from 'zustand'
 
+import { cn } from '../../core/utils'
+
 /**
  * A dialog, in the middle of the window.
  *
@@ -47,6 +49,29 @@ interface DialogProps {
   children: (formId: string) => ReactNode
   footer: (formId: string) => ReactNode
   width?: number
+  /**
+   * Hand the body its own padding and its own scrolling.
+   *
+   * A dialog that is a form wants a comfortable gutter and one scroller. A
+   * dialog that is a *layout* — a list beside a pane — wants neither: the
+   * gutter would inset the list away from the edge it should be flush with,
+   * and one scroller would move both columns together.
+   */
+  flush?: boolean
+  /**
+   * Pin the whole dialog to a height.
+   *
+   * Needed when the content changes size without the dialog being reopened — a
+   * group list beside a pane is exactly that, where one group holds two
+   * settings and another holds thirteen. A modal that resizes under the pointer
+   * is what everyone means by a dialog that jumps.
+   *
+   * It is set here, on the dialog, rather than on the body. Sizing the body
+   * looks like it should work and does not: `flex-1` is `flex-basis: 0%`, and
+   * on the main axis a basis beats a height. Fixing the outside and letting the
+   * body take what is left has no such trapdoor.
+   */
+  height?: number
 }
 
 export function Dialog({
@@ -57,6 +82,8 @@ export function Dialog({
   children,
   footer,
   width = 480,
+  flush = false,
+  height,
 }: DialogProps) {
   const formId = useId()
   const content = useRef<HTMLDivElement>(null)
@@ -83,13 +110,13 @@ export function Dialog({
             event.preventDefault()
             target.focus()
           }}
-          style={{ width }}
+          style={height === undefined ? { width } : { width, height }}
           // Capped against the window as well as against its own width: a
           // dialog larger than the window it opens in is the one broken layout
           // a fixed size can still produce.
           className="dialog surface-content fixed top-[46%] left-1/2 z-50 flex max-h-[86vh] max-w-[calc(100vw-40px)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[12px]"
         >
-          <div className="shrink-0 px-6 pt-5 pb-4">
+          <div className={cn('shrink-0 px-6 pt-5', flush ? 'pb-3.5' : 'pb-4')}>
             <Radix.Title className="text-[15px] leading-tight font-semibold text-primary">
               {title}
             </Radix.Title>
@@ -100,9 +127,16 @@ export function Dialog({
             ) : null}
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-6">{children(formId)}</div>
+          <div className={flush ? 'flex min-h-0 flex-1' : 'min-h-0 flex-1 overflow-y-auto px-6'}>
+            {children(formId)}
+          </div>
 
-          <div className="hairline-t mt-4 flex shrink-0 items-center gap-2 px-6 py-3.5">
+          <div
+            className={cn(
+              'hairline-t flex shrink-0 items-center gap-2 px-6 py-3.5',
+              flush ? '' : 'mt-4',
+            )}
+          >
             {footer(formId)}
           </div>
         </Radix.Content>

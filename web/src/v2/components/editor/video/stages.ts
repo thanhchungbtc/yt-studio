@@ -4,11 +4,18 @@ import type { Chapter, Task, TaskKind } from '../../../core/types'
  * What a cell is showing, independent of which column it is in.
  *
  * Every cell in the grid answers the same question — *has this happened yet* —
- * so they all resolve to the same five values and draw the same five shapes.
+ * so they all resolve to the same four values and draw the same four shapes.
  * That uniformity is what earns the table: you learn the vocabulary once and
  * then read the whole thing with it.
+ *
+ * Four and not five. There used to be `queued` and `pending` — a task that is
+ * ready to run, and one still blocked behind its inputs. The distinction is
+ * real in the scheduler and invisible to a person watching: both mean *not
+ * yet*, and telling two near-identical dots apart is work the table was
+ * supposed to save. The header count says how far along it is; the cell only
+ * has to say which of four things is true.
  */
-export type CellState = 'done' | 'running' | 'queued' | 'pending' | 'failed'
+export type CellState = 'done' | 'running' | 'waiting' | 'failed'
 
 export interface Cell {
   state: CellState
@@ -37,17 +44,14 @@ export interface ChapterStages {
  */
 function cellFor(task: Task | undefined, hasArtifact: boolean): Cell {
   if (hasArtifact) return { state: 'done', stale: task?.stale ?? false, ...(task ? { task } : {}) }
-  if (!task) return { state: 'pending', stale: false }
+  if (!task) return { state: 'waiting', stale: false }
   switch (task.state) {
     case 'failed':
       return { state: 'failed', stale: false, task }
     case 'running':
       return { state: 'running', stale: false, task }
-    case 'ready':
-    case 'awaiting_approval':
-      return { state: 'queued', stale: false, task }
     default:
-      return { state: 'pending', stale: false, task }
+      return { state: 'waiting', stale: false, task }
   }
 }
 

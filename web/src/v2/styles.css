@@ -113,7 +113,9 @@
 
     --running: #f0a020;
     --failed: #ff6961;
-    --done: #32d74b;
+    /* Muted rather than system green: on a dark ground the bright one glows,
+       and a column of forty of them is the only thing you can see. */
+    --done: #3fb950;
 
     color-scheme: dark;
   }
@@ -276,6 +278,34 @@
 
 @utility text-tertiary {
   color: var(--text-tertiary);
+}
+
+/*
+  The running mark: an indeterminate spinner, because that is the one state the
+  eye should catch without being told what a colour means. A rotating arc is the
+  only shape in the vocabulary that *moves*, and motion is read before hue.
+
+  Reduced motion leaves the arc where it is. Three quarters of a ring is still
+  unlike a full ring and unlike a disc, so the state survives without spinning.
+*/
+@keyframes mark-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.mark-spinner {
+  border-width: 2px;
+  border-style: solid;
+  border-color: var(--running);
+  border-right-color: transparent;
+  animation: mark-spin 700ms linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mark-spinner {
+    animation: none;
+  }
 }
 
 /*

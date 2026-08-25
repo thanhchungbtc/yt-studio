@@ -3,6 +3,7 @@ import { tinykeys } from 'tinykeys'
 
 import { closeActive, closeOthers, openDoc } from '../components/editor/dock'
 import { newVideo } from '../components/new-video'
+import { openSettings } from '../components/settings'
 import { anyModalOpen } from '../components/ui/dialog'
 import { useWorkbench } from '../store/workbench'
 
@@ -54,6 +55,8 @@ export function useKeybindings(): void {
 
       '$mod+KeyN': windowOnly(() => newVideo()),
       '$mod+Shift+KeyN': windowOnly(() => openDoc({ kind: 'new', of: 'channel' }, 'New Channel')),
+
+      '$mod+Comma': windowOnly(openSettings),
     })
   }, [])
 }

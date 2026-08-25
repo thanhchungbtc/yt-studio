@@ -1,4 +1,4 @@
-import type { Channel, Chapter, Task, Video } from './types'
+import type { Channel, Chapter, Setting, Task, Video } from './types'
 
 /**
  * V2's client.
@@ -89,6 +89,13 @@ export const api = {
   listTasks: (ref: string) =>
     request<{ tasks: Task[] }>(`/api/videos/${key(ref)}/tasks`).then((r) => r.tasks),
 
+  listSettings: () => request<{ settings: Setting[] }>('/api/settings').then((r) => r.settings),
+  updateSetting: (name: string, value: string) =>
+    request<Setting>(`/api/settings/${key(name)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ value }),
+    }),
+
   approveGate: (ref: string, gate: string) =>
     post<Task>(`/api/videos/${key(ref)}/approve`, { gate }),
   rejectGate: (ref: string, gate: string, reason: string) =>
@@ -116,6 +123,7 @@ export const qk = {
   video: (ref: string) => ['v2', 'video', ref] as const,
   chapters: (videoId: string) => ['v2', 'chapters', videoId] as const,
   tasks: (videoId: string) => ['v2', 'tasks', videoId] as const,
+  settings: ['v2', 'settings'] as const,
 }
 
 /** The content-addressed URL of an asset; the hash is the cache key. */

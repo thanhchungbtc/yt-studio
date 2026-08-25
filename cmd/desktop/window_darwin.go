@@ -188,7 +188,11 @@ static NSMenuItem *ytsMenuItem(NSMenu *menu, NSString *title, SEL action, NSStri
 // draws, and a menu item would take it before the page ever saw it.
 static void ytsInstallMenu(void) {
 	ytsOnMain(^{
-		NSString *name = [[NSProcessInfo processInfo] processName];
+		// The product, not the executable. processName would put
+		// "yt-studio-desktop" in the menu bar — the name of the binary that
+		// happens to hold the window, which is not what this application is
+		// called anywhere a person would look.
+		NSString *name = @"yt-studio";
 		NSMenu *bar = [[NSMenu alloc] initWithTitle:@""];
 
 		NSMenuItem *appItem = [bar addItemWithTitle:@"" action:NULL keyEquivalent:@""];

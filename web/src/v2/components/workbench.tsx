@@ -8,6 +8,7 @@ import { useKeybindings } from '../core/keys'
 import { useWorkbench } from '../store/workbench'
 import { EditorArea } from './editor/area'
 import { NewVideoDialog } from './new-video'
+import { SettingsDialog } from './settings'
 import { BottomPanel } from './panel/bottom'
 import { PrimarySidebar } from './sidebar/primary'
 import { SecondarySidebar } from './sidebar/secondary'
@@ -109,6 +110,7 @@ export function WorkbenchV2() {
 
       <StatusBar />
       <NewVideoDialog />
+      <SettingsDialog />
     </div>
   )
 }
