@@ -82,6 +82,14 @@ export const api = {
   createVideo: (body: NewVideo, idempotencyKey: string) =>
     post<Video>('/api/videos', body, idempotencyKey),
   getVideo: (ref: string) => request<Video>(`/api/videos/${key(ref)}`),
+  /**
+   * The one verb that gets a stopped video moving again.
+   *
+   * The server does two different things behind it — enqueue a fresh blueprint
+   * for a video with no tasks, or requeue whatever an existing DAG stopped on —
+   * which is why the button that calls it says either Start or Resume.
+   */
+  startVideo: (ref: string) => post<Video>(`/api/videos/${key(ref)}/start`),
   cancelVideo: (ref: string) => post<Video>(`/api/videos/${key(ref)}/cancel`),
 
   listChapters: (ref: string) =>

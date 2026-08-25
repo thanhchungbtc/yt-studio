@@ -14,7 +14,7 @@ import { ChapterTable } from './video/table'
 import { BlueprintPopover } from './video/blueprint'
 import { FinalStrip } from './video/final'
 import { Legend } from './video/mark'
-import { GateStrip } from './video/gate'
+import { StoppedStrip } from './video/stopped'
 import { columnTotals, projectedSeconds } from './video/stages'
 
 /**
@@ -24,11 +24,12 @@ import { columnTotals, projectedSeconds } from './video/stages'
  * video at a different altitude: what state it is in, what it is waiting for,
  * what each chapter has produced, and what happens once every chapter is done.
  *
- * Read-only, deliberately. The pipeline runs on its own and the first thing a
- * person actually needs is to see where it got to and to unblock it — which is
- * the gate, and only the gate. Opening an artifact, rewriting a script and
- * retrying a failure are each worth their own step, and each is easier to get
- * right once this has been watched running for real.
+ * Read-only over the artifacts, deliberately. The pipeline runs on its own, so
+ * what a person needs first is to see where it got to and to get it moving
+ * again — which is the strip at the top, and only the strip. Opening an
+ * artifact, rewriting a script and retrying a single failed task are each worth
+ * their own step, and each is easier to get right once this has been watched
+ * running for real.
  */
 
 const STATUS: Record<VideoState, { label: string; color: string }> = {
@@ -69,7 +70,6 @@ export function VideoEditor({ params }: IDockviewPanelProps<DocPanelParams>) {
     [chapters.data, video.data?.slidesPerChapter],
   )
 
-  const gate = (tasks.data ?? []).find((task) => task.state === 'awaiting_approval')
   const status = video.data ? STATUS[video.data.state] : undefined
 
   const shell = (children: ReactNode) => (
@@ -110,7 +110,7 @@ export function VideoEditor({ params }: IDockviewPanelProps<DocPanelParams>) {
 
   return shell(
     <div className="flex h-full min-h-0 flex-col">
-      {gate ? <GateStrip videoRef={ref} videoId={video.data.id} task={gate} /> : null}
+      <StoppedStrip video={video.data} tasks={tasks.data ?? []} />
 
       <SummaryLine video={video.data} totals={totals} />
 
@@ -155,11 +155,6 @@ function SummaryLine({ video, totals }: { video: Video; totals: ReturnType<typeo
       <span className="min-w-0 flex-1 truncate text-[12px] text-secondary">
         {shapeOf(video, totals)} · {video.slidesPerChapter} slides each
       </span>
-      {video.error ? (
-        <span className="min-w-0 shrink truncate text-[12px] text-[var(--failed)]">
-          {video.error}
-        </span>
-      ) : null}
       {/* The line above describes the plan, so the way to the plan itself
           belongs on it. Hidden until there is one to read. */}
       {video.blueprintAssetId ? <BlueprintPopover assetId={video.blueprintAssetId} /> : null}

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { create } from 'zustand'
 
 import { qk } from './api'
 import type {
   Chapter,
   ChapterDelta,
+  SchedulerDelta,
   StreamEvent,
   Task,
   TaskDelta,
@@ -65,6 +67,41 @@ export function subscribeStream(listener: StreamListener): () => void {
   return () => listeners.delete(listener)
 }
 
+/**
+ * What the machine is doing, right now.
+ *
+ * Deliberately not in the query cache. There is no endpoint behind it that
+ * anything fetches — the server sends a scheduler frame the moment the stream
+ * opens, and another whenever the pools move — so a cache entry would be a
+ * fetch that never happens wrapped around a push that always does.
+ */
+const useSchedulerStore = create<{ snapshot: SchedulerDelta | null }>(() => ({ snapshot: null }))
+
+export function useScheduler(): SchedulerDelta | null {
+  return useSchedulerStore((s) => s.snapshot)
+}
+
+/**
+ * True when nothing a meter draws has moved.
+ *
+ * The scheduler recomputes on every task transition, which under load is many
+ * times a second. Without this the status bar would re-render on frames that
+ * would draw it identically.
+ */
+function sameSnapshot(a: SchedulerDelta | null, b: SchedulerDelta): boolean {
+  if (!a || a.pools.length !== b.pools.length) return false
+  return a.pools.every((pool, i) => {
+    const next = b.pools[i]
+    return (
+      next !== undefined &&
+      pool.pool === next.pool &&
+      pool.limit === next.limit &&
+      pool.inFlight === next.inFlight &&
+      pool.queued === next.queued
+    )
+  })
+}
+
 /** Mounted once, at the root of the workbench. Never twice. */
 export function useEventStream(): ConnectionState {
   const queryClient = useQueryClient()
@@ -121,6 +158,9 @@ export function useEventStream(): ConnectionState {
 }
 
 function apply(client: QueryClient, frame: StreamEvent): void {
+  if (frame.scheduler && !sameSnapshot(useSchedulerStore.getState().snapshot, frame.scheduler)) {
+    useSchedulerStore.setState({ snapshot: frame.scheduler })
+  }
   if (frame.tasks?.length) applyTasks(client, frame.tasks)
   if (frame.chapters?.length) applyChapters(client, frame.chapters)
   if (frame.video) applyVideo(client, frame.video)
