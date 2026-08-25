@@ -6,8 +6,6 @@ import { createRoot } from 'react-dom/client'
 import { applyTheme } from '@/core/theme'
 import { router } from '@/router'
 
-import './styles.css'
-
 // Almost everything on screen is server state, and the SSE stream keeps it
 // current. Refetching on focus or on an interval would be duplicated work.
 const queryClient = new QueryClient({

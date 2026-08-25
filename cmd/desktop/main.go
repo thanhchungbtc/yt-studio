@@ -112,6 +112,9 @@ func (c *cli) Run() error {
 		}
 	}()
 
+	// Before Navigate: the material, the window verbs and the user script that
+	// makes the page transparent all have to be in place before a page loads.
+	dressWindow(w)
 	w.Navigate(url)
 	w.Run()
 	return nil

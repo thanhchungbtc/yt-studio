@@ -16,7 +16,7 @@ import { dirname, join } from 'node:path'
  * group has laid out.
  *
  *   node test/smoke.mjs            store only
- *   node test/smoke.mjs --render   also mount the window against a live server
+ *   node test/smoke.mjs --render   also mount both windows against a live server
  *
  * The render pass seeds the query cache from a running yt-studio on :8080, so it
  * exercises the real documents with real shapes rather than fixtures that drift.
@@ -34,7 +34,11 @@ const shared = {
   logLevel: 'error',
 }
 
-await build({ ...shared, entryPoints: [join(here, 'entry-store.ts')], outfile: join(tmp, 'store.cjs') })
+await build({
+  ...shared,
+  entryPoints: [join(here, 'entry-store.ts')],
+  outfile: join(tmp, 'store.cjs'),
+})
 
 const suites = [['store', 'run-store.cjs']]
 
@@ -50,6 +54,17 @@ if (process.argv.includes('--render')) {
       jsx: 'automatic',
     })
     suites.push(['render', 'run-render.cjs'])
+    // V2 imports its own stylesheet, which is how it stays self-contained.
+    // Node cannot run a stylesheet and jsdom would not paint it either, so the
+    // loader drops them: this suite asks about structure, not about looks.
+    await build({
+      ...shared,
+      entryPoints: [join(here, 'entry-render-v2.tsx')],
+      outfile: join(tmp, 'render-v2.cjs'),
+      jsx: 'automatic',
+      loader: { '.css': 'empty' },
+    })
+    suites.push(['render-v2', 'run-render-v2.cjs'])
   } else {
     console.log('render: skipped — no server on 127.0.0.1:8080\n')
   }

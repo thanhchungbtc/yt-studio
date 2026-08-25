@@ -1,0 +1,376 @@
+@import 'tailwindcss';
+
+/*
+  Workbench V2 — a macOS window, drawn the way Messages draws one.
+
+  Three ideas carry the whole sheet.
+
+  Translucency is a *material*, not a colour. Every chrome surface is a
+  low-alpha wash over whatever is behind it, and behind it is an AppKit
+  `NSVisualEffectView`. So the tokens here are rgba by construction: making them
+  opaque would not merely change a shade, it would put a lid on the material and
+  the window would stop reacting to the desktop underneath it.
+
+  There is exactly one opaque surface — the document. A translucent editor is
+  where the effect stops being atmosphere and starts being noise, which is
+  precisely the line Messages draws between its sidebar and its transcript.
+
+  And the palette is system-derived rather than invented. macOS ships its
+  greys as specific values with specific relationships; approximating them is
+  what makes a web app in a native window read as a web app in a native window.
+*/
+
+@theme {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+@layer base {
+  :root {
+    /*
+      The opaque backdrop. In the desktop window this is never seen — the page
+      is transparent and AppKit's material is underneath — but in a browser tab
+      there is nothing behind the translucency, so the alpha needs a floor to
+      sit on or every chrome surface reads as washed-out white.
+    */
+    --window: #e8e8ea;
+
+    --chrome: rgb(246 246 248 / 0.62);
+    --chrome-strong: rgb(236 236 239 / 0.78);
+    --content: #ffffff;
+    --raised: rgb(255 255 255 / 0.92);
+
+    /* NSColor.separatorColor, near enough. */
+    --separator: rgb(0 0 0 / 0.1);
+    --separator-strong: rgb(0 0 0 / 0.16);
+    /*
+      One *device* pixel, not one CSS pixel.
+
+      This is the whole difference between a macOS seam and a web one. At 2x a
+      1px rule is two device pixels, which is twice the weight AppKit draws and
+      reads as a drawn line rather than as an edge. The retina override below
+      halves it; WebKit resolves a sub-pixel inset shadow to a single device
+      row, which is exactly the hairline wanted.
+    */
+    --hairline: 1px;
+
+    --text: #1d1d1f;
+    --text-secondary: rgb(60 60 67 / 0.68);
+    --text-tertiary: rgb(60 60 67 / 0.42);
+
+    /* macOS system blue, and the fill a selected row gets from it. */
+    --accent: #0a6cf5;
+    --accent-text: #ffffff;
+    --hover: rgb(0 0 0 / 0.05);
+    --idle-selection: rgb(0 0 0 / 0.08);
+    /* The band a group header sits on, and the strip the tabs sit on: one step
+       heavier than the surrounding chrome, so a full-bleed header cannot be
+       mistaken for a row. */
+    --band: rgb(0 0 0 / 0.045);
+    --menu: rgb(250 250 252 / 0.86);
+
+    --running: #f0a020;
+    --failed: #e5484d;
+    --done: #30a46c;
+
+    --radius: 7px;
+    --radius-lg: 11px;
+
+    /* macOS reserves the leading edge of the titlebar for the traffic lights. */
+    --traffic-lights: 0px;
+
+    color-scheme: light;
+  }
+
+  .dark {
+    --window: #1c1c1e;
+
+    --chrome: rgb(58 58 61 / 0.5);
+    --chrome-strong: rgb(44 44 47 / 0.72);
+    --content: #1e1e20;
+    --raised: rgb(58 58 61 / 0.9);
+
+    --separator: rgb(255 255 255 / 0.15);
+    --separator-strong: rgb(255 255 255 / 0.22);
+
+    --text: #f5f5f7;
+    --text-secondary: rgb(235 235 245 / 0.6);
+    --text-tertiary: rgb(235 235 245 / 0.35);
+
+    --accent: #0a84ff;
+    --accent-text: #ffffff;
+    --hover: rgb(255 255 255 / 0.06);
+    --idle-selection: rgb(255 255 255 / 0.1);
+    --band: rgb(0 0 0 / 0.16);
+    --menu: rgb(56 56 59 / 0.86);
+
+    --running: #f0a020;
+    --failed: #ff6961;
+    --done: #32d74b;
+
+    color-scheme: dark;
+  }
+
+  @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 2dppx) {
+    :root {
+      --hairline: 0.5px;
+    }
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--window);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+    /* A native window is not a document: nothing here scrolls as a whole, and
+       an accidental rubber-band would peel the whole UI off its own chrome. */
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  /*
+    Added by the desktop binary, at document start, and by nothing else — the
+    page has no way to know it is in a vibrant window and no business guessing.
+    Transparency is what lets the material through; the inset is the room the
+    traffic lights need, and they only exist when there is a real titlebar for
+    them to float out of.
+  */
+  .yts-vibrancy,
+  .yts-vibrancy body {
+    background-color: transparent;
+  }
+
+  .yts-vibrancy {
+    --traffic-lights: 72px;
+  }
+
+  /* An overlay scrollbar, as every macOS list has. */
+  ::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgb(0 0 0 / 0.22);
+    border: 2px solid transparent;
+    background-clip: content-box;
+    border-radius: 9px;
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background: rgb(255 255 255 / 0.22);
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(0 0 0 / 0.38);
+    background-clip: content-box;
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: rgb(255 255 255 / 0.38);
+    background-clip: content-box;
+  }
+}
+
+/*
+  Surfaces.
+
+  `backdrop-filter` is what makes these work in a browser tab, where there is no
+  AppKit material to sit on: it blurs the window colour and whatever the layout
+  puts behind the strip. Inside the desktop window it is close to a no-op and
+  harmless — the real blur happens a layer below, in AppKit.
+*/
+@utility surface-chrome {
+  background-color: var(--chrome);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+@utility surface-chrome-strong {
+  background-color: var(--chrome-strong);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+@utility surface-content {
+  background-color: var(--content);
+}
+
+/* Layered over chrome rather than replacing it, so the material still shows. */
+@utility surface-band {
+  background-color: var(--band);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+@utility surface-menu {
+  background-color: var(--menu);
+  backdrop-filter: saturate(180%) blur(30px);
+  border: 1px solid var(--separator);
+  box-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.12),
+    0 10px 34px -6px rgb(0 0 0 / 0.34);
+}
+
+/* The hairline macOS draws between panes: one physical pixel, never scaled. */
+@utility hairline-r {
+  box-shadow: inset calc(-1 * var(--hairline)) 0 0 0 var(--separator);
+}
+
+@utility hairline-l {
+  box-shadow: inset var(--hairline) 0 0 0 var(--separator);
+}
+
+@utility hairline-b {
+  box-shadow: inset 0 calc(-1 * var(--hairline)) 0 0 var(--separator);
+}
+
+@utility hairline-t {
+  box-shadow: inset 0 var(--hairline) 0 0 var(--separator);
+}
+
+@utility text-primary {
+  color: var(--text);
+}
+
+@utility text-secondary {
+  color: var(--text-secondary);
+}
+
+@utility text-tertiary {
+  color: var(--text-tertiary);
+}
+
+/*
+  Menu rows. Radix reports the pointer/keyboard highlight as data-highlighted,
+  and macOS answers it with a full-width accent fill rather than a tint.
+*/
+.menu-item {
+  color: var(--text);
+}
+
+.menu-item[data-highlighted] {
+  background-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.menu-shortcut {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.menu-item[data-highlighted] .menu-shortcut {
+  color: rgb(255 255 255 / 0.75);
+}
+
+/*
+  Dockview, dressed as the window's titlebar.
+
+  The tab strip *is* the top of the window, so it is chrome and it is
+  translucent — which means the group behind it has to be transparent, not
+  white. Each editor paints its own opaque surface instead, and the active tab
+  paints the same one: that is what makes the tab and the document read as a
+  single sheet with the strip cut around it, and it is the detail the reference
+  window turns on.
+
+  The sashes are invisible until grabbed, which is what a native split does.
+*/
+.dockview-theme-macos {
+  --dv-background-color: transparent;
+  --dv-group-view-background-color: transparent;
+  --dv-tabs-and-actions-container-background-color: transparent;
+  --dv-tabs-and-actions-container-height: 38px;
+  --dv-tabs-and-actions-container-font-size: 13px;
+  --dv-tab-font-size: 13px;
+
+  --dv-activegroup-visiblepanel-tab-background-color: var(--content);
+  --dv-activegroup-visiblepanel-tab-color: var(--text);
+  --dv-activegroup-hiddenpanel-tab-background-color: transparent;
+  --dv-activegroup-hiddenpanel-tab-color: var(--text-secondary);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--content);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--text-secondary);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: transparent;
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--text-tertiary);
+
+  --dv-tab-divider-color: transparent;
+  --dv-separator-border: var(--separator);
+  --dv-paneview-header-border-color: var(--separator);
+  /* Invisible, dragged or not: the pane's hairline is the divider, and a
+     divider that lights up under the cursor is a web idiom. */
+  --dv-sash-color: transparent;
+  --dv-active-sash-color: transparent;
+  --dv-drag-over-background-color: rgb(10 108 245 / 0.16);
+  --dv-drag-over-border-color: var(--accent);
+  --dv-icon-hover-background-color: var(--hover);
+  --dv-scrollbar-background-color: transparent;
+  --dv-tabs-container-scrollbar-color: rgb(0 0 0 / 0.2);
+
+  --dv-border-radius: 0px;
+  --dv-tab-border-radius: 0px;
+  --dv-sash-border-radius: 0px;
+  --dv-dropdown-border-radius: 7px;
+  --dv-overlay-z-index: 999;
+
+  color: var(--text);
+}
+
+/*
+  The strip.
+
+  Heavier than the sidebar's chrome on purpose: this is the band the document
+  hangs from, and the white of the active tab only reads as *raised* if what
+  surrounds it is a settled, even grey rather than a wash of whatever happens to
+  be on the desktop behind it. Still translucent, just less so.
+*/
+.dockview-theme-macos .dv-tabs-and-actions-container {
+  background-color: var(--chrome-strong);
+  backdrop-filter: saturate(180%) blur(20px);
+  box-shadow: inset 0 calc(-1 * var(--hairline)) 0 0 var(--separator);
+}
+
+/*
+  Tabs are full-bleed slabs, not pills: full strip height, square, touching, and
+  with no rule between them. A margin, a radius or a divider here is the single
+  thing that would make this read as a browser rather than as a macOS window —
+  the tone difference between the raised tab and the strip is the whole
+  separation, and it is enough.
+
+  Full height also has work to do: an opaque tab covers the strip's bottom
+  hairline, so the active tab and the document below it are one continuous
+  sheet with the strip cut around them.
+*/
+.dockview-theme-macos .dv-tabs-container {
+  height: 100%;
+  align-items: stretch;
+}
+
+.dockview-theme-macos .dv-tab {
+  height: 100%;
+  min-width: 132px;
+  max-width: 260px;
+  padding: 0;
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
+  transition: background-color 100ms ease-out;
+}
+
+.dockview-theme-macos .dv-tab.dv-inactive-tab:hover {
+  background-color: var(--hover);
+}
+
+.dockview-theme-macos .dv-void-container {
+  cursor: default;
+}

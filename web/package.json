@@ -24,6 +24,8 @@
     "@tanstack/react-virtual": "^3.13.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "dockview": "^8.2.0",
+    "dockview-react": "^8.2.0",
     "lucide-react": "^0.475.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

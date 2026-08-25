@@ -10,9 +10,17 @@
       /* Painted before the bundle evaluates, so there is no white flash. */
       html { background: #0d1117; }
       html.light { background: #ffffff; }
+      /*
+        Except in the desktop window, where the flash to avoid is the opposite
+        one: an opaque html background would cover the AppKit material for as
+        long as it took the bundle to load, and the window would open solid and
+        then dissolve. The class is added by a user script at document start,
+        before this stylesheet has anything to paint.
+      */
+      html.yts-vibrancy, html.yts-vibrancy body { background: transparent; }
     </style>
-    <script type="module" crossorigin src="/app/index-BMVBHQ-Q.js"></script>
-    <link rel="stylesheet" crossorigin href="/app/index-BWy31EqC.css">
+    <script type="module" crossorigin src="/app/index-BWIeEM-R.js"></script>
+    <link rel="stylesheet" crossorigin href="/app/index-CJ3-9gKW.css">
   </head>
   <body>
     <div id="root"></div>
