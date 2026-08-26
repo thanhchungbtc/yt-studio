@@ -45,7 +45,7 @@ import { columnTotals, projectedSeconds, stagesByChapter } from './stages'
   supposed to prevent. Capping the title and parking the slack at the far end
   keeps the stages beside their chapter at any width.
 */
-const COLUMNS = '2.25rem minmax(13rem, 34rem) 6.5rem 4.5rem 5.5rem minmax(6rem, 12rem) 3.5rem 1fr'
+const COLUMNS = '2.25rem minmax(13rem, 34rem) 7.5rem 4.5rem 5.5rem minmax(6rem, 12rem) 3.5rem 1fr'
 
 interface ChapterTableProps {
   chapters: Chapter[]
@@ -80,7 +80,7 @@ export function ChapterTable({ chapters, tasks, slidesPerChapter }: ChapterTable
       >
         <span>#</span>
         <span>Chapter</span>
-        <span>Length</span>
+        <span>Estimated length</span>
         <Head label="Script" done={totals.script.done} total={totals.script.total} />
         <Head label="Narration" done={totals.narration.done} total={totals.narration.total} />
         <Head label="Slides" done={totals.slides.done} total={totals.slides.total} />
