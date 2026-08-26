@@ -116,6 +116,35 @@ func (q *Queries) SetChapterClip(ctx context.Context, arg SetChapterClipParams) 
 	return err
 }
 
+const setChapterPlan = `-- name: SetChapterPlan :exec
+UPDATE chapters
+SET title = ?, summary = ?, estimated_words = ?, updated_at = ?
+WHERE id = ?
+`
+
+type SetChapterPlanParams struct {
+	Title          string
+	Summary        string
+	EstimatedWords int64
+	UpdatedAt      int64
+	ID             string
+}
+
+// The three fields the blueprint plans with, written together because they are
+// edited together: re-budgeting a chapter's words usually means rewriting the
+// summary that earned them. Everything a task produced is left alone -- this
+// statement touches the plan and nothing derived from it.
+func (q *Queries) SetChapterPlan(ctx context.Context, arg SetChapterPlanParams) error {
+	_, err := q.exec(ctx, q.setChapterPlanStmt, setChapterPlan,
+		arg.Title,
+		arg.Summary,
+		arg.EstimatedWords,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	return err
+}
+
 const setChapterPrompt = `-- name: SetChapterPrompt :exec
 UPDATE chapters
 SET slide_prompts_json = json_set(slide_prompts_json, CAST(?1 AS TEXT), CAST(?2 AS TEXT)),

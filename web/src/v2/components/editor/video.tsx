@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { Clapperboard } from 'lucide-react'
-import { useMemo, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 
 import { api, qk } from '../../core/api'
 import { count, duration } from '../../core/format'
@@ -30,6 +30,13 @@ import { columnTotals, projectedSeconds } from './video/stages'
  * artifact, rewriting a script and retrying a single failed task are each worth
  * their own step, and each is easier to get right once this has been watched
  * running for real.
+ *
+ * The *plan* is the exception, and it is not really one: the blueprint's titles,
+ * briefs and word budgets are the pipeline's inputs rather than its output, and
+ * they are what the gate is asking about. Edit puts the table's first three
+ * columns into fields; nothing is re-run, because a chapter that has not been
+ * written yet is written from the edit, and one that has been is the operator's
+ * to reconsider.
  */
 
 const STATUS: Record<VideoState, { label: string; color: string }> = {
@@ -44,6 +51,9 @@ const STATUS: Record<VideoState, { label: string; color: string }> = {
 
 export function VideoEditor({ params }: IDockviewPanelProps<DocPanelParams>) {
   const ref = params.doc?.kind === 'video' ? params.doc.ref : ''
+  // Held here rather than in the table because the switch belongs on the line
+  // that describes the plan, and the table is what the switch changes.
+  const [editing, setEditing] = useState(false)
 
   const video = useQuery({
     queryKey: qk.video(ref),
@@ -108,16 +118,29 @@ export function VideoEditor({ params }: IDockviewPanelProps<DocPanelParams>) {
     return shell(<div className="h-full" />)
   }
 
+  // There is nothing to edit until the blueprint has written the rows, and a
+  // switch that turns an empty table into an empty table is a switch that
+  // teaches the wrong thing about what it does.
+  const editable = (chapters.data?.length ?? 0) > 0
+
   return shell(
     <div className="flex h-full min-h-0 flex-col">
       <StoppedStrip video={video.data} tasks={tasks.data ?? []} />
 
-      <SummaryLine video={video.data} totals={totals} />
+      <SummaryLine
+        video={video.data}
+        totals={totals}
+        editing={editing && editable}
+        editable={editable}
+        onToggleEditing={() => setEditing((on) => !on)}
+      />
 
       <ChapterTable
+        videoId={video.data.id}
         chapters={chapters.data ?? []}
         tasks={tasks.data ?? []}
         slidesPerChapter={video.data.slidesPerChapter}
+        editing={editing && editable}
       />
 
       <Legend />
@@ -141,7 +164,19 @@ function shapeOf(video: Video, totals: ReturnType<typeof columnTotals>): string 
   return `${video.chapterCount} chapters · ${count(words)} words · ~${runtime}`
 }
 
-function SummaryLine({ video, totals }: { video: Video; totals: ReturnType<typeof columnTotals> }) {
+function SummaryLine({
+  video,
+  totals,
+  editing,
+  editable,
+  onToggleEditing,
+}: {
+  video: Video
+  totals: ReturnType<typeof columnTotals>
+  editing: boolean
+  editable: boolean
+  onToggleEditing: () => void
+}) {
   const client = useQueryClient()
   const cancel = useMutation({
     mutationFn: () => api.cancelVideo(video.ref),
@@ -156,7 +191,9 @@ function SummaryLine({ video, totals }: { video: Video; totals: ReturnType<typeo
         {shapeOf(video, totals)} · {video.slidesPerChapter} slides each
       </span>
       {/* The line above describes the plan, so the way to the plan itself
-          belongs on it. Hidden until there is one to read. */}
+          belongs on it — reading it, and changing it. Each hidden until there
+          is one. */}
+      {editable ? <Button onClick={onToggleEditing}>{editing ? 'Done' : 'Edit'}</Button> : null}
       {video.blueprintAssetId ? <BlueprintPopover assetId={video.blueprintAssetId} /> : null}
       {running ? (
         <Button onClick={() => cancel.mutate()} disabled={cancel.isPending}>

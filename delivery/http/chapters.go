@@ -22,6 +22,19 @@ type ChapterOutput struct {
 	Body ChapterDTO
 }
 
+// UpdatePlanInput is an operator's edit to the blueprint's plan for one chapter.
+// All three fields are sent every time: they are edited as one row, and a PUT
+// that took whichever of them changed would need a rule for telling an omitted
+// summary from a cleared one.
+type UpdatePlanInput struct {
+	ID   string `path:"id" doc:"Chapter id"`
+	Body struct {
+		Title          string `json:"title" required:"true" minLength:"1" doc:"What the chapter covers"`
+		Summary        string `json:"summary" doc:"The chapter's brief, as the script is written from it"`
+		EstimatedWords int    `json:"estimatedWords" minimum:"0" doc:"Spoken-word budget; 0 leaves it unset"`
+	}
+}
+
 // UpdateScriptInput is an operator's inline script edit.
 type UpdateScriptInput struct {
 	ID   string `path:"id" doc:"Chapter id"`
@@ -62,6 +75,25 @@ func getChapters(videos repository.VideoReader, chapters repository.ChapterReade
 			out.Body.Chapters = append(out.Body.Chapters, chapterFrom(c))
 		}
 		return out, nil
+	}
+}
+
+func putChapterPlan(
+	chapters repository.ChapterReader,
+	fields repository.ChapterFieldWriter,
+	notifier app.ChapterNotifier,
+) func(context.Context, *UpdatePlanInput) (*ChapterOutput, error) {
+	return func(ctx context.Context, in *UpdatePlanInput) (*ChapterOutput, error) {
+		c, err := app.UpdateChapterPlan(ctx, chapters, fields, notifier,
+			entity.ChapterID(in.ID), app.ChapterPlan{
+				Title:          in.Body.Title,
+				Summary:        in.Body.Summary,
+				EstimatedWords: in.Body.EstimatedWords,
+			})
+		if err != nil {
+			return nil, mapError(err)
+		}
+		return &ChapterOutput{Body: chapterFrom(c)}, nil
 	}
 }
 
@@ -129,6 +161,17 @@ func registerChapterRoutes(
 		OperationID: "listChapters", Method: "GET", Path: "/api/videos/{key}/chapters",
 		Summary: "List a video's chapters", Tags: []string{"chapters"},
 	}, getChapters(videos, chapters))
+
+	huma.Register(api, huma.Operation{
+		OperationID: "updateChapterPlan", Method: "PUT", Path: "/api/chapters/{id}/plan",
+		Summary: "Edit a chapter's title, brief and word budget",
+		Description: "Writes the plan and stops there. Nothing is re-run and nothing is " +
+			"flagged: a chapter whose script has not been generated yet is written from " +
+			"this, because every task reads the plan from the chapter rather than from the " +
+			"stored blueprint asset. A chapter that already has a script keeps it until " +
+			"the operator retries that chapter.",
+		Tags: []string{"chapters"},
+	}, putChapterPlan(chapters, fields, notifier))
 
 	huma.Register(api, huma.Operation{
 		OperationID: "updateChapterScript", Method: "PUT", Path: "/api/chapters/{id}/script",

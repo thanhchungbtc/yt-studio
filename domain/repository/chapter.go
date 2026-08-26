@@ -23,6 +23,9 @@ type ChapterWriter interface {
 // chapter run concurrently by design, so a read-modify-write of the whole row
 // would lose one; each method here is one atomic statement.
 type ChapterFieldWriter interface {
+	// SetChapterPlan writes what the chapter is meant to cover and how long it
+	// is meant to run: the operator's edit of the approved blueprint.
+	SetChapterPlan(ctx context.Context, id entity.ChapterID, title, summary string, estimatedWords int) error
 	SetChapterScript(ctx context.Context, id entity.ChapterID, script string, durationSeconds float64) error
 	SetChapterPrompts(ctx context.Context, id entity.ChapterID, prompts []string) error
 	SetChapterPrompt(ctx context.Context, id entity.ChapterID, index int, prompt string) error

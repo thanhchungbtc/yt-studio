@@ -114,6 +114,22 @@ func chapterParams(c entity.Chapter) (sqlcgen.UpsertChapterParams, error) {
 
 var _ repository.ChapterFieldWriter = (*Store)(nil)
 
+// SetChapterPlan records an operator's edit to the blueprint's plan for one
+// chapter. The script, prompts and assets are left as they are: whether work
+// derived from the old plan is still worth keeping is not a question a write
+// can answer.
+func (s *Store) SetChapterPlan(ctx context.Context, id entity.ChapterID, title, summary string, estimatedWords int) error {
+	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
+		return q.SetChapterPlan(ctx, sqlcgen.SetChapterPlanParams{
+			Title:          title,
+			Summary:        summary,
+			EstimatedWords: int64(estimatedWords),
+			UpdatedAt:      toUnix(time.Now()),
+			ID:             string(id),
+		})
+	})
+}
+
 // SetChapterScript records a generated or operator-edited narration.
 func (s *Store) SetChapterScript(ctx context.Context, id entity.ChapterID, script string, durationSeconds float64) error {
 	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {

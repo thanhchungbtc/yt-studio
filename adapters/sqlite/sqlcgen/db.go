@@ -141,6 +141,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.setChapterClipStmt, err = db.PrepareContext(ctx, setChapterClip); err != nil {
 		return nil, fmt.Errorf("error preparing query SetChapterClip: %w", err)
 	}
+	if q.setChapterPlanStmt, err = db.PrepareContext(ctx, setChapterPlan); err != nil {
+		return nil, fmt.Errorf("error preparing query SetChapterPlan: %w", err)
+	}
 	if q.setChapterPromptStmt, err = db.PrepareContext(ctx, setChapterPrompt); err != nil {
 		return nil, fmt.Errorf("error preparing query SetChapterPrompt: %w", err)
 	}
@@ -404,6 +407,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing setChapterClipStmt: %w", cerr)
 		}
 	}
+	if q.setChapterPlanStmt != nil {
+		if cerr := q.setChapterPlanStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing setChapterPlanStmt: %w", cerr)
+		}
+	}
 	if q.setChapterPromptStmt != nil {
 		if cerr := q.setChapterPromptStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing setChapterPromptStmt: %w", cerr)
@@ -587,6 +595,7 @@ type Queries struct {
 	putAssetStmt                    *sql.Stmt
 	setChapterAudioStmt             *sql.Stmt
 	setChapterClipStmt              *sql.Stmt
+	setChapterPlanStmt              *sql.Stmt
 	setChapterPromptStmt            *sql.Stmt
 	setChapterPromptsStmt           *sql.Stmt
 	setChapterScriptStmt            *sql.Stmt
@@ -653,6 +662,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		putAssetStmt:                    q.putAssetStmt,
 		setChapterAudioStmt:             q.setChapterAudioStmt,
 		setChapterClipStmt:              q.setChapterClipStmt,
+		setChapterPlanStmt:              q.setChapterPlanStmt,
 		setChapterPromptStmt:            q.setChapterPromptStmt,
 		setChapterPromptsStmt:           q.setChapterPromptsStmt,
 		setChapterScriptStmt:            q.setChapterScriptStmt,

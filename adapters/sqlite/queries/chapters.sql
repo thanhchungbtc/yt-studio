@@ -32,6 +32,15 @@ ON CONFLICT (id) DO UPDATE SET
 -- name: SetChapterScript :exec
 UPDATE chapters SET script = ?, duration_seconds = ?, updated_at = ? WHERE id = ?;
 
+-- The three fields the blueprint plans with, written together because they are
+-- edited together: re-budgeting a chapter's words usually means rewriting the
+-- summary that earned them. Everything a task produced is left alone -- this
+-- statement touches the plan and nothing derived from it.
+-- name: SetChapterPlan :exec
+UPDATE chapters
+SET title = ?, summary = ?, estimated_words = ?, updated_at = ?
+WHERE id = ?;
+
 -- name: SetChapterPrompts :exec
 UPDATE chapters SET slide_prompts_json = ?, updated_at = ? WHERE id = ?;
 

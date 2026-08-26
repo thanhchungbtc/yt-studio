@@ -68,6 +68,14 @@ export interface NewVideo {
   start?: boolean
 }
 
+/** What a chapter of the blueprint plans; the whole plan, every time. */
+export interface ChapterPlan {
+  title: string
+  summary: string
+  /** The spoken-word budget. 0 is unset, not zero words. */
+  estimatedWords: number
+}
+
 const key = encodeURIComponent
 
 export const api = {
@@ -96,6 +104,24 @@ export const api = {
     request<{ chapters: Chapter[] }>(`/api/videos/${key(ref)}/chapters`).then((r) => r.chapters),
   listTasks: (ref: string) =>
     request<{ tasks: Task[] }>(`/api/videos/${key(ref)}/tasks`).then((r) => r.tasks),
+
+  /**
+   * An edit to the blueprint, and only that.
+   *
+   * Keyed by chapter id, not by video ref, because a chapter is what is being
+   * changed — and the id is derived (`<video>:ch:<ordinal>`), so the row already
+   * knows it.
+   *
+   * The server re-runs nothing. A chapter whose script has not been written yet
+   * will be written from this; one that already has a script keeps it until the
+   * operator decides otherwise. The returned chapter is the whole row, so the
+   * cache is patched from the response rather than refetched.
+   */
+  updateChapterPlan: (id: string, plan: ChapterPlan) =>
+    request<Chapter>(`/api/chapters/${key(id)}/plan`, {
+      method: 'PUT',
+      body: JSON.stringify(plan),
+    }),
 
   /**
    * An asset's bytes, as text.
