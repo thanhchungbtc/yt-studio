@@ -1,15 +1,25 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark light" />
+    <meta name="color-scheme" content="light dark" />
     <title>yt-studio</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230b6bcb'/><path d='M12 9.5v13l10-6.5z' fill='white'/></svg>" />
     <style>
-      /* Painted before the bundle evaluates, so there is no white flash. */
-      html { background: #0d1117; }
-      html.light { background: #ffffff; }
+      /*
+        Painted before the bundle evaluates, so nothing flashes in the wrong
+        appearance. Keyed off the system query rather than off the theme class,
+        because the class is not on the element until the bundle has run — which
+        is also why `class="dark"` is no longer hardcoded here.
+
+        The two values are --window from the stylesheet, so the pre-paint and the
+        first real paint are the same colour and there is no step between them.
+      */
+      html { background: #e8e8ea; }
+      @media (prefers-color-scheme: dark) {
+        html { background: #1c1c1e; }
+      }
       /*
         Except in the desktop window, where the flash to avoid is the opposite
         one: an opaque html background would cover the AppKit material for as

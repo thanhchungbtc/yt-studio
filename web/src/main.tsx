@@ -3,7 +3,7 @@ import { RouterProvider } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
-import { applyTheme } from '@/core/theme'
+import { followSystem } from '@/core/theme'
 import { router } from '@/router'
 
 // Almost everything on screen is server state, and the SSE stream keeps it
@@ -22,23 +22,9 @@ const queryClient = new QueryClient({
   },
 })
 
-// Applied before React mounts so there is no flash of the wrong theme. The
-// workspace store writes JSON, and a build older than it wrote the bare word,
-// so both are accepted here.
-;(function restoreTheme() {
-  let stored: string | null = null
-  try {
-    stored = localStorage.getItem('yt-studio.theme')
-  } catch {
-    stored = null
-  }
-  const theme = stored?.replace(/^"|"$/g, '')
-  const dark =
-    theme === 'dark' || theme === 'light'
-      ? theme === 'dark'
-      : window.matchMedia('(prefers-color-scheme: dark)').matches
-  applyTheme(dark ? 'dark' : 'light')
-})()
+// Before React mounts, so nothing flashes in the wrong appearance — and it
+// stays subscribed, because macOS can change its mind while the window is open.
+followSystem()
 
 const container = document.getElementById('root')
 if (!container) throw new Error('#root is missing from index.html')

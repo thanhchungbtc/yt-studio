@@ -1,14 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import {
   FolderTree,
-  Moon,
   PanelBottom,
   PanelLeft,
   PanelRight,
   Radio,
   Search,
   Settings as SettingsIcon,
-  Sun,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -18,7 +16,6 @@ import { Divider, Kbd, Tooltip } from './ui/primitives'
 import { PoolChip } from './ui/status'
 import { api, qk } from '@/core/api'
 import type { ConnectionState } from '@/core/events'
-import { useTheme } from '@/core/theme'
 import { cn } from '@/core/utils'
 
 /* -------------------------------------------------------------- title bar */
@@ -101,25 +98,8 @@ export function TitleBar({ onOpenPalette }: { onOpenPalette: () => void }) {
             <PanelRight className="h-3.5 w-3.5" />
           </IconButton>
         </Tooltip>
-        <ThemeToggle />
       </div>
     </header>
-  )
-}
-
-function ThemeToggle() {
-  const [theme, toggle] = useTheme()
-  const dark = theme === 'dark'
-
-  return (
-    <Tooltip label={dark ? 'Switch to light' : 'Switch to dark'} side="bottom">
-      <IconButton
-        aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
-        onClick={toggle}
-      >
-        {dark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-      </IconButton>
-    </Tooltip>
   )
 }
 

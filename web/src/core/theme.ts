@@ -1,62 +1,45 @@
-import { useCallback, useEffect, useSyncExternalStore } from 'react'
-
 /**
- * The theme, which is a property of the document rather than of any one UI —
- * both shells read it, and `main.tsx` applies it before React mounts so there is
- * no flash of the wrong one.
+ * The theme, which is the system's.
  *
- * Self-contained on purpose: it is the one preference that has to be readable
- * from outside React, so it does not sit on top of a hook.
+ * macOS decides light or dark — in System Settings, or on its own at sunset when
+ * Appearance is set to Auto — and the window follows. Nothing is stored and
+ * there is nothing to toggle: the whole design of this UI is a native window,
+ * and a native window whose appearance disagrees with the desktop it is sitting
+ * on is the one thing none of them does. A switch inside the window would be a
+ * second answer to a question the platform has already asked.
+ *
+ * It follows *live*, not once at startup. The material behind the page is an
+ * AppKit `NSVisualEffectView`, which re-draws itself the instant the appearance
+ * changes; a page that only read the appearance when it loaded would leave dark
+ * text on the light material until the next reload.
+ *
+ * Outside React on purpose. The class has to be on `<html>` before the first
+ * component mounts — see `main.tsx` — and the token block it selects is CSS, so
+ * every surface in the app is already subscribed to this without asking.
  */
 
 export type Theme = 'dark' | 'light'
 
-const KEY = 'yt-studio.theme'
+/** The media query macOS answers; also the thing that tells us it changed. */
+function preference(): MediaQueryList {
+  return window.matchMedia('(prefers-color-scheme: dark)')
+}
 
 export function applyTheme(theme: Theme): void {
   document.documentElement.classList.toggle('dark', theme === 'dark')
   document.documentElement.classList.toggle('light', theme === 'light')
 }
 
-function read(): Theme {
-  try {
-    // A build older than the JSON-encoding store wrote the bare word, so both
-    // spellings are accepted.
-    const raw = localStorage.getItem(KEY)?.replace(/^"|"$/g, '')
-    if (raw === 'dark' || raw === 'light') return raw
-  } catch {
-    /* private browsing */
-  }
-  return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
-}
-
-let current: Theme | null = null
-const listeners = new Set<() => void>()
-
-function snapshot(): Theme {
-  if (current === null) current = read()
-  return current
-}
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener)
-  return () => listeners.delete(listener)
-}
-
-export function useTheme(): [Theme, () => void] {
-  const theme = useSyncExternalStore(subscribe, snapshot, () => 'dark' as Theme)
-
-  useEffect(() => applyTheme(theme), [theme])
-
-  const toggle = useCallback(() => {
-    current = snapshot() === 'dark' ? 'light' : 'dark'
-    try {
-      localStorage.setItem(KEY, JSON.stringify(current))
-    } catch {
-      /* the preference simply does not persist */
-    }
-    for (const listener of listeners) listener()
-  }, [])
-
-  return [theme, toggle]
+/**
+ * Applies the system appearance and keeps it applied.
+ *
+ * Returns the unsubscribe for completeness; nothing calls it, because the
+ * listener is meant to outlive everything else in the window.
+ */
+export function followSystem(): () => void {
+  const media = preference()
+  const sync = () => applyTheme(media.matches ? 'dark' : 'light')
+  sync()
+  media.addEventListener('change', sync)
+  return () => media.removeEventListener('change', sync)
 }
