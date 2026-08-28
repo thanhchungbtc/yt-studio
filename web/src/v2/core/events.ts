@@ -193,10 +193,16 @@ function mergeTasks(previous: Task[], deltas: TaskDelta[]): Task[] {
     const delta = pending.get(task.id)
     if (!delta) return task
     pending.delete(task.id)
+    // Nothing changed that anything renders, so the identity is kept and the
+    // array is not rebuilt. `percent` has to be in this list: a progress frame
+    // is a delta whose state, attempt, staleness and error are all identical to
+    // what is already cached, and without it every one of them would be
+    // discarded here as a no-op.
     if (
       task.state === delta.state &&
       task.attempt === delta.attempt &&
       task.stale === delta.stale &&
+      (task.percent ?? 0) === (delta.percent ?? 0) &&
       (task.error ?? '') === (delta.error ?? '')
     ) {
       return task

@@ -1,4 +1,4 @@
-import type { Chapter, Task, TaskKind } from '../../../core/types'
+import type { Chapter, GateKind, Task, TaskKind, Video } from '../../../core/types'
 
 /**
  * What a cell is showing, independent of which column it is in.
@@ -197,4 +197,162 @@ export function columnTotals(chapters: Chapter[], slidesPerChapter: number): Col
     totals.seconds += chapter.durationSeconds
   }
   return totals
+}
+
+/* ---------------------------------------------------------------- pipeline */
+
+/**
+ * The ten stages a video passes through, as a person names them.
+ *
+ * Thirteen `TaskKind`s collapse to ten rows. `prime_slide_prompts` and
+ * `slide_prompts` are one stage because the split is the scheduler's business,
+ * and the three thumbnail kinds are one for the same reason — a person waiting
+ * for a thumbnail is waiting for a thumbnail, not for a plan, an icon and a
+ * composite in sequence.
+ */
+export type StageId =
+  | 'blueprint'
+  | 'slide_prompts'
+  | 'script'
+  | 'narration'
+  | 'slides'
+  | 'clips'
+  | 'cut'
+  | 'metadata'
+  | 'thumbnail'
+  | 'upload'
+
+export interface PipelineStage {
+  id: StageId
+  label: string
+  /** The same four shapes the grid uses, aggregated over the whole stage. */
+  cell: Cell
+  /**
+   * Present only on the stages that repeat per chapter or per slide. A single
+   * stage carries nothing, because the mark has already said `done` and
+   * printing `1/1` beside a filled disc is saying it twice.
+   */
+  count?: { done: number; total: number }
+  /** Set when this stage is the one holding a gate open. */
+  gate?: GateKind
+}
+
+/**
+ * A stage's mark, from the tasks under it.
+ *
+ * Artifact-first, exactly as a cell is: when every slot has produced something
+ * the stage is done, whatever the tasks say. A task that failed and was retried
+ * into success leaves a `failed` row behind it, and a stage that reported red
+ * over a complete set of artifacts would be reporting its own history rather
+ * than the state of the video.
+ */
+function aggregate(tasks: Task[], kinds: TaskKind[], done: number, total: number): Cell {
+  const mine = tasks.filter((task) => kinds.includes(task.kind))
+  if (total > 0 && done >= total) {
+    return { state: 'done', stale: mine.some((task) => task.stale) }
+  }
+  const failed = mine.find((task) => task.state === 'failed')
+  if (failed) return { state: 'failed', stale: false, task: failed }
+  const running = mine.find((task) => task.state === 'running')
+  if (running) return { state: 'running', stale: false, task: running }
+  return { state: 'waiting', stale: false }
+}
+
+/**
+ * Which gate a paused task is holding, when the field is empty.
+ *
+ * `gate` is what the server says and is trusted first. The fallback exists
+ * because only two kinds ever wait for a person, so a task that has stopped at
+ * `awaiting_approval` without saying which gate it is has still told us.
+ */
+function gateKindOf(task: Task): GateKind | undefined {
+  if (task.gate === 'blueprint' || task.gate === 'upload') return task.gate
+  if (task.kind === 'blueprint') return 'blueprint'
+  if (task.kind === 'upload') return 'upload'
+  return undefined
+}
+
+/**
+ * The pipeline, top to bottom, aggregated across the whole video.
+ *
+ * This is the grid rotated. The table reads chapters down and stages across, so
+ * *a stage's* progress is a column you have to count; here the stages are the
+ * rows and the counting is done. The two answer different questions — how is
+ * chapter 2 doing, and how far along is the video — from the same tasks.
+ *
+ * Denominators come from the video, never from the rows that happen to exist
+ * yet. `chapterCount` is known the moment a video is created, so the ten rows
+ * have their final shape before the blueprint has written a single chapter; if
+ * the totals were counted off `chapters` the panel would read `0/0` at the one
+ * moment it is being watched hardest, and understate the work as it filled in.
+ */
+export function pipelineStages(video: Video, chapters: Chapter[], tasks: Task[]): PipelineStage[] {
+  const totals = columnTotals(chapters, video.slidesPerChapter)
+
+  // `max` rather than the video alone: a blueprint is allowed to come back with
+  // more chapters than were asked for, and the count has to be the truth.
+  const perChapter = Math.max(video.chapterCount, chapters.length)
+  const slideTotal = Math.max(video.chapterCount * video.slidesPerChapter, totals.slides.total)
+  const promptsDone = chapters.filter((chapter) => chapter.slidePrompts.length > 0).length
+
+  const paused = tasks.find((task) => task.state === 'awaiting_approval')
+  const gate = paused ? gateKindOf(paused) : undefined
+
+  const single = (kinds: TaskKind[], hasArtifact: boolean) => videoStage(tasks, kinds, hasArtifact)
+
+  const stages: PipelineStage[] = [
+    {
+      id: 'blueprint',
+      label: 'Blueprint',
+      cell: single(['blueprint'], Boolean(video.blueprintAssetId)),
+    },
+    {
+      id: 'slide_prompts',
+      label: 'Slide prompts',
+      cell: aggregate(tasks, ['prime_slide_prompts', 'slide_prompts'], promptsDone, perChapter),
+      count: { done: promptsDone, total: perChapter },
+    },
+    {
+      id: 'script',
+      label: 'Script',
+      cell: aggregate(tasks, ['script'], totals.script.done, perChapter),
+      count: { done: totals.script.done, total: perChapter },
+    },
+    {
+      id: 'narration',
+      label: 'Narration',
+      cell: aggregate(tasks, ['tts'], totals.narration.done, perChapter),
+      count: { done: totals.narration.done, total: perChapter },
+    },
+    {
+      id: 'slides',
+      label: 'Slides',
+      cell: aggregate(tasks, ['slide'], totals.slides.done, slideTotal),
+      count: { done: totals.slides.done, total: slideTotal },
+    },
+    {
+      id: 'clips',
+      label: 'Clips',
+      cell: aggregate(tasks, ['clip'], totals.clip.done, perChapter),
+      count: { done: totals.clip.done, total: perChapter },
+    },
+    { id: 'cut', label: 'Cut', cell: single(['concat'], Boolean(video.finalAssetId)) },
+    {
+      id: 'metadata',
+      label: 'Metadata',
+      cell: single(['metadata'], Boolean(video.metadata?.title)),
+    },
+    {
+      id: 'thumbnail',
+      label: 'Thumbnail',
+      cell: single(
+        ['thumbnail', 'thumbnail_plan', 'thumbnail_icon'],
+        Boolean(video.effectiveThumbnailAssetId),
+      ),
+    },
+    { id: 'upload', label: 'Upload', cell: single(['upload'], Boolean(video.upload)) },
+  ]
+
+  if (!gate) return stages
+  return stages.map((stage) => (stage.id === gate ? { ...stage, gate } : stage))
 }

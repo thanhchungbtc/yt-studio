@@ -86,7 +86,14 @@ func (c *Composer) Concat(ctx context.Context, req provider.ConcatRequest) (enti
 	args = append(args, encodeArgs()...)
 	args = append(args, "-c:a", "aac", "-b:a", audioBitrate, output)
 
-	onPercent := func(pct int) { log.Debug("final render", slog.Int("percent", pct)) }
+	// The log line stays: it is what a render that nobody is watching leaves
+	// behind, and the caller's callback is optional.
+	onPercent := func(pct int) {
+		log.Debug("final render", slog.Int("percent", pct))
+		if req.OnPercent != nil {
+			req.OnPercent(pct)
+		}
+	}
 	if err := c.runProgress(ctx, total, onPercent, args...); err != nil {
 		return "", err
 	}

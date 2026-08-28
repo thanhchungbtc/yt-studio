@@ -37,6 +37,11 @@ type TaskDelta struct {
 	Pool      Pool       `json:"pool"`
 	Gate      GateKind   `json:"gate,omitempty"`
 	Attempt   int        `json:"attempt"`
+	// Percent is how far a long-running task has got, 0-100. It is meaningful
+	// only while State is running, and it is never persisted: no delta built
+	// from a stored Task carries one. It exists so a concat that takes three
+	// minutes can say so without a state change to hang the report on.
+	Percent int `json:"percent,omitempty"`
 	// Stale rides along so the UI can flag a task without refetching the video.
 	Stale bool   `json:"stale"`
 	Error string `json:"error,omitempty"`

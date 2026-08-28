@@ -13,6 +13,10 @@ import (
 // ComposeFinalVideo concatenates every chapter clip into the final render. The
 // clips are handed to the composer in ordinal order; whether it can copy them
 // through or has to re-encode is the backend's decision.
+//
+// onPercent may be nil. This is the one task long enough that a person watching
+// needs more than "running": a re-encode of a ten-minute video is minutes of a
+// single task, and a backend that can measure it reports through here.
 func ComposeFinalVideo(
 	ctx context.Context,
 	t entity.Task,
@@ -21,6 +25,7 @@ func ComposeFinalVideo(
 	videoFields repository.VideoFieldWriter,
 	assets repository.AssetWriter,
 	store provider.AssetStore,
+	onPercent func(int),
 	now time.Time,
 ) entity.TaskOutcome {
 	rows, err := chapters.ListChaptersByVideo(ctx, t.VideoID)
@@ -42,7 +47,11 @@ func ComposeFinalVideo(
 		clips = append(clips, *c.ClipAssetID)
 	}
 
-	assetID, err := composer.Concat(ctx, provider.ConcatRequest{VideoID: t.VideoID, ClipAssetIDs: clips})
+	assetID, err := composer.Concat(ctx, provider.ConcatRequest{
+		VideoID:      t.VideoID,
+		ClipAssetIDs: clips,
+		OnPercent:    onPercent,
+	})
 	if err != nil {
 		return classify(fmt.Errorf("concatenate %d clips: %w", len(clips), err))
 	}

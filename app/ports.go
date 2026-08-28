@@ -99,6 +99,24 @@ type ChapterNotifier interface {
 	NotifyChapter(d entity.ChapterDelta)
 }
 
+// TaskProgressNotifier publishes a task delta mid-flight, so a task that runs
+// for minutes can report how far it has got without waiting for a state change
+// to hang the report on.
+type TaskProgressNotifier interface {
+	NotifyTask(d entity.TaskDelta)
+}
+
+// Notifier is everything the task runner publishes: chapter rows as they are
+// written, and progress while a long task is still running.
+//
+// Composed rather than a third interface of its own, so the use cases that only
+// ever write chapters keep asking for the narrower port and say so in their
+// signatures.
+type Notifier interface {
+	ChapterNotifier
+	TaskProgressNotifier
+}
+
 // CoalesceSetter applies an SSE coalescing-window change without a restart.
 type CoalesceSetter interface {
 	SetCoalesce(d time.Duration)

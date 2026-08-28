@@ -22,6 +22,14 @@ type ClipRequest struct {
 type ConcatRequest struct {
 	VideoID      entity.VideoID
 	ClipAssetIDs []entity.AssetID
+	// OnPercent, when set, is called with whole percentages as the render
+	// advances. Optional in both directions: a backend that composes nothing has
+	// nothing to report, and a caller that is not watching passes nil.
+	//
+	// Every call happens inside Concat and none after it returns, so an
+	// implementation may report straight to whatever is listening without
+	// worrying about outliving it.
+	OnPercent func(int)
 }
 
 // VideoComposer builds one chapter clip per call and joins them once.

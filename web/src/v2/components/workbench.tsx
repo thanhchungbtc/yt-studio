@@ -90,7 +90,10 @@ export function WorkbenchV2() {
             {secondaryVisible ? (
               <>
                 <Sash direction="horizontal" />
-                <Panel id="secondary" order={3} defaultSize={22} minSize={14} maxSize={40}>
+                {/* Floored wider than the other panes: the inspector's rows put
+                    a mark, a name, a count and — at a gate — a button on one
+                    line, and the first thing a narrower pane loses is the name. */}
+                <Panel id="secondary" order={3} defaultSize={22} minSize={18} maxSize={40}>
                   <SecondarySidebar />
                 </Panel>
               </>

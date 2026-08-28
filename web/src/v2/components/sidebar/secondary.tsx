@@ -1,12 +1,17 @@
+import { Inspector } from './inspector'
 import { DragRegion } from '../ui/drag-region'
 
 /**
- * The secondary sidebar. Deliberately empty.
+ * The secondary sidebar: the shell the inspector lives in.
  *
- * It exists now so the shell it lives in — the drag region, the hairline, the
- * resize behaviour, the keystroke that shows it — is settled before anything
- * has to be built inside it. What goes here is the inspector for whatever the
- * editor has open, and that arrives in its own step.
+ * Two strips above the content and nothing else. The first is the height of the
+ * window's top edge, so this pane lines up with the sidebar that carries the
+ * traffic lights; the second is the pane's own label. Both are drag regions —
+ * the pane is chrome, and chrome is what the window is picked up by.
+ *
+ * The label stays `Inspector`, not the name of whatever is being inspected. It
+ * says which pane this is and which key hides it; what is in front of you is the
+ * content's job to say, and the tab strip has already said it.
  */
 export function SecondarySidebar() {
   return (
@@ -18,7 +23,7 @@ export function SecondarySidebar() {
         </span>
         <span className="shrink-0 text-[11px] text-tertiary">⌘3</span>
       </DragRegion>
-      <div className="min-h-0 flex-1" />
+      <Inspector />
     </div>
   )
 }

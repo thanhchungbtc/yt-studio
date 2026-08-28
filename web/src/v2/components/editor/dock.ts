@@ -39,15 +39,28 @@ interface DockState {
   api: DockviewApi | null
   /** The one tab that is a preview, if any. */
   previewId: string | null
+  /**
+   * What the front tab is showing, mirrored out of dockview.
+   *
+   * The inspector is outside the dock and has to follow the front document, and
+   * `api.activePanel` is a value rather than a subscription — reading it in a
+   * render would be reading it once and then going stale. So the editor area
+   * mirrors it here on every change, and the inspector subscribes like it does
+   * to anything else.
+   */
+  activeDoc: Doc | null
   setApi: (api: DockviewApi | null) => void
   setPreviewId: (id: string | null) => void
+  setActiveDoc: (doc: Doc | null) => void
 }
 
 export const useDock = create<DockState>((set) => ({
   api: null,
   previewId: null,
+  activeDoc: null,
   setApi: (api) => set({ api, previewId: null }),
   setPreviewId: (previewId) => set({ previewId }),
+  setActiveDoc: (activeDoc) => set({ activeDoc }),
 }))
 
 interface OpenOptions {

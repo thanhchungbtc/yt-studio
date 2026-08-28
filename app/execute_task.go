@@ -44,7 +44,7 @@ type TaskRunner struct {
 	thumbnails    provider.ThumbnailRenderer
 	icons         provider.IconGenerator
 	uploader      provider.Uploader
-	notifier      ChapterNotifier
+	notifier      Notifier
 	expander      GraphExpander
 	blueprintOpts func() BlueprintOptions
 	narrationOpts func() NarrationOptions
@@ -75,7 +75,7 @@ func NewTaskRunner(
 	thumbnails provider.ThumbnailRenderer,
 	icons provider.IconGenerator,
 	uploader provider.Uploader,
-	notifier ChapterNotifier,
+	notifier Notifier,
 	expander GraphExpander,
 	blueprintOpts func() BlueprintOptions,
 	narrationOpts func() NarrationOptions,
@@ -151,7 +151,7 @@ func (r *TaskRunner) dispatch(ctx context.Context, t entity.Task) entity.TaskOut
 			r.assets, r.store, r.notifier, r.now())
 	case entity.TaskKindConcat:
 		return ComposeFinalVideo(ctx, t, r.chapters, r.composer, r.videoFields,
-			r.assets, r.store, r.now())
+			r.assets, r.store, r.reporter(t), r.now())
 	case entity.TaskKindMetadata:
 		return GenerateMetadata(ctx, t, r.videos, r.chapters, r.llm,
 			r.videoFields, r.assets, r.store, r.now())
@@ -168,6 +168,45 @@ func (r *TaskRunner) dispatch(ctx context.Context, t entity.Task) entity.TaskOut
 		return PublishVideo(ctx, t, r.videos, r.channels, r.uploader, r.videoFields, r.dryRun)
 	default:
 		return entity.Failed{Err: fmt.Errorf("unhandled task kind %q", t.Kind), Retryable: false}
+	}
+}
+
+// progressStep is how far a long task must advance before it reports again.
+//
+// ffmpeg emits a whole percent roughly once a second, and every report is an SSE
+// frame that also takes a slot in the replay buffer a reconnecting client
+// resumes from. Five points turns a three-minute render into twenty messages
+// rather than a hundred and eighty — the difference between progress costing
+// nothing and progress crowding out the deltas that actually have to arrive.
+const progressStep = 5
+
+// reporter returns the callback a long-running provider call reports through,
+// or nil when there is no one to report to.
+//
+// The delta is built from the task rather than assembled by hand. A TaskDelta is
+// merged into the client's cache field by field, so a partial one would
+// overwrite the kind and state of the very task it claims to describe with zero
+// values — and the snapshot handed to Run is taken after the scheduler has
+// marked the task running, so `t.Delta()` is already the truth.
+//
+// Not safe for concurrent callers, and does not need to be: a provider reports
+// from one place at a time, and every call happens before the composition
+// returns.
+func (r *TaskRunner) reporter(t entity.Task) func(int) {
+	if r.notifier == nil {
+		return nil
+	}
+	last := -progressStep
+	return func(pct int) {
+		// 100 always goes out: it is the frame that says the wait is over, and
+		// rounding it away would leave the last bar short of the end.
+		if pct < last+progressStep && pct < 100 {
+			return
+		}
+		last = pct
+		d := t.Delta()
+		d.Percent = pct
+		r.notifier.NotifyTask(d)
 	}
 }
 

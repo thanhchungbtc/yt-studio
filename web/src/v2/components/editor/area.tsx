@@ -11,7 +11,7 @@ import { useCallback, useEffect, useRef, type FunctionComponent } from 'react'
 
 import { beginWindowDrag } from '../../core/desktop'
 import { ChannelEditor } from './channel'
-import { useDock } from './dock'
+import { useDock, type DocPanelParams } from './dock'
 import { NewEditor } from './new'
 import { Placeholder } from './placeholder'
 import { EditorTab } from './tab'
@@ -73,6 +73,7 @@ function Watermark() {
 export function EditorArea() {
   const api = useDock((s) => s.api)
   const setApi = useDock((s) => s.setApi)
+  const setActiveDoc = useDock((s) => s.setActiveDoc)
   const container = useRef<HTMLDivElement>(null)
 
   const onReady = useCallback(
@@ -108,22 +109,71 @@ export function EditorArea() {
     return () => subscription.dispose()
   }, [api])
 
+  // The inspector sits outside the dock and follows the front document, so the
+  // front document has to be published somewhere it can subscribe to.
+  //
+  // Synced immediately as well as on change: a restored layout activates its
+  // panel inside `fromJSON`, which has already happened by the time this runs.
+  // And to the layout event as well as the activation one, because closing the
+  // last tab leaves no panel to announce itself.
+  useEffect(() => {
+    if (!api) {
+      setActiveDoc(null)
+      return
+    }
+    const sync = () => {
+      const params = api.activePanel?.params as DocPanelParams | undefined
+      setActiveDoc(params?.doc ?? null)
+    }
+    sync()
+    const activated = api.onDidActivePanelChange(sync)
+    const relaid = api.onDidLayoutChange(sync)
+    return () => {
+      activated.dispose()
+      relaid.dispose()
+    }
+  }, [api, setActiveDoc])
+
   // The strip is the titlebar, so its empty stretch has to move the window —
   // and that stretch is dockview's own element, mounted and unmounted per
   // group. Delegating from the container reaches every one of them, now and
   // after the next split, without reaching into dockview's internals.
+  //
+  // Dockview claims that same stretch: `.dv-void-container` is a `draggable`
+  // drag source for the whole group. So one press would start an AppKit window
+  // drag and an HTML5 group drag at once — the window slides while the page
+  // paints a drag ghost and arms drop overlays over every pane, and those
+  // outlive the gesture, because AppKit takes the event stream and the
+  // `dragend` that would have cleared them never arrives. The two cannot share
+  // a press, and this strip is the titlebar, so the window wins.
+  //
+  // Cancelling in the capture phase is dockview's own way out rather than a
+  // trick against it: its drag source checks `defaultPrevented` before it does
+  // anything, and returns without registering transfer data or building a
+  // ghost, so there is nothing left half-started. Only the group handle goes.
+  // Tabs carry their own drag source, so reordering, tearing one into a split
+  // and dropping a group onto another all still work.
   useEffect(() => {
     const element = container.current
     if (!element) return
+
+    const voidSpace = (event: Event) =>
+      event.target instanceof Element && event.target.closest('.dv-void-container')
+
     const onPointerDown = (event: PointerEvent) => {
-      if (event.button !== 0) return
-      const target = event.target
-      if (!(target instanceof Element)) return
-      if (!target.closest('.dv-void-container')) return
+      if (event.button !== 0 || !voidSpace(event)) return
       beginWindowDrag()
     }
+    const onDragStart = (event: DragEvent) => {
+      if (voidSpace(event)) event.preventDefault()
+    }
+
     element.addEventListener('pointerdown', onPointerDown)
-    return () => element.removeEventListener('pointerdown', onPointerDown)
+    element.addEventListener('dragstart', onDragStart, true)
+    return () => {
+      element.removeEventListener('pointerdown', onPointerDown)
+      element.removeEventListener('dragstart', onDragStart, true)
+    }
   }, [])
 
   return (

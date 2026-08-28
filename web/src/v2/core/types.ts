@@ -65,6 +65,16 @@ export interface Task {
   state: TaskState
   gate?: GateKind | ''
   attempt: number
+  /**
+   * How far a long task has got, 0-100.
+   *
+   * Only meaningful while `state` is `running`, and only present at all for the
+   * tasks whose backend can measure themselves — today that is the ffmpeg
+   * concat and nothing else. It is never persisted, so it arrives by delta and
+   * never from the task list; and because a delta that carries no percent does
+   * not clear the last one, the state is what says whether to read it.
+   */
+  percent?: number
   /** An input changed after this ran; the artifact is intact but unverified. */
   stale: boolean
   error?: string
@@ -170,6 +180,8 @@ export interface TaskDelta {
   state: TaskState
   gate?: GateKind | ''
   attempt: number
+  /** Progress, when the task is one that can measure itself. See `Task`. */
+  percent?: number
   stale: boolean
   error?: string
   updatedAt: string
