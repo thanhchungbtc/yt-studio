@@ -18,14 +18,14 @@
  * every surface in the app is already subscribed to this without asking.
  */
 
-export type Theme = 'dark' | 'light'
+type Theme = 'dark' | 'light'
 
 /** The media query macOS answers; also the thing that tells us it changed. */
 function preference(): MediaQueryList {
   return window.matchMedia('(prefers-color-scheme: dark)')
 }
 
-export function applyTheme(theme: Theme): void {
+function applyTheme(theme: Theme): void {
   document.documentElement.classList.toggle('dark', theme === 'dark')
   document.documentElement.classList.toggle('light', theme === 'light')
 }
