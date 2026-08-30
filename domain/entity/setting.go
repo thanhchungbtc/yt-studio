@@ -70,6 +70,11 @@ const (
 	// SettingUploadDryRun is an argument to the uploader, not a gate of its own:
 	// provider.uploader says who publishes, this says whether it is real.
 	SettingUploadDryRun SettingKey = "upload.dry_run"
+	// SettingUploadSampleMegabytesPerSecond is the uplink the sample backend
+	// pretends to have. It exists because a publish that finishes instantly is
+	// the one step of the pipeline nobody can watch, and progress reporting
+	// cannot be exercised against it. Zero lifts the limit.
+	SettingUploadSampleMegabytesPerSecond SettingKey = "upload.sample_megabytes_per_second"
 
 	// SettingNineRouterURL is the gateway root the 9router backend talks to.
 	SettingNineRouterURL SettingKey = "ninerouter.url"
@@ -374,6 +379,8 @@ func DefaultSettings() []Setting {
 		{Key: SettingProviderUploader, Value: "sample", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for publishing."},
 		//nolint:lll // one row, one line
 		{Key: SettingUploadDryRun, Value: "true", Type: SettingTypeBool, Group: GroupProviders, Description: "The uploader does everything but the irreversible call, and produces a local receipt. Turning this off is what makes a publish real."},
+		//nolint:lll // one row, one line
+		{Key: SettingUploadSampleMegabytesPerSecond, Value: "8", Type: SettingTypeInt, Group: GroupProviders, Min: 0, Max: 1000, Description: "The uplink the sample uploader imposes on itself, so a publish takes as long as one plausibly would and reports real progress while it does. Zero uploads as fast as the disk reads."},
 
 		//nolint:lll // one row, one line
 		{Key: SettingNineRouterURL, Value: "http://127.0.0.1:20128", Type: SettingTypeString, Group: GroupWriting, Backend: BackendNineRouter, Description: "Gateway root, e.g. http://127.0.0.1:20128. The root only — /v1/chat/completions is appended."},

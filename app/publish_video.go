@@ -11,6 +11,10 @@ import (
 
 // PublishVideo uploads the final render. Dry run is the default and stays the
 // default until a real backend is wired in.
+//
+// onPercent may be nil. Sending a few hundred megabytes is the second task here
+// long enough that "running" is not an answer, so a backend that can count what
+// it has sent reports through it.
 func PublishVideo(
 	ctx context.Context,
 	t entity.Task,
@@ -19,6 +23,7 @@ func PublishVideo(
 	uploader provider.Uploader,
 	videoFields repository.VideoFieldWriter,
 	dryRun func() bool,
+	onPercent func(int),
 ) entity.TaskOutcome {
 	video, err := videos.VideoByID(ctx, t.VideoID)
 	if err != nil {
@@ -63,6 +68,7 @@ func PublishVideo(
 		ThumbnailAssetID: thumbnailAssetID,
 		Metadata:         *video.Metadata,
 		DryRun:           dry,
+		OnPercent:        onPercent,
 	})
 	if err != nil {
 		return classify(fmt.Errorf("upload %s: %w", video.Ref, err))

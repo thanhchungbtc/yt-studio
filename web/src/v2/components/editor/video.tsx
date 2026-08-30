@@ -7,6 +7,7 @@ import { api, qk } from '../../core/api'
 import { count, duration } from '../../core/format'
 import type { Video, VideoState } from '../../core/types'
 import { Button } from '../ui/button'
+import { Segmented, type Segment } from '../ui/segmented'
 import type { DocPanelParams } from './dock'
 import { Placeholder } from './placeholder'
 import { EditorShell } from './shell'
@@ -14,6 +15,7 @@ import { ChapterTable } from './video/table'
 import { BlueprintPopover } from './video/blueprint'
 import { FinalStrip } from './video/final'
 import { Legend } from './video/mark'
+import { ChapterReader } from './video/reader'
 import { StoppedStrip } from './video/stopped'
 import { columnTotals, projectedSeconds } from './video/stages'
 
@@ -39,6 +41,22 @@ import { columnTotals, projectedSeconds } from './video/stages'
  * to reconsider.
  */
 
+/**
+ * The two altitudes on one video, and the whole of the switch between them.
+ *
+ * Not view tabs by another name. Tabs in v1 split the object into Chapters,
+ * Artifacts and Info — three *parts*, along a seam that does not exist. These
+ * are the same chapters in the same order either way; what changes is whether a
+ * chapter is a row of marks or the words it is made of. A mark can never show
+ * you a picture, and that is the one thing the table structurally cannot do.
+ */
+type Mode = 'pipeline' | 'script'
+
+const MODES: readonly Segment<Mode>[] = [
+  { value: 'pipeline', label: 'Pipeline' },
+  { value: 'script', label: 'Script' },
+]
+
 const STATUS: Record<VideoState, { label: string; color: string }> = {
   draft: { label: 'Draft', color: 'var(--text-tertiary)' },
   running: { label: 'Running', color: 'var(--running)' },
@@ -54,6 +72,10 @@ export function VideoEditor({ params }: IDockviewPanelProps<DocPanelParams>) {
   // Held here rather than in the table because the switch belongs on the line
   // that describes the plan, and the table is what the switch changes.
   const [editing, setEditing] = useState(false)
+  // Per document and no further. Which altitude you were last at is not worth a
+  // line in the store, and a tab that reopened in a mode you had forgotten
+  // choosing would be answering a question nobody asked.
+  const [mode, setMode] = useState<Mode>('pipeline')
 
   const video = useQuery({
     queryKey: qk.video(ref),
@@ -100,6 +122,7 @@ export function VideoEditor({ params }: IDockviewPanelProps<DocPanelParams>) {
         )
       }
       statusColor={status?.color}
+      actions={<Segmented segments={MODES} value={mode} onChange={setMode} />}
     >
       {children}
     </EditorShell>
@@ -123,28 +146,41 @@ export function VideoEditor({ params }: IDockviewPanelProps<DocPanelParams>) {
   // teaches the wrong thing about what it does.
   const editable = (chapters.data?.length ?? 0) > 0
 
+  // The strip stays in both. It is the only thing on screen that can be waiting
+  // for an answer, and a gate that vanished because you went to read the script
+  // would be the document hiding the one thing it needs from you.
   return shell(
     <div className="flex h-full min-h-0 flex-col">
       <StoppedStrip video={video.data} tasks={tasks.data ?? []} />
 
-      <SummaryLine
-        video={video.data}
-        totals={totals}
-        editing={editing && editable}
-        editable={editable}
-        onToggleEditing={() => setEditing((on) => !on)}
-      />
+      {mode === 'script' ? (
+        <ChapterReader
+          chapters={chapters.data ?? []}
+          tasks={tasks.data ?? []}
+          slidesPerChapter={video.data.slidesPerChapter}
+        />
+      ) : (
+        <>
+          <SummaryLine
+            video={video.data}
+            totals={totals}
+            editing={editing && editable}
+            editable={editable}
+            onToggleEditing={() => setEditing((on) => !on)}
+          />
 
-      <ChapterTable
-        videoId={video.data.id}
-        chapters={chapters.data ?? []}
-        tasks={tasks.data ?? []}
-        slidesPerChapter={video.data.slidesPerChapter}
-        editing={editing && editable}
-      />
+          <ChapterTable
+            videoId={video.data.id}
+            chapters={chapters.data ?? []}
+            tasks={tasks.data ?? []}
+            slidesPerChapter={video.data.slidesPerChapter}
+            editing={editing && editable}
+          />
 
-      <Legend />
-      <FinalStrip video={video.data} tasks={tasks.data ?? []} />
+          <Legend />
+          <FinalStrip video={video.data} tasks={tasks.data ?? []} />
+        </>
+      )}
     </div>,
   )
 }

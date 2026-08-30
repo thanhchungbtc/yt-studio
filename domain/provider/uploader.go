@@ -18,6 +18,10 @@ type UploadRequest struct {
 	ThumbnailAssetID entity.AssetID
 	Metadata         entity.Metadata
 	DryRun           bool
+	// OnPercent, when set, is called with whole percentages as the bytes go up.
+	// Optional in both directions, and called only from inside Upload — the same
+	// contract ConcatRequest carries, for the same reason.
+	OnPercent func(int)
 }
 
 // Uploader publishes a finished render.

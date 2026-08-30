@@ -424,7 +424,8 @@ func (c *serveCmd) Run() error {
 	providers.RegisterThumbnail("builtin", thumbnails)
 	providers.RegisterThumbnailIcon("sample", sample.NewIcon(samples, assets))
 	providers.RegisterThumbnailIcon("runware", runware.NewIcon(runwareClient))
-	providers.RegisterUploader("sample", sample.NewUploader(assets, time.Now))
+	providers.RegisterUploader("sample", sample.NewUploader(assets, time.Now,
+		func() int { return settings.Int(entity.SettingUploadSampleMegabytesPerSecond) }))
 
 	settings.Constrain(providers.Options())
 	// By assignment rather than a literal: a map keyed by a settings key is

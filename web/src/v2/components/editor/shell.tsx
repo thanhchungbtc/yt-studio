@@ -10,6 +10,8 @@ interface EditorShellProps {
   icon?: LucideIcon
   status?: ReactNode
   statusColor?: string
+  /** What the strip carries on its trailing edge; see the title bar. */
+  actions?: ReactNode
   children: ReactNode
 }
 
@@ -29,6 +31,7 @@ export function EditorShell({
   icon,
   status,
   statusColor,
+  actions,
   children,
 }: EditorShellProps) {
   return (
@@ -40,6 +43,7 @@ export function EditorShell({
         icon={icon}
         status={status}
         statusColor={statusColor}
+        actions={actions}
       />
       <div className="surface-content min-h-0 flex-1">{children}</div>
     </div>
