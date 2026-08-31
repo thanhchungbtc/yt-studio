@@ -1,10 +1,8 @@
 /**
- * The slice of the API v2 actually reads.
+ * The slice of the API this UI actually reads.
  *
- * V2 is self-contained by rule, so it carries its own view of the wire format
- * rather than importing v1's. It is a narrowing, not a fork: every field here
- * is a field the server already sends, and anything v2 does not render is left
- * out until a screen needs it.
+ * It is a narrowing, not a fork: every field here is a field the server already
+ * sends, and anything no screen renders is left out until one needs it.
  */
 
 export type VideoState =

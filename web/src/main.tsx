@@ -3,7 +3,7 @@ import { RouterProvider } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
-import { followSystem } from '@/core/theme'
+import { followSystem } from '@/v2/core/theme'
 import { router } from '@/router'
 
 // Almost everything on screen is server state, and the SSE stream keeps it

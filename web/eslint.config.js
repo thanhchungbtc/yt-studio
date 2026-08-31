@@ -1,21 +1,19 @@
 import tseslint from 'typescript-eslint'
 
 /**
- * A deliberately tiny config. It exists to keep two boundaries honest.
+ * A deliberately tiny config. It exists to keep one boundary honest.
  *
- * Inside a UI, every import between components is relative, and the only
- * absolute one it may make is into its own root. That is not housekeeping: it
- * is why `components/workbench/**` could be lifted to `components/**` with four
- * one-line edits outside the tree, and it is what keeps a UI a thing you can
- * move rather than a thing you have to unpick.
+ * Inside the UI every import is relative. That is not housekeeping: it is why
+ * `src/v2/**` can be moved, renamed or lifted with a handful of one-line edits
+ * outside the tree, and it is what keeps a UI a thing you can move rather than
+ * a thing you have to unpick. Anything genuinely shared belongs in
+ * `src/v2/core`, which is reachable relatively from everywhere in the tree.
  *
- * Between the two UIs, nothing. `src/v2` is self-contained by rule — it carries
- * its own client, its own tokens and its own components — so that v1 can be
- * deleted in one commit rather than unpicked in twenty. The rule is what makes
- * that promise checkable instead of aspirational.
+ * The alias exists for the two files that sit above the UI and mount it. It is
+ * not for the UI to reach back out with.
  */
 export default tseslint.config(
-  { ignores: ['dist/**', 'node_modules/**', 'src/core/schema.d.ts'] },
+  { ignores: ['dist/**', 'node_modules/**'] },
   {
     files: ['src/v2/**/*.{ts,tsx}'],
     languageOptions: {
@@ -28,30 +26,9 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['@/*', '!@/v2/**'],
+              group: ['@/*'],
               message:
-                'V2 is self-contained: import relatively within src/v2, and copy in what you need rather than reaching into v1.',
-            },
-          ],
-        },
-      ],
-    },
-  },
-  {
-    files: ['src/components/**/*.{ts,tsx}'],
-    languageOptions: {
-      parser: tseslint.parser,
-      parserOptions: { ecmaFeatures: { jsx: true } },
-    },
-    rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              group: ['@/components/**', '@/routes/**'],
-              message:
-                'Use a relative import between components, or move genuinely shared infrastructure into src/core.',
+                'The UI is self-contained: import relatively, and put anything shared in src/v2/core.',
             },
           ],
         },

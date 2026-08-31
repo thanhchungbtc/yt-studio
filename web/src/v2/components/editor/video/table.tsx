@@ -11,11 +11,11 @@ import { columnTotals, projectedSeconds, stagesByChapter } from './stages'
 /**
  * The blueprint as a grid: chapters down, pipeline stages across.
  *
- * It used to be three tabs in v1 — Chapters, Artifacts, Info — which split one
- * object along a seam that does not exist. An artifact *belongs to* a chapter,
- * so every artifact the pipeline produces has a fixed position in the row of
- * the chapter that owns it, and reaching one is pointing at a known place
- * rather than navigating to it.
+ * Not three tabs — Chapters, Artifacts, Info — which would split one object
+ * along a seam that does not exist. An artifact *belongs to* a chapter, so
+ * every artifact the pipeline produces has a fixed position in the row of the
+ * chapter that owns it, and reaching one is pointing at a known place rather
+ * than navigating to it.
  *
  * A grid rather than a `<table>` because the header has to stick while the body
  * scrolls, and one `grid-template-columns` shared by the head and every row is

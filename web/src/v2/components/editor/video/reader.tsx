@@ -14,10 +14,10 @@ import { stagesByChapter, wordsIn, type Cell } from './stages'
  * go under it — in that order, chapter after chapter, down one scroll.
  *
  * It is not an artifact browser, and the difference matters. Grouping these by
- * kind, or listing them with their sizes and content addresses, would be the
- * Artifacts tab v1 had and v2 deleted on purpose. The chapter is the spine here
- * exactly as it is in the table; only the altitude changes, from *did this
- * happen* to *what does it say*.
+ * kind, or listing them with their sizes and content addresses, would cut the
+ * video along a seam that does not exist. The chapter is the spine here exactly
+ * as it is in the table; only the altitude changes, from *did this happen* to
+ * *what does it say*.
  *
  * Every field it draws is already in the chapters cache the editor fetched —
  * `script` is the whole body on the wire, not a flag — so this view costs no

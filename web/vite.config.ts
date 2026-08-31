@@ -35,10 +35,10 @@ export default defineConfig(() => {
       proxy: {
         '/api': { target: apiTarget, changeOrigin: true },
         '/assets/': { target: apiTarget, changeOrigin: true },
-        // The operator-supplied backdrop and typefaces the thumbnail editor
-        // draws with. Without this the SPA fallback answers with index.html at
-        // 200, which fails to parse as a font and leaves the editor composing
-        // in a substitute face against no background.
+        // The operator-supplied backdrop and typefaces a thumbnail composed in
+        // the browser would draw with. Proxied rather than left to the SPA
+        // fallback, which answers with index.html at 200 — a font that parses
+        // as HTML fails silently and composes in a substitute face.
         '/resources/': { target: apiTarget, changeOrigin: true },
         '/events': {
           target: apiTarget,
@@ -59,10 +59,8 @@ export default defineConfig(() => {
       // content-addressed artifact route, and a bundle filename would be read as
       // a content address and 404.
       assetsDir: 'app',
-      // The operator console is not on the critical path to first paint, so it is
-      // lazily imported by the router and lands in its own chunk. Rollup's
-      // default vendor splitting is left alone: hand-written groups produced a
-      // circular chunk here for no measurable gain.
+      // Rollup's default vendor splitting is left alone: hand-written groups
+      // produced a circular chunk here for no measurable gain.
       reportCompressedSize: true,
       chunkSizeWarningLimit: 300,
     },

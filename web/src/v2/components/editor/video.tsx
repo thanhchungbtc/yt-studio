@@ -44,8 +44,8 @@ import { columnTotals, projectedSeconds } from './video/stages'
 /**
  * The two altitudes on one video, and the whole of the switch between them.
  *
- * Not view tabs by another name. Tabs in v1 split the object into Chapters,
- * Artifacts and Info — three *parts*, along a seam that does not exist. These
+ * Not view tabs by another name. Tabs would cut the object into *parts* —
+ * chapters here, artifacts there — along a seam that does not exist. These two
  * are the same chapters in the same order either way; what changes is whether a
  * chapter is a row of marks or the words it is made of. A mark can never show
  * you a picture, and that is the one thing the table structurally cannot do.
