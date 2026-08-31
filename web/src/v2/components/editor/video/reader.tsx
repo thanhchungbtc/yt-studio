@@ -1,9 +1,10 @@
-import { useMemo, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 
 import { count, duration } from '../../../core/format'
 import type { Chapter, Task } from '../../../core/types'
 import { cn } from '../../../core/utils'
 import { Mark } from './mark'
+import { SlideViewer } from './slide-viewer'
 import { stagesByChapter, wordsIn, type Cell } from './stages'
 
 /**
@@ -41,6 +42,10 @@ export function ChapterReader({
     [chapters, tasks, slidesPerChapter],
   )
 
+  // Which slide is open, by asset id. Held here rather than per chapter so there
+  // is one viewer for the whole scroll and no way to end up with two.
+  const [viewing, setViewing] = useState<string | null>(null)
+
   if (chapters.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center px-8">
@@ -58,8 +63,12 @@ export function ChapterReader({
           key={chapter.id}
           chapter={chapter}
           slides={stages.get(chapter.id)?.slides ?? []}
+          onView={setViewing}
         />
       ))}
+      {viewing ? (
+        <SlideViewer src={`/assets/${viewing}`} alt="Slide" onClose={() => setViewing(null)} />
+      ) : null}
     </div>
   )
 }
@@ -114,7 +123,15 @@ const PANEL = {
   boxShadow: '0 0 0 0.5px var(--separator)',
 }
 
-function ChapterBlock({ chapter, slides }: { chapter: Chapter; slides: Cell[] }) {
+function ChapterBlock({
+  chapter,
+  slides,
+  onView,
+}: {
+  chapter: Chapter
+  slides: Cell[]
+  onView: (id: string) => void
+}) {
   const words = wordsIn(chapter.script)
 
   return (
@@ -184,7 +201,13 @@ function ChapterBlock({ chapter, slides }: { chapter: Chapter; slides: Cell[] })
             <Part label="Slides">
               <div className="flex flex-wrap gap-2.5">
                 {slides.map((cell, slot) => (
-                  <Slide key={slot} cell={cell} id={chapter.slideAssetIds[slot]} slot={slot} />
+                  <Slide
+                    key={slot}
+                    cell={cell}
+                    id={chapter.slideAssetIds[slot]}
+                    slot={slot}
+                    onView={onView}
+                  />
                 ))}
               </div>
             </Part>
@@ -224,18 +247,40 @@ const TILE = 'h-[112px] w-[196px] shrink-0 rounded-[6px]'
  * The empty ones keep their place in the row rather than closing the gap, so a
  * half-drawn chapter says *which* slide is missing — the same reason the table
  * draws a mark per slot instead of a count.
+ *
+ * Only a drawn slot is a button. An empty one has no picture to enlarge, and a
+ * viewer that opened to say so would be repeating what the tile already says.
  */
-function Slide({ id, cell, slot }: { id: string | undefined; cell: Cell; slot: number }) {
+function Slide({
+  id,
+  cell,
+  slot,
+  onView,
+}: {
+  id: string | undefined
+  cell: Cell
+  slot: number
+  onView: (id: string) => void
+}) {
   if (id) {
     return (
-      <img
-        src={`/assets/${id}`}
-        alt={`Slide ${slot + 1}`}
-        loading="lazy"
-        decoding="async"
-        className={cn(TILE, 'object-cover')}
-        style={{ boxShadow: '0 0 0 0.5px var(--separator-strong)' }}
-      />
+      <button
+        type="button"
+        onClick={() => onView(id)}
+        // The ring rather than a brightness lift: macOS shows a picture is
+        // pickable by outlining it, and the picture itself should not change
+        // colour under the pointer.
+        className={cn(TILE, 'overflow-hidden hover:ring-2 hover:ring-[var(--accent)]')}
+      >
+        <img
+          src={`/assets/${id}`}
+          alt={`Slide ${slot + 1}`}
+          loading="lazy"
+          decoding="async"
+          className="size-full object-cover"
+          style={{ boxShadow: '0 0 0 0.5px var(--separator-strong)' }}
+        />
+      </button>
     )
   }
   return (
