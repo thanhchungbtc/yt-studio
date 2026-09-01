@@ -1,7 +1,9 @@
-import type { ReactNode } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 
 import { cn } from '../../core/utils'
 import { Avatar } from '../ui/avatar'
+import { ContextMenu } from '../ui/context-menu'
+import type { MenuItem } from '../ui/menu'
 
 interface RowProps {
   /** The document this row opens, as `video:REF` or `channel:slug`. */
@@ -11,11 +13,56 @@ interface RowProps {
   timestamp?: string
   avatarName: string
   avatarSeed?: string
-  /** The state badge on the token; omitted when there is nothing to say. */
-  dotColor?: string
+  /**
+   * The state, as one value that drives both marks.
+   *
+   * The dot and the ring around the token read the same property, so they can
+   * never end up saying different things — and on a selected row a single
+   * override turns both white.
+   */
+  tone?: 'accent' | 'running' | 'failed'
+  /**
+   * How the mark moves, which is half of what it says.
+   *
+   * Named for the state rather than the animation, because the two marks move
+   * differently: working sets the ring orbiting and the dot swelling once,
+   * attention sets both beating twice. One value, two rhythms, and neither
+   * component has to know what the other is drawing.
+   *
+   * The rhythm is not decoration. At ten pixels hue alone cannot separate
+   * "working" from "waiting for you", and with red/green colour blindness it
+   * does not separate them at all. Omitted for a state that is simply true
+   * rather than happening.
+   */
+  motion?: 'working' | 'attention'
+  /**
+   * Over, and needing nothing — so the row steps back.
+   *
+   * Without this, "finished" is expressed only as the absence of a mark, which
+   * makes it indistinguishable from "has not started". Absence is not a signal.
+   *
+   * The point is not the row, it is the list: a mature library is mostly done,
+   * so most of it goes quiet and the eye lands on the few rows that are not.
+   * Selection overrides it — a selected row is white on blue whatever state it
+   * is in, because the thing you have just clicked is never the quiet one.
+   */
+  finished?: boolean
   selected: boolean
-  onSelect: () => void
+  /** The event comes through so the caller can read ⌘ and ⇧ off the click. */
+  onSelect: (event: MouseEvent<HTMLButtonElement>) => void
   onOpen: () => void
+  /**
+   * Fired before the context menu opens, so a right-click on a row outside the
+   * selection can collapse the selection onto it first — which is what stops a
+   * menu built for three rows from acting on the one you pointed at.
+   */
+  onContextMenu?: () => void
+  /**
+   * What the right button offers on this row. Omitted where there is nothing to
+   * offer, so a row without a menu does not swallow the gesture and show an
+   * empty card.
+   */
+  menu?: MenuItem[]
 }
 
 /**
@@ -37,38 +84,46 @@ export function Row({
   timestamp,
   avatarName,
   avatarSeed,
-  dotColor,
+  tone,
+  motion,
+  finished,
   selected,
   onSelect,
   onOpen,
+  onContextMenu,
+  menu,
 }: RowProps) {
-  return (
+  const quiet = finished && !selected
+  const row = (
     <button
       type="button"
       onClick={onSelect}
       onDoubleClick={onOpen}
+      onContextMenu={onContextMenu}
       aria-current={selected}
       data-row-id={id}
       className={cn(
-        'flex w-full items-center gap-2.5 rounded-[9px] px-2 py-1.5 text-left',
+        // `items-start`, not centred: the token tops with the title, so a row
+        // whose second line wraps grows downwards instead of pushing the token
+        // out of line with the name it belongs to.
+        'row-item flex w-full items-start gap-[9px] rounded-[8px] px-[9px] py-2 text-left',
         'transition-colors duration-75',
-        selected ? 'text-white' : 'hover:bg-[var(--hover)]',
+        selected && 'row-selected text-white',
       )}
       style={selected ? { backgroundColor: 'var(--accent)' } : undefined}
     >
-      <span className="relative shrink-0">
-        <Avatar name={avatarName} seed={avatarSeed} />
-        {dotColor ? (
-          // The ring punches the badge out of the token underneath it, and is
-          // the colour of whatever the row itself is sitting on — so the badge
-          // reads the same on a plain row and on the blue pill.
-          <span
-            className="absolute -top-0.5 -left-0.5 size-[10px] rounded-full border-2"
-            style={{
-              backgroundColor: selected ? '#ffffff' : dotColor,
-              borderColor: selected ? 'var(--accent)' : 'var(--window)',
-            }}
-          />
+      {/* The token is the loudest thing in the row — a saturated disc — so
+          dimming it is most of the effect for one property. */}
+      <span
+        className={cn('row-avatar', quiet && 'opacity-[0.55]')}
+        data-tone={tone}
+        data-motion={motion}
+      >
+        <Avatar name={avatarName} seed={avatarSeed} className="size-7" />
+        {/* No motion means the state is true rather than happening, so the dot
+            takes a halo instead of a rhythm. */}
+        {tone ? (
+          <span className="row-dot" data-motion={motion} data-rest={motion ? undefined : ''} />
         ) : null}
       </span>
 
@@ -77,7 +132,7 @@ export function Row({
           <span
             className={cn(
               'min-w-0 flex-1 truncate text-[13px] font-semibold',
-              selected ? 'text-white' : 'text-primary',
+              selected ? 'text-white' : quiet ? 'text-secondary' : 'text-primary',
             )}
           >
             {title}
@@ -93,10 +148,13 @@ export function Row({
             </span>
           ) : null}
         </span>
+        {/* Two lines, then ellipsis. One line meant the end of the subtitle —
+            which is where the useful half of it lives — was the part that got
+            cut on a narrow sidebar. */}
         <span
           className={cn(
-            'mt-px block truncate text-[12px]',
-            selected ? 'text-white/85' : 'text-secondary',
+            'mt-px line-clamp-2 block text-[12px] leading-[1.35]',
+            selected ? 'text-white/[0.78]' : 'text-secondary',
           )}
         >
           {subtitle}
@@ -104,4 +162,7 @@ export function Row({
       </span>
     </button>
   )
+
+  if (!menu?.length) return row
+  return <ContextMenu items={menu}>{row}</ContextMenu>
 }

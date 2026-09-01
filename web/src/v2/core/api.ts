@@ -99,6 +99,12 @@ export const api = {
    */
   startVideo: (ref: string) => post<Video>(`/api/videos/${key(ref)}/start`),
   cancelVideo: (ref: string) => post<Video>(`/api/videos/${key(ref)}/cancel`),
+  /**
+   * Removes the video, its chapters, its task graph and the files only it was
+   * using. There is no undo and no trash: the server unlinks what nothing else
+   * references, so this is the one call in here that destroys work.
+   */
+  deleteVideo: (ref: string) => request<void>(`/api/videos/${key(ref)}`, { method: 'DELETE' }),
 
   listChapters: (ref: string) =>
     request<{ chapters: Chapter[] }>(`/api/videos/${key(ref)}/chapters`).then((r) => r.chapters),

@@ -22,14 +22,20 @@ interface WorkbenchState {
   secondaryVisible: boolean
   bottomVisible: boolean
   scope: SidebarScope
-  /** The selected row, as a video `ref` or a channel `slug`. */
-  selected: string | null
+  /**
+   * The selected rows, as video `ref`s or a channel `slug`.
+   *
+   * A list rather than one value because the source list selects the way Finder
+   * does — ⌘ to add, ⇧ to extend — and everything downstream of it either wants
+   * the whole set or the first of it.
+   */
+  selected: string[]
 
   togglePrimary: () => void
   toggleSecondary: () => void
   toggleBottom: () => void
   setScope: (scope: SidebarScope) => void
-  select: (id: string | null) => void
+  select: (ids: string[]) => void
 }
 
 export const useWorkbench = create<WorkbenchState>()(
@@ -39,7 +45,7 @@ export const useWorkbench = create<WorkbenchState>()(
       secondaryVisible: false,
       bottomVisible: false,
       scope: 'videos',
-      selected: null,
+      selected: [],
 
       togglePrimary: () => set((s) => ({ primaryVisible: !s.primaryVisible })),
       toggleSecondary: () => set((s) => ({ secondaryVisible: !s.secondaryVisible })),
@@ -47,6 +53,27 @@ export const useWorkbench = create<WorkbenchState>()(
       setScope: (scope) => set({ scope }),
       select: (selected) => set({ selected }),
     }),
-    { name: 'yts.v2.workbench' },
+    {
+      name: 'yts.v2.workbench',
+      /*
+        Bumped when `selected` went from one value to a list.
+
+        Without this a browser holding the old shape rehydrates a string into a
+        field everything now calls `.includes` and `.filter` on, and the sidebar
+        throws on the first render after the update. The migration is one line
+        and the alternative is a crash only the people who used the previous
+        build ever see.
+      */
+      version: 1,
+      migrate: (persisted, version) => {
+        const state = persisted as Partial<WorkbenchState> & { selected?: unknown }
+        if (version >= 1) return state as WorkbenchState
+        const previous = state.selected
+        return {
+          ...state,
+          selected: typeof previous === 'string' ? [previous] : [],
+        } as WorkbenchState
+      },
+    },
   ),
 )

@@ -1,14 +1,16 @@
-import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, ChevronRight, SquarePen, Tv } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ChevronDown, ChevronRight, SquarePen, Trash2, Tv } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 
 import { api, qk } from '../../core/api'
 import { listTimestamp } from '../../core/format'
 import type { Channel, Video, VideoState } from '../../core/types'
 import { useWorkbench, type SidebarScope } from '../../store/workbench'
-import { openDoc, pinPreview, docId } from '../editor/dock'
+import { openDoc, pinPreview, docId, useDock } from '../editor/dock'
 import { newVideo } from '../new-video'
 import { avatarColor } from '../ui/avatar'
+import { Button } from '../ui/button'
+import { Dialog } from '../ui/dialog'
 import { DragRegion } from '../ui/drag-region'
 import { Menu } from '../ui/menu'
 import { Segmented, type Segment } from '../ui/segmented'
@@ -35,18 +37,28 @@ const SCOPES: readonly Segment<SidebarScope>[] = [
   { value: 'channels', label: 'Channels' },
 ]
 
-/** The colour a state earns on the token; a settled draft earns none. */
-function stateDot(state: VideoState): string | undefined {
+/**
+ * The mark a state earns on the token, if any.
+ *
+ * Three states earn one and four do not, and that ratio is the whole point. A
+ * dot on every row is not a signal — a finished library used to carry a green
+ * one on all of them — so the settled states stay bare and the marked ones mean
+ * *this wants you* or *this is moving*.
+ *
+ * The rhythm carries as much as the hue: waiting beats, working orbits. Read
+ * with the colour thrown away, the two are still different marks.
+ */
+function stateMark(
+  state: VideoState,
+): { tone: 'accent' | 'running' | 'failed'; motion: 'working' | 'attention' } | undefined {
   switch (state) {
-    case 'running':
-      return 'var(--running)'
     case 'awaiting_approval':
-      return 'var(--accent)'
+      return { tone: 'accent', motion: 'attention' }
+    case 'running':
+      return { tone: 'running', motion: 'working' }
     case 'failed':
     case 'blocked':
-      return 'var(--failed)'
-    case 'completed':
-      return 'var(--done)'
+      return { tone: 'failed', motion: 'attention' }
     default:
       return undefined
   }
@@ -74,6 +86,56 @@ export function PrimarySidebar() {
   const select = useWorkbench((s) => s.select)
 
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
+  // Where a ⇧-click measures from. Deliberately not in the store: it is the
+  // shape of a gesture in progress, and nobody should find one waiting for them
+  // after a relaunch.
+  const [anchor, setAnchor] = useState<string | null>(null)
+  // The videos the confirmation is about, and the only reason there is a
+  // confirmation: deleting one unlinks files, and nothing puts them back.
+  const [pending, setPending] = useState<Video[] | null>(null)
+  const [partial, setPartial] = useState<string | null>(null)
+
+  const client = useQueryClient()
+  const remove = useMutation({
+    // One request each: the server deletes by key and has no bulk verb. Settled
+    // rather than all, because five deletions are five chances to fail and the
+    // four that worked should still be gone.
+    mutationFn: async (refs: string[]) => {
+      const settled = await Promise.allSettled(refs.map((ref) => api.deleteVideo(ref)))
+      const gone: string[] = []
+      const failed: PromiseRejectedResult[] = []
+      settled.forEach((result, index) => {
+        const ref = refs[index]
+        if (ref === undefined) return
+        if (result.status === 'fulfilled') gone.push(ref)
+        else failed.push(result)
+      })
+      return { gone, failed }
+    },
+    onSuccess: ({ gone, failed }) => {
+      // A tab is a view of a row. With the row gone the document cannot load,
+      // so the tab goes with it rather than being left to fail.
+      const dock = useDock.getState().api
+      for (const ref of gone) dock?.getPanel(docId({ kind: 'video', ref }))?.api.close()
+      select(selected.filter((id) => !gone.includes(id)))
+      // Nothing on the stream announces a deletion — the deltas are about work
+      // happening, not about rows disappearing — so the list is asked again.
+      void client.invalidateQueries({ queryKey: qk.videos })
+
+      // A partial failure keeps the sheet up and says so. Reporting success
+      // because most of it worked is how you lose track of what is still there.
+      if (failed.length === 0) {
+        setPending(null)
+        setPartial(null)
+        return
+      }
+      const first = failed[0]?.reason
+      const reason = first instanceof Error ? first.message : 'the server refused'
+      setPartial(
+        `${failed.length} of ${gone.length + failed.length} could not be deleted — ${reason}`,
+      )
+    },
+  })
 
   const channels = useQuery({ queryKey: qk.channels, queryFn: api.listChannels })
   const videos = useQuery({ queryKey: qk.videos, queryFn: api.listVideos })
@@ -90,13 +152,24 @@ export function PrimarySidebar() {
       collected.set(channel.id, group)
     }
 
-    // Most recently touched first, at both levels: a library sorts itself by
-    // what you were last doing, not by what it was called.
+    /*
+      Newest first, at both levels, and by *creation* rather than by activity.
+
+      Sorting by `updatedAt` is the obvious thing and it makes the list unusable
+      while the pipeline runs: every task delta advances the video's timestamp,
+      so rows overtake each other under the pointer and whole channel sections
+      swap places between one frame and the next. You cannot click a row that
+      moves while you reach for it.
+
+      A creation date never changes, so the order is fixed the moment a video
+      exists and the list is somewhere you can learn your way around. What each
+      video is *doing* is what the mark on its token is for.
+    */
     for (const group of collected.values()) {
-      group.videos.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      group.videos.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     }
     return [...collected.values()].sort((a, b) =>
-      (b.videos[0]?.updatedAt ?? '').localeCompare(a.videos[0]?.updatedAt ?? ''),
+      (b.videos[0]?.createdAt ?? '').localeCompare(a.videos[0]?.createdAt ?? ''),
     )
   }, [channels.data, videos.data])
 
@@ -104,6 +177,40 @@ export function PrimarySidebar() {
     () => [...(channels.data ?? [])].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
     [channels.data],
   )
+
+  /*
+    Every video row on screen, in the order it is drawn.
+
+    ⇧-click means "everything between here and the anchor", and *between* is a
+    fact about the rendered list rather than about the data: the groups are
+    ordered, and a collapsed one contributes nothing to reach across.
+  */
+  const visible = useMemo(
+    () =>
+      groups.flatMap((group) =>
+        collapsed.has(group.channel.id) ? [] : group.videos.map((video) => video.ref),
+      ),
+    [groups, collapsed],
+  )
+
+  /** ⌘-click: add this row to the selection, or take it out again. */
+  const toggle = (ref: string) => {
+    select(selected.includes(ref) ? selected.filter((id) => id !== ref) : [...selected, ref])
+    setAnchor(ref)
+  }
+
+  /** ⇧-click: everything from the anchor to here, inclusive, in drawn order. */
+  const extend = (ref: string) => {
+    const from = anchor ? visible.indexOf(anchor) : -1
+    const to = visible.indexOf(ref)
+    if (from < 0 || to < 0) {
+      select([ref])
+      setAnchor(ref)
+      return
+    }
+    const [start, end] = from <= to ? [from, to] : [to, from]
+    select(visible.slice(start, end + 1))
+  }
 
   const toggleGroup = (id: string) =>
     setCollapsed((previous) => {
@@ -132,7 +239,7 @@ export function PrimarySidebar() {
               label: 'New Video',
               icon: SquarePen,
               shortcut: '⌘N',
-              onSelect: () => newVideo(scope === 'channels' ? (selected ?? undefined) : undefined),
+              onSelect: () => newVideo(scope === 'channels' ? selected[0] : undefined),
             },
             {
               label: 'New Channel',
@@ -172,10 +279,10 @@ export function PrimarySidebar() {
                 timestamp={listTimestamp(channel.updatedAt)}
                 avatarName={channel.name}
                 avatarSeed={channel.slug}
-                dotColor={channel.credentials === 'valid' ? undefined : 'var(--failed)'}
-                selected={selected === channel.slug}
+                tone={channel.credentials === 'valid' ? undefined : 'failed'}
+                selected={selected.includes(channel.slug)}
                 onSelect={() => {
-                  select(channel.slug)
+                  select([channel.slug])
                   openDoc({ kind: 'channel', slug: channel.slug }, channel.name, {
                     preview: true,
                     seed: channel.slug,
@@ -205,14 +312,40 @@ export function PrimarySidebar() {
                         key={video.id}
                         id={docId({ kind: 'video', ref: video.ref })}
                         title={video.title || 'Untitled'}
-                        subtitle={`${group.channel.slug} · ${STATE_LABEL[video.state]}`}
-                        timestamp={listTimestamp(video.updatedAt)}
+                        // The state leads, in full strength, because it is the
+                        // one part of this line anyone reads. The slug follows
+                        // it rather than pushing it off the end.
+                        subtitle={
+                          <>
+                            {/* The state at full strength, except when it is
+                                "Completed" — a finished row whose loudest word
+                                tells you to ignore it is backwards. */}
+                            <span className={video.state === 'completed' ? undefined : 'row-state'}>
+                              {STATE_LABEL[video.state]}
+                            </span>
+                            {` · ${group.channel.slug}`}
+                          </>
+                        }
+                        // The date the order is built from. Showing "last
+                        // touched" beside a list sorted by creation puts an
+                        // older stamp above a newer one and reads as a bug.
+                        timestamp={listTimestamp(video.createdAt)}
                         avatarName={group.channel.name}
                         avatarSeed={group.channel.slug}
-                        dotColor={stateDot(video.state)}
-                        selected={selected === video.ref}
-                        onSelect={() => {
-                          select(video.ref)
+                        tone={stateMark(video.state)?.tone}
+                        motion={stateMark(video.state)?.motion}
+                        finished={video.state === 'completed'}
+                        selected={selected.includes(video.ref)}
+                        // A plain click is what it always was: select this row
+                        // and show it. The modifiers only ever change the
+                        // selection — neither opens anything, because a gesture
+                        // for picking five things should not also open five
+                        // documents.
+                        onSelect={(event) => {
+                          if (event.shiftKey) return extend(video.ref)
+                          if (event.metaKey) return toggle(video.ref)
+                          select([video.ref])
+                          setAnchor(video.ref)
                           openDoc({ kind: 'video', ref: video.ref }, video.title || video.ref, {
                             preview: true,
                             seed: group.channel.slug,
@@ -220,6 +353,26 @@ export function PrimarySidebar() {
                           })
                         }}
                         onOpen={() => pinPreview(docId({ kind: 'video', ref: video.ref }))}
+                        // Finder's rule, and the one that stops you losing the
+                        // wrong thing: right-clicking inside the selection
+                        // leaves it alone, right-clicking outside it collapses
+                        // onto the row you pointed at.
+                        onContextMenu={() => {
+                          if (selected.includes(video.ref)) return
+                          select([video.ref])
+                          setAnchor(video.ref)
+                        }}
+                        menu={[
+                          {
+                            label: deleteLabel(targetsFor(video, selected, videos.data ?? [])),
+                            icon: Trash2,
+                            danger: true,
+                            // The ellipsis is the promise: this opens a question
+                            // rather than doing the thing.
+                            onSelect: () =>
+                              setPending(targetsFor(video, selected, videos.data ?? [])),
+                          },
+                        ]}
                       />
                     ))}
                   </div>
@@ -229,8 +382,75 @@ export function PrimarySidebar() {
           })
         )}
       </div>
+
+      {pending ? (
+        <Dialog
+          open
+          onOpenChange={(next) => {
+            if (!next) {
+              setPending(null)
+              setPartial(null)
+            }
+          }}
+          width={400}
+        >
+          <Dialog.Header
+            title={
+              pending.length > 1
+                ? `Delete ${pending.length} videos?`
+                : `Delete “${pending[0]?.title || pending[0]?.ref}”?`
+            }
+            description="Their chapters, their tasks and every file nothing else is using go with them. This cannot be undone."
+          />
+          {(partial ?? remove.error) ? (
+            <Dialog.Body>
+              <p className="text-[12px] text-[var(--failed)]">
+                {partial ?? (remove.error as Error).message}
+              </p>
+            </Dialog.Body>
+          ) : null}
+          {/* Cancel is the default and therefore last, which is the macOS order
+              and the right one when the other button cannot be undone. */}
+          <Dialog.Footer>
+            <span className="mr-auto" />
+            <Button
+              onClick={() => remove.mutate(pending.map((video) => video.ref))}
+              disabled={remove.isPending}
+            >
+              {remove.isPending ? 'Deleting…' : 'Delete'}
+            </Button>
+            <Button
+              primary
+              onClick={() => {
+                setPending(null)
+                setPartial(null)
+              }}
+            >
+              Cancel
+            </Button>
+          </Dialog.Footer>
+        </Dialog>
+      ) : null}
     </div>
   )
+}
+
+/**
+ * What a delete on this row would take.
+ *
+ * The selection when the row is part of it, and just the row when it is not —
+ * the same rule the right-click applies, restated here because the menu's label
+ * and the menu's action must never disagree about what they mean.
+ */
+function targetsFor(video: Video, selected: string[], all: Video[]): Video[] {
+  if (!selected.includes(video.ref)) return [video]
+  const wanted = new Set(selected)
+  const targets = all.filter((candidate) => wanted.has(candidate.ref))
+  return targets.length > 0 ? targets : [video]
+}
+
+function deleteLabel(targets: Video[]): string {
+  return targets.length > 1 ? `Delete ${targets.length} Videos…` : 'Delete…'
 }
 
 function Notice({ children }: { children: ReactNode }) {

@@ -127,6 +127,14 @@ export interface Video {
   upload?: UploadRecord
   error?: string
   counts: TaskCounts
+  /**
+   * When it was made, and the only timestamp on a video that never moves.
+   *
+   * `updatedAt` advances on every task delta, so a list ordered by it reorders
+   * itself under the pointer while anything is running. This is what the library
+   * sorts by instead.
+   */
+  createdAt: string
   updatedAt: string
 }
 

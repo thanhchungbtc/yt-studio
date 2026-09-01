@@ -6,6 +6,11 @@ export interface MenuItem {
   label: string
   icon?: LucideIcon
   shortcut?: string
+  /**
+   * Destroys something, and says so in red — which is what AppKit does and the
+   * only reason a menu row is ever a colour other than the text colour.
+   */
+  danger?: boolean
   onSelect: () => void
 }
 
@@ -38,6 +43,7 @@ export function Menu({ items, children, align = 'end' }: MenuProps) {
             <DropdownMenu.Item
               key={item.label}
               onSelect={item.onSelect}
+              data-danger={item.danger ? '' : undefined}
               className="menu-item flex cursor-default items-center gap-2 rounded-[4px] px-2 py-[3px] outline-none"
             >
               {item.icon ? <item.icon className="size-[15px] shrink-0" strokeWidth={1.75} /> : null}

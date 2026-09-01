@@ -483,6 +483,19 @@
   color: var(--accent-text);
 }
 
+/*
+  A destructive row, in AppKit's red — and still red when highlighted, where the
+  accent fill would otherwise make it look like every other item on the way past.
+*/
+.menu-item[data-danger] {
+  color: var(--failed);
+}
+
+.menu-item[data-danger][data-highlighted] {
+  background-color: var(--failed);
+  color: #ffffff;
+}
+
 .menu-shortcut {
   color: var(--text-tertiary);
   font-size: 12px;
@@ -490,6 +503,264 @@
 
 .menu-item[data-highlighted] .menu-shortcut {
   color: rgb(255 255 255 / 0.75);
+}
+
+/* ---- Source-list row ------------------------------------------------------
+   The conversation row: a token, two lines, and the time on the trailing edge
+   of the first. Everything below is about the *token* — the row's own box is
+   Tailwind, because it is only a flex line with padding.
+
+   The status mark is drawn twice, at two ranges. A ten-pixel dot in the corner
+   of a twenty-eight-pixel token is legible when you are looking at it and
+   invisible when you are scanning past, so the same signal is repeated as a ring
+   around the whole token: same hue, same rhythm, a size up. One custom property
+   feeds both, which is what makes it impossible for them to disagree.
+
+   And the rhythm is half the signal, not decoration. At this size hue alone
+   cannot separate "working" from "waiting for you", and for red/green colour
+   blindness it does not separate them at all — so working *orbits* and waiting
+   *beats*, and either is readable with the colour thrown away. */
+
+.row-item:hover:not(.row-selected) {
+  background-color: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.row-avatar {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+}
+
+/* An inset edge, which is what stops a mid-tone token smearing into the blue
+   fill underneath it when the row is selected. */
+.row-avatar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #000000 12%, transparent);
+  pointer-events: none;
+}
+
+.row-selected .row-avatar::after {
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, #ffffff 55%, transparent);
+}
+
+.row-avatar[data-tone='accent'] {
+  --row-tone: var(--accent);
+}
+
+.row-avatar[data-tone='running'] {
+  --row-tone: var(--running);
+}
+
+.row-avatar[data-tone='failed'] {
+  --row-tone: var(--failed);
+}
+
+/* On a selected row every glyph turns white: a semantic hue over the blue fill
+   only goes muddy, and the motion still names the state. */
+.row-selected .row-avatar[data-tone] {
+  --row-tone: #ffffff;
+}
+
+/*
+  The ring.
+
+  Inset far enough to sit inside the row's gap and the dot's own overhang, so it
+  costs no layout — nothing shifts when a video wakes up. Only opacity and
+  transform ever animate; a `box-shadow` spread would repaint every visible row
+  on every frame.
+*/
+.row-avatar[data-tone]::before {
+  content: '';
+  position: absolute;
+  inset: -2.5px;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--row-tone) 38%, transparent);
+  pointer-events: none;
+}
+
+/* Working — an arc travelling over the faint ring, which stays as its track. The
+   mask keeps the outer 1.5px of both, so the ring brightens where the arc passes
+   instead of the arc floating on nothing. */
+.row-avatar[data-motion='working']::before {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 170deg,
+    color-mix(in srgb, var(--row-tone) 75%, transparent) 345deg,
+    transparent 360deg
+  );
+  mask: radial-gradient(closest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1.5px));
+  animation: row-ring-spin 1.8s linear infinite;
+}
+
+/* Needs you — a double tap and a rest, which is a heartbeat rather than a
+   metronome, and is what separates "blocked on you" from "busy" by rhythm. */
+.row-avatar[data-motion='attention']::before {
+  border-color: var(--row-tone);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--row-tone) 45%, transparent);
+  animation: row-ring-beat 1.6s ease-in-out infinite;
+}
+
+@keyframes row-ring-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes row-ring-beat {
+  0% {
+    opacity: 0.3;
+  }
+  12% {
+    opacity: 1;
+  }
+  26% {
+    opacity: 0.45;
+  }
+  38% {
+    opacity: 0.95;
+  }
+  55%,
+  100% {
+    opacity: 0.3;
+  }
+}
+
+/*
+  The dot, top-left.
+
+  Not the usual bottom-right presence corner: a list is scanned down its leading
+  edge, so this is the first pixel of the row the eye reaches — and it is the one
+  spot on the token that never collides with the title beside it.
+
+  It straddles the token's edge, so it needs separating from both the token
+  behind it and the row underneath. Translucent rather than surface-coloured: an
+  opaque ring would cut a solid crescent out of the material.
+*/
+.row-dot {
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--row-tone);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--window) 72%, transparent);
+  pointer-events: none;
+}
+
+/* A still dot has no motion to catch the eye, so it gets a halo instead — its
+   own colour at low alpha, outside the separator. */
+.row-dot[data-rest] {
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--window) 72%, transparent),
+    0 0 0 4px color-mix(in srgb, var(--row-tone) 22%, transparent);
+}
+
+.row-selected .row-dot {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.row-selected .row-dot[data-rest] {
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 0 0 4px color-mix(in srgb, #ffffff 30%, transparent);
+}
+
+/*
+  The dot radiates, inside the ring that orbits.
+
+  The ring answers "is there anything here" from across the sidebar; this is what
+  the mark does once you are looking at it. A halo of the dot's own colour swells
+  out of it and fades, so the row is alive at rest rather than merely coloured.
+
+  Scale and opacity only, and on pseudo-elements rather than the dot itself: both
+  are compositor properties, so a sidebar full of live rows never repaints on the
+  main thread. Animating `box-shadow` spread — which is what this looks like it
+  should be — would repaint every visible row every frame.
+*/
+.row-dot[data-motion='working']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--row-tone);
+  animation: row-dot-pulse 1.8s ease-out infinite;
+}
+
+/*
+  Needs you — the same swell, twice, 0.18s apart.
+
+  Two beats and a rest reads as a heartbeat where one reads as a metronome, and
+  that is the whole distinction between "waiting for you" and "busy". The dead
+  air from 70% to 100% is what gives the pair its rest.
+*/
+.row-dot[data-motion='attention']::before,
+.row-dot[data-motion='attention']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--row-tone);
+  animation: row-dot-pulse 1.6s ease-out infinite;
+}
+
+.row-dot[data-motion='attention']::before {
+  animation-delay: 0.18s;
+}
+
+@keyframes row-dot-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+
+  70%,
+  100% {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+
+/* The one word on the second line worth reading is the state, so it is the one
+   part of it at full strength. */
+.row-state {
+  color: var(--text);
+}
+
+.row-selected .row-state {
+  color: #ffffff;
+}
+
+/*
+  Reduced motion still has to answer "is it working?".
+
+  Stopping every animation would collapse the two rhythms into two rings that
+  differ only in hue, which is the failure the rhythms exist to avoid. So they
+  degrade to distinct weights instead: working solid, needs-you solid and
+  blooming.
+*/
+@media (prefers-reduced-motion: reduce) {
+  .row-avatar[data-motion='working']::before {
+    animation: none;
+    background: none;
+    mask: none;
+    border-color: var(--row-tone);
+  }
+
+  .row-avatar[data-motion='attention']::before {
+    animation: none;
+    opacity: 1;
+  }
+
+  /* The swell is the one part with no still equivalent — a halo frozen mid-flight
+     is just a smudge — so it goes, and the ring carries the state alone. */
+  .row-dot[data-motion]::before,
+  .row-dot[data-motion]::after {
+    display: none;
+  }
 }
 
 /*
