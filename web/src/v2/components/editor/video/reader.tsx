@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { count, duration } from '../../../core/format'
 import type { Chapter, Task } from '../../../core/types'
@@ -6,6 +6,7 @@ import { cn } from '../../../core/utils'
 import { Button } from '../../ui/button'
 import { ClipViewer } from './clip-viewer'
 import { Mark } from './mark'
+import { ChapterOutline } from './outline'
 import { SlideViewer } from './slide-viewer'
 import { stagesByChapter, wordsIn, type Cell } from './stages'
 
@@ -54,6 +55,48 @@ export function ChapterReader({
   // so there is one viewer for the whole scroll and no way to end up with two.
   const [viewing, setViewing] = useState<Slide | null>(null)
 
+  const scroller = useRef<HTMLDivElement>(null)
+  const [active, setActive] = useState<string | null>(null)
+
+  /*
+    Which chapter is in view, for the bar in the outline.
+
+    An observer rather than arithmetic on `scrollTop`: the browser already knows
+    where every section is, and asking it costs nothing per frame where measuring
+    would cost a layout on every scroll event.
+
+    The top strip is what "in view" means here. `rootMargin` crops the observed
+    area to a band just under the pinned header, so the active chapter is the one
+    whose content is at the top of the reader rather than whichever happens to
+    cover the most pixels — the second rule makes the bar sit on the wrong
+    chapter for the whole of a long one.
+  */
+  useEffect(() => {
+    const root = scroller.current
+    if (!root) return
+    const sections = root.querySelectorAll<HTMLElement>('[data-chapter]')
+    if (sections.length === 0) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue
+          const id = entry.target.getAttribute('data-chapter')
+          if (id) setActive(id)
+        }
+      },
+      { root, rootMargin: '-38px 0px -85% 0px', threshold: 0 },
+    )
+    for (const section of sections) observer.observe(section)
+    return () => observer.disconnect()
+  }, [chapters])
+
+  const jump = (id: string) => {
+    scroller.current
+      ?.querySelector<HTMLElement>(`[data-chapter="${id}"]`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   if (chapters.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center px-8">
@@ -65,15 +108,22 @@ export function ChapterReader({
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
-      {chapters.map((chapter) => (
-        <ChapterBlock
-          key={chapter.id}
-          chapter={chapter}
-          slides={stages.get(chapter.id)?.slides ?? []}
-          onView={setViewing}
-        />
-      ))}
+    // `@container` so the card can take itself away when the window is too
+    // narrow to have a margin for it to sit in.
+    <div className="@container relative flex min-h-0 flex-1">
+      <ChapterOutline chapters={chapters} activeId={active} onJump={jump} />
+      {/* The card's footprint, reserved at exactly the width the card appears
+          at, so the two can never disagree about whether there is room. */}
+      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto @[54rem]:pl-[216px]">
+        {chapters.map((chapter) => (
+          <ChapterBlock
+            key={chapter.id}
+            chapter={chapter}
+            slides={stages.get(chapter.id)?.slides ?? []}
+            onView={setViewing}
+          />
+        ))}
+      </div>
       {viewing ? (
         <SlideViewer
           src={`/assets/${viewing.id}`}
@@ -150,7 +200,7 @@ function ChapterBlock({
   const [playing, setPlaying] = useState(false)
 
   return (
-    <section>
+    <section data-chapter={chapter.id}>
       {/*
         Sticky, and the only thing in this view that is. Eight chapters down a
         scroll the question is always which chapter this is, and a header that
