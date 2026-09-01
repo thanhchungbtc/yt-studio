@@ -91,63 +91,56 @@ export function SettingsDialog() {
       onOpenChange={(next) => {
         if (!next) hide()
       }}
-      title="Settings"
       width={680}
       height={560}
-      flush
-      footer={() => (
-        <>
-          {hidden > 0 ? (
-            <span className="mr-auto text-[11px] text-tertiary">
-              {hidden} hidden — they belong to a backend that is not selected
-            </span>
-          ) : (
-            <span className="mr-auto" />
-          )}
-          <Button primary className="h-[26px] px-4" onClick={hide}>
-            Done
-          </Button>
-        </>
-      )}
     >
-      {() => (
-        <>
-          <nav className="surface-band w-[168px] shrink-0 overflow-y-auto py-2">
-            {groups.map((name) => {
-              const selected = name === active
-              return (
-                <button
-                  key={name}
-                  type="button"
-                  onClick={() => setGroup(name)}
-                  aria-current={selected}
-                  className={cn(
-                    'mx-2 flex w-[calc(100%-16px)] items-center rounded-[6px] px-2.5 py-[5px]',
-                    'text-left text-[12px] transition-colors',
-                    selected ? 'text-white' : 'text-primary hover:bg-[var(--hover)]',
-                  )}
-                  style={selected ? { backgroundColor: 'var(--accent)' } : undefined}
-                >
-                  {TITLE[name] ?? name}
-                </button>
-              )
-            })}
-          </nav>
+      <Dialog.Header title="Settings" />
+      <Dialog.Body bare>
+        <nav className="surface-band w-[168px] shrink-0 overflow-y-auto py-2">
+          {groups.map((name) => {
+            const selected = name === active
+            return (
+              <button
+                key={name}
+                type="button"
+                onClick={() => setGroup(name)}
+                aria-current={selected}
+                className={cn(
+                  'mx-2 flex w-[calc(100%-16px)] items-center rounded-[6px] px-2.5 py-[5px]',
+                  'text-left text-[12px] transition-colors',
+                  selected ? 'text-white' : 'text-primary hover:bg-[var(--hover)]',
+                )}
+                style={selected ? { backgroundColor: 'var(--accent)' } : undefined}
+              >
+                {TITLE[name] ?? name}
+              </button>
+            )
+          })}
+        </nav>
 
-          <div className="seam-v shrink-0" />
+        <div className="seam-v shrink-0" />
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">
-            {settings.error ? (
-              <p className="text-[12px] text-[var(--failed)]">
-                {(settings.error as Error).message}
-              </p>
-            ) : null}
-            {shown.map((row) => (
-              <SettingRow key={row.key} setting={row} />
-            ))}
-          </div>
-        </>
-      )}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">
+          {settings.error ? (
+            <p className="text-[12px] text-[var(--failed)]">{(settings.error as Error).message}</p>
+          ) : null}
+          {shown.map((row) => (
+            <SettingRow key={row.key} setting={row} />
+          ))}
+        </div>
+      </Dialog.Body>
+      <Dialog.Footer>
+        {hidden > 0 ? (
+          <span className="mr-auto text-[11px] text-tertiary">
+            {hidden} hidden — they belong to a backend that is not selected
+          </span>
+        ) : (
+          <span className="mr-auto" />
+        )}
+        <Button primary className="h-[26px] px-4" onClick={hide}>
+          Done
+        </Button>
+      </Dialog.Footer>
     </Dialog>
   )
 }

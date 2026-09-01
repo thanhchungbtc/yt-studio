@@ -1,33 +1,42 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Circle, CircleSlash, CircleX, type LucideIcon, Pause } from 'lucide-react'
+import { Circle, CircleSlash, CircleX, LoaderCircle, type LucideIcon, Pause } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 
 import { api, qk } from '../../../core/api'
 import { count } from '../../../core/format'
 import type { GateKind, Task, Video } from '../../../core/types'
+import { cn } from '../../../core/utils'
 import { Button } from '../../ui/button'
 
 /**
- * Why the pipeline is not running, and what to do about it.
+ * What the pipeline is doing, and the one thing you can do about it.
  *
- * Four situations wearing one shape — icon, what, why, what to do — because
- * they are four answers to the same question. A gate is a stop the pipeline
+ * Five situations wearing one shape — icon, what, why, what to do — because
+ * they are five answers to the same question. A gate is a stop the pipeline
  * made on purpose; a failure, a cancellation and a video that has never started
- * are stops it made for other reasons. Splitting them into four components
- * would be four places to keep saying the same thing.
+ * are stops it made for other reasons; and a run in progress is the fifth.
+ * Splitting them would be five places to keep saying the same thing.
  *
- * It appears only when something is *required*. While a video is running or
- * finished the title bar already says so, and a strip that repeated it would be
- * chrome that never goes away.
+ * This row is the *only* place a lifecycle verb appears. Start, Resume, Cancel,
+ * Approve and Reject all change what the machine is doing, and Cancel used to
+ * live a row below beside Edit — a view toggle — at the same size and weight.
+ * One row, one kind of control: nothing here changes what you are looking at,
+ * and nothing that changes what you are looking at is here.
  *
- * The `detail` is different information in each case rather than four ways of
+ * It is still absent when there is nothing to say. A finished video has no verb
+ * left, and a strip that never goes away is chrome.
+ *
+ * The `detail` is different information in each case rather than five ways of
  * saying "stopped". That twenty-nine-of-thirty-one is what tells you resuming
- * is nearly free; the 429 is what tells you to wait a minute before trying. A
- * strip that could not say those things would not be worth its height.
+ * is nearly free; the 429 is what tells you to wait a minute before trying. And
+ * while it runs, the detail is what is *in flight* — never the done-count, which
+ * the title bar above is already showing.
  */
 
 interface Face {
   icon: LucideIcon
+  /** The only shape that moves, for the only state that is still moving. */
+  spin?: boolean
   tint: string
   iconColor: string
   title: string
@@ -85,6 +94,11 @@ function stageOf(task: Task): string {
   }
 }
 
+/** `a slide, chapter 2` as the start of a sentence. */
+function sentence(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
 export function StoppedStrip({ video, tasks }: { video: Video; tasks: Task[] }) {
   const client = useQueryClient()
   const [rejecting, setRejecting] = useState(false)
@@ -114,9 +128,10 @@ export function StoppedStrip({ video, tasks }: { video: Video; tasks: Task[] }) 
     },
   })
   const start = useMutation({ mutationFn: () => api.startVideo(video.ref), onSuccess: settle })
+  const cancel = useMutation({ mutationFn: () => api.cancelVideo(video.ref), onSuccess: settle })
 
-  const busy = approve.isPending || reject.isPending || start.isPending
-  const failure = approve.error ?? reject.error ?? start.error
+  const busy = approve.isPending || reject.isPending || start.isPending || cancel.isPending
+  const failure = approve.error ?? reject.error ?? start.error ?? cancel.error
 
   const resume = (label: string) => (
     <Button primary onClick={() => start.mutate()} disabled={busy}>
@@ -177,6 +192,27 @@ export function StoppedStrip({ video, tasks }: { video: Video; tasks: Task[] }) 
       }
     }
 
+    if (video.state === 'running') {
+      const inFlight = tasks.filter((task) => task.state === 'running')
+      const first = inFlight[0]
+      const others = inFlight.length > 1 ? ` · ${inFlight.length} running` : ''
+      return {
+        icon: LoaderCircle,
+        spin: true,
+        tint: 'transparent',
+        iconColor: 'var(--running)',
+        title: 'Running',
+        // What is in flight, not how much is done. The done-count is on the line
+        // above this one, and printing it twice would make this row chrome.
+        detail: first ? `${sentence(stageOf(first))}${others}` : 'Waiting for a worker.',
+        actions: (
+          <Button onClick={() => cancel.mutate()} disabled={busy}>
+            {cancel.isPending ? 'Cancelling…' : 'Cancel'}
+          </Button>
+        ),
+      }
+    }
+
     if (video.state === 'draft') {
       return {
         icon: Circle,
@@ -197,7 +233,7 @@ export function StoppedStrip({ video, tasks }: { video: Video; tasks: Task[] }) 
     <div className="hairline-b shrink-0 px-4 py-2.5" style={{ backgroundColor: face.tint }}>
       <div className="flex items-center gap-2">
         <face.icon
-          className="size-3.5 shrink-0"
+          className={cn('size-3.5 shrink-0', face.spin && 'animate-spin')}
           strokeWidth={2}
           style={{ color: face.iconColor }}
         />

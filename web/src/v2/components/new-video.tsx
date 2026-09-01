@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { create } from 'zustand'
 
 import { api, qk } from '../core/api'
@@ -58,6 +58,10 @@ export function newVideo(channel?: string): void {
 }
 
 export function NewVideoDialog() {
+  // The dialog does not know about forms. This screen has both the form and the
+  // button that submits it, so the id that associates them across the two
+  // subtrees is minted here.
+  const formId = useId()
   const open = useNewVideo((s) => s.open)
   const from = useNewVideo((s) => s.channel)
   const hide = useNewVideo((s) => s.hide)
@@ -129,29 +133,12 @@ export function NewVideoDialog() {
       onOpenChange={(next) => {
         if (!next) hide()
       }}
-      title="New video"
-      description="The blueprint is written first, then paused for your review."
-      footer={(formId) => (
-        <>
-          <span className="mr-auto text-[11px] text-tertiary">
-            About <span className="font-medium tabular-nums">{count(tasks)}</span> tasks
-            {minutes > 0 ? (
-              <>
-                {' '}
-                over <span className="font-medium tabular-nums">{minutes}</span> min
-              </>
-            ) : null}
-          </span>
-          <Button className="h-[26px] px-3.5" onClick={hide}>
-            Cancel
-          </Button>
-          <Button primary form={formId} type="submit" className="h-[26px] px-3.5" disabled={!ready}>
-            {submit.isPending ? 'Creating…' : start ? 'Create and Start' : 'Create'}
-          </Button>
-        </>
-      )}
     >
-      {(formId) => (
+      <Dialog.Header
+        title="New video"
+        description="The blueprint is written first, then paused for your review."
+      />
+      <Dialog.Body>
         <form
           id={formId}
           onSubmit={(event) => {
@@ -246,7 +233,24 @@ export function NewVideoDialog() {
             </p>
           ) : null}
         </form>
-      )}
+      </Dialog.Body>
+      <Dialog.Footer>
+        <span className="mr-auto text-[11px] text-tertiary">
+          About <span className="font-medium tabular-nums">{count(tasks)}</span> tasks
+          {minutes > 0 ? (
+            <>
+              {' '}
+              over <span className="font-medium tabular-nums">{minutes}</span> min
+            </>
+          ) : null}
+        </span>
+        <Button className="h-[26px] px-3.5" onClick={hide}>
+          Cancel
+        </Button>
+        <Button primary form={formId} type="submit" className="h-[26px] px-3.5" disabled={!ready}>
+          {submit.isPending ? 'Creating…' : start ? 'Create and Start' : 'Create'}
+        </Button>
+      </Dialog.Footer>
     </Dialog>
   )
 }

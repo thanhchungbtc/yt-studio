@@ -1,12 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useMemo, type ReactNode } from 'react'
 
 import { api, qk } from '../../core/api'
-import type { GateKind } from '../../core/types'
 import { useDock } from '../editor/dock'
 import { Mark } from '../editor/video/mark'
 import { pipelineStages, type PipelineStage } from '../editor/video/stages'
-import { Button } from '../ui/button'
 
 /**
  * The inspector: the pipeline of whatever document is in front.
@@ -34,8 +32,6 @@ export function Inspector() {
 }
 
 function VideoPipeline({ videoRef }: { videoRef: string }) {
-  const client = useQueryClient()
-
   // The same three keys the editor uses, deliberately. Two panes asking the
   // same questions of one cache is one fetch and one answer; a private key here
   // would be a second copy of the video that drifts from the one on screen.
@@ -56,18 +52,6 @@ function VideoPipeline({ videoRef }: { videoRef: string }) {
     enabled: Boolean(id),
   })
 
-  // The stream carries what a gate releases — the tasks that unblock, the state
-  // the video moves to — but nothing on the wire covers the video body itself,
-  // or its row in the library. Both are asked for again.
-  const approve = useMutation({
-    mutationFn: (gate: GateKind) => api.approveGate(videoRef, gate),
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: qk.video(videoRef) })
-      if (id) void client.invalidateQueries({ queryKey: qk.tasks(id) })
-      void client.invalidateQueries({ queryKey: qk.videos })
-    },
-  })
-
   const data = video.data
   const stages = useMemo(
     () => (data ? pipelineStages(data, chapters.data ?? [], tasks.data ?? []) : []),
@@ -78,22 +62,10 @@ function VideoPipeline({ videoRef }: { videoRef: string }) {
   if (!data) return <div className="min-h-0 flex-1" />
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto py-1.5">
-        {stages.map((stage) => (
-          <StageRow
-            key={stage.id}
-            stage={stage}
-            busy={approve.isPending}
-            onApprove={approve.mutate}
-          />
-        ))}
-      </div>
-      {approve.error ? (
-        <p className="hairline-t px-3 py-1.5 text-[11px] text-[var(--failed)]">
-          {(approve.error as Error).message}
-        </p>
-      ) : null}
+    <div className="min-h-0 flex-1 overflow-y-auto py-1.5">
+      {stages.map((stage) => (
+        <StageRow key={stage.id} stage={stage} />
+      ))}
     </div>
   )
 }
@@ -101,32 +73,23 @@ function VideoPipeline({ videoRef }: { videoRef: string }) {
 /**
  * One stage: the mark, its name, and how far it has got.
  *
- * The trailing edge holds exactly one thing, in this order: an action when there
+ * Nothing here is a button. This pane reports; the document acts. There was an
+ * Approve on the gate row, which meant one gate wore two buttons — one here and
+ * one in the strip beside the Reject that goes with it — and a pane that can be
+ * hidden with ⌘3 is the wrong of the two to make load-bearing. So the gate is
+ * still *reported*, in the slot the button used to sit in.
+ *
+ * The trailing edge holds exactly one thing, in this order: the gate when there
  * is one, then the count, then a percentage. They never collide, because the
  * three sets do not overlap — the only stages that can hold a gate are Blueprint
  * and Upload, and they are two of the five that happen once and have nothing to
  * count; and the only stage that reports a percentage is Cut, which is another.
- * So no figure ever shifts sideways to make room for a button appearing mid-run,
- * and the slot needs no reserved width.
  *
  * The count comes before the percentage deliberately. `12/21` says how much work
  * there is as well as how much is done, which a percentage cannot; a percentage
  * earns its place only where there is a single task and nothing to count.
- *
- * Approve is the only action here for now. The server does have per-task verbs —
- * `POST /api/tasks/{id}/retry` for a failure, `POST /api/videos/{key}/rerun` for
- * something that already succeeded — but `core/api.ts` wraps neither yet, and
- * re-running a stage means naming its tasks. That is its own step.
  */
-function StageRow({
-  stage,
-  busy,
-  onApprove,
-}: {
-  stage: PipelineStage
-  busy: boolean
-  onApprove: (gate: GateKind) => void
-}) {
+function StageRow({ stage }: { stage: PipelineStage }) {
   const gate = stage.gate
   // Read only while the stage is running. A delta that carries no percent does
   // not clear the last one, so a finished task keeps the figure it stopped at —
@@ -137,9 +100,9 @@ function StageRow({
   const trailing = ((): ReactNode => {
     if (gate) {
       return (
-        <Button primary onClick={() => onApprove(gate)} disabled={busy}>
-          {busy ? 'Approving…' : 'Approve'}
-        </Button>
+        <span className="shrink-0 text-[11px] font-medium" style={{ color: 'var(--accent)' }}>
+          Needs approval
+        </span>
       )
     }
     if (stage.count) return <Figure>{`${stage.count.done}/${stage.count.total}`}</Figure>

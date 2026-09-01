@@ -3,9 +3,17 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { count, duration } from '../../../core/format'
 import type { Chapter, Task } from '../../../core/types'
 import { cn } from '../../../core/utils'
+import { Button } from '../../ui/button'
+import { ClipViewer } from './clip-viewer'
 import { Mark } from './mark'
 import { SlideViewer } from './slide-viewer'
 import { stagesByChapter, wordsIn, type Cell } from './stages'
+
+/** A slide the viewer can open: where its bytes are, and what to call it. */
+interface Slide {
+  id: string
+  title: string
+}
 
 /**
  * The video as something to read, rather than something to watch finish.
@@ -42,9 +50,9 @@ export function ChapterReader({
     [chapters, tasks, slidesPerChapter],
   )
 
-  // Which slide is open, by asset id. Held here rather than per chapter so there
-  // is one viewer for the whole scroll and no way to end up with two.
-  const [viewing, setViewing] = useState<string | null>(null)
+  // Which slide is open, and what to call it. Held here rather than per chapter
+  // so there is one viewer for the whole scroll and no way to end up with two.
+  const [viewing, setViewing] = useState<Slide | null>(null)
 
   if (chapters.length === 0) {
     return (
@@ -67,7 +75,11 @@ export function ChapterReader({
         />
       ))}
       {viewing ? (
-        <SlideViewer src={`/assets/${viewing}`} alt="Slide" onClose={() => setViewing(null)} />
+        <SlideViewer
+          src={`/assets/${viewing.id}`}
+          title={viewing.title}
+          onClose={() => setViewing(null)}
+        />
       ) : null}
     </div>
   )
@@ -130,9 +142,12 @@ function ChapterBlock({
 }: {
   chapter: Chapter
   slides: Cell[]
-  onView: (id: string) => void
+  onView: (slide: Slide) => void
 }) {
   const words = wordsIn(chapter.script)
+  // Held here rather than up in the reader: the button that opens it is in this
+  // component, so there is nothing to thread, and a chapter has one clip.
+  const [playing, setPlaying] = useState(false)
 
   return (
     <section>
@@ -206,14 +221,32 @@ function ChapterBlock({
                     cell={cell}
                     id={chapter.slideAssetIds[slot]}
                     slot={slot}
-                    onView={onView}
+                    onView={(slide) =>
+                      onView({ ...slide, title: `${chapter.title} · ${slide.title}` })
+                    }
                   />
                 ))}
               </div>
             </Part>
           ) : null}
+
+          {chapter.clipAssetId ? (
+            <Part label="Clip">
+              <Button className="self-start" onClick={() => setPlaying(true)}>
+                Play clip
+              </Button>
+            </Part>
+          ) : null}
         </div>
       </div>
+
+      {playing && chapter.clipAssetId ? (
+        <ClipViewer
+          src={`/assets/${chapter.clipAssetId}`}
+          title={`${chapter.title} · Clip`}
+          onClose={() => setPlaying(false)}
+        />
+      ) : null}
     </section>
   )
 }
@@ -260,13 +293,13 @@ function Slide({
   id: string | undefined
   cell: Cell
   slot: number
-  onView: (id: string) => void
+  onView: (slide: Slide) => void
 }) {
   if (id) {
     return (
       <button
         type="button"
-        onClick={() => onView(id)}
+        onClick={() => onView({ id, title: `Slide ${slot + 1}` })}
         // The ring rather than a brightness lift: macOS shows a picture is
         // pickable by outlining it, and the picture itself should not change
         // colour under the pointer.

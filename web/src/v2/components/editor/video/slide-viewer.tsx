@@ -1,39 +1,50 @@
+import { Dialog } from '../../ui/dialog'
+
 /**
  * One slide, large.
  *
- * The whole component is a scrim and a picture. There is no frame around the
- * image, no caption and no controls, because there is nothing here to operate:
- * you opened it to look at something, and every pixel a title bar took would be
- * a pixel off the thing you opened.
+ * A dialog rather than a bare picture on a scrim, and the reasons are all things
+ * the picture cannot do for itself: Escape closes it, focus returns to the tile
+ * that opened it, the workbench's shortcuts stand down while it is up — ⌘W
+ * closing the tab behind a full-window image is not a corner case — and it
+ * portals out of the reader, so the chapters no longer scroll under it when the
+ * wheel turns.
  *
- * Clicking anywhere closes it. The scrim *is* the button — which is why the
- * image sits inside it rather than beside it, and why there is no close box in
- * a corner competing to be the way out.
+ * Composed rather than configured. The caller says `src` and `title`; nothing
+ * about a dialog reaches the call site, so what this looks like is this file's
+ * business and can change without touching the reader.
  *
- * `object-contain` and a cap on both axes: the slide keeps its shape, and a tall
- * window and a wide one both show the whole of it.
+ * Most of the window, not all of it. A sheet with a margin still reads as
+ * something laid over the document, and something laid over a document is a
+ * thing you expect to be able to dismiss.
  */
 export function SlideViewer({
   src,
-  alt,
+  title,
   onClose,
 }: {
   src: string
-  alt: string
+  title: string
   onClose: () => void
 }) {
   return (
-    <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center p-6"
-      style={{ backgroundColor: 'rgb(0 0 0 / 0.55)' }}
+    <Dialog
+      open
+      onOpenChange={(next) => {
+        if (!next) onClose()
+      }}
+      width="92vw"
+      height="88vh"
     >
-      <img
-        src={src}
-        alt={alt}
-        className="max-h-[88vh] max-w-[92vw] rounded-[10px] object-contain"
-        style={{ boxShadow: '0 24px 64px -12px rgb(0 0 0 / 0.5)' }}
-      />
-    </div>
+      <Dialog.Header title={title} />
+      {/* Bare, because the picture is the content: a dialog's comfortable
+          gutter around an image is just less image. */}
+      <Dialog.Body bare>
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-5 pb-5">
+          <img src={src} alt={title} className="max-h-full max-w-full object-contain" />
+        </div>
+      </Dialog.Body>
+      <Dialog.Close />
+    </Dialog>
   )
 }

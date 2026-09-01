@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import type { IDockviewPanelProps } from 'dockview-react'
 import { Clapperboard } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
@@ -213,29 +213,22 @@ function SummaryLine({
   editable: boolean
   onToggleEditing: () => void
 }) {
-  const client = useQueryClient()
-  const cancel = useMutation({
-    mutationFn: () => api.cancelVideo(video.ref),
-    onSuccess: () => client.invalidateQueries({ queryKey: qk.video(video.ref) }),
-  })
-
-  const running = video.state === 'running' || video.state === 'awaiting_approval'
-
   return (
     <div className="hairline-b flex shrink-0 items-center gap-2 px-4 py-2">
       <span className="min-w-0 flex-1 truncate text-[12px] text-secondary">
         {shapeOf(video, totals)} · {video.slidesPerChapter} slides each
       </span>
-      {/* The line above describes the plan, so the way to the plan itself
-          belongs on it — reading it, and changing it. Each hidden until there
-          is one. */}
-      {editable ? <Button onClick={onToggleEditing}>{editing ? 'Done' : 'Edit'}</Button> : null}
+      {/*
+        This line describes the plan, so the way to the plan belongs on it —
+        reading it, then changing it. Each hidden until there is one.
+
+        Those two and nothing else. Cancel used to sit here as well, one tab stop
+        from Edit and the same size, which put the verb that kills a render in
+        progress beside a switch that restyles some text. It lives with the other
+        lifecycle verbs now, in the strip above.
+      */}
       {video.blueprintAssetId ? <BlueprintPopover assetId={video.blueprintAssetId} /> : null}
-      {running ? (
-        <Button onClick={() => cancel.mutate()} disabled={cancel.isPending}>
-          Cancel
-        </Button>
-      ) : null}
+      {editable ? <Button onClick={onToggleEditing}>{editing ? 'Done' : 'Edit'}</Button> : null}
     </div>
   )
 }
