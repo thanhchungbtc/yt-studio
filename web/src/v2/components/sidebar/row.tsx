@@ -115,7 +115,7 @@ export function Row({
       {/* The token is the loudest thing in the row — a saturated disc — so
           dimming it is most of the effect for one property. */}
       <span
-        className={cn('row-avatar', quiet && 'opacity-[0.55]')}
+        className={cn('row-avatar', quiet && 'opacity-[0.42]')}
         data-tone={tone}
         data-motion={motion}
       >
@@ -132,7 +132,7 @@ export function Row({
           <span
             className={cn(
               'min-w-0 flex-1 truncate text-[13px] font-semibold',
-              selected ? 'text-white' : quiet ? 'text-secondary' : 'text-primary',
+              selected ? 'text-white' : quiet ? 'text-tertiary' : 'text-primary',
             )}
           >
             {title}
@@ -154,7 +154,7 @@ export function Row({
         <span
           className={cn(
             'mt-px line-clamp-2 block text-[12px] leading-[1.35]',
-            selected ? 'text-white/[0.78]' : 'text-secondary',
+            selected ? 'text-white/[0.78]' : quiet ? 'text-tertiary' : 'text-secondary',
           )}
         >
           {subtitle}
