@@ -20,7 +20,6 @@ import { create } from 'zustand'
 export type Doc =
   | { kind: 'video'; ref: string }
   | { kind: 'channel'; slug: string }
-  | { kind: 'thumbnail'; ref: string }
   | { kind: 'new'; of: 'channel' }
 
 /** Stable per document, so opening the same thing twice reuses one tab. */

@@ -2,7 +2,6 @@ import { ArrowUpRight } from 'lucide-react'
 
 import type { Task, Video } from '../../../../core/types'
 import { cn } from '../../../../core/utils'
-import { openDoc } from '../../dock'
 import { Mark } from '../mark'
 import { videoStage, type Cell } from '../stages'
 
@@ -23,12 +22,21 @@ import { videoStage, type Cell } from '../stages'
  * in two words at the end of a strip; the status line below has the room to say
  * it properly, and only one of the two versions can be the one that is right.
  *
- * The thumbnail is a link, not a status. It is the only route to the thumbnail
- * builder in the whole window, and the video editor is where you would go
- * looking: the builder is a separate document because composing a picture is
- * separate work, not because it belongs to something else.
+ * The thumbnail is a control, not a status: it opens the builder. Which is a
+ * dialog rather than a document, so it opens *over* this video rather than into
+ * a tab that could outlive it -- composing a picture is separate work, but it is
+ * never work about a different video than the one in front of you.
  */
-export function FinalStrip({ video, tasks }: { video: Video; tasks: Task[] }) {
+export function FinalStrip({
+  video,
+  tasks,
+  onBuild,
+}: {
+  video: Video
+  tasks: Task[]
+  /** Opens the builder. The strip does not own it; see `UploadView`. */
+  onBuild: () => void
+}) {
   const cut = videoStage(tasks, ['concat'], Boolean(video.finalAssetId))
   const metadata = videoStage(tasks, ['metadata'], Boolean(video.metadata?.title))
   const thumbnail = videoStage(
@@ -45,13 +53,7 @@ export function FinalStrip({ video, tasks }: { video: Video; tasks: Task[] }) {
       </span>
       <Stage cell={cut} label="Cut" />
       <Stage cell={metadata} label="Metadata" />
-      <Stage
-        cell={thumbnail}
-        label="Thumbnail"
-        onOpen={() =>
-          openDoc({ kind: 'thumbnail', ref: video.ref }, `${video.title || video.ref} — thumbnail`)
-        }
-      />
+      <Stage cell={thumbnail} label="Thumbnail" onOpen={onBuild} />
       <Stage cell={upload} label="Upload" />
     </div>
   )

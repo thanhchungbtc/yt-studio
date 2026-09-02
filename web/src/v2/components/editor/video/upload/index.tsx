@@ -2,6 +2,7 @@ import { Youtube } from 'lucide-react'
 import { useRef, useState } from 'react'
 
 import { Placeholder } from '../../placeholder'
+import { ThumbnailDialog } from '../../../thumbnail/dialog'
 import type { ViewProps } from '../view'
 import { FinalStrip } from './final'
 import { Listing } from './listing'
@@ -33,6 +34,9 @@ export function UploadView({ video, chapters, tasks }: ViewProps) {
   // Undefined until the player has read the file's header. The list falls back
   // to the blueprint's planned lengths until then; see the note in `chapters`.
   const [runtime, setRuntime] = useState<number>()
+  // The builder is a dialog over this page, and it is opened from two places on
+  // it, so the flag lives here rather than in either of them.
+  const [building, setBuilding] = useState(false)
 
   // Before the cut, the listing and the thumbnail exist there is nothing on this
   // page but the shape of what is missing — three em dashes and two empty
@@ -43,13 +47,19 @@ export function UploadView({ video, chapters, tasks }: ViewProps) {
 
   return (
     <>
-      <FinalStrip video={video} tasks={tasks} />
+      <FinalStrip video={video} tasks={tasks} onBuild={() => setBuilding(true)} />
       <UploadStatus video={video} tasks={tasks} />
 
       {anything ? (
         <div className="flex min-h-0 flex-1">
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <Listing video={video} playerRef={player} onTime={setSeconds} onRuntime={setRuntime} />
+            <Listing
+              video={video}
+              playerRef={player}
+              onTime={setSeconds}
+              onRuntime={setRuntime}
+              onBuild={() => setBuilding(true)}
+            />
           </div>
           {/* Fixed. The list is a fixed amount of information — an ordinal, a
               title and a time per chapter — so width past what that needs would
@@ -81,6 +91,8 @@ export function UploadView({ video, chapters, tasks }: ViewProps) {
           />
         </div>
       )}
+
+      <ThumbnailDialog video={video} open={building} onOpenChange={setBuilding} />
     </>
   )
 }

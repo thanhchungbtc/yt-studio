@@ -15,7 +15,6 @@ import { useDock, type DocPanelParams } from './dock'
 import { NewEditor } from './new'
 import { Placeholder } from './placeholder'
 import { EditorTab } from './tab'
-import { ThumbnailEditor } from './thumbnail'
 import { VideoEditor } from './video'
 
 /**
@@ -33,7 +32,7 @@ import { VideoEditor } from './video'
   old layout. Bumping the suffix drops it instead, which costs one arrangement
   once and is the only honest answer while the shape is still moving.
 */
-const LAYOUT_KEY = 'yts.v2.layout.3'
+const LAYOUT_KEY = 'yts.v2.layout.4'
 
 /**
  * The theme is a class name plus the handful of behaviours that are not CSS.
@@ -51,7 +50,6 @@ const macOSTheme: DockviewTheme = {
 const components: Record<string, FunctionComponent<IDockviewPanelProps>> = {
   video: VideoEditor as FunctionComponent<IDockviewPanelProps>,
   channel: ChannelEditor as FunctionComponent<IDockviewPanelProps>,
-  thumbnail: ThumbnailEditor as FunctionComponent<IDockviewPanelProps>,
   new: NewEditor as FunctionComponent<IDockviewPanelProps>,
 }
 

@@ -100,6 +100,19 @@ export interface Metadata {
   title: string
   description: string
   tags: string[]
+  /**
+   * The all-caps hook the thumbnail is built around.
+   *
+   * Written with the listing rather than with the picture, because it competes
+   * for the same glance the title does.
+   */
+  thumbnailText: string
+}
+
+/** One tile of the thumbnail grid. `prompt` is the icon's subject alone. */
+export interface ThumbnailCell {
+  caption: string
+  prompt: string
 }
 
 export interface UploadRecord {
@@ -122,8 +135,23 @@ export interface Video {
   /** The plan the pipeline was built from, as the LLM returned it. */
   blueprintAssetId?: string
   finalAssetId?: string
+  /** What the renderer produced. Kept even while an override is live. */
+  thumbnailAssetId?: string
+  /** One the operator built in the builder; when present, this is what ships. */
+  thumbnailOverrideAssetId?: string
   /** The thumbnail that will actually publish: the override if there is one. */
   effectiveThumbnailAssetId?: string
+  /**
+   * The builder's own document, which the server stores and never reads.
+   *
+   * `unknown` because that is the truth of it: this side is the only definition
+   * of the shape, and the builder narrows it on the way in.
+   */
+  thumbnailDesign?: unknown
+  /** One entry per grid cell, in reading order; empty until the plan has run. */
+  thumbnailPlan: ThumbnailCell[]
+  /** The icon drawn for each cell, by index. An empty entry is not yet drawn. */
+  thumbnailIconIds: string[]
   metadata?: Metadata
   upload?: UploadRecord
   error?: string

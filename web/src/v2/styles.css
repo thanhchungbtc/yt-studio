@@ -312,6 +312,53 @@
 }
 
 /*
+  The slider in the thumbnail builder's rail.
+
+  Written here for the same reason `.control` is: the track and the knob are
+  vendor pseudo-elements, and there is no way to reach `::-webkit-slider-thumb`
+  from a utility class. `appearance: none` first, because otherwise the platform
+  control ignores every rule that follows.
+
+  AppKit's proportions rather than the browser's: a thin recessed track and a
+  small raised knob with the shadow the system gives it. The track is 3px so a
+  column of twenty of them reads as a column of settings and not as a column of
+  scrollbars.
+*/
+.thumb-slider {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 16px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.thumb-slider::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 999px;
+  background: var(--idle-selection);
+}
+
+.thumb-slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  /* Half the knob's height less half the track's, so it rides centred. */
+  margin-top: -4.5px;
+  border-radius: 999px;
+  background: var(--raised);
+  box-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.24),
+    0 1px 2px rgb(0 0 0 / 0.2);
+}
+
+.thumb-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 0.5px var(--accent),
+    0 0 0 3px var(--accent-wash-strong);
+}
+
+/*
   Text controls.
 
   Written here rather than as Tailwind utilities because the focus ring and the

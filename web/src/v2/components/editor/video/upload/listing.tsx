@@ -1,8 +1,7 @@
 import { useState, type RefObject } from 'react'
 
 import type { Video } from '../../../../core/types'
-import { openDoc } from '../../dock'
-import { Caption } from './caption'
+import { Caption } from '../../../ui/caption'
 
 /**
  * Everything that gets sent, in the form it gets sent in.
@@ -26,12 +25,15 @@ export function Listing({
   playerRef,
   onTime,
   onRuntime,
+  onBuild,
 }: {
   video: Video
   playerRef: RefObject<HTMLVideoElement | null>
   onTime: (seconds: number) => void
   /** How long the cut turned out to be; the chapter list uses these units. */
   onRuntime: (seconds: number) => void
+  /** Opens the builder over this video. */
+  onBuild: () => void
 }) {
   const metadata = video.metadata
 
@@ -45,7 +47,7 @@ export function Listing({
           line, which would make six tags look like six paragraphs. */}
       <Field label="Tags">{metadata?.tags.join(', ')}</Field>
 
-      <Thumbnail video={video} />
+      <Thumbnail video={video} onBuild={onBuild} />
     </div>
   )
 }
@@ -147,7 +149,7 @@ function Player({
  * composer is meant to produce, and a page that printed that whether or not it
  * was true would be hiding exactly the bug worth catching.
  */
-function Thumbnail({ video }: { video: Video }) {
+function Thumbnail({ video, onBuild }: { video: Video; onBuild: () => void }) {
   const id = video.effectiveThumbnailAssetId
   const [size, setSize] = useState<string>()
 
@@ -156,20 +158,13 @@ function Thumbnail({ video }: { video: Video }) {
       <div className="flex items-baseline gap-2">
         <Caption>Thumbnail</Caption>
         {size ? <span className="text-[11px] tabular-nums text-tertiary">{size}</span> : null}
-        {id ? (
-          <button
-            type="button"
-            onClick={() =>
-              openDoc(
-                { kind: 'thumbnail', ref: video.ref },
-                `${video.title || video.ref} — thumbnail`,
-              )
-            }
-            className="ml-auto text-[11px] text-[var(--accent)] hover:underline"
-          >
-            Open in builder
-          </button>
-        ) : null}
+        <button
+          type="button"
+          onClick={onBuild}
+          className="ml-auto text-[11px] text-[var(--accent)] hover:underline"
+        >
+          {id ? 'Edit' : 'Build one'}
+        </button>
       </div>
 
       {id ? (

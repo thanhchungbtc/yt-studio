@@ -149,6 +149,54 @@ export const api = {
       body: JSON.stringify({ value }),
     }),
 
+  /**
+   * The thumbnail builder's working document.
+   *
+   * Opaque to the server, which is the point: the builder owns the shape, so
+   * this is the only definition of it. Saved alongside the override rather than
+   * as you type, because a half-finished draft is not what should reopen.
+   */
+  saveThumbnailDesign: (ref: string, design: unknown) =>
+    request<Video>(`/api/videos/${key(ref)}/thumbnail/design`, {
+      method: 'PUT',
+      body: JSON.stringify({ design }),
+    }),
+
+  /**
+   * The image the builder drew, as the one that publishes.
+   *
+   * Not `request`: the body is a PNG, so there is no JSON envelope to send and
+   * the content type has to say what it actually is. The rendered thumbnail is
+   * left where it is on its own field, so re-running the thumbnail task cannot
+   * discard this and reverting is always possible.
+   */
+  applyThumbnailOverride: async (ref: string, png: Blob) => {
+    const response = await fetch(`/api/videos/${key(ref)}/thumbnail/override`, {
+      // POST, matching the operation in `delivery/http/thumbnails.go`. PUT is
+      // what the sibling design route uses and what this looked like it should
+      // be; the server answers a PUT here with a 500, not a 405, so the mistake
+      // arrives looking like a bug in the image rather than in the verb.
+      method: 'POST',
+      headers: { 'Content-Type': 'image/png', Accept: 'application/json' },
+      body: png,
+    })
+    if (!response.ok) {
+      let detail = response.statusText
+      try {
+        const problem = (await response.json()) as Problem
+        detail = problem.detail ?? problem.title ?? detail
+      } catch {
+        // A non-JSON error body is not worth failing twice over.
+      }
+      throw new ApiError(response.status, detail)
+    }
+    return (await response.json()) as Video
+  },
+
+  /** Back to the renderer's own image. The design document is kept. */
+  clearThumbnailOverride: (ref: string) =>
+    request<Video>(`/api/videos/${key(ref)}/thumbnail/override`, { method: 'DELETE' }),
+
   approveGate: (ref: string, gate: string) =>
     post<Task>(`/api/videos/${key(ref)}/approve`, { gate }),
   rejectGate: (ref: string, gate: string, reason: string) =>

@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 
 import type { Chapter } from '../../../../core/types'
 import { cn } from '../../../../core/utils'
-import { Caption } from './caption'
+import { Caption } from '../../../ui/caption'
 
 /**
  * The chapters, as a list you click.
