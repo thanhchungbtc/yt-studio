@@ -67,10 +67,11 @@ export interface Task {
    * How far a long task has got, 0-100.
    *
    * Only meaningful while `state` is `running`, and only present at all for the
-   * tasks whose backend can measure themselves — today that is the ffmpeg
-   * concat and nothing else. It is never persisted, so it arrives by delta and
-   * never from the task list; and because a delta that carries no percent does
-   * not clear the last one, the state is what says whether to read it.
+   * tasks whose backend can measure themselves — today the ffmpeg concat and
+   * the upload, which are the two long enough that "running" is not an answer.
+   * It is never persisted, so it arrives by delta and never from the task list;
+   * and because a delta that carries no percent does not clear the last one,
+   * the state is what says whether to read it.
    */
   percent?: number
   /** An input changed after this ran; the artifact is intact but unverified. */

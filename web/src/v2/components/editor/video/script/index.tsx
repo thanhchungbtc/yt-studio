@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
-import { count, duration } from '../../../core/format'
-import type { Chapter, Task } from '../../../core/types'
-import { cn } from '../../../core/utils'
-import { Button } from '../../ui/button'
+import { count, duration } from '../../../../core/format'
+import type { Chapter } from '../../../../core/types'
+import { cn } from '../../../../core/utils'
+import { Button } from '../../../ui/button'
+import { Mark } from '../mark'
+import { stagesByChapter, wordsIn, type Cell } from '../stages'
+import type { ViewProps } from '../view'
 import { ClipViewer } from './clip-viewer'
-import { Mark } from './mark'
 import { ChapterOutline } from './outline'
 import { SlideViewer } from './slide-viewer'
-import { stagesByChapter, wordsIn, type Cell } from './stages'
 
 /** A slide the viewer can open: where its bytes are, and what to call it. */
 interface Slide {
@@ -34,15 +35,9 @@ interface Slide {
  * request of its own, and the refetch `events.ts` fires when a script lands
  * fills it in while it is open.
  */
-export function ChapterReader({
-  chapters,
-  tasks,
-  slidesPerChapter,
-}: {
-  chapters: Chapter[]
-  tasks: Task[]
-  slidesPerChapter: number
-}) {
+export function ScriptView({ video, chapters, tasks }: ViewProps) {
+  const slidesPerChapter = video.slidesPerChapter
+
   // Only for the empty slots: a missing picture is either one that has not been
   // drawn or one that failed, and a blank box that cannot tell you which is a
   // blank box you have to go to the other view to understand.

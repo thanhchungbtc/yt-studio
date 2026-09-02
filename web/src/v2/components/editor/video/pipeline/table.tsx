@@ -1,12 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 
-import { api, qk, type ChapterPlan } from '../../../core/api'
-import { count, duration } from '../../../core/format'
-import type { Chapter, Task } from '../../../core/types'
-import { cn } from '../../../core/utils'
-import { Mark, SlotRow } from './mark'
-import { columnTotals, projectedSeconds, stagesByChapter } from './stages'
+import { api, qk, type ChapterPlan } from '../../../../core/api'
+import { count, duration } from '../../../../core/format'
+import type { Chapter, Task } from '../../../../core/types'
+import { cn } from '../../../../core/utils'
+import { Mark } from '../mark'
+import { columnTotals, projectedSeconds, stagesByChapter, type Cell } from '../stages'
 
 /**
  * The blueprint as a grid: chapters down, pipeline stages across.
@@ -348,5 +348,16 @@ function PlanFields({ chapter, videoId }: { chapter: Chapter; videoId: string })
         </span>
       </div>
     </>
+  )
+}
+
+/** One mark per slot: a half-drawn chapter says *which* slide is missing. */
+function SlotRow({ cells, className }: { cells: Cell[]; className?: string }) {
+  return (
+    <span className={cn('flex flex-wrap items-center gap-1.5', className)}>
+      {cells.map((cell, index) => (
+        <Mark key={index} cell={cell} />
+      ))}
+    </span>
   )
 }

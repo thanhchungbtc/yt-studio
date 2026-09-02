@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { ChevronDown } from 'lucide-react'
 
-import { api, qk } from '../../../core/api'
-import { Popover } from '../../ui/popover'
+import { api, qk } from '../../../../core/api'
+import { Popover } from '../../../ui/popover'
 
 /**
  * The blueprint, as the model returned it, on a glance.

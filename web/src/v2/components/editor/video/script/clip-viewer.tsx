@@ -1,4 +1,4 @@
-import { Dialog } from '../../ui/dialog'
+import { Dialog } from '../../../ui/dialog'
 
 /**
  * One chapter's clip, played.

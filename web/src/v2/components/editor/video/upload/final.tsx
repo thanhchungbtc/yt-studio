@@ -1,18 +1,27 @@
 import { ArrowUpRight } from 'lucide-react'
 
-import type { Task, Video } from '../../../core/types'
-import { cn } from '../../../core/utils'
-import { openDoc } from '../dock'
-import { Mark } from './mark'
-import { videoStage, type Cell } from './stages'
+import type { Task, Video } from '../../../../core/types'
+import { cn } from '../../../../core/utils'
+import { openDoc } from '../../dock'
+import { Mark } from '../mark'
+import { videoStage, type Cell } from '../stages'
 
 /**
  * The four stages that belong to the video rather than to any chapter.
  *
- * They read in the same vocabulary as the grid above, which is the point: the
- * eye that has just learned five shapes does not have to learn a progress bar
- * as well. And they are the last row of the story the table tells — every
- * chapter is done, and then these four happen once.
+ * They read in the same vocabulary the grid in Pipeline does, which is the
+ * point: the eye that has learned five shapes over there does not have to learn
+ * a second notation here.
+ *
+ * This is the summary line of the upload page, in the position Pipeline's
+ * summary line occupies — one line saying what the page under it is made of.
+ * Which of the four have happened is the fastest read of that, and the page
+ * itself is the slow one.
+ *
+ * The receipt is deliberately not here. It used to end this row as a link
+ * reading "Dry run" or "Watch it", which had to say whether a publish was real
+ * in two words at the end of a strip; the status line below has the room to say
+ * it properly, and only one of the two versions can be the one that is right.
  *
  * The thumbnail is a link, not a status. It is the only route to the thumbnail
  * builder in the whole window, and the video editor is where you would go
@@ -30,7 +39,7 @@ export function FinalStrip({ video, tasks }: { video: Video; tasks: Task[] }) {
   const upload = videoStage(tasks, ['upload'], Boolean(video.upload))
 
   return (
-    <div className="surface-chrome hairline-t flex shrink-0 items-center gap-5 px-4 py-2">
+    <div className="hairline-b flex shrink-0 items-center gap-5 px-4 py-2">
       <span className="shrink-0 text-[10px] font-semibold tracking-[0.06em] text-tertiary uppercase">
         Final
       </span>
@@ -44,16 +53,6 @@ export function FinalStrip({ video, tasks }: { video: Video; tasks: Task[] }) {
         }
       />
       <Stage cell={upload} label="Upload" />
-      {video.upload?.url ? (
-        <a
-          href={video.upload.url}
-          target="_blank"
-          rel="noreferrer"
-          className="ml-auto shrink-0 truncate text-[12px] text-[var(--accent)] hover:underline"
-        >
-          {video.upload.dryRun ? 'Dry run' : 'Watch it'}
-        </a>
-      ) : null}
     </div>
   )
 }

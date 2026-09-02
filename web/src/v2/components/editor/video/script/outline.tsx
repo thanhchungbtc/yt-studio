@@ -1,5 +1,5 @@
-import type { Chapter } from '../../../core/types'
-import { cn } from '../../../core/utils'
+import type { Chapter } from '../../../../core/types'
+import { cn } from '../../../../core/utils'
 
 /**
  * The table of contents, floating in the margin.
