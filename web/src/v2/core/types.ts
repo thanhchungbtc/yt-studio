@@ -38,6 +38,28 @@ export interface Channel {
   updatedAt: string
 }
 
+/**
+ * What a channel can publish with, read from its credentials directory rather
+ * than from its row.
+ *
+ * `clientPresent` and `status` answer two different questions and have two
+ * different remedies — put a file here, versus visit this URL — which is why
+ * they are separate fields and why `authorized` is computed by the server
+ * rather than left to each caller to get right.
+ */
+export interface ChannelAuth {
+  channel: Channel
+  clientPresent: boolean
+  status: 'missing' | 'valid' | 'expired'
+  authorized: boolean
+  /** What the stored grant covers. Absent when there is none. */
+  scope?: string
+  /** When the access token lapses. Not a deadline: the grant behind it renews. */
+  expiry?: string
+  /** Where an OAuth client goes, for the screen that has to say so. */
+  clientPath?: string
+}
+
 export interface TaskCounts {
   total: number
   succeeded: number

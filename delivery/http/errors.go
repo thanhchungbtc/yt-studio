@@ -8,6 +8,7 @@ import (
 
 	"github.com/tbui/yt-studio/app"
 	"github.com/tbui/yt-studio/domain/entity"
+	"github.com/tbui/yt-studio/domain/provider"
 	"github.com/tbui/yt-studio/domain/repository"
 	"github.com/tbui/yt-studio/domain/scheduler"
 )
@@ -29,6 +30,9 @@ func mapError(err error) error {
 		errors.Is(err, scheduler.ErrUnknownTask):
 		return huma.Error404NotFound(err.Error())
 	case errors.Is(err, app.ErrValidation),
+		// A value the caller just supplied and a backend refused: their input
+		// to correct, not the server's state to fix.
+		errors.Is(err, provider.ErrRejected),
 		errors.Is(err, entity.ErrInvalidSlug),
 		errors.Is(err, entity.ErrInvalidRef),
 		errors.Is(err, entity.ErrInvalidSetting),
@@ -42,6 +46,11 @@ func mapError(err error) error {
 		return huma.Error422UnprocessableEntity(err.Error())
 	case errors.Is(err, app.ErrConflict),
 		errors.Is(err, repository.ErrConflict),
+		// A backend nothing has configured yet: no OAuth client for a channel,
+		// no API key for an image model. The request is well-formed and the
+		// server is fine — the installation is not ready for it, and the fix is
+		// the caller's to make.
+		errors.Is(err, provider.ErrUnavailable),
 		errors.Is(err, scheduler.ErrNotGated),
 		errors.Is(err, scheduler.ErrBlueprintLocked),
 		errors.Is(err, scheduler.ErrAlreadyExpanded):

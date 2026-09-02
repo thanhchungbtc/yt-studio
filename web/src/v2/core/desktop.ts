@@ -22,6 +22,8 @@ interface DesktopBindings {
   ytsWindowDrag?: () => Promise<boolean>
   /** Zoom the window, as a double-click on the AppKit titlebar would. */
   ytsWindowZoom?: () => Promise<void>
+  /** Hand a URL to the system browser. Rejects if the shell refuses it. */
+  ytsOpenExternal?: (url: string) => Promise<void>
 }
 
 function bindings(): DesktopBindings {
@@ -36,4 +38,31 @@ export function beginWindowDrag(): void {
 /** Zooms the window; the double-click half of the titlebar contract. */
 export function zoomWindow(): void {
   void bindings().ytsWindowZoom?.()
+}
+
+/**
+ * Opens a link outside the app, and says whether it managed to.
+ *
+ * The one place a no-op fallback is not good enough. `window.open` and a
+ * `target=_blank` anchor both do *nothing* in a WKWebView — no error, no tab,
+ * no console line — so a button wired the ordinary way is simply dead inside
+ * the desktop app while working perfectly in a browser tab. The binding is what
+ * makes it work there, and the boolean is what lets a caller say so when
+ * neither route worked rather than leaving somebody clicking.
+ *
+ * Every external link goes through here for that reason, whatever it links to.
+ */
+export async function openExternal(url: string): Promise<boolean> {
+  const native = bindings().ytsOpenExternal
+  if (native) {
+    try {
+      await native(url)
+      return true
+    } catch {
+      return false
+    }
+  }
+  // A browser tab, where a popup blocker is the only thing that can refuse —
+  // and only if this is not running inside a click.
+  return window.open(url, '_blank', 'noopener,noreferrer') !== null
 }

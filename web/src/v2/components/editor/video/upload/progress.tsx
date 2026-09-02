@@ -1,5 +1,6 @@
 import { LoaderCircle } from 'lucide-react'
 
+import { openExternal } from '../../../../core/desktop'
 import { listTimestamp } from '../../../../core/format'
 import type { Task, Video } from '../../../../core/types'
 
@@ -63,10 +64,18 @@ export function UploadStatus({ video, tasks }: { video: Video; tasks: Task[] }) 
           {record.url} · nothing was sent to YouTube
         </span>
       ) : (
+        // Still an anchor, so the address is copyable from the context menu and
+        // reads as a link — but the navigation is handed to the shell. A
+        // `target=_blank` is ignored outright inside the desktop window, which
+        // would make the one link at the end of the whole pipeline dead in the
+        // app it was built for.
         <a
           href={record.url}
-          target="_blank"
           rel="noreferrer"
+          onClick={(event) => {
+            event.preventDefault()
+            void openExternal(record.url)
+          }}
           className="min-w-0 flex-1 truncate text-[12px] text-[var(--accent)] hover:underline"
         >
           {record.url}

@@ -22,10 +22,12 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -74,8 +76,8 @@ func main() {
 }
 
 func (c *cli) Run() error {
-	url := c.URL
-	if url == "" {
+	address := c.URL
+	if address == "" {
 		// Own the server: start it, and stop it when the window closes. A
 		// server left running after its only window is gone would hold the
 		// database against the next launch.
@@ -84,10 +86,10 @@ func (c *cli) Run() error {
 			return err
 		}
 		defer stop()
-		url = server
+		address = server
 	}
 
-	if err := waitForServer(url); err != nil {
+	if err := waitForServer(address); err != nil {
 		return err
 	}
 
@@ -112,11 +114,65 @@ func (c *cli) Run() error {
 		}
 	}()
 
+	// Bound here rather than in dressWindow, which is AppKit and macOS-only:
+	// handing a URL to the operating system is neither.
+	_ = w.Bind("ytsOpenExternal", openExternal)
+
 	// Before Navigate: the material, the window verbs and the user script that
 	// makes the page transparent all have to be in place before a page loads.
 	dressWindow(w)
-	w.Navigate(url)
+	w.Navigate(address)
 	w.Run()
+	return nil
+}
+
+// openExternal hands a URL to whatever the operating system opens links with.
+//
+// A WKWebView does nothing at all with `window.open` or a `target=_blank`
+// link: both ask for a second web view through a delegate this shell does not
+// implement — and should not. The two links the app has are a Google consent
+// page and a published video, and both belong in a real browser: one needs the
+// operator's existing Google session and a visible address bar to copy the
+// redirect out of, and the other is a page to keep.
+//
+// The page can therefore ask for a URL to be opened, and this decides whether
+// that is a reasonable thing to do.
+func openExternal(raw string) error {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("not a URL: %w", err)
+	}
+	// http and https, and nothing else. This is a web page handing a string to
+	// the operating system's URL handler, which will happily open a file, a
+	// disk image or any application that has registered a scheme. Nothing this
+	// app links to is not a web page.
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("refusing to open a %q URL", parsed.Scheme)
+	}
+
+	// Background, and deliberately without a deadline. The context of an
+	// exec.Cmd is a kill switch, and what it would be killing is the operator's
+	// browser: `open` hands off and exits, but xdg-open can end up as the
+	// parent of the browser itself, and a timeout would take the window down
+	// with it minutes after it opened.
+	ctx := context.Background()
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.CommandContext(ctx, "open", raw) //nolint:gosec // scheme-checked above; argv is built here
+	case "windows":
+		cmd = exec.CommandContext(ctx, "rundll32", "url.dll,FileProtocolHandler", raw) //nolint:gosec // as above
+	default:
+		cmd = exec.CommandContext(ctx, "xdg-open", raw) //nolint:gosec // as above
+	}
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("open %s: %w", raw, err)
+	}
+	// Reaped in the background rather than waited on. The browser outlives this
+	// window by design, and a helper that has already handed the URL over exits
+	// immediately — but an unwaited child would sit as a zombie for as long as
+	// the app runs.
+	go func() { _ = cmd.Wait() }()
 	return nil
 }
 

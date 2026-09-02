@@ -34,6 +34,7 @@ import (
 	"github.com/tbui/yt-studio/adapters/provider/thumbnail"
 	"github.com/tbui/yt-studio/adapters/provider/tts/kokoro"
 	"github.com/tbui/yt-studio/adapters/provider/tts/xtts"
+	"github.com/tbui/yt-studio/adapters/provider/youtube"
 	"github.com/tbui/yt-studio/adapters/sqlite"
 	"github.com/tbui/yt-studio/app"
 	"github.com/tbui/yt-studio/cmd/server/internal/registry"
@@ -73,6 +74,7 @@ type bootstrap struct {
 //	    db/           yt-studio.db, and the -wal and -shm SQLite keeps beside it
 //	    assets/       the content-addressed store
 //	    resources/    operator-supplied media: chalkboard.jpg, bg.mp4, fonts/
+//	    credentials/  one directory per channel slug: credentials.json, token.json
 //	    transcripts/  one file per LLM exchange
 //	    log/          server.log, rewritten each run
 //
@@ -87,6 +89,16 @@ func (b bootstrap) db() string          { return filepath.Join(b.Home, "db", "yt
 func (b bootstrap) assets() string      { return filepath.Join(b.Home, "assets") }
 func (b bootstrap) resources() string   { return filepath.Join(b.Home, "resources") }
 func (b bootstrap) transcripts() string { return filepath.Join(b.Home, "transcripts") }
+
+// credentials is the root of the per-channel OAuth directories: one directory
+// per channel slug, holding the client the operator downloaded and the token
+// the authorization flow writes beside it.
+//
+// A path here rather than a settings row, unlike every other endpoint and key,
+// because these are files an operator places by hand — the same reason
+// resources/ is a directory and not a row. It is under Home so that one
+// installation is still one directory, and so the 0700 above covers it.
+func (b bootstrap) credentials() string { return filepath.Join(b.Home, "credentials") }
 
 // ensureHome creates the installation directory before anything writes inside
 // it, and does so at 0700.
@@ -103,12 +115,21 @@ func (b bootstrap) transcripts() string { return filepath.Join(b.Home, "transcri
 // makes it: the other four are written to and appear on their own, but this one
 // is only ever read, so on a fresh installation it would be missing exactly when
 // somebody needs to be told where to put a background video.
+//
+// The credentials directory is made for that same reason and at 0700 rather
+// than 0755: nothing writes into it until an authorization succeeds, so on a
+// fresh installation it would be missing exactly when somebody needs to be told
+// where to put a credentials.json, and what lands in it afterwards is a client
+// secret and a refresh token.
 func (b bootstrap) ensureHome() error {
 	if err := os.MkdirAll(b.Home, 0o700); err != nil {
 		return fmt.Errorf("create %s: %w", b.Home, err)
 	}
 	if err := os.MkdirAll(b.resources(), 0o755); err != nil {
 		return fmt.Errorf("create %s: %w", b.resources(), err)
+	}
+	if err := os.MkdirAll(b.credentials(), 0o700); err != nil {
+		return fmt.Errorf("create %s: %w", b.credentials(), err)
 	}
 	return nil
 }
@@ -411,6 +432,10 @@ func (c *serveCmd) Run() error {
 		return err
 	}
 
+	// One client for both halves of publishing: the port the scheduler uploads
+	// through, and the port the dialog authorizes through.
+	youtubeClient := youtube.New(c.credentials(), assets, log)
+
 	providers := registry.New(settings.String)
 	providers.RegisterLLM("sample", sample.NewLLM(assets, videoContextLookup(store)))
 	providers.RegisterLLM("9router", nineRouter)
@@ -426,6 +451,7 @@ func (c *serveCmd) Run() error {
 	providers.RegisterThumbnailIcon("runware", runware.NewIcon(runwareClient))
 	providers.RegisterUploader("sample", sample.NewUploader(assets, time.Now,
 		func() int { return settings.Int(entity.SettingUploadSampleMegabytesPerSecond) }))
+	providers.RegisterUploader("youtube", youtubeClient)
 
 	settings.Constrain(providers.Options())
 	// By assignment rather than a literal: a map keyed by a settings key is
@@ -507,6 +533,17 @@ func (c *serveCmd) Run() error {
 			slog.Float64("speed", settings.Float(entity.SettingKokoroSpeed)))
 	}
 
+	// The channels table's credentials field is a copy of what the credentials
+	// directory holds, and the directory can change while this program is not
+	// running: an operator placing a token by hand, a grant revoked from
+	// Google's side. Reconciled once here, so the upload gate is reading
+	// something true by the time anything can reach it.
+	if err := app.ReconcileCredentials(ctx, store, store, youtubeClient, time.Now(), log); err != nil {
+		return err
+	}
+	log.Info("youtube publishing is configured per channel",
+		slog.String("credentials", youtubeClient.Root()))
+
 	// --- scheduler ----------------------------------------------------------
 	pools, err := scheduler.NewPools(settings.PoolLimits())
 	if err != nil {
@@ -566,6 +603,7 @@ func (c *serveCmd) Run() error {
 		Tasks:         store,
 		Store:         assets,
 		Settings:      settings,
+		UploadAuth:    youtubeClient,
 
 		Submitter:  sched,
 		Resumer:    sched,

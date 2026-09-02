@@ -52,6 +52,25 @@ func PublishVideo(
 	if dryRun != nil {
 		dry = dryRun()
 	}
+
+	// A video that has really been published is not published again.
+	//
+	// The one irreversible thing this program does, and the only failure it
+	// cannot take back: YouTube has no idea the second upload is a copy of the
+	// first, so a re-run leaves two videos on the channel and a database naming
+	// one of them. Every other task in the graph is safe to run twice, which is
+	// exactly why nothing else guards against it and this does.
+	//
+	// A dry run's receipt is no such thing — nothing was sent — so it is
+	// replaced without complaint, which is what makes rehearse-then-publish
+	// work.
+	if !dry && video.Upload != nil && !video.Upload.DryRun {
+		return entity.Failed{
+			Err: fmt.Errorf("%w: %s is already published at %s — clear its upload record to publish again",
+				ErrValidation, video.Ref, video.Upload.URL),
+			Retryable: false,
+		}
+	}
 	if !dry && channel.Credentials != entity.CredentialStatusValid {
 		return entity.Failed{
 			Err: fmt.Errorf("%w: channel %s has %s credentials", ErrValidation,

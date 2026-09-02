@@ -1,12 +1,13 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Circle, CircleSlash, CircleX, LoaderCircle, type LucideIcon, Pause } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 
 import { api, qk } from '../../../core/api'
 import { count } from '../../../core/format'
 import type { GateKind, Task, Video } from '../../../core/types'
 import { cn } from '../../../core/utils'
 import { Button } from '../../ui/button'
+import { YouTubeAuthDialog } from '../../youtube-auth'
 
 /**
  * What the pipeline is doing, and the one thing you can do about it.
@@ -103,6 +104,15 @@ export function StoppedStrip({ video, tasks }: { video: Video; tasks: Task[] }) 
   const client = useQueryClient()
   const [rejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState('')
+  const [authorizing, setAuthorizing] = useState(false)
+  /*
+    What to do once the grant exists.
+
+    A ref rather than state because the dialog closes and reports success in the
+    same tick, and the decision must survive that without depending on which of
+    the two happens first.
+  */
+  const resumption = useRef<'approve' | 'resume'>('approve')
 
   // The stream carries the consequences — the tasks that unblock, the state the
   // video moves to. What no delta covers is the video body behind this strip.
@@ -115,9 +125,102 @@ export function StoppedStrip({ video, tasks }: { video: Video; tasks: Task[] }) 
   const gate = tasks.find((task) => task.state === 'awaiting_approval')
   const gateKind = (gate?.gate || 'blueprint') as GateKind
 
+  /*
+    The two moments a grant is worth asking about: before a publish is approved,
+    and after one has failed for want of it. The second is not the same question
+    asked twice — a gate that was approved while the grant was still good is a
+    video that is now stopped with no way back on, and Resume alone would walk
+    it into the same wall.
+  */
+  const brokenUpload = tasks.find((task) => task.state === 'failed' && task.kind === 'upload')
+  const publishing = (Boolean(gate) && gateKind === 'upload') || Boolean(brokenUpload)
+
+  /*
+    Whether publishing this video needs a Google account behind it.
+
+    Which backend publishes, and nothing else. Dry run deliberately does not
+    come into it: the YouTube backend proves the grant before it decides whether
+    to send, because a rehearsal that skipped the one check that fails in
+    practice would rehearse nothing worth knowing. So a dry run needs a grant
+    exactly as much as a real publish does — it just stops afterwards.
+
+    What keeps this out of the way of ordinary work is the default backend. An
+    installation publishing through `sample` is asked for nothing, which is the
+    whole point of having it.
+  */
+  const settings = useQuery({
+    queryKey: qk.settings,
+    queryFn: api.listSettings,
+    enabled: publishing,
+  })
+  const setting = (name: string) => settings.data?.find((row) => row.key === name)?.value
+  const needsGoogle = setting('provider.uploader') === 'youtube'
+
+  /*
+    What the channel can currently publish with.
+
+    Asked whenever a publish is in play, which also repairs a drift nothing else
+    can: the task that discovers a dead grant writes that to the credentials on
+    disk, and the channel's row goes on saying `valid` until something reads
+    them again. This is that read — the server reconciles the row while
+    answering it — so the row is corrected by the act of showing the right
+    button.
+  */
+  const auth = useQuery({
+    queryKey: qk.channelAuth(video.channelId),
+    queryFn: () => api.channelAuth(video.channelId),
+    enabled: publishing && needsGoogle,
+  })
+  /** A stopped upload that will stay stopped until somebody authorizes. */
+  const needsGrant = Boolean(brokenUpload) && needsGoogle && auth.data?.authorized === false
+
+  const askToAuthorize = (then: 'approve' | 'resume') => {
+    resumption.current = then
+    setAuthorizing(true)
+  }
+
   const approve = useMutation({
     mutationFn: () => api.approveGate(video.ref, gateKind),
     onSuccess: settle,
+  })
+
+  /*
+    Approve, with the one question that has to be answered first.
+
+    A publish that is going to be refused for want of a grant is better refused
+    now than after the gate has been released and the task has failed — the
+    difference between a dialog and a red strip over a video that has to be
+    resumed. The check is a courtesy and not the guard: the task checks again
+    when it runs, which is what catches a grant revoked in the seconds between.
+
+    So a preflight that cannot answer approves anyway. Refusing to publish
+    because a status call failed would put this screen in the way of a channel
+    that is perfectly well authorized.
+  */
+  const publish = useMutation({
+    mutationFn: async () => {
+      if (gateKind === 'upload' && needsGoogle) {
+        // Through the cache rather than around it, so the answer this decision
+        // was made on is the same one the strip is rendering.
+        const current = await client
+          .fetchQuery({
+            queryKey: qk.channelAuth(video.channelId),
+            queryFn: () => api.channelAuth(video.channelId),
+            staleTime: 0,
+          })
+          .catch(() => null)
+        if (current && !current.authorized) return 'needs-authorization' as const
+      }
+      await api.approveGate(video.ref, gateKind)
+      return 'approved' as const
+    },
+    onSuccess: (outcome) => {
+      if (outcome === 'needs-authorization') {
+        askToAuthorize('approve')
+        return
+      }
+      settle()
+    },
   })
   const reject = useMutation({
     mutationFn: () => api.rejectGate(video.ref, gateKind, reason.trim()),
@@ -130,8 +233,17 @@ export function StoppedStrip({ video, tasks }: { video: Video; tasks: Task[] }) 
   const start = useMutation({ mutationFn: () => api.startVideo(video.ref), onSuccess: settle })
   const cancel = useMutation({ mutationFn: () => api.cancelVideo(video.ref), onSuccess: settle })
 
-  const busy = approve.isPending || reject.isPending || start.isPending || cancel.isPending
-  const failure = approve.error ?? reject.error ?? start.error ?? cancel.error
+  const busy =
+    approve.isPending ||
+    publish.isPending ||
+    reject.isPending ||
+    start.isPending ||
+    cancel.isPending ||
+    // Only while the two rows that decide whether this publishes are still
+    // unknown, and only for the gate that reads them. Half a second on the one
+    // button whose meaning depends on them.
+    (publishing && settings.isPending)
+  const failure = approve.error ?? publish.error ?? reject.error ?? start.error ?? cancel.error
 
   const resume = (label: string) => (
     <Button primary onClick={() => start.mutate()} disabled={busy}>
@@ -153,8 +265,8 @@ export function StoppedStrip({ video, tasks }: { video: Video; tasks: Task[] }) 
             <Button onClick={() => setRejecting(true)} disabled={busy}>
               Reject
             </Button>
-            <Button primary onClick={() => approve.mutate()} disabled={busy}>
-              Approve
+            <Button primary onClick={() => publish.mutate()} disabled={busy}>
+              {publish.isPending ? 'Approving…' : 'Approve'}
             </Button>
           </>
         ),
@@ -173,7 +285,16 @@ export function StoppedStrip({ video, tasks }: { video: Video; tasks: Task[] }) 
         title: first ? `Stopped at ${stageOf(first)}` : 'Stopped',
         detail: `${error}${others}`,
         full: error,
-        actions: resume('Resume'),
+        // Resuming an upload the channel is not authorized for would fail in
+        // the same way within the second. The verb offered is the one that
+        // changes the outcome, and it resumes on its own once it has.
+        actions: needsGrant ? (
+          <Button primary onClick={() => askToAuthorize('resume')} disabled={busy}>
+            Authorize YouTube
+          </Button>
+        ) : (
+          resume('Resume')
+        ),
       }
     }
 
@@ -274,6 +395,23 @@ export function StoppedStrip({ video, tasks }: { video: Video; tasks: Task[] }) 
           {(failure as Error).message}
         </p>
       ) : null}
+
+      {/*
+        Rendered from here rather than from the upload page, because this is the
+        row that asked the question: the gate is answered above every mode, and
+        an operator who pressed Approve from the pipeline table should not have
+        to go and find the dialog somewhere else. Once the grant exists it
+        approves for real — one press, one publish, with a detour in between.
+      */}
+      <YouTubeAuthDialog
+        channel={video.channelId}
+        open={authorizing}
+        onOpenChange={setAuthorizing}
+        onAuthorized={() =>
+          resumption.current === 'resume' ? start.mutate() : approve.mutate()
+        }
+        confirmLabel={resumption.current === 'resume' ? 'Authorize and resume' : 'Authorize and publish'}
+      />
     </div>
   )
 }

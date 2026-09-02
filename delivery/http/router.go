@@ -34,6 +34,10 @@ type Deps struct {
 	Tasks         repository.TaskReader
 	Store         provider.AssetStore
 	Settings      *service.Settings
+	// UploadAuth manages the per-channel grant the uploader publishes with. A
+	// port rather than the uploader itself: these four routes never publish, and
+	// the publishing path never touches them.
+	UploadAuth provider.UploadAuthorizer
 
 	Submitter  app.GraphSubmitter
 	Resumer    app.GraphResumer
@@ -102,6 +106,7 @@ func NewRouter(d Deps) (http.Handler, huma.API) {
 		d.Tasks, d.Chapters, d.Submitter, d.Resumer, d.Requeuer, d.Expander, d.Canceller, d.Approver,
 		d.Rejecter, d.Forgetter,
 		d.Store, d.Settings, d.NewID, d.Now, d.Log)
+	registerYouTubeRoutes(api, d.Channels, d.ChannelWriter, d.UploadAuth, d.Now)
 	registerChapterRoutes(api, d.Videos, d.Chapters, d.ChapterFields, d.Notifier, d.ChapRetry,
 		d.Prompts, d.StaleMark, d.Rerunner)
 	registerThumbnailRoutes(api, d.Videos, d.VideoFields, d.AssetWriter, d.Store,

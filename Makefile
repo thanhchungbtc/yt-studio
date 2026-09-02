@@ -193,12 +193,13 @@ clean:
 	@mkdir -p web/dist && cp web/placeholder.html web/dist/index.html
 	go clean -testcache
 
-## reset: empty the development installation, keeping var/home/resources
+## reset: empty the development installation, keeping resources and credentials
 #
 # The counterpart to clean: clean deletes what building made, reset deletes what
 # running made — the database, the asset store, the transcripts, the log. What
-# survives is resources, the one thing under var/home that no command can put
-# back.
+# survives is resources and credentials, the two things under var/home that no
+# command can put back: media that came from somewhere else, and an OAuth grant
+# that costs a trip through Google's consent screen to replace.
 #
 # It names what to delete rather than what to keep. An exclusion is only correct
 # until somebody adds a directory the author of the exclusion never saw, and
@@ -208,7 +209,7 @@ RESET_DIRS := db assets transcripts log
 
 reset:
 	rm -rf $(addprefix $(DEV_HOME)/,$(RESET_DIRS))
-	@echo "emptied $(DEV_HOME) - kept resources ($$(du -sh $(DEV_HOME)/resources 2>/dev/null | cut -f1 || echo none))"
+	@echo "emptied $(DEV_HOME) - kept resources ($$(du -sh $(DEV_HOME)/resources 2>/dev/null | cut -f1 || echo none)) and credentials ($$(ls $(DEV_HOME)/credentials 2>/dev/null | wc -l | tr -d ' ') channel(s))"
 
 ## distclean: clean and reset together - everything but var/home/resources
 distclean: clean reset

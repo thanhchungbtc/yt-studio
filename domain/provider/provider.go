@@ -14,3 +14,10 @@ import "errors"
 // ErrUnavailable reports a backend that cannot run at all — a missing binary or
 // resource, an unconfigured credential. The one failure retrying cannot fix.
 var ErrUnavailable = errors.New("backend unavailable")
+
+// ErrRejected reports a credential the caller has just supplied and the backend
+// has refused: a mistyped key, an authorization code already spent. Distinct
+// from ErrUnavailable, which is the installation not being ready — this is one
+// bad value in one request, and the remedy is to supply a better one rather
+// than to go and configure something.
+var ErrRejected = errors.New("credential rejected")

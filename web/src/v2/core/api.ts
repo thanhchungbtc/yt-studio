@@ -1,4 +1,4 @@
-import type { Channel, Chapter, Setting, Task, Video } from './types'
+import type { Channel, ChannelAuth, Chapter, Setting, Task, Video } from './types'
 
 /**
  * V2's client.
@@ -197,6 +197,22 @@ export const api = {
   clearThumbnailOverride: (ref: string) =>
     request<Video>(`/api/videos/${key(ref)}/thumbnail/override`, { method: 'DELETE' }),
 
+  /**
+   * What a channel can publish with. Cheap — the server reads two files — and
+   * reconciling: calling it is what makes the channel's row agree with a token
+   * that arrived while nothing was looking.
+   */
+  channelAuth: (channel: string) => request<ChannelAuth>(`/api/channels/${key(channel)}/youtube`),
+  /** Generated per call: it is only useful while somebody is looking at it. */
+  channelAuthUrl: (channel: string) =>
+    request<{ url: string }>(`/api/channels/${key(channel)}/youtube/auth-url`).then((r) => r.url),
+  /** Takes the whole redirect URL as well as a bare code. */
+  authorizeChannel: (channel: string, code: string) =>
+    post<ChannelAuth>(`/api/channels/${key(channel)}/youtube/authorize`, { code }),
+  /** Drops the grant. The OAuth client stays, so re-authorizing needs no file. */
+  forgetChannelAuth: (channel: string) =>
+    request<ChannelAuth>(`/api/channels/${key(channel)}/youtube`, { method: 'DELETE' }),
+
   approveGate: (ref: string, gate: string) =>
     post<Task>(`/api/videos/${key(ref)}/approve`, { gate }),
   rejectGate: (ref: string, gate: string, reason: string) =>
@@ -220,6 +236,12 @@ export const api = {
  */
 export const qk = {
   channels: ['v2', 'channels'] as const,
+  /**
+   * Keyed by the channel key the caller had, not by id: the upload strip knows
+   * a video's channel slug and nothing more, and resolving it first would put a
+   * round trip in front of the question.
+   */
+  channelAuth: (channel: string) => ['v2', 'channel-auth', channel] as const,
   videos: ['v2', 'videos'] as const,
   video: (ref: string) => ['v2', 'video', ref] as const,
   chapters: (videoId: string) => ['v2', 'chapters', videoId] as const,
