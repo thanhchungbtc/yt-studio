@@ -22,6 +22,44 @@ export class ApiError extends Error {
 interface Problem {
   title?: string
   detail?: string
+  errors?: ProblemError[]
+}
+
+/** One field's rejection, as huma reports it: `location` is a JSON path. */
+interface ProblemError {
+  message?: string
+  location?: string
+}
+
+/**
+ * The message to show for a failed response.
+ *
+ * `detail` alone is not enough. When huma rejects a request against the schema
+ * it never reaches the handler, so the detail is the bare string "validation
+ * failed" for every cause there is — a title too long and a topic too long read
+ * identically, and neither says which field. What field it was lives in
+ * `errors`, so that is folded in here rather than dropped: "validation failed:
+ * topic expected length <= 5000" is a message an operator can act on alone.
+ */
+async function problemDetail(response: Response): Promise<string> {
+  try {
+    const problem = (await response.json()) as Problem
+    const detail = problem.detail ?? problem.title ?? response.statusText
+    const fields = (problem.errors ?? [])
+      .map((e) => {
+        // Locations arrive prefixed with the part of the request they were found
+        // in. The operator is looking at a form, not at an HTTP message — and a
+        // whole-body complaint ("channel is required") names its own field in
+        // the message, so there is nothing left to prefix it with.
+        const where = e.location?.replace(/^body\.?/, '')
+        return [where, e.message].filter(Boolean).join(' ')
+      })
+      .filter(Boolean)
+    return fields.length > 0 ? `${detail}: ${fields.join('; ')}` : detail
+  } catch {
+    // A non-JSON error body is not worth failing twice over.
+    return response.statusText
+  }
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -34,14 +72,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   })
   if (!response.ok) {
-    let detail = response.statusText
-    try {
-      const problem = (await response.json()) as Problem
-      detail = problem.detail ?? problem.title ?? detail
-    } catch {
-      // A non-JSON error body is not worth failing twice over.
-    }
-    throw new ApiError(response.status, detail)
+    throw new ApiError(response.status, await problemDetail(response))
   }
   if (response.status === 204) return undefined as T
   return (await response.json()) as T
@@ -181,14 +212,7 @@ export const api = {
       body: png,
     })
     if (!response.ok) {
-      let detail = response.statusText
-      try {
-        const problem = (await response.json()) as Problem
-        detail = problem.detail ?? problem.title ?? detail
-      } catch {
-        // A non-JSON error body is not worth failing twice over.
-      }
-      throw new ApiError(response.status, detail)
+      throw new ApiError(response.status, await problemDetail(response))
     }
     return (await response.json()) as Video
   },

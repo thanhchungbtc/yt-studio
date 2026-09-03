@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useState, type ReactNode } from 'react'
 import { create } from 'zustand'
 
 import { api, qk } from '../core/api'
@@ -55,6 +55,38 @@ const useNewVideo = create<NewVideoState>((set) => ({
 /** Opens the dialog. Bound to ⌘N and to the sidebar's create menu. */
 export function newVideo(channel?: string): void {
   useNewVideo.getState().show(channel)
+}
+
+// The server's caps, from the CreateVideoInput schema in
+// delivery/http/videos.go. Mirrored rather than discovered: they are part of
+// the request contract, and a form that finds out its own limits by being
+// rejected is the thing this mirrors them to avoid. Both count the trimmed
+// value, because trimmed is what gets sent.
+const TITLE_MAX = 200
+const TOPIC_MAX = 5000
+
+/**
+ * The character count, shown only once it is worth knowing.
+ *
+ * A counter under an empty field is noise on every field nobody was ever going
+ * to overrun. This one appears in the last fifth — where "will this fit" starts
+ * being a real question — and turns red once the answer is no.
+ *
+ * Neither field is given a `maxLength`. The browser enforces that by silently
+ * discarding the overflow, including on paste, and a topic is pasted prose: the
+ * operator would lose the tail of a brief without being told. Showing the
+ * overrun and refusing to submit keeps the text where they can edit it.
+ */
+function counterFor(length: number, max: number): ReactNode {
+  if (length < max * 0.8) return undefined
+  return (
+    <span
+      className="shrink-0 tabular-nums"
+      style={length > max ? { color: 'var(--failed)' } : undefined}
+    >
+      {count(length)}/{count(max)}
+    </span>
+  )
 }
 
 export function NewVideoDialog() {
@@ -125,7 +157,12 @@ export function NewVideoDialog() {
   // one per slide, and one icon per thumbnail tile.
   const tasks = 7 + 4 * chapters + chapters * slides + cells
 
-  const ready = title.trim().length > 0 && !submit.isPending
+  // Trimmed, because trimmed is what the mutation sends.
+  const titleLength = title.trim().length
+  const topicLength = topic.trim().length
+  const overrun = titleLength > TITLE_MAX || topicLength > TOPIC_MAX
+
+  const ready = titleLength > 0 && !overrun && !submit.isPending
 
   return (
     <Dialog
@@ -158,7 +195,7 @@ export function NewVideoDialog() {
             )}
           </Field>
 
-          <Field label="Title">
+          <Field label="Title" hint={counterFor(titleLength, TITLE_MAX)}>
             {(id) => (
               <Input
                 id={id}
@@ -170,7 +207,15 @@ export function NewVideoDialog() {
             )}
           </Field>
 
-          <Field label="Topic" hint="Steers the blueprint, the scripts and the slide prompts.">
+          <Field
+            label="Topic"
+            hint={
+              <span className="flex justify-between gap-3">
+                <span>Steers the blueprint, the scripts and the slide prompts.</span>
+                {counterFor(topicLength, TOPIC_MAX)}
+              </span>
+            }
+          >
             {(id) => (
               <Textarea
                 id={id}

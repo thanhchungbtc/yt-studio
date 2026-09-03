@@ -46,7 +46,10 @@ type CreateVideoInput struct {
 	Body           struct {
 		Channel          string `json:"channel" required:"true" doc:"Channel slug or id"`
 		Title            string `json:"title" required:"true" minLength:"1" maxLength:"200"`
-		Topic            string `json:"topic,omitempty" maxLength:"500"`
+		// A brief, not a caption: the topic is what steers the blueprint, and it
+		// is re-sent as the summary on every chapter's script call, so the cap is
+		// generous but not absent — prompt size scales with the chapter count.
+		Topic string `json:"topic,omitempty" maxLength:"5000"`
 		ChapterCount     int    `json:"chapterCount,omitempty" minimum:"0" maximum:"500" doc:"Defaults to the video.default_chapter_count setting"`
 		SlidesPerChapter int    `json:"slidesPerChapter,omitempty" minimum:"0" maximum:"20" doc:"Defaults to the video.default_slides_per_chapter setting"`
 		//nolint:lll // one field, one line
