@@ -101,10 +101,31 @@ type Metadata struct {
 	Description string
 	Tags        []string
 	// ThumbnailText is the all-caps hook overlaid on the thumbnail, written with
-	// the listing because it competes for the same glance the title does.
+	// the listing because it competes for the same glance the title does. It may
+	// carry EmphasisMark spans; StripEmphasis is how to read it as words.
 	ThumbnailText string
 	CategoryID    string
 	Privacy       string
+}
+
+// EmphasisMark opens and closes a span of ThumbnailText drawn in the
+// thumbnail's minor colour.
+//
+// The format lives here rather than in the renderer that reads it because it is
+// a property of what the field holds: the operator's colouring rides inside the
+// headline string, which is what carries it to an unattended render with no
+// second field and no second source of truth.
+//
+// It reads backwards against every other use of an asterisk, where it means
+// more important rather than less. That is a cost taken deliberately -- the
+// builder's word chips are how this is meant to be set, so the character is a
+// storage format first and a thing anyone types second.
+const EmphasisMark = '*'
+
+// StripEmphasis removes the marks, for anywhere the headline is read as words
+// rather than drawn as a thumbnail: an icon prompt, a listing, a title.
+func StripEmphasis(headline string) string {
+	return strings.ReplaceAll(headline, string(EmphasisMark), "")
 }
 
 // ThumbnailCell is one tile of the grid under the headline. Prompt is the

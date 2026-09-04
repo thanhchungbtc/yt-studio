@@ -3,6 +3,7 @@ package thumbnail
 import (
 	"image"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"unicode"
@@ -11,6 +12,8 @@ import (
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/font/sfnt"
 	"golang.org/x/image/math/fixed"
+
+	"github.com/tbui/yt-studio/domain/entity"
 )
 
 // fontCache parses a TTF once: fitting a headline measures it at a dozen sizes,
@@ -125,6 +128,55 @@ func drawString(dst *image.RGBA, face font.Face, s string, x, baseline int, trac
 	}
 }
 
+// emphasis resolves which of a headline's words are drawn in the minor colour,
+// returning the words as they will be drawn -- upper-cased, marks removed.
+//
+// Two sources, unioned: the spans the operator marked, and the words matching
+// the settings row. Union rather than precedence, so a mark adds to the list
+// instead of replacing it. The cost of that choice is that a mark can never
+// un-dim a word the list already claimed, which is the argument for keeping the
+// list short and letting the marks do the work.
+func emphasis(headline string, minor map[string]struct{}) (words []string, dim []bool) {
+	var word []rune
+	var marked, inSpan bool
+
+	flush := func() {
+		if len(word) == 0 {
+			return
+		}
+		_, listed := minor[headlineKey(string(word))]
+		words = append(words, string(word))
+		dim = append(dim, marked || listed)
+		word, marked = word[:0], false
+	}
+
+	for _, r := range strings.ToUpper(headline) {
+		switch {
+		case r == entity.EmphasisMark:
+			// Toggled rather than paired: an unclosed span running to the end of
+			// the line is what somebody half way through typing one meant, and it
+			// beats drawing a stray asterisk at eighty point.
+			inSpan = !inSpan
+		case unicode.IsSpace(r):
+			flush()
+		default:
+			word = append(word, r)
+			marked = marked || inSpan
+		}
+	}
+	flush()
+
+	// A headline greyed end to end is not emphasis, only a dimmer headline. From
+	// the word list that is a mistake and is undone; from a mark it is a decision
+	// and is kept, because somebody typed it.
+	if !strings.ContainsRune(headline, entity.EmphasisMark) && !slices.Contains(dim, false) {
+		for i := range dim {
+			dim[i] = false
+		}
+	}
+	return words, dim
+}
+
 // minorWords parses the settings row into the set drawHeadline looks a word up
 // in. Commas or whitespace, because an operator typing a list of words will use
 // one or the other and refusing either would be a rule to remember. Lowercased
@@ -161,7 +213,12 @@ func headlineKey(word string) string {
 // headlineLayout is a fitted headline: the lines, the size they fit at, and
 // where they sit.
 type headlineLayout struct {
-	lines    []string
+	lines []string
+	// dim holds one flag per word of each line, in the same order, saying
+	// whether that word is drawn in the minor colour. Per word rather than a set
+	// of words, because a mark makes emphasis positional: the same THE is dim in
+	// one place and not in another, which no lookup by spelling can express.
+	dim      [][]bool
 	size     int
 	face     font.Face
 	tracking fixed.Int26_6
@@ -183,8 +240,8 @@ func (h headlineLayout) height() int {
 // fuller grid shrinks the headline rather than pushing tiles off the frame. One
 // that fits neither is drawn at the floor and allowed to overflow — a clipped
 // word beats a video that cannot produce a thumbnail.
-func layOutHeadline(parsed *sfnt.Font, headline string, maxHeight int) headlineLayout {
-	words := strings.Fields(strings.ToUpper(headline))
+func layOutHeadline(parsed *sfnt.Font, headline string, minor map[string]struct{}, maxHeight int) headlineLayout {
+	words, dim := emphasis(headline, minor)
 	if len(words) == 0 {
 		return headlineLayout{}
 	}
@@ -200,13 +257,13 @@ func layOutHeadline(parsed *sfnt.Font, headline string, maxHeight int) headlineL
 				continue
 			}
 			tracking := trackingFor(size)
-			wrapped := wrap(face, words, maxWidth, tracking)
+			wrapped, counts := wrap(face, words, maxWidth, tracking)
 			if len(wrapped) > lines {
 				continue
 			}
 			candidate := headlineLayout{
-				lines: wrapped, size: size, face: face, tracking: tracking,
-				top: headlineTopMargin, lineH: size + headlineLineGap,
+				lines: wrapped, dim: sliceDim(dim, counts), size: size, face: face,
+				tracking: tracking, top: headlineTopMargin, lineH: size + headlineLineGap,
 			}
 			if candidate.height() <= maxHeight {
 				return candidate
@@ -219,36 +276,52 @@ func layOutHeadline(parsed *sfnt.Font, headline string, maxHeight int) headlineL
 		return headlineLayout{}
 	}
 	tracking := trackingFor(headlineFontMin)
-	lines := wrap(face, words, maxWidth, tracking)
+	lines, counts := wrap(face, words, maxWidth, tracking)
+	flags := sliceDim(dim, counts)
 	if len(lines) > headlineMaxLines {
-		lines = lines[:headlineMaxLines]
+		lines, flags = lines[:headlineMaxLines], flags[:headlineMaxLines]
 	}
 	return headlineLayout{
-		lines: lines, size: headlineFontMin, face: face, tracking: tracking,
-		top: headlineTopMargin, lineH: headlineFontMin + headlineLineGap,
+		lines: lines, dim: flags, size: headlineFontMin, face: face,
+		tracking: tracking, top: headlineTopMargin, lineH: headlineFontMin + headlineLineGap,
 	}
 }
 
-// wrap greedily breaks words into lines that fit.
-func wrap(face font.Face, words []string, maxWidth, tracking fixed.Int26_6) []string {
-	lines := make([]string, 0, headlineMaxLines+1)
-	current := ""
+// wrap greedily breaks words into lines that fit, reporting how many words each
+// line took so the emphasis flags can be cut the same way.
+func wrap(face font.Face, words []string, maxWidth, tracking fixed.Int26_6) (lines []string, counts []int) {
+	lines = make([]string, 0, headlineMaxLines+1)
+	counts = make([]int, 0, headlineMaxLines+1)
+	current, held := "", 0
 	for _, w := range words {
 		candidate := w
 		if current != "" {
 			candidate = current + " " + w
 		}
 		if measure(face, candidate, tracking) <= maxWidth || current == "" {
-			current = candidate
+			current, held = candidate, held+1
 			continue
 		}
-		lines = append(lines, current)
-		current = w
+		lines, counts = append(lines, current), append(counts, held)
+		current, held = w, 1
 	}
 	if current != "" {
-		lines = append(lines, current)
+		lines, counts = append(lines, current), append(counts, held)
 	}
-	return lines
+	return lines, counts
+}
+
+// sliceDim cuts the headline's per-word flags into the lines wrap made of them.
+func sliceDim(dim []bool, counts []int) [][]bool {
+	out := make([][]bool, 0, len(counts))
+	for _, n := range counts {
+		if n > len(dim) {
+			n = len(dim)
+		}
+		out = append(out, dim[:n])
+		dim = dim[n:]
+	}
+	return out
 }
 
 // fitCaptions picks one size for every caption in the grid: the largest at

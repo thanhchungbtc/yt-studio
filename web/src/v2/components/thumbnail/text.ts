@@ -168,27 +168,73 @@ export function headlineKey(word: string): string {
   return word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '').toLowerCase()
 }
 
+/** `emphasisMark`: Go's `entity.EmphasisMark`. */
+const emphasisMark = '*'
+
+/** `stripEmphasis`: Go's `entity.StripEmphasis`. */
+export function stripEmphasis(headline: string): string {
+  return headline.split(emphasisMark).join('')
+}
+
 /**
- * `hasMajor`: whether any word of the headline survives the minor set.
+ * `emphasis`: Go's, which of a headline's words are drawn in the minor colour.
  *
- * A headline whose every word is minor would be greyed end to end, which is not
- * emphasis, only a dimmer headline. The test is over the whole hook rather than
- * per line, so "THE ILLUSION / OF THE PRESENT" does not lose its second line's
- * contrast to a first line that happens to be all function words.
+ * Returns the words as they will be drawn -- upper-cased, marks removed -- and
+ * a flag each. Two sources, unioned: the spans the operator marked, and the
+ * words matching the settings row. Union rather than precedence, so a mark adds
+ * to the list instead of replacing it.
  */
-export function hasMajor(lines: string[], minor: Set<string>): boolean {
-  if (minor.size === 0) return true
-  return lines.some((line) =>
-    line
-      .split(/\s+/)
-      .filter(Boolean)
-      .some((word) => !minor.has(headlineKey(word))),
-  )
+export function emphasis(
+  headline: string,
+  minor: Set<string>,
+): { words: string[]; dim: boolean[] } {
+  const words: string[] = []
+  const dim: boolean[] = []
+  let word = ''
+  let marked = false
+  let inSpan = false
+
+  const flush = () => {
+    if (word === '') return
+    words.push(word)
+    dim.push(marked || minor.has(headlineKey(word)))
+    word = ''
+    marked = false
+  }
+
+  for (const rune of headline.toUpperCase()) {
+    if (rune === emphasisMark) {
+      // Toggled rather than paired: an unclosed span running to the end of the
+      // line is what somebody half way through typing one meant.
+      inSpan = !inSpan
+    } else if (/\s/.test(rune)) {
+      flush()
+    } else {
+      word += rune
+      marked = marked || inSpan
+    }
+  }
+  flush()
+
+  // A headline greyed end to end is not emphasis, only a dimmer headline. From
+  // the word list that is a mistake and is undone; from a mark it is a decision
+  // and is kept.
+  if (!headline.includes(emphasisMark) && dim.length > 0 && dim.every(Boolean)) {
+    dim.fill(false)
+  }
+  return { words, dim }
 }
 
 /** A fitted headline: the lines, the size they fit at, and where they sit. */
 export interface Headline {
   lines: string[]
+  /**
+   * One flag per word of each line, in order, saying whether that word is drawn
+   * in the minor colour. Per word rather than a set of words, because a mark
+   * makes emphasis positional: the same THE is dim in one place and not in
+   * another, which no lookup by spelling can express.
+   */
+  dim: boolean[][]
   size: number
   tracking: number
   top: number
@@ -214,10 +260,11 @@ export function headlineHeight(h: Headline | null): number {
 export function layOutHeadline(
   rule: Ruler,
   headline: string,
+  minor: Set<string>,
   maxHeight: number,
   style: Style,
 ): Headline | null {
-  const words = headline.toUpperCase().split(/\s+/).filter(Boolean)
+  const { words, dim } = emphasis(headline, minor)
   if (words.length === 0) return null
   const maxWidth = frameWidth - 2 * style.headlineSideMargin
 
@@ -229,9 +276,10 @@ export function layOutHeadline(
     ) {
       const tracking = trackingFor(size, style)
       const wrapped = wrap(rule, words, maxWidth, size, tracking)
-      if (wrapped.length > lines) continue
+      if (wrapped.lines.length > lines) continue
       const candidate: Headline = {
-        lines: wrapped,
+        lines: wrapped.lines,
+        dim: sliceDim(dim, wrapped.counts),
         size,
         tracking,
         top: style.headlineTopMargin,
@@ -242,9 +290,10 @@ export function layOutHeadline(
   }
 
   const tracking = trackingFor(style.headlineFontMin, style)
-  const lines = wrap(rule, words, maxWidth, style.headlineFontMin, tracking)
+  const floor = wrap(rule, words, maxWidth, style.headlineFontMin, tracking)
   return {
-    lines: lines.slice(0, style.headlineMaxLines),
+    lines: floor.lines.slice(0, style.headlineMaxLines),
+    dim: sliceDim(dim, floor.counts).slice(0, style.headlineMaxLines),
     size: style.headlineFontMin,
     tracking,
     top: style.headlineTopMargin,
@@ -252,27 +301,49 @@ export function layOutHeadline(
   }
 }
 
-/** `wrap`: greedily break words into lines that fit. */
+/**
+ * `wrap`: greedily break words into lines that fit, reporting how many words
+ * each line took so the emphasis flags can be cut the same way.
+ */
 function wrap(
   rule: Ruler,
   words: string[],
   maxWidth: number,
   size: number,
   tracking: number,
-): string[] {
+): { lines: string[]; counts: number[] } {
   const lines: string[] = []
+  const counts: number[] = []
   let current = ''
+  let held = 0
   for (const word of words) {
     const candidate = current === '' ? word : `${current} ${word}`
     if (rule.width(candidate, size, tracking) <= maxWidth || current === '') {
       current = candidate
+      held += 1
       continue
     }
     lines.push(current)
+    counts.push(held)
     current = word
+    held = 1
   }
-  if (current !== '') lines.push(current)
-  return lines
+  if (current !== '') {
+    lines.push(current)
+    counts.push(held)
+  }
+  return { lines, counts }
+}
+
+/** `sliceDim`: Go's, the per-word flags cut into the lines wrap made of them. */
+function sliceDim(dim: boolean[], counts: number[]): boolean[][] {
+  const out: boolean[][] = []
+  let at = 0
+  for (const n of counts) {
+    out.push(dim.slice(at, at + n))
+    at += n
+  }
+  return out
 }
 
 /**

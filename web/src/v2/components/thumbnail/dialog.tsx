@@ -8,6 +8,7 @@ import { Caption } from '../ui/caption'
 import { Dialog } from '../ui/dialog'
 import { Input } from '../ui/field'
 import { compose, gridShape, loadFont, loadImage, type Cell, type Report } from './compose'
+import { emphasis, headlineKey, minorWords } from './text'
 import { StyleControls } from './controls'
 import {
   backgroundURL,
@@ -17,6 +18,102 @@ import {
   isDefault,
   type Style,
 } from './style'
+
+/**
+ * The headline's words, each in the colour it will be drawn in, click to swap.
+ *
+ * Labelled "Minor" and not "Dim": which of the two colours is the darker one is
+ * a palette decision that has already changed once, and a control that lies
+ * about it the next time is worse than one that names the set instead.
+ *
+ * Because the storage format is an asterisk span and nobody should have to type
+ * one -- it reads backwards against every other use of the character, and a
+ * mis-paired mark is invisible until the picture is wrong. Chips make the
+ * marking a thing you point at, and they are the *resolved* answer: a word the
+ * settings list claims shows dim here too, so what is on screen is what
+ * renders, not half of it.
+ *
+ * Clicking writes marks back into the headline, which is what carries the
+ * choice to an unattended render. That is why the field above shows them: one
+ * string, one source of truth, and hand-editable by anyone who prefers it.
+ */
+function Emphasis({
+  headline,
+  minor,
+  colors,
+  onChange,
+}: {
+  headline: string
+  minor: string
+  colors: Pick<Style, 'headlineColor' | 'headlineMinorColor'>
+  onChange: (headline: string) => void
+}) {
+  const listed = useMemo(() => minorWords(minor), [minor])
+  const { words, dim } = useMemo(() => emphasis(headline, listed), [headline, listed])
+  if (words.length === 0) return null
+
+  // Rebuilt from the flags rather than edited in place: the marks the operator
+  // typed may be mis-paired, mid-word or redundant, and normalising to one span
+  // per run of dim words is what keeps a dozen clicks from growing a dozen
+  // asterisks.
+  const write = (next: boolean[]) => {
+    const out: string[] = []
+    for (let i = 0; i < words.length; i += 1) {
+      const opens = next[i] && !next[i - 1]
+      const closes = next[i] && !next[i + 1]
+      out.push(`${opens ? '*' : ''}${words[i]}${closes ? '*' : ''}`)
+    }
+    onChange(out.join(' '))
+  }
+
+  return (
+    <div className="hairline-b flex shrink-0 items-center gap-3 px-6 py-2">
+      <Caption className="w-[56px] shrink-0">Minor</Caption>
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+        {words.map((word, i) => (
+          <button
+            key={`${word}-${i}`}
+            type="button"
+            onClick={() => write(dim.map((d, at) => (at === i ? !d : d)))}
+            className="rounded-[4px] px-1.5 py-0.5 text-[11px] leading-[1.4] transition-opacity hover:opacity-70"
+            style={{
+              color: dim[i] ? colors.headlineMinorColor : colors.headlineColor,
+              boxShadow: '0 0 0 0.5px var(--separator-strong)',
+            }}
+            // A word the settings list claims cannot be un-dimmed here -- the
+            // two sources are unioned -- so say so rather than let the click
+            // look broken.
+            title={
+              dim[i] && listed.has(headlineKey(word))
+                ? `"${word}" is in the minor-words setting, so it stays dim`
+                : undefined
+            }
+          >
+            {word}
+          </button>
+        ))}
+      </div>
+      <Button
+        onClick={() => write(words.map((word) => defaultMinor.has(headlineKey(word))))}
+        className="shrink-0"
+      >
+        Auto
+      </Button>
+      <Button onClick={() => write(words.map(() => false))} className="shrink-0">
+        None
+      </Button>
+    </div>
+  )
+}
+
+/**
+ * The words Auto marks: English function words, the ones a hook is never about.
+ * Go's `entity.DefaultHeadlineMinorWords`, which is a suggestion there too --
+ * the settings row seeds empty, and this is how it is offered instead.
+ */
+const defaultMinor = minorWords(
+  'a,an,and,are,as,at,be,but,by,for,from,in,is,of,on,or,so,than,that,the,this,to,was,were,with',
+)
 
 /**
  * The thumbnail builder.
@@ -263,6 +360,13 @@ export function ThumbnailDialog({
               {report && report.headlineSize > 0 ? fittedAs(report) : ''}
             </span>
           </div>
+
+          <Emphasis
+            headline={headline}
+            minor={style.headlineMinorWords}
+            colors={style}
+            onChange={setHeadline}
+          />
 
           {/* The picture takes every pixel the fields do not, and is contained
               rather than cropped: `width/height: auto` against both maxima is

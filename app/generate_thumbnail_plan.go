@@ -56,7 +56,9 @@ func GenerateThumbnailPlan(
 			Summary:  video.Topic,
 			Chapters: outline,
 		},
-		Headline: video.Metadata.ThumbnailText,
+		// Stripped: the marks say how the headline is coloured, which is nothing
+		// the icon planner should be reading as words.
+		Headline: entity.StripEmphasis(video.Metadata.ThumbnailText),
 		Cells:    video.ThumbnailCells,
 	})
 	if err != nil {

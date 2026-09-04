@@ -132,23 +132,22 @@ var (
 	headlineColor = image.NewUniform(color.RGBA{R: 255, G: 38, B: 0, A: 255})
 	captionColor  = image.NewUniform(color.RGBA{R: 226, G: 226, B: 222, A: 255})
 
-	// headlineMinorColor draws the headline's function words, so the words that
-	// carry the hook are the ones read first.
+	// headlineMinorColor draws the words the emphasis marks and the minor-words
+	// row claim; headlineColor draws the rest.
 	//
-	// A dimmer neutral rather than a second hue, and that is the whole design:
-	// the eye's chromatic channel has far less spatial resolution than its
-	// luminance one, so a hue-only demotion collapses in the feed at 320px where
-	// a luminance one holds. It is also the only demotion that stays inside the
-	// chalk metaphor: lighter pressure on the same stick, not a second stick.
+	// A second hue rather than a dimmer one, which reverses what this used to be
+	// and is worth stating plainly: yellow carries about four times the luminance
+	// of the red beside it, near 18:1 on this backdrop against the headline's 5:1.
+	// So the separation here is chroma and not brightness, and the brighter of the
+	// two is the one being demoted.
 	//
-	// The number is tied to headlineColor and cannot be read on its own. It sits
-	// near 2.7:1 against that colour's 5:1 — a gap of about 1.9x, which is what
-	// the demotion actually is. It was 154 grey at 7:1 while the headline was
-	// white at 19:1, the same gap; left there against a red headline it would be
-	// *brighter* than the words it demotes, inverting the emphasis rather than
-	// weakening it. Any move of headlineColor toward a darker hue has to bring
-	// this one down with it.
-	headlineMinorColor = image.NewUniform(color.RGBA{R: 88, G: 88, B: 84, A: 255})
+	// That is a choice with a cost. The eye's chromatic channel has far less
+	// spatial resolution than its luminance one, so at browse size a hue-only
+	// split holds as two colours but not as a hierarchy — whichever is brighter
+	// draws the eye first, and that is now the minor half. Swapping the two
+	// values puts the loudest colour on the hook again if that reads wrong in the
+	// feed.
+	headlineMinorColor = image.NewUniform(color.RGBA{R: 255, G: 251, B: 0, A: 255})
 
 	// tileFillColor is the plate behind each icon. tileBorderColor is a hair off
 	// pure white, drawn at four fifths: even off-white and fully opaque it

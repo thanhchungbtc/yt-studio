@@ -2,9 +2,7 @@ import { captionRowHeight, fontURL, frameHeight, frameWidth, rgba, type Style } 
 import {
   captionText,
   fitCaptions,
-  hasMajor,
   headlineHeight,
-  headlineKey,
   layOutHeadline,
   minorWords,
   ruler,
@@ -391,7 +389,13 @@ export function compose(canvas: HTMLCanvasElement, input: Composition): Report |
   // The grid takes the width it needs and the headline is fitted into what is
   // left, which is why the tiles run edge to edge.
   const grid = layOutGrid(input.cells.length, style)
-  const headline = layOutHeadline(rule, input.headline, headlineBudget(grid), style)
+  const headline = layOutHeadline(
+    rule,
+    input.headline,
+    minorWords(style.headlineMinorWords),
+    headlineBudget(grid),
+    style,
+  )
   place(grid, style.headlineTopMargin + headlineHeight(headline))
 
   // Every plate before any text, because the plates are written through
@@ -427,9 +431,6 @@ function drawHeadline(
   style: Style,
 ): void {
   if (!h || h.lines.length === 0) return
-  const parsed = minorWords(style.headlineMinorWords)
-  // Nothing is demoted unless something is left to promote.
-  const minor = hasMajor(h.lines, parsed) ? parsed : new Set<string>()
   ctx.textBaseline = 'alphabetic'
   for (let i = 0; i < h.lines.length; i += 1) {
     const line = h.lines[i]!
@@ -438,8 +439,128 @@ function drawHeadline(
     // The baseline sits above the bottom of the line box, which is what keeps
     // descenders inside the block rather than in the gap below it.
     const baseline = h.top + i * h.lineHeight + h.size
-    drawTracked(ctx, rule, line, x, baseline, h.size, h.tracking, headlineInk(line, minor, style))
+    if (style.headlineWeight > 0) {
+      drawBold(ctx, rule, line, x, baseline, h, h.dim[i]!, style)
+      continue
+    }
+    drawTracked(
+      ctx,
+      rule,
+      line,
+      x,
+      baseline,
+      h.size,
+      h.tracking,
+      headlineInk(line, h.dim[i]!, style),
+    )
   }
+}
+
+/**
+ * `drawBold`: Go's `drawHeadlineBold`, one line of it.
+ *
+ * The typeface has one weight and there is no heavier file to load, so the
+ * stroke is grown after rasterising: the line goes into an offscreen mask, the
+ * mask is dilated, and the colour is composited through it. Not `strokeText`,
+ * which would be one line and would be wrong -- that is real path stroking, Go
+ * has no equivalent, and the preview would stop being what publishes. A max
+ * filter over an alpha channel is arithmetic both halves run to the same
+ * answer, which is the same reason `paintPlate` is a pixel loop.
+ *
+ * One mask per colour, because dilating a single one would grow the major and
+ * minor words into each other and lose which was which.
+ */
+function drawBold(
+  ctx: CanvasRenderingContext2D,
+  rule: Ruler,
+  line: string,
+  x: number,
+  baseline: number,
+  h: Headline,
+  dim: boolean[],
+  style: Style,
+): void {
+  const pad = Math.ceil(style.headlineWeight) + 2
+  const top = baseline - rule.ascent(h.size) - pad
+  const height = h.size + Math.floor(h.size / 4) + 2 * pad
+  const band = document.createElement('canvas')
+  band.width = frameWidth
+  band.height = height
+  const off = band.getContext('2d')
+  if (!off) return
+
+  const ink = headlineInk(line, dim, style)
+  for (const color of [style.headlineColor, style.headlineMinorColor]) {
+    off.clearRect(0, 0, frameWidth, height)
+    off.textBaseline = 'alphabetic'
+    off.fillStyle = '#ffffff'
+    rule.apply(off, h.size)
+    const glyphs = rule.layout(line, h.size, h.tracking).glyphs
+    let any = false
+    for (let i = 0; i < glyphs.length; i += 1) {
+      if (ink(i) !== color) continue
+      any = true
+      off.fillText(glyphs[i]!.glyph, x + glyphs[i]!.x, baseline - top)
+    }
+    // Nothing of this colour on this line -- a headline with no minor words at
+    // all, most often. Dilating an empty mask is only work.
+    if (!any) continue
+    off.putImageData(
+      dilate(off.getImageData(0, 0, frameWidth, height), style.headlineWeight, color),
+      0,
+      0,
+    )
+    ctx.drawImage(band, 0, top)
+  }
+}
+
+/**
+ * `dilate`: Go's, a mask's ink grown by `weight` pixels and tinted.
+ *
+ * Each pixel takes the strongest alpha within that radius of it. The kernel is
+ * round, because a square one thickens the diagonals by half as much again as
+ * the uprights and the letters come out lumpy; its rim is feathered, a tap at
+ * the edge of the radius contributing only the fraction of it that falls
+ * inside, which is what makes weight a dial rather than a set of steps.
+ *
+ * Returns the colour baked in, since the mask is only ever wanted tinted and a
+ * second pass over the same pixels to do it would be waste.
+ */
+function dilate(mask: ImageData, weight: number, color: string): ImageData {
+  const { r, g, b } = rgba(color, 255)
+  const w = mask.width
+  const rows = mask.height
+
+  // The kernel is the same at every pixel, so it is built once, and the taps
+  // that contribute nothing are dropped here instead of tested per pixel.
+  const reach = Math.ceil(weight)
+  const taps: { dx: number; dy: number; part: number }[] = []
+  for (let dy = -reach; dy <= reach; dy += 1) {
+    for (let dx = -reach; dx <= reach; dx += 1) {
+      const part = Math.min(Math.max(weight - Math.hypot(dx, dy) + 0.5, 0), 1)
+      if (part > 0) taps.push({ dx, dy, part })
+    }
+  }
+
+  const out = new ImageData(w, rows)
+  for (let y = 0; y < rows; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      let strongest = 0
+      for (const t of taps) {
+        const px = x + t.dx
+        const py = y + t.dy
+        if (px < 0 || py < 0 || px >= w || py >= rows) continue
+        const a = (mask.data[(py * w + px) * 4 + 3] ?? 0) * t.part
+        if (a > strongest) strongest = a
+      }
+      const o = (y * w + x) * 4
+      out.data[o] = r
+      out.data[o + 1] = g
+      out.data[o + 2] = b
+      out.data[o + 3] = strongest
+    }
+  }
+  return out
 }
 
 /**
@@ -449,18 +570,16 @@ function drawHeadline(
  * for its own glyph loop, and both land on the same word. A table rather than a
  * lookup per glyph, since the line is walked once here anyway; lines arrive
  * from `wrap` already single-space joined, so a run of non-spaces is exactly
- * one word.
+ * one word, and the nth run carries the nth flag.
  */
-function headlineInk(line: string, minor: Set<string>, style: Style): Ink {
-  if (minor.size === 0) return solid(style.headlineColor)
+function headlineInk(line: string, dim: boolean[], style: Style): Ink {
+  if (!dim.some(Boolean)) return solid(style.headlineColor)
   const runes = [...line]
   const table: string[] = new Array<string>(runes.length)
-  for (let start = 0; start < runes.length;) {
+  for (let start = 0, word = 0; start < runes.length; word += 1) {
     let end = start
     while (end < runes.length && runes[end] !== ' ') end += 1
-    const color = minor.has(headlineKey(runes.slice(start, end).join('')))
-      ? style.headlineMinorColor
-      : style.headlineColor
+    const color = dim[word] ? style.headlineMinorColor : style.headlineColor
     // The separating space is inked with the word it follows. Which colour a
     // blank glyph takes cannot show, but leaving the entry empty could.
     for (let i = start; i < end + 1 && i < runes.length; i += 1) table[i] = color

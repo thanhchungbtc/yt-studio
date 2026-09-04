@@ -44,6 +44,17 @@ export const frameHeight = 720
 export const captionFontStep = 1
 export const headlineFontStep = 4
 
+/**
+ * The ceiling on `headlineWeight`, from `entity.MaxHeadlineWeight`.
+ *
+ * Not on `Style` for the same reason as the steps: it bounds a control rather
+ * than describing the picture. Not arbitrary either -- emboldening by dilation
+ * grows a stroke outward without moving its neighbour, so past about a pixel
+ * and a half the gaps inside a textured face close up and it stops being that
+ * face. This is where Cabin Sketch loses its hatching.
+ */
+export const maxHeadlineWeight = 1.5
+
 /* ------------------------------------------------------------------ style */
 
 export interface Style {
@@ -111,6 +122,17 @@ export interface Style {
   headlineTracking: number
   headlineColor: string
   /**
+   * Pixels of extra stroke on the headline, for a typeface that has no heavier
+   * weight of its own. 0 draws it as designed.
+   *
+   * Grown after rasterising rather than before -- the line goes into a mask,
+   * the mask is dilated, the colour is composited through it. Go has no
+   * stroker, so this is the one emboldening both halves can compute to the same
+   * answer. Much past 1 and the counters of a textured face fill in;
+   * `entity.MaxHeadlineWeight` is where Cabin Sketch loses its hatching.
+   */
+  headlineWeight: number
+  /**
    * The headline's function words, drawn in `headlineMinorColor` rather than
    * at full white so the words that carry the hook read first.
    *
@@ -121,14 +143,14 @@ export interface Style {
    */
   headlineMinorWords: string
   /**
-   * A dimmer neutral rather than a second hue, which is the whole design: the
-   * gap the eye resolves at browse size is a luminance gap, and a hue-only
-   * demotion collapses at 320px.
+   * The words the emphasis marks and the minor-words row claim; `headlineColor`
+   * draws the rest.
    *
-   * Tied to `headlineColor` and not readable alone — dragging that swatch to a
-   * darker hue without bringing this one down leaves the demoted words brighter
-   * than the ones they are demoted against. See `headlineMinorColor` in
-   * style.go for the numbers.
+   * A second hue rather than a dimmer one, which is worth stating plainly:
+   * yellow carries about four times the luminance of the red beside it, so the
+   * separation is chroma and not brightness, and the brighter of the two is the
+   * one being demoted. See `headlineMinorColor` in style.go for what that costs
+   * at browse size.
    */
   headlineMinorColor: string
 
@@ -173,11 +195,12 @@ export const defaultStyle: Style = {
   headlineMaxLines: 2,
   headlineTracking: 22,
   headlineColor: '#ff2600',
-  // The seeded value of `thumbnail.headline.minor_words`, from
-  // `entity.DefaultHeadlineMinorWords`.
-  headlineMinorWords:
-    'a,an,and,are,as,at,be,but,by,for,from,in,is,of,on,or,so,than,that,the,this,to,was,were,with',
-  headlineMinorColor: '#585854',
+  headlineWeight: 0.4,
+  // The seeded value of `thumbnail.headline.minor_words`, which is empty:
+  // marking a span in the headline itself is the per-video way, and this list
+  // is unioned with it, so a word here can never be un-marked there.
+  headlineMinorWords: '',
+  headlineMinorColor: '#fffb00',
 
   backgroundBrightness: 220,
   iconTransparentBelow: 48,

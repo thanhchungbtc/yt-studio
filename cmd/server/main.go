@@ -377,6 +377,7 @@ func (c *serveCmd) Run() error {
 		return thumbnail.Options{
 			Font:       settings.String(entity.SettingThumbnailFont),
 			Rows:       settings.Int(entity.SettingThumbnailGridRows),
+			Weight:     settings.Float(entity.SettingThumbnailHeadlineWeight),
 			MinorWords: settings.String(entity.SettingThumbnailHeadlineMinorWords),
 		}
 	}, log)

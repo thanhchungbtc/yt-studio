@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 
 import { Caption } from '../ui/caption'
 import { Select } from '../ui/field'
-import type { Style } from './style'
+import { maxHeadlineWeight, type Style } from './style'
 
 /**
  * The tunables, as a rail beside the picture.
@@ -194,6 +194,18 @@ export function StyleControls({
           min={16}
           max={160}
           onChange={set('headlineFontMin')}
+        />
+        {/*
+          Tenths, because the useful range is nought to one and a half and a
+          slider in whole pixels would have two stops in it. The Knob prints an
+          integer, so the figure beside it is tenths too -- 12 is 1.2px.
+        */}
+        <Knob
+          label="Weight 1/10px"
+          value={Math.round(style.headlineWeight * 10)}
+          min={0}
+          max={maxHeadlineWeight * 10}
+          onChange={(value) => set('headlineWeight')(value / 10)}
         />
         {/* A divisor, so *lower* is looser -- which is the opposite of what a
             slider labelled "tracking" implies, hence the name and the note. */}

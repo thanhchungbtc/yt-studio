@@ -145,6 +145,11 @@ const (
 	// SettingThumbnailGridRows is how many rows the icons are laid out in;
 	// columns follow from the cell count.
 	SettingThumbnailGridRows SettingKey = "thumbnail.grid.rows"
+	// SettingThumbnailHeadlineWeight thickens the headline's strokes, in pixels,
+	// past what the typeface draws. A row rather than a style constant because it
+	// is the answer to "this face has no heavier weight", which is a fact about
+	// the file named by SettingThumbnailFont and changes when that row does.
+	SettingThumbnailHeadlineWeight SettingKey = "thumbnail.headline.weight"
 	// SettingThumbnailHeadlineMinorWords lists the headline words drawn in the
 	// minor colour rather than at full white. A row rather than a style constant
 	// because it is language, not a look: the list an English hook needs is not
@@ -359,8 +364,21 @@ func GateEnabledKey(g GateKind) SettingKey {
 	}
 }
 
-// DefaultHeadlineMinorWords seeds SettingThumbnailHeadlineMinorWords: English
-// function words, the ones a hook is never about.
+// MaxHeadlineWeight caps SettingThumbnailHeadlineWeight.
+//
+// Not an arbitrary ceiling: emboldening by dilation grows a stroke outward
+// without moving its neighbour, so past about a pixel and a half the gaps
+// inside a textured face close up and it stops being that face. The cap is
+// where the channel's own Cabin Sketch loses its hatching.
+const MaxHeadlineWeight = 1.5
+
+// DefaultHeadlineMinorWords is a suggestion, not a default: English function
+// words, the ones a hook is never about.
+//
+// The settings row seeds empty, because a global list cannot be un-marked on
+// the one video that wants a word bright -- the two sources are unioned. So
+// this is offered from the builder as one click rather than imposed, and an
+// operator who wants it everywhere can paste it into the row.
 //
 // Deliberately short of every word a stoplist would hold. "NOT", "NO", "YOU"
 // and "YOUR" are function words too and they are exactly what a hook turns on
@@ -446,7 +464,9 @@ func DefaultSettings() []Setting {
 		//nolint:lll // one row, one line
 		{Key: SettingThumbnailGridRows, Value: "2", Type: SettingTypeInt, Group: GroupThumbnail, Min: 1, Max: 4, Description: "Rows the thumbnail's icon grid is laid out in; the columns follow from the tile count."},
 		//nolint:lll // one row, one line
-		{Key: SettingThumbnailHeadlineMinorWords, Value: DefaultHeadlineMinorWords, Type: SettingTypeString, Group: GroupThumbnail, Optional: true, Description: "Headline words drawn in the minor colour instead of full white, so the words that carry the hook read first. Separated by commas or spaces; empty draws the whole headline in one colour."},
+		{Key: SettingThumbnailHeadlineWeight, Value: "0.4", Type: SettingTypeFloat, Group: GroupThumbnail, Min: 0, Max: MaxHeadlineWeight, Description: "Pixels of extra stroke on the headline, for a typeface with no heavier weight of its own. 0 draws it as designed; much past 1 fills in the counters of a textured face."},
+		//nolint:lll // one row, one line
+		{Key: SettingThumbnailHeadlineMinorWords, Value: "", Type: SettingTypeString, Group: GroupThumbnail, Optional: true, Description: "Headline words always drawn in the minor colour, whatever video they appear in. Separated by commas or spaces. Empty by default: marking a span in the headline itself is the per-video way, and this list is unioned with it, so a word here can never be un-marked there."},
 
 		//nolint:lll // one row, one line
 		{Key: SettingVideoDefaultChapters, Value: "50", Type: SettingTypeInt, Group: GroupVideo, Min: MinChapterCount, Max: MaxChapterCount, Description: "Chapters created for a new video when unspecified."},

@@ -38,6 +38,9 @@ type Options struct {
 	Font string
 	// Rows is how many rows the grid is laid out in.
 	Rows int
+	// Weight thickens every headline stroke by this many pixels, for a typeface
+	// that has no heavier weight of its own. Zero draws it as designed.
+	Weight float64
 	// MinorWords are the headline words drawn in headlineMinorColor, as the
 	// settings row carries them: separated by commas or by whitespace. Empty
 	// draws the whole headline in one colour.
@@ -92,8 +95,8 @@ func (b *Renderer) Render(ctx context.Context, req provider.ThumbnailRequest) (e
 	// The grid takes the width it needs and the headline is fitted into what is
 	// left, which is why the tiles run edge to edge.
 	cells := layOutGrid(len(req.Cells), opts.Rows)
-	headline := layOutHeadline(font, req.Headline, cells.headlineBudget())
-	drawHeadline(canvas, headline, minorWords(opts.MinorWords))
+	headline := layOutHeadline(font, req.Headline, minorWords(opts.MinorWords), cells.headlineBudget())
+	drawHeadline(canvas, headline, opts.Weight)
 	cells.place(headlineTopMargin + headline.height())
 
 	if err := b.drawGrid(ctx, canvas, font, req.Cells, cells); err != nil {
@@ -127,6 +130,10 @@ func (b *Renderer) options() Options {
 	if opts.Rows < 1 {
 		opts.Rows = defaultGridRows
 	}
+	// Clamped rather than trusted: the row is bounded on the settings screen, but
+	// a weight of forty here is a dilation kernel of six and a half thousand taps
+	// per pixel, and the renderer should not be the thing that discovers it.
+	opts.Weight = min(max(opts.Weight, 0), entity.MaxHeadlineWeight)
 	return opts
 }
 

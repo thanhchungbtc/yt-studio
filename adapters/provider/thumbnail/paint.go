@@ -6,7 +6,7 @@ import (
 	"image/draw"
 	_ "image/jpeg" // the background is a JPEG; decoding it is why this is here
 	"math"
-	"strings"
+	"slices"
 
 	xdraw "golang.org/x/image/draw"
 	"golang.org/x/image/font"
@@ -44,19 +44,18 @@ func scrim(img *image.RGBA) {
 	}
 }
 
-// drawHeadline centres each line of the fitted headline, greying the words in
-// minor so the ones that carry the hook read first.
-func drawHeadline(canvas *image.RGBA, h headlineLayout, minor map[string]struct{}) {
+// drawHeadline centres each line of the fitted headline, greying the words the
+// layout marked minor so the ones that carry the hook read first, and
+// thickening every stroke by weight pixels.
+func drawHeadline(canvas *image.RGBA, h headlineLayout, weight float64) {
 	if len(h.lines) == 0 {
 		return
 	}
-	// A headline whose every word is minor would be greyed end to end, which is
-	// not emphasis, only a dimmer headline. Nothing is demoted unless something
-	// is left to promote — and the test is over the whole hook rather than per
-	// line, because "THE ILLUSION / OF THE PRESENT" must not lose its second
-	// line's contrast to a first line that happens to be all function words.
-	if !hasMajor(h.lines, minor) {
-		minor = nil
+	// Thickening costs a mask, a dilation and a composite per colour, so the
+	// face's own weight is still drawn the direct way.
+	if weight > 0 {
+		drawHeadlineBold(canvas, h, weight)
+		return
 	}
 	for i, line := range h.lines {
 		w := measure(h.face, line, h.tracking).Ceil()
@@ -64,44 +63,36 @@ func drawHeadline(canvas *image.RGBA, h headlineLayout, minor map[string]struct{
 		// The baseline sits above the bottom of the line box, which is what keeps
 		// descenders inside the block rather than in the gap below it.
 		baseline := h.top + i*h.lineH + h.size
-		drawString(canvas, h.face, line, x, baseline, h.tracking, headlineInk(line, minor))
+		drawString(canvas, h.face, line, x, baseline, h.tracking, headlineInk(h, i))
 	}
 }
 
-// hasMajor reports whether any word of the headline survives the minor set.
-func hasMajor(lines []string, minor map[string]struct{}) bool {
-	if len(minor) == 0 {
-		return true
-	}
-	for _, line := range lines {
-		for _, word := range strings.Fields(line) {
-			if _, dim := minor[headlineKey(word)]; !dim {
-				return true
-			}
-		}
-	}
-	return false
+// headlineInk maps each byte of line i to the colour its glyph is drawn in.
+func headlineInk(h headlineLayout, i int) inker {
+	return wordInk(h.lines[i], h.dim[i], headlineColor, headlineMinorColor)
 }
 
-// headlineInk maps each byte of a line to the colour its glyph is drawn in.
+// wordInk maps each byte of a line to one of two images, by whether the word
+// that byte falls in was marked dim.
 //
 // A table rather than a lookup per glyph: the alternative is finding which word
 // an offset falls in on every one of up to thirty glyphs, and the line is
 // walked once here anyway. Lines arrive from wrap already single-space joined,
-// so a run of non-spaces is exactly one word.
-func headlineInk(line string, minor map[string]struct{}) inker {
-	if len(minor) == 0 {
-		return solid(headlineColor)
+// so a run of non-spaces is exactly one word, and the nth run carries the nth
+// flag.
+func wordInk(line string, dim []bool, major, demoted image.Image) inker {
+	if !slices.Contains(dim, true) {
+		return solid(major)
 	}
 	table := make([]image.Image, len(line))
-	for start := 0; start < len(line); {
+	for start, word := 0, 0; start < len(line); word++ {
 		end := start
 		for end < len(line) && line[end] != ' ' {
 			end++
 		}
-		col := image.Image(headlineColor)
-		if _, dim := minor[headlineKey(line[start:end])]; dim {
-			col = headlineMinorColor
+		col := major
+		if word < len(dim) && dim[word] {
+			col = demoted
 		}
 		// The separating space is inked with the word it follows. Which colour a
 		// blank glyph takes cannot show, but leaving the entry nil could.
@@ -112,10 +103,109 @@ func headlineInk(line string, minor map[string]struct{}) inker {
 	}
 	return func(offset int) image.Image {
 		if offset < 0 || offset >= len(table) || table[offset] == nil {
-			return headlineColor
+			return major
 		}
 		return table[offset]
 	}
+}
+
+// The two images a mask is drawn with: ink where the class is wanted, nothing
+// where it is not. Only the alpha channel of the result is read.
+var (
+	maskInk   = image.NewUniform(color.RGBA{R: 255, G: 255, B: 255, A: 255})
+	maskEmpty = image.NewUniform(color.RGBA{})
+)
+
+// drawHeadlineBold draws the headline thickened by weight pixels.
+//
+// The typeface has one weight and there is no heavier file to load, so the
+// stroke is grown after rasterising rather than before: the line goes into a
+// mask, the mask is dilated, and the colour is composited through it. That is
+// what a stroker does to an outline, done on the raster because x/image/font
+// has no stroker and the browser half of this renderer would not match one if
+// it did -- a max filter over an alpha channel is arithmetic both sides can run
+// to the same answer.
+//
+// One mask per colour rather than one for the line: dilating a single mask
+// would grow the major and minor words into each other and lose which was
+// which, and with it the whole point of drawing them differently.
+func drawHeadlineBold(canvas *image.RGBA, h headlineLayout, weight float64) {
+	// Room for the ink to grow into, and for the descenders the line box does
+	// not reserve -- the headline is upper-cased, but a comma still drops.
+	pad := int(math.Ceil(weight)) + 2
+	band := image.Rect(0, h.top-pad, frameWidth, h.top+h.height()+h.size/4+pad).
+		Intersect(canvas.Bounds())
+	if band.Empty() {
+		return
+	}
+
+	for _, demoted := range []bool{false, true} {
+		col, ink, rest := image.Image(headlineColor), maskInk, maskEmpty
+		if demoted {
+			if !slices.ContainsFunc(h.dim, func(line []bool) bool { return slices.Contains(line, true) }) {
+				continue // nothing is demoted, so there is no second mask
+			}
+			col, ink, rest = headlineMinorColor, maskEmpty, maskInk
+		}
+		// Bounded to the band, so the scratch is a strip and not a second frame.
+		scratch := image.NewRGBA(band)
+		for i, line := range h.lines {
+			w := measure(h.face, line, h.tracking).Ceil()
+			x := (frameWidth - w) / 2
+			baseline := h.top + i*h.lineH + h.size
+			drawString(scratch, h.face, line, x, baseline, h.tracking, wordInk(line, h.dim[i], ink, rest))
+		}
+		draw.DrawMask(canvas, band, col, image.Point{}, dilate(scratch, weight), band.Min, draw.Over)
+	}
+}
+
+// dilate grows a mask's ink by weight pixels: each pixel takes the strongest
+// alpha within that radius of it.
+//
+// The kernel is round, because a square one thickens the diagonals by half as
+// much again as the uprights and the letters come out lumpy. Its rim is
+// feathered -- a tap at the edge of the radius contributes only the fraction of
+// it that falls inside -- which is what makes weight a dial rather than a set
+// of steps: at 0.5 a neighbour carries half its ink, so the stroke thickens
+// smoothly instead of jumping a whole pixel when the radius crosses one.
+func dilate(src *image.RGBA, weight float64) *image.Alpha {
+	bounds := src.Bounds()
+	out := image.NewAlpha(bounds)
+
+	// The kernel is the same at every pixel, so it is built once rather than
+	// per-pixel, and the taps that contribute nothing are dropped here instead
+	// of tested a hundred thousand times below.
+	type tap struct {
+		dx, dy int
+		part   float64
+	}
+	reach := int(math.Ceil(weight))
+	taps := make([]tap, 0, (2*reach+1)*(2*reach+1))
+	for dy := -reach; dy <= reach; dy++ {
+		for dx := -reach; dx <= reach; dx++ {
+			part := min(max(weight-math.Hypot(float64(dx), float64(dy))+0.5, 0), 1)
+			if part > 0 {
+				taps = append(taps, tap{dx: dx, dy: dy, part: part})
+			}
+		}
+	}
+
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			var strongest float64
+			for _, t := range taps {
+				px, py := x+t.dx, y+t.dy
+				if px < bounds.Min.X || px >= bounds.Max.X || py < bounds.Min.Y || py >= bounds.Max.Y {
+					continue
+				}
+				if a := float64(src.Pix[src.PixOffset(px, py)+3]) * t.part; a > strongest {
+					strongest = a
+				}
+			}
+			out.SetAlpha(x, y, color.Alpha{A: uint8(strongest)}) //nolint:gosec // 0..255
+		}
+	}
+	return out
 }
 
 // drawTile paints one cell: a rounded plate, its border, and the icon over
