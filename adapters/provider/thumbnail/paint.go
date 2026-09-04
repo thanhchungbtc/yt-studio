@@ -6,6 +6,7 @@ import (
 	"image/draw"
 	_ "image/jpeg" // the background is a JPEG; decoding it is why this is here
 	"math"
+	"strings"
 
 	xdraw "golang.org/x/image/draw"
 	"golang.org/x/image/font"
@@ -43,10 +44,19 @@ func scrim(img *image.RGBA) {
 	}
 }
 
-// drawHeadline centres each line of the fitted headline.
-func drawHeadline(canvas *image.RGBA, h headlineLayout) {
+// drawHeadline centres each line of the fitted headline, greying the words in
+// minor so the ones that carry the hook read first.
+func drawHeadline(canvas *image.RGBA, h headlineLayout, minor map[string]struct{}) {
 	if len(h.lines) == 0 {
 		return
+	}
+	// A headline whose every word is minor would be greyed end to end, which is
+	// not emphasis, only a dimmer headline. Nothing is demoted unless something
+	// is left to promote — and the test is over the whole hook rather than per
+	// line, because "THE ILLUSION / OF THE PRESENT" must not lose its second
+	// line's contrast to a first line that happens to be all function words.
+	if !hasMajor(h.lines, minor) {
+		minor = nil
 	}
 	for i, line := range h.lines {
 		w := measure(h.face, line, h.tracking).Ceil()
@@ -54,7 +64,57 @@ func drawHeadline(canvas *image.RGBA, h headlineLayout) {
 		// The baseline sits above the bottom of the line box, which is what keeps
 		// descenders inside the block rather than in the gap below it.
 		baseline := h.top + i*h.lineH + h.size
-		drawString(canvas, h.face, line, x, baseline, h.tracking, headlineColor)
+		drawString(canvas, h.face, line, x, baseline, h.tracking, headlineInk(line, minor))
+	}
+}
+
+// hasMajor reports whether any word of the headline survives the minor set.
+func hasMajor(lines []string, minor map[string]struct{}) bool {
+	if len(minor) == 0 {
+		return true
+	}
+	for _, line := range lines {
+		for _, word := range strings.Fields(line) {
+			if _, dim := minor[headlineKey(word)]; !dim {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// headlineInk maps each byte of a line to the colour its glyph is drawn in.
+//
+// A table rather than a lookup per glyph: the alternative is finding which word
+// an offset falls in on every one of up to thirty glyphs, and the line is
+// walked once here anyway. Lines arrive from wrap already single-space joined,
+// so a run of non-spaces is exactly one word.
+func headlineInk(line string, minor map[string]struct{}) inker {
+	if len(minor) == 0 {
+		return solid(headlineColor)
+	}
+	table := make([]image.Image, len(line))
+	for start := 0; start < len(line); {
+		end := start
+		for end < len(line) && line[end] != ' ' {
+			end++
+		}
+		col := image.Image(headlineColor)
+		if _, dim := minor[headlineKey(line[start:end])]; dim {
+			col = headlineMinorColor
+		}
+		// The separating space is inked with the word it follows. Which colour a
+		// blank glyph takes cannot show, but leaving the entry nil could.
+		for i := start; i < end+1 && i < len(line); i++ {
+			table[i] = col
+		}
+		start = end + 1
+	}
+	return func(offset int) image.Image {
+		if offset < 0 || offset >= len(table) || table[offset] == nil {
+			return headlineColor
+		}
+		return table[offset]
 	}
 }
 
@@ -192,5 +252,5 @@ func drawCaption(canvas *image.RGBA, face font.Face, caption string, box image.R
 	x := box.Min.X + (box.Dx()-w)/2
 	metrics := face.Metrics()
 	baseline := top + metrics.Ascent.Ceil()
-	drawString(canvas, face, text, x, baseline, fixed.Int26_6(0), captionColor)
+	drawString(canvas, face, text, x, baseline, fixed.Int26_6(0), solid(captionColor))
 }

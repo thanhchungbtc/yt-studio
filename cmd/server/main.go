@@ -375,8 +375,9 @@ func (c *serveCmd) Run() error {
 	ffmpegComposer := ffmpeg.New(assets, c.resources(), log)
 	thumbnails := thumbnail.New(assets, c.resources(), func() thumbnail.Options {
 		return thumbnail.Options{
-			Font: settings.String(entity.SettingThumbnailFont),
-			Rows: settings.Int(entity.SettingThumbnailGridRows),
+			Font:       settings.String(entity.SettingThumbnailFont),
+			Rows:       settings.Int(entity.SettingThumbnailGridRows),
+			MinorWords: settings.String(entity.SettingThumbnailHeadlineMinorWords),
 		}
 	}, log)
 	samples := sample.NewLibrary(c.resources())

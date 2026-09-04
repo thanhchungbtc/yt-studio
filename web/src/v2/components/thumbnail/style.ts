@@ -80,11 +80,12 @@ export interface Style {
   /**
    * How opaque that border is, out of 255.
    *
-   * The Go renderer has no equivalent: `tileBorderColor` is declared there with
-   * `A: 255` and the painter blends it at whatever alpha the colour carries, so
-   * the machinery for a translucent border was already in place and only the
-   * number was fixed. 255 is that number, which is why leaving this alone still
-   * composes what the renderer composes.
+   * The Go renderer has no equivalent field: the alpha is carried by
+   * `tileBorderColor` itself, which is declared there as an RGBA and blended by
+   * the painter at whatever alpha it holds. So the machinery for a translucent
+   * border was always in place and only the number was fixed. 204 is that
+   * number — four fifths — which is why leaving this alone still composes what
+   * the renderer composes.
    */
   tileBorderAlpha: number
 
@@ -109,6 +110,27 @@ export interface Style {
   /** Letter-spacing as a divisor of the type size: spacing = size / this. */
   headlineTracking: number
   headlineColor: string
+  /**
+   * The headline's function words, drawn in `headlineMinorColor` rather than
+   * at full white so the words that carry the hook read first.
+   *
+   * A string rather than a parsed list, because it mirrors a settings row that
+   * an operator types into -- `thumbnail.headline.minor_words` -- and the
+   * separators it forgives, commas or whitespace, are forgiven here too.
+   * Empty draws the whole headline in `headlineColor`.
+   */
+  headlineMinorWords: string
+  /**
+   * A dimmer neutral rather than a second hue, which is the whole design: the
+   * gap the eye resolves at browse size is a luminance gap, and a hue-only
+   * demotion collapses at 320px.
+   *
+   * Tied to `headlineColor` and not readable alone — dragging that swatch to a
+   * darker hue without bringing this one down leaves the demoted words brighter
+   * than the ones they are demoted against. See `headlineMinorColor` in
+   * style.go for the numbers.
+   */
+  headlineMinorColor: string
 
   /* image */
 
@@ -136,7 +158,7 @@ export const defaultStyle: Style = {
   tileFillColor: '#060608',
   tileFillAlpha: 235,
   tileBorderColor: '#e4e4e0',
-  tileBorderAlpha: 255,
+  tileBorderAlpha: 204,
 
   tileToCaptionGap: 8,
   captionFontMax: 26,
@@ -150,7 +172,12 @@ export const defaultStyle: Style = {
   headlineLineGap: 6,
   headlineMaxLines: 2,
   headlineTracking: 22,
-  headlineColor: '#f6f6f4',
+  headlineColor: '#ff2600',
+  // The seeded value of `thumbnail.headline.minor_words`, from
+  // `entity.DefaultHeadlineMinorWords`.
+  headlineMinorWords:
+    'a,an,and,are,as,at,be,but,by,for,from,in,is,of,on,or,so,than,that,the,this,to,was,were,with',
+  headlineMinorColor: '#585854',
 
   backgroundBrightness: 220,
   iconTransparentBelow: 48,

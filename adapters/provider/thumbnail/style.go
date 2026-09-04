@@ -120,15 +120,42 @@ const (
 // way. Alpha is honoured everywhere: a tileFillColor of A: 0 lets the backdrop
 // show through the tiles entirely, and A: 255 makes them solid plates.
 var (
-	// headlineColor is the hook across the top; captionColor the labels under
-	// each tile.
-	headlineColor = image.NewUniform(color.RGBA{R: 246, G: 246, B: 244, A: 255})
+	// headlineColor is the hook across the top -- the major words, the minor ones
+	// being drawn in headlineMinorColor; captionColor the labels under each tile.
+	//
+	// The channel's red, and the one colour here picked against the eye rather
+	// than for it. It lands near 5:1 on this backdrop, comfortably past the 3:1
+	// large text asks for, so nothing legible is lost -- but it is far darker
+	// than the white it replaced, because red carries a fifth of luminance where
+	// green carries seven tenths. What that costs is the gap down to
+	// headlineMinorColor, which is why that number moved with this one.
+	headlineColor = image.NewUniform(color.RGBA{R: 255, G: 38, B: 0, A: 255})
 	captionColor  = image.NewUniform(color.RGBA{R: 226, G: 226, B: 222, A: 255})
 
+	// headlineMinorColor draws the headline's function words, so the words that
+	// carry the hook are the ones read first.
+	//
+	// A dimmer neutral rather than a second hue, and that is the whole design:
+	// the eye's chromatic channel has far less spatial resolution than its
+	// luminance one, so a hue-only demotion collapses in the feed at 320px where
+	// a luminance one holds. It is also the only demotion that stays inside the
+	// chalk metaphor: lighter pressure on the same stick, not a second stick.
+	//
+	// The number is tied to headlineColor and cannot be read on its own. It sits
+	// near 2.7:1 against that colour's 5:1 — a gap of about 1.9x, which is what
+	// the demotion actually is. It was 154 grey at 7:1 while the headline was
+	// white at 19:1, the same gap; left there against a red headline it would be
+	// *brighter* than the words it demotes, inverting the emphasis rather than
+	// weakening it. Any move of headlineColor toward a darker hue has to bring
+	// this one down with it.
+	headlineMinorColor = image.NewUniform(color.RGBA{R: 88, G: 88, B: 84, A: 255})
+
 	// tileFillColor is the plate behind each icon. tileBorderColor is a hair off
-	// pure white: at 255 it out-shouts the artwork it frames.
+	// pure white, drawn at four fifths: even off-white and fully opaque it
+	// out-shouts the artwork it frames, and the alpha is the better of the two
+	// knobs for that, because it dims the border without warming or cooling it.
 	tileFillColor   = color.RGBA{R: 6, G: 6, B: 8, A: 235}
-	tileBorderColor = color.RGBA{R: 228, G: 228, B: 224, A: 255}
+	tileBorderColor = color.RGBA{R: 228, G: 228, B: 224, A: 204}
 )
 
 // -------------------------------------------------------------- resources ---

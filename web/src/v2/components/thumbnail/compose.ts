@@ -2,8 +2,11 @@ import { captionRowHeight, fontURL, frameHeight, frameWidth, rgba, type Style } 
 import {
   captionText,
   fitCaptions,
+  hasMajor,
   headlineHeight,
+  headlineKey,
   layOutHeadline,
+  minorWords,
   ruler,
   type Headline,
   type Ruler,
@@ -413,7 +416,10 @@ export function compose(canvas: HTMLCanvasElement, input: Composition): Report |
   }
 }
 
-/** `drawHeadline`: centre each line of the fitted headline. */
+/**
+ * `drawHeadline`: centre each line of the fitted headline, greying its minor
+ * words so the ones that carry the hook read first.
+ */
 function drawHeadline(
   ctx: CanvasRenderingContext2D,
   rule: Ruler,
@@ -421,7 +427,9 @@ function drawHeadline(
   style: Style,
 ): void {
   if (!h || h.lines.length === 0) return
-  ctx.fillStyle = style.headlineColor
+  const parsed = minorWords(style.headlineMinorWords)
+  // Nothing is demoted unless something is left to promote.
+  const minor = hasMajor(h.lines, parsed) ? parsed : new Set<string>()
   ctx.textBaseline = 'alphabetic'
   for (let i = 0; i < h.lines.length; i += 1) {
     const line = h.lines[i]!
@@ -430,8 +438,35 @@ function drawHeadline(
     // The baseline sits above the bottom of the line box, which is what keeps
     // descenders inside the block rather than in the gap below it.
     const baseline = h.top + i * h.lineHeight + h.size
-    drawTracked(ctx, rule, line, x, baseline, h.size, h.tracking)
+    drawTracked(ctx, rule, line, x, baseline, h.size, h.tracking, headlineInk(line, minor, style))
   }
+}
+
+/**
+ * `headlineInk`: Go's, the colour each glyph of a line is drawn in.
+ *
+ * Indexed by rune where Go indexes by byte offset — each is the natural index
+ * for its own glyph loop, and both land on the same word. A table rather than a
+ * lookup per glyph, since the line is walked once here anyway; lines arrive
+ * from `wrap` already single-space joined, so a run of non-spaces is exactly
+ * one word.
+ */
+function headlineInk(line: string, minor: Set<string>, style: Style): Ink {
+  if (minor.size === 0) return solid(style.headlineColor)
+  const runes = [...line]
+  const table: string[] = new Array<string>(runes.length)
+  for (let start = 0; start < runes.length;) {
+    let end = start
+    while (end < runes.length && runes[end] !== ' ') end += 1
+    const color = minor.has(headlineKey(runes.slice(start, end).join('')))
+      ? style.headlineMinorColor
+      : style.headlineColor
+    // The separating space is inked with the word it follows. Which colour a
+    // blank glyph takes cannot show, but leaving the entry empty could.
+    for (let i = start; i < end + 1 && i < runes.length; i += 1) table[i] = color
+    start = end + 1
+  }
+  return (index) => table[index] ?? style.headlineColor
 }
 
 /** `drawGrid`: place every cell and paint its icon and caption. */
@@ -455,7 +490,7 @@ function drawGrid(ctx: CanvasRenderingContext2D, rule: Ruler, grid: Grid, cells:
     const text = captionText(rule, cell.caption, captionSize, box.w)
     if (text === '') continue
     const width = rule.width(text, captionSize, 0)
-    ctx.fillStyle = style.captionColor
+    const ink = solid(style.captionColor)
     ctx.textBaseline = 'alphabetic'
     drawTracked(
       ctx,
@@ -465,6 +500,7 @@ function drawGrid(ctx: CanvasRenderingContext2D, rule: Ruler, grid: Grid, cells:
       captionTop(grid, i) + ascent,
       captionSize,
       0,
+      ink,
     )
   }
 
@@ -539,11 +575,30 @@ function drawTracked(
   baseline: number,
   size: number,
   tracking: number,
+  ink: Ink,
 ): void {
   rule.apply(ctx, size)
-  for (const placed of rule.layout(text, size, tracking).glyphs) {
+  const glyphs = rule.layout(text, size, tracking).glyphs
+  for (let i = 0; i < glyphs.length; i += 1) {
+    const placed = glyphs[i]!
+    ctx.fillStyle = ink(i)
     ctx.fillText(placed.glyph, x + placed.x, baseline)
   }
+}
+
+/**
+ * The colour one glyph is drawn in, by its index among the line's runes. Go's
+ * `inker` in text.go.
+ *
+ * Asking per glyph is what keeps the pen loop above untouched: the advances,
+ * the kerning and the tracking are computed exactly as they were when a line
+ * was one colour, so nothing moves by a pixel when the words differ.
+ */
+type Ink = (index: number) => string
+
+/** `solid`: ink every glyph the same, which is what a caption wants. */
+function solid(color: string): Ink {
+  return () => color
 }
 
 /* -------------------------------------------------------------- resources */

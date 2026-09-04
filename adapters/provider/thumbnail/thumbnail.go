@@ -38,6 +38,10 @@ type Options struct {
 	Font string
 	// Rows is how many rows the grid is laid out in.
 	Rows int
+	// MinorWords are the headline words drawn in headlineMinorColor, as the
+	// settings row carries them: separated by commas or by whitespace. Empty
+	// draws the whole headline in one colour.
+	MinorWords string
 }
 
 // Renderer implements provider.ThumbnailRenderer.
@@ -89,7 +93,7 @@ func (b *Renderer) Render(ctx context.Context, req provider.ThumbnailRequest) (e
 	// left, which is why the tiles run edge to edge.
 	cells := layOutGrid(len(req.Cells), opts.Rows)
 	headline := layOutHeadline(font, req.Headline, cells.headlineBudget())
-	drawHeadline(canvas, headline)
+	drawHeadline(canvas, headline, minorWords(opts.MinorWords))
 	cells.place(headlineTopMargin + headline.height())
 
 	if err := b.drawGrid(ctx, canvas, font, req.Cells, cells); err != nil {

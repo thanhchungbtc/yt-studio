@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"unicode"
 
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
@@ -93,12 +94,23 @@ func measure(face font.Face, s string, tracking fixed.Int26_6) fixed.Int26_6 {
 	return total
 }
 
+// inker picks the colour one glyph is drawn in, by its byte offset into the
+// line. A function rather than a colour because the headline greys its minor
+// words, and asking per glyph is what keeps the pen loop below untouched: the
+// advances, the kerning and the tracking are computed exactly as they were when
+// a line was one colour, so nothing moves by a pixel when the words differ.
+type inker func(offset int) image.Image
+
+// solid inks every glyph the same, which is what a caption wants.
+func solid(col image.Image) inker {
+	return func(int) image.Image { return col }
+}
+
 // drawString draws one line at a baseline, glyph by glyph so tracking can be
-// applied between them.
-func drawString(dst *image.RGBA, face font.Face, s string, x, baseline int, tracking fixed.Int26_6, col image.Image) {
+// applied between them and so each may take its own colour.
+func drawString(dst *image.RGBA, face font.Face, s string, x, baseline int, tracking fixed.Int26_6, ink inker) {
 	d := font.Drawer{
 		Dst:  dst,
-		Src:  col,
 		Face: face,
 		Dot:  fixed.Point26_6{X: fixed.I(x), Y: fixed.I(baseline)},
 	}
@@ -107,9 +119,43 @@ func drawString(dst *image.RGBA, face font.Face, s string, x, baseline int, trac
 		if i > 0 {
 			d.Dot.X += face.Kern(prev, r) + tracking
 		}
+		d.Src = ink(i)
 		d.DrawString(string(r))
 		prev = r
 	}
+}
+
+// minorWords parses the settings row into the set drawHeadline looks a word up
+// in. Commas or whitespace, because an operator typing a list of words will use
+// one or the other and refusing either would be a rule to remember. Lowercased
+// on the way in: the headline is upper-cased before it is drawn, so the
+// comparison has to be case-blind somewhere and here is once per render rather
+// than once per word.
+func minorWords(list string) map[string]struct{} {
+	fields := strings.FieldsFunc(list, func(r rune) bool {
+		return r == ',' || unicode.IsSpace(r)
+	})
+	if len(fields) == 0 {
+		return nil
+	}
+	set := make(map[string]struct{}, len(fields))
+	for _, f := range fields {
+		if word := headlineKey(f); word != "" {
+			set[word] = struct{}{}
+		}
+	}
+	return set
+}
+
+// headlineKey is how a word is compared against that set: lower case, and
+// stripped of the punctuation a headline hangs on one. Without the stripping a
+// hook written "FAST, CHEAP, AND GOOD" would match "and" but not "and," — a
+// silent miss, and the kind an operator would blame on the word list.
+func headlineKey(word string) string {
+	trimmed := strings.TrimFunc(word, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsNumber(r)
+	})
+	return strings.ToLower(trimmed)
 }
 
 // headlineLayout is a fitted headline: the lines, the size they fit at, and

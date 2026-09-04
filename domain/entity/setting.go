@@ -145,6 +145,11 @@ const (
 	// SettingThumbnailGridRows is how many rows the icons are laid out in;
 	// columns follow from the cell count.
 	SettingThumbnailGridRows SettingKey = "thumbnail.grid.rows"
+	// SettingThumbnailHeadlineMinorWords lists the headline words drawn in the
+	// minor colour rather than at full white. A row rather than a style constant
+	// because it is language, not a look: the list an English hook needs is not
+	// the list a Japanese one needs, and neither is a pixel value.
+	SettingThumbnailHeadlineMinorWords SettingKey = "thumbnail.headline.minor_words"
 
 	// Read once at creation and then frozen into the video row.
 	SettingVideoDefaultChapters SettingKey = "video.default_chapter_count"
@@ -354,6 +359,16 @@ func GateEnabledKey(g GateKind) SettingKey {
 	}
 }
 
+// DefaultHeadlineMinorWords seeds SettingThumbnailHeadlineMinorWords: English
+// function words, the ones a hook is never about.
+//
+// Deliberately short of every word a stoplist would hold. "NOT", "NO", "YOU"
+// and "YOUR" are function words too and they are exactly what a hook turns on
+// — greying them would demote the line's whole point — so what is here is only
+// the articles, the copulas and the commonest prepositions and conjunctions.
+// Alphabetical, so the operator editing it can see at a glance what is missing.
+const DefaultHeadlineMinorWords = "a,an,and,are,as,at,be,but,by,for,from,in,is,of,on,or,so,than,that,the,this,to,was,were,with"
+
 // DefaultSettings is the complete seeded settings table; the seed upserts by
 // key. This slice's order is the order the settings screen shows, because
 // "voice, language, speed" is how narration is thought about and alphabetical
@@ -430,6 +445,8 @@ func DefaultSettings() []Setting {
 		{Key: SettingThumbnailFont, Value: "CabinSketch-Bold.ttf", Type: SettingTypeString, Group: GroupThumbnail, Description: "Typeface for the thumbnail headline and captions, from the resources fonts directory."},
 		//nolint:lll // one row, one line
 		{Key: SettingThumbnailGridRows, Value: "2", Type: SettingTypeInt, Group: GroupThumbnail, Min: 1, Max: 4, Description: "Rows the thumbnail's icon grid is laid out in; the columns follow from the tile count."},
+		//nolint:lll // one row, one line
+		{Key: SettingThumbnailHeadlineMinorWords, Value: DefaultHeadlineMinorWords, Type: SettingTypeString, Group: GroupThumbnail, Optional: true, Description: "Headline words drawn in the minor colour instead of full white, so the words that carry the hook read first. Separated by commas or spaces; empty draws the whole headline in one colour."},
 
 		//nolint:lll // one row, one line
 		{Key: SettingVideoDefaultChapters, Value: "50", Type: SettingTypeInt, Group: GroupVideo, Min: MinChapterCount, Max: MaxChapterCount, Description: "Chapters created for a new video when unspecified."},

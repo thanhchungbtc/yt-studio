@@ -93,6 +93,42 @@ function Swatch({
   )
 }
 
+/**
+ * A list of words, for the one tunable that is language rather than geometry.
+ *
+ * Full width under its own label rather than in the label-track-figure column:
+ * two dozen function words in the width a slider leaves is a list you cannot
+ * read, let alone edit. Free text and not a tag field, because it mirrors a
+ * settings row the operator types into and the two should look like the same
+ * thing.
+ */
+function Words({
+  label,
+  hint,
+  value,
+  onChange,
+}: {
+  label: string
+  hint: string
+  value: string
+  onChange: (value: string) => void
+}) {
+  return (
+    <label className="block py-[3px]">
+      <span className="mb-1 block text-[11px] text-secondary">{label}</span>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        rows={2}
+        spellCheck={false}
+        className="w-full resize-y rounded-[4px] bg-transparent px-1.5 py-1 font-mono text-[10px] leading-[1.4] text-secondary"
+        style={{ boxShadow: '0 0 0 0.5px var(--separator-strong)' }}
+      />
+      <span className="mt-1 block text-[10px] leading-[1.3] text-tertiary">{hint}</span>
+    </label>
+  )
+}
+
 /** A band of related tunables, with the renderer's own name for the group. */
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -196,6 +232,18 @@ export function StyleControls({
           max={48}
           onChange={set('captionFontMin')}
         />
+        {/*
+          Here rather than in Palette, though it decides a colour: what the
+          operator is editing is which words the hook is not about, and the
+          colour they land in is one swatch away in the group that holds every
+          other colour. Mirrors `thumbnail.headline.minor_words`.
+        */}
+        <Words
+          label="Minor words"
+          hint="Drawn in the minor colour. Commas or spaces; empty draws the headline in one colour."
+          value={style.headlineMinorWords}
+          onChange={set('headlineMinorWords')}
+        />
       </Group>
 
       <Group title="Grid">
@@ -280,6 +328,16 @@ export function StyleControls({
           caption colour that sits on it is a comparison nobody can make. */}
       <Group title="Palette">
         <Swatch label="Headline" value={style.headlineColor} onChange={set('headlineColor')} />
+        {/*
+          Directly under the headline it is read against, because the whole
+          design is the *gap* between the two: a minor colour chosen against
+          anything but the major one is chosen blind.
+        */}
+        <Swatch
+          label="Headline minor"
+          value={style.headlineMinorColor}
+          onChange={set('headlineMinorColor')}
+        />
         <Swatch label="Captions" value={style.captionColor} onChange={set('captionColor')} />
         <Swatch label="Tile plate" value={style.tileFillColor} onChange={set('tileFillColor')} />
         {/* Alpha is honoured everywhere: at 0 the backdrop shows through the

@@ -139,6 +139,53 @@ export function trackingFor(size: number, style: Style): number {
   return Math.max(Math.floor(size / style.headlineTracking), 1)
 }
 
+/**
+ * `minorWords`: the settings row parsed into the set a headline word is looked
+ * up in. Go's `minorWords` in text.go.
+ *
+ * Commas or whitespace, because an operator typing a list of words will use one
+ * or the other and refusing either would be a rule to remember. Lowercased on
+ * the way in, since the headline is upper-cased before it is drawn.
+ */
+export function minorWords(list: string): Set<string> {
+  const set = new Set<string>()
+  for (const field of list.split(/[,\s]+/)) {
+    const word = headlineKey(field)
+    if (word) set.add(word)
+  }
+  return set
+}
+
+/**
+ * `headlineKey`: how a word is compared against that set. Go's `headlineKey`.
+ *
+ * Lower case, and stripped of the punctuation a headline hangs on a word:
+ * without the stripping a hook written "FAST, CHEAP, AND GOOD" would match
+ * "and" but not "and,", which is a silent miss an operator would blame on the
+ * word list.
+ */
+export function headlineKey(word: string): string {
+  return word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '').toLowerCase()
+}
+
+/**
+ * `hasMajor`: whether any word of the headline survives the minor set.
+ *
+ * A headline whose every word is minor would be greyed end to end, which is not
+ * emphasis, only a dimmer headline. The test is over the whole hook rather than
+ * per line, so "THE ILLUSION / OF THE PRESENT" does not lose its second line's
+ * contrast to a first line that happens to be all function words.
+ */
+export function hasMajor(lines: string[], minor: Set<string>): boolean {
+  if (minor.size === 0) return true
+  return lines.some((line) =>
+    line
+      .split(/\s+/)
+      .filter(Boolean)
+      .some((word) => !minor.has(headlineKey(word))),
+  )
+}
+
 /** A fitted headline: the lines, the size they fit at, and where they sit. */
 export interface Headline {
   lines: string[]
