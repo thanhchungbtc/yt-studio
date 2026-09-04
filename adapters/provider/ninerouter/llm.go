@@ -7,22 +7,29 @@
 //
 // Two things about that surface are load-bearing:
 //
-//   - Responses stream unless `stream` is explicitly false, so it is always
-//     sent.
+//   - Streaming is its native mode — `stream: false` is what suppresses it —
+//     so every completion is streamed and assembled here. The assembled text is
+//     byte for byte what a buffered response would have returned, and one
+//     request shape is one code path to keep right. It is also what lets an
+//     exchange be watched while it runs, which is the only thing that
+//     distinguishes a model working from a model stuck.
 //   - `response_format` is accepted and silently ignored, so it is never sent
 //     and the output contract goes in the prompt instead.
 package ninerouter
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/singleflight"
@@ -40,6 +47,25 @@ var ErrUnavailable = fmt.Errorf("9router: %w", provider.ErrUnavailable)
 // outline and a hundred-prompt batch are genuinely slow; the cost is that a
 // hung call holds one of two LLM slots, and cancelling is the way out.
 const defaultTimeout = 20 * time.Minute
+
+const (
+	// streamDone is the sentinel the gateway ends a completion with, in place
+	// of JSON.
+	streamDone = "[DONE]"
+
+	// streamBufferBytes is the scanner's starting line buffer. One frame is a
+	// token or two of JSON, so this is already generous.
+	streamBufferBytes = 8 << 10
+
+	// maxStreamLineBytes bounds one frame. Far past any legitimate one, and the
+	// difference between a malformed stream reported as an error and a malformed
+	// stream read until the process runs out of memory.
+	maxStreamLineBytes = 1 << 20
+
+	// maxErrorBody bounds how much of a rejection is read back for the message.
+	// It is quoted into an error, and an error is a sentence.
+	maxErrorBody = 1 << 13
+)
 
 // Config is everything needed to reach a 9router instance.
 type Config struct {
@@ -60,6 +86,11 @@ type Config struct {
 	// TranscriptDir is where each exchange with the model is written for
 	// reading afterwards. Empty switches it off.
 	TranscriptDir string
+	// Observe watches exchanges as they are produced, for a live console. It is
+	// the counterpart to TranscriptDir: the same material, while it happens
+	// rather than once it is over. Nil is the feature off, and it costs one nil
+	// check per exchange — never per token.
+	Observe provider.LLMObserver
 }
 
 // Client is the LLM backend. Every generation step funnels through chat, so the
@@ -120,6 +151,66 @@ func New(cfg Config, store provider.AssetStore, lookup ContextLookup) (*Client, 
 		lookup:      lookup,
 		cache:       make(map[entity.VideoID][]provider.SlidePrompt, 4),
 	}, nil
+}
+
+// llmRunSeq numbers exchanges for the observer. Process-local, monotonic, and
+// never persisted: it groups one run's frames for as long as a console is
+// looking at them and means nothing afterwards.
+var llmRunSeq atomic.Uint64
+
+// watcher reports one exchange to the configured observer.
+//
+// A nil watcher is the no-observer case, and every method tolerates one, so the
+// request path never asks whether anybody is watching. That is the whole reason
+// it is a type rather than a callback threaded through by hand.
+type watcher struct {
+	observe provider.LLMObserver
+	// frame is the run's identity, copied and completed for each report.
+	frame provider.LLMFrame
+}
+
+// watch opens an exchange for the observer, and returns nil when there is none.
+func (c *Client) watch(of call, model string, started time.Time) *watcher {
+	if c.cfg.Observe == nil {
+		return nil
+	}
+	w := &watcher{
+		observe: c.cfg.Observe,
+		frame: provider.LLMFrame{
+			Run:       llmRunSeq.Add(1),
+			Video:     of.Video,
+			Label:     of.Label,
+			Model:     model,
+			StartedAt: started,
+		},
+	}
+	// Announced before the request goes out rather than at the first token, so
+	// a console shows the exchange for the whole of the wait — which on a slow
+	// upstream is most of it, and is exactly the part worth reporting.
+	w.observe(w.frame)
+	return w
+}
+
+// delta reports text that has just arrived.
+func (w *watcher) delta(text string) {
+	if w == nil || text == "" {
+		return
+	}
+	f := w.frame
+	f.Text = text
+	w.observe(f)
+}
+
+// close reports the exchange as over, whether or not it succeeded. Exactly one
+// of these follows every watch.
+func (w *watcher) close(err error) {
+	if w == nil {
+		return
+	}
+	f := w.frame
+	f.Done = true
+	f.Err = err
+	w.observe(f)
 }
 
 // Model returns the currently selected upstream id, for the startup log line.
@@ -193,12 +284,41 @@ type chatMessage struct {
 	Content string `json:"content"`
 }
 
+// streamOptions asks for the token counts a streamed exchange would otherwise
+// never carry. Without it usage arrives only in a buffered response, and the
+// transcript would quietly lose the one number that says what a generation
+// cost.
+type streamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
+}
+
 type chatRequest struct {
 	Model    string        `json:"model"`
 	Messages []chatMessage `json:"messages"`
-	// No omitempty: false is the value that matters, and omitting it is what
-	// makes the gateway stream.
-	Stream bool `json:"stream"`
+	// Always true, and no omitempty: streaming is the gateway's native mode and
+	// `stream: false` is what suppresses it. One request shape is one code path
+	// to keep correct, and the text assembled from the frames is byte for byte
+	// what a buffered response would have returned — the only difference is
+	// that it can be watched while it arrives.
+	Stream        bool           `json:"stream"`
+	StreamOptions *streamOptions `json:"stream_options,omitempty"`
+}
+
+// chatChunk is one frame of a streamed completion. The content arrives in
+// `delta` rather than `message`, and the last frames carry no choice at all —
+// one for the finish reason, one for usage — which is why every field here is
+// checked for presence rather than assumed.
+type chatChunk struct {
+	Choices []struct {
+		Delta struct {
+			Content string `json:"content"`
+		} `json:"delta"`
+		FinishReason string `json:"finish_reason"`
+	} `json:"choices"`
+	Usage *chatUsage `json:"usage"`
+	Error *struct {
+		Message string `json:"message"`
+	} `json:"error"`
 }
 
 type chatUsage struct {
@@ -227,22 +347,37 @@ const (
 
 // chat sends one completion and returns the assistant's text. Every generation
 // step goes through it, so the gateway's shape is described in one place.
+//
+// It is also where an exchange is bracketed for the two things that record it:
+// the transcript written on the way out, and the observer told as it happens.
+// Both are best-effort and neither can fail the call.
 func (c *Client) chat(ctx context.Context, of call, system, user string) (string, error) {
 	started := time.Now()
-	record := transcript{call: of, Model: c.cfg.Model(), System: system, User: user, StartedAt: started}
+	// Resolved once, here, for the whole exchange. The request, the transcript
+	// and the console must all name the same model, and a settings edit landing
+	// mid-generation would otherwise label output a model did not produce.
+	model := strings.TrimSpace(c.cfg.Model())
+	record := transcript{call: of, Model: model, System: system, User: user, StartedAt: started}
 	defer func() {
 		record.Duration = time.Since(started)
 		c.transcripts.write(record)
 	}()
 
-	text, usage, err := c.complete(ctx, system, user)
+	watch := c.watch(of, model, started)
+	text, usage, err := c.complete(ctx, watch, model, system, user)
+	watch.close(err)
+
+	// Partial text on a failure is deliberate: a truncated answer is the most
+	// useful thing a failed exchange leaves behind, and the transcript exists to
+	// be read afterwards. Callers check the error, never the string.
 	record.Response, record.Usage, record.Err = text, usage, err
 	return text, err
 }
 
 // complete is the request itself, split out so chat is only the recording.
-func (c *Client) complete(ctx context.Context, system, user string) (string, *chatUsage, error) {
-	model := strings.TrimSpace(c.cfg.Model())
+func (c *Client) complete(
+	ctx context.Context, watch *watcher, model, system, user string,
+) (string, *chatUsage, error) {
 	if model == "" {
 		return "", nil, fmt.Errorf("%w: no model is selected", ErrUnavailable)
 	}
@@ -256,7 +391,8 @@ func (c *Client) complete(ctx context.Context, system, user string) (string, *ch
 			{Role: roleSystem, Content: system},
 			{Role: roleUser, Content: user},
 		},
-		Stream: false,
+		Stream:        true,
+		StreamOptions: &streamOptions{IncludeUsage: true},
 	})
 	if err != nil {
 		return "", nil, fmt.Errorf("encode chat request: %w", err)
@@ -268,6 +404,7 @@ func (c *Client) complete(ctx context.Context, system, user string) (string, *ch
 		return "", nil, fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "text/event-stream")
 	c.authorize(req)
 
 	resp, err := c.http.Do(req)
@@ -278,32 +415,117 @@ func (c *Client) complete(ctx context.Context, system, user string) (string, *ch
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, err := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBody))
+		return "", nil, statusError(resp.StatusCode, resp.Status, body)
+	}
+	// A gateway is entitled to answer a streaming request with a buffered body,
+	// and an upstream that cannot stream is a reason to be slower rather than a
+	// reason to fail. The content type is what says which arrived.
+	if !isEventStream(resp.Header.Get("Content-Type")) {
+		return buffered(resp.Body, watch)
+	}
+	return streamed(resp.Body, watch)
+}
+
+// streamed assembles a completion from its frames, reporting each one onward as
+// it lands. The string it returns is what the same exchange would have returned
+// buffered; nothing downstream can tell which path produced it.
+func streamed(body io.Reader, watch *watcher) (string, *chatUsage, error) {
+	scanner := bufio.NewScanner(body)
+	scanner.Buffer(make([]byte, 0, streamBufferBytes), maxStreamLineBytes)
+
+	var text strings.Builder
+	var usage *chatUsage
+	finish := ""
+
+	for scanner.Scan() {
+		// Field lines are terminated CRLF or LF; everything that is not a data
+		// field — comments, `event:`, the blank line between frames — is noise
+		// to a client that only ever receives one kind of message.
+		data, ok := strings.CutPrefix(strings.TrimSuffix(scanner.Text(), "\r"), "data:")
+		if !ok {
+			continue
+		}
+		data = strings.TrimSpace(data)
+		if data == "" {
+			continue
+		}
+		if data == streamDone {
+			break
+		}
+
+		var chunk chatChunk
+		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			return text.String(), usage,
+				fmt.Errorf("chat stream frame is not JSON: %w (%s)", err, snippet(data))
+		}
+		// An upstream failure arrives with a matching status today; this is the
+		// belt to that braces, and mid-stream it is the only way one can arrive
+		// at all — the status line is long gone by then.
+		if chunk.Error != nil && chunk.Error.Message != "" {
+			return text.String(), usage, fmt.Errorf("9router: %s", chunk.Error.Message)
+		}
+		if chunk.Usage != nil {
+			usage = chunk.Usage
+		}
+		if len(chunk.Choices) == 0 {
+			continue
+		}
+		if reason := chunk.Choices[0].FinishReason; reason != "" {
+			finish = reason
+		}
+		if delta := chunk.Choices[0].Delta.Content; delta != "" {
+			text.WriteString(delta)
+			watch.delta(delta)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return text.String(), usage, fmt.Errorf("read chat stream: %w", err)
+	}
+
+	content := strings.TrimSpace(text.String())
+	if content == "" {
+		return "", usage, fmt.Errorf("9router returned an empty completion (finish_reason %q)", finish)
+	}
+	return content, usage, nil
+}
+
+// buffered decodes a whole-body completion, for a gateway that ignored the
+// streaming request. The observer is told once rather than not at all, so the
+// console shows the answer arriving late rather than showing nothing.
+func buffered(body io.Reader, watch *watcher) (string, *chatUsage, error) {
+	raw, err := io.ReadAll(body)
 	if err != nil {
 		return "", nil, fmt.Errorf("read chat response: %w", err)
 	}
-	if resp.StatusCode != http.StatusOK {
-		return "", nil, statusError(resp.StatusCode, resp.Status, body)
-	}
-
 	var decoded chatResponse
-	if err := json.Unmarshal(body, &decoded); err != nil {
-		return "", nil, fmt.Errorf("chat response is not JSON: %w (%s)", err, snippet(string(body)))
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return "", nil, fmt.Errorf("chat response is not JSON: %w (%s)", err, snippet(string(raw)))
 	}
-	// An upstream failure arrives with a matching status today; this is the
-	// belt to that braces.
 	if decoded.Error != nil && decoded.Error.Message != "" {
 		return "", decoded.Usage, fmt.Errorf("9router: %s", decoded.Error.Message)
 	}
 	if len(decoded.Choices) == 0 {
-		return "", decoded.Usage, fmt.Errorf("9router returned no choices (%s)", snippet(string(body)))
+		return "", decoded.Usage, fmt.Errorf("9router returned no choices (%s)", snippet(string(raw)))
 	}
 	content := strings.TrimSpace(decoded.Choices[0].Message.Content)
 	if content == "" {
 		return "", decoded.Usage, fmt.Errorf("9router returned an empty completion (finish_reason %q)",
 			decoded.Choices[0].FinishReason)
 	}
+	watch.delta(content)
 	return content, decoded.Usage, nil
+}
+
+// isEventStream reports whether a response is the stream that was asked for.
+// Parsed rather than compared, because the header carries a charset.
+func isEventStream(contentType string) bool {
+	media, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return false
+	}
+	return media == "text/event-stream"
 }
 
 func (c *Client) authorize(req *http.Request) {

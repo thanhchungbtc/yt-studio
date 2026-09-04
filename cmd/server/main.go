@@ -27,6 +27,7 @@ import (
 
 	"github.com/tbui/yt-studio/adapters/assetstore"
 	"github.com/tbui/yt-studio/adapters/eventbus"
+	"github.com/tbui/yt-studio/adapters/llmlog"
 	"github.com/tbui/yt-studio/adapters/provider/ffmpeg"
 	"github.com/tbui/yt-studio/adapters/provider/ninerouter"
 	"github.com/tbui/yt-studio/adapters/provider/runware"
@@ -385,11 +386,18 @@ func (c *serveCmd) Run() error {
 	// applies to the next generation rather than the next restart. That is also
 	// why none of these constructors validates an address — an empty one is what
 	// they would see, and the real check belongs to Check and to the request.
+	// The live half of what the transcript directory records: the same
+	// exchanges, while they are happening. Owned here rather than by the LLM
+	// backend so a second backend can report into the same console, and so
+	// nothing in the pipeline can be slowed down by whoever is watching it.
+	llmConsole := llmlog.New(0)
+
 	nineRouter, err := ninerouter.New(ninerouter.Config{
 		BaseURL:       func() string { return settings.String(entity.SettingNineRouterURL) },
 		APIKey:        func() string { return settings.String(entity.SettingNineRouterKey) },
 		Model:         func() string { return settings.String(entity.SettingNineRouterModel) },
 		TranscriptDir: c.transcripts(),
+		Observe:       llmConsole.Observe,
 	}, assets, nineRouterContextLookup(store))
 	if err != nil {
 		return err
@@ -626,6 +634,7 @@ func (c *serveCmd) Run() error {
 		Coalescer:  broker,
 		Events:     broker,
 		SSEClients: broker.Subscribers,
+		LLMStream:  llmConsole,
 
 		LogLevel: level,
 		Log:      log,

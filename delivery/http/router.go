@@ -60,6 +60,10 @@ type Deps struct {
 	Coalescer  app.CoalesceSetter
 	Events     EventSource
 	SSEClients func() int
+	// LLMStream is the live text of recent model exchanges, for the console. A
+	// nil one is the feature switched off and the route answers 503 — it is a
+	// view onto work, never a part of it.
+	LLMStream LLMStreamSource
 
 	LogLevel *slog.LevelVar
 	Log      *slog.Logger
@@ -119,6 +123,7 @@ func NewRouter(d Deps) (http.Handler, huma.API) {
 
 	r.Get("/assets/{id}", assetHandler(d.Assets, d.Store))
 	r.Get("/events", eventsHandler(d.Events, d.Log))
+	r.Get("/llm", llmHandler(d.LLMStream, d.Log))
 	r.Get("/resources/*", resourceHandler(d.Resources))
 
 	r.NotFound(spaHandler(d.Dist))
@@ -129,8 +134,9 @@ func NewRouter(d Deps) (http.Handler, huma.API) {
 func requestLogger(log *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// The SSE stream is long-lived; a completion line would land hours late.
-			if r.URL.Path == "/events" {
+			// The SSE streams are long-lived; a completion line would land hours
+			// late.
+			if r.URL.Path == "/events" || r.URL.Path == "/llm" {
 				next.ServeHTTP(w, r)
 				return
 			}

@@ -1,6 +1,6 @@
 import { fileURLToPath, URL } from 'node:url'
 
-import { defineConfig } from 'vite'
+import { defineConfig, type ProxyOptions } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -17,6 +17,24 @@ export default defineConfig(() => {
   // and nothing else -- nothing from here is put in `define`, so no value
   // reaches the bundle.
   const apiTarget = `http://${process.env.YTS_LISTEN || '127.0.0.1:8080'}`
+
+  // A server-sent stream, proxied without buffering. There are two of them —
+  // `/events` keeps the cache true, `/llm` carries the model console — and both
+  // are long-lived connections that a proxy holding a response would break in
+  // the same way: silently, and only once something is slow enough to notice.
+  //
+  // Every stream the Go server grows needs a line here. Without one the request
+  // reaches Vite's SPA fallback instead, which answers index.html at 200 — and
+  // an EventSource handed HTML reports a connection error, not a wrong route.
+  const sseProxy: ProxyOptions = {
+    target: apiTarget,
+    changeOrigin: true,
+    configure: (proxy) => {
+      proxy.on('proxyRes', (proxyRes) => {
+        proxyRes.headers['cache-control'] = 'no-cache, no-transform'
+      })
+    },
+  }
 
   return {
     plugins: [react(), tailwindcss()],
@@ -40,16 +58,8 @@ export default defineConfig(() => {
         // fallback, which answers with index.html at 200 — a font that parses
         // as HTML fails silently and composes in a substitute face.
         '/resources/': { target: apiTarget, changeOrigin: true },
-        '/events': {
-          target: apiTarget,
-          changeOrigin: true,
-          // Server-sent events must not be buffered by the proxy.
-          configure: (proxy) => {
-            proxy.on('proxyRes', (proxyRes) => {
-              proxyRes.headers['cache-control'] = 'no-cache, no-transform'
-            })
-          },
-        },
+        '/events': sseProxy,
+        '/llm': sseProxy,
       },
     },
     build: {
