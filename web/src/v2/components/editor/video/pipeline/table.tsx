@@ -5,8 +5,10 @@ import { api, qk, type ChapterPlan } from '../../../../core/api'
 import { count, duration } from '../../../../core/format'
 import type { Chapter, Task } from '../../../../core/types'
 import { cn } from '../../../../core/utils'
+import type { MenuItem } from '../../../ui/menu'
 import { Mark } from '../mark'
 import { columnTotals, projectedSeconds, stagesByChapter, type Cell } from '../stages'
+import { PLAN_SAVE, useCellMenu } from './regenerate'
 
 /**
  * The blueprint as a grid: chapters down, pipeline stages across.
@@ -79,6 +81,7 @@ export function ChapterTable({
     () => columnTotals(chapters, slidesPerChapter),
     [chapters, slidesPerChapter],
   )
+  const { menuFor, error } = useCellMenu(videoId)
 
   if (chapters.length === 0) {
     return (
@@ -103,6 +106,14 @@ export function ChapterTable({
         <Head label="Slides" done={totals.slides.done} total={totals.slides.total} />
         <Head label="Clip" done={totals.clip.done} total={totals.clip.total} />
       </div>
+
+      {/* Under the head rather than beside the dot that caused it: the menu has
+          closed by the time this exists, and a message pinned to a twelve-pixel
+          target somewhere in eighty rows is a message nobody finds. There is one
+          of these at a time because there is one press at a time. */}
+      {error ? (
+        <p className="hairline-b px-4 py-1.5 text-[11px] text-[var(--failed)]">{error.message}</p>
+      ) : null}
 
       {chapters.map((chapter, index) => {
         const stage = stages.get(chapter.id)
@@ -154,10 +165,14 @@ export function ChapterTable({
               </>
             )}
 
-            <Mark cell={stage.script} className="pt-1" />
-            <Mark cell={stage.narration} className="pt-1" />
-            <SlotRow cells={stage.slides} className="pt-1" />
-            <Mark cell={stage.clip} className="pt-1" />
+            <Mark cell={stage.script} className="pt-1" menu={menuFor(stage.script, 'Script')} />
+            <Mark
+              cell={stage.narration}
+              className="pt-1"
+              menu={menuFor(stage.narration, 'Narration')}
+            />
+            <SlotRow cells={stage.slides} className="pt-1" menuFor={menuFor} />
+            <Mark cell={stage.clip} className="pt-1" menu={menuFor(stage.clip, 'Clip')} />
           </div>
         )
       })}
@@ -221,6 +236,9 @@ function PlanFields({ chapter, videoId }: { chapter: Chapter; videoId: string })
   const budget = Math.max(0, Math.trunc(Number(words) || 0))
 
   const save = useMutation({
+    // Named so that a re-run pressed in the same gesture as the blur that
+    // commits this can wait for it; see `PLAN_SAVE`.
+    mutationKey: PLAN_SAVE,
     mutationFn: (plan: ChapterPlan) => api.updateChapterPlan(chapter.id, plan),
     // The response is the whole row, so this patches the cache rather than
     // refetching it — and the totals in the summary line move with the patch.
@@ -351,12 +369,26 @@ function PlanFields({ chapter, videoId }: { chapter: Chapter; videoId: string })
   )
 }
 
-/** One mark per slot: a half-drawn chapter says *which* slide is missing. */
-function SlotRow({ cells, className }: { cells: Cell[]; className?: string }) {
+/**
+ * One mark per slot: a half-drawn chapter says *which* slide is missing — and,
+ * because each slot is its own dot over its own task, *which* one to redraw.
+ */
+function SlotRow({
+  cells,
+  className,
+  menuFor,
+}: {
+  cells: Cell[]
+  className?: string
+  menuFor: (cell: Cell, noun: string) => MenuItem[]
+}) {
   return (
     <span className={cn('flex flex-wrap items-center gap-1.5', className)}>
       {cells.map((cell, index) => (
-        <Mark key={index} cell={cell} />
+        // Numbered from one, matching the slide viewer and the tiles in the
+        // reader. The slot index is a fact about the array and not about the
+        // picture anybody is looking at.
+        <Mark key={index} cell={cell} menu={menuFor(cell, `Slide ${index + 1}`)} />
       ))}
     </span>
   )

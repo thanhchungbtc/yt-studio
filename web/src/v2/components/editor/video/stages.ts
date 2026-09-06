@@ -35,24 +35,69 @@ export interface ChapterStages {
 }
 
 /**
+ * Whether a task has finished with the run it is on.
+ *
+ * Not the same question as whether it worked. `failed` is settled — the task has
+ * stopped and is waiting for a person. `blocked` and `ready` are not: they are a
+ * task queued to run, which after a re-run is a task queued to run *again*.
+ */
+function settled(state: Task['state']): boolean {
+  return (
+    state === 'succeeded' ||
+    state === 'failed' ||
+    state === 'cancelled' ||
+    state === 'awaiting_approval'
+  )
+}
+
+/**
  * A task's state, mapped to a cell's.
  *
- * `succeeded` is deliberately not trusted on its own. The artifact is what the
- * cell is about, and a task can have succeeded for a slot whose asset has since
- * been cleared — so the artifact is asked first and the task only explains what
- * is happening in its absence.
+ * Work in flight is asked about first, and that is what makes Regenerate
+ * visible. A re-run leaves the old artifact where it is while it produces the
+ * new one — not cascading is the whole point of it — so a cell that asked the
+ * artifact first would stay green and settled with a task running underneath,
+ * and pressing Regenerate would look like it had done nothing. An artifact plus
+ * an unfinished task can only mean one thing: it is being made again.
+ *
+ * Past that, `succeeded` is deliberately not trusted on its own. The artifact is
+ * what the cell is about, and a task can have succeeded for a slot whose asset
+ * has since been cleared — so the artifact is asked next and the task only
+ * explains what is happening in its absence.
  */
 function cellFor(task: Task | undefined, hasArtifact: boolean): Cell {
+  if (task && !settled(task.state)) {
+    return { state: task.state === 'running' ? 'running' : 'waiting', stale: false, task }
+  }
   if (hasArtifact) return { state: 'done', stale: task?.stale ?? false, ...(task ? { task } : {}) }
   if (!task) return { state: 'waiting', stale: false }
-  switch (task.state) {
-    case 'failed':
-      return { state: 'failed', stale: false, task }
-    case 'running':
-      return { state: 'running', stale: false, task }
-    default:
-      return { state: 'waiting', stale: false, task }
-  }
+  return { state: task.state === 'failed' ? 'failed' : 'waiting', stale: false, task }
+}
+
+/** The one verb a dot carries, when it carries one. */
+export type CellAction = 'rerun' | 'retry'
+
+/**
+ * What clicking a dot offers, or nothing when it offers nothing.
+ *
+ * Only the two settled outcomes are actionable, and that rule is also what keeps
+ * the grid learnable: a dot you can click is a dot with a result you might
+ * disagree with. Waiting and running have no result yet, and a menu whose one
+ * item is greyed out is worse than no menu.
+ *
+ * The two are different operations rather than one operation with two labels.
+ * A failed task cascades, because nothing under it holds an artifact worth
+ * keeping; a done one must not, which is the whole reason to have this at all.
+ */
+export function cellAction(cell: Cell): CellAction | null {
+  if (!cell.task) return null
+  // Expansion is one-way, so the scheduler refuses a second roll of the outline
+  // unless the first one failed. Better to offer nothing than an item that
+  // exists in order to produce an error.
+  if (cell.task.kind === 'blueprint' && cell.task.state !== 'failed') return null
+  if (cell.state === 'failed') return 'retry'
+  if (cell.state === 'done') return 'rerun'
+  return null
 }
 
 /**

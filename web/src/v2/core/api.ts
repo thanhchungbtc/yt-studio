@@ -99,6 +99,19 @@ export interface NewVideo {
   start?: boolean
 }
 
+/**
+ * What a re-run did: the tasks that ran again, and the ones it left flagged.
+ *
+ * Nothing renders this yet — the grid catches up over the event stream — but it
+ * is what the endpoint answers with, and typing it as `void` would be a lie the
+ * next caller has to discover.
+ */
+export interface RerunPlan {
+  dryRun: boolean
+  rerun: Task[]
+  stale: Task[]
+}
+
 /** What a chapter of the blueprint plans; the whole plan, every time. */
 export interface ChapterPlan {
   title: string
@@ -236,6 +249,35 @@ export const api = {
   /** Drops the grant. The OAuth client stays, so re-authorizing needs no file. */
   forgetChannelAuth: (channel: string) =>
     request<ChannelAuth>(`/api/channels/${key(channel)}/youtube`, { method: 'DELETE' }),
+
+  /**
+   * Runs tasks that have already succeeded — and only those tasks.
+   *
+   * Deliberately not a cascade. Everything downstream keeps the artifact it has
+   * and is flagged stale instead, so rewriting one chapter's script does not
+   * throw away narration somebody has already listened to. `retryTask` is the
+   * other half of the pair: a *failed* task has nothing under it worth keeping,
+   * so that one does cascade.
+   *
+   * The scheduler emits a delta for every task it touches, so the grid catches
+   * up over the event stream and there is nothing to invalidate here.
+   */
+  rerunTasks: (ref: string, taskIds: string[]) =>
+    post<RerunPlan>(`/api/videos/${key(ref)}/rerun`, { taskIds }),
+
+  /** A failed task and everything under it, which is blocked rather than done. */
+  retryTask: (id: string) => post<Task>(`/api/tasks/${key(id)}/retry`),
+
+  /**
+   * Clears the stale flag without running anything.
+   *
+   * Staleness records that an input moved, not that the output is wrong, so
+   * this is the answer "I looked, and it is still fine". It is the only way to
+   * settle a flagged artifact that does not cost a generation — without it the
+   * amber ring can only be cleared by paying for work nobody wanted.
+   */
+  acceptStale: (ref: string, taskIds: string[]) =>
+    post<{ count: number }>(`/api/videos/${key(ref)}/stale/accept`, { taskIds }),
 
   approveGate: (ref: string, gate: string) =>
     post<Task>(`/api/videos/${key(ref)}/approve`, { gate }),

@@ -1,6 +1,7 @@
 import { X } from 'lucide-react'
 
 import { cn } from '../../../core/utils'
+import { Menu, type MenuItem } from '../../ui/menu'
 import type { Cell, CellState } from './stages'
 
 /**
@@ -74,15 +75,66 @@ function Shape({ cell }: { cell: Cell }) {
   }
 }
 
-export function Mark({ cell, className }: { cell: Cell; className?: string }) {
+/**
+ * The hit target, which is not the dot.
+ *
+ * Twelve pixels is the right size to *read* a grid of these at and far too small
+ * to ask anyone to hit. The padding grows the target to twenty-eight while the
+ * negative margin takes it back out of the layout, so the button paints and
+ * catches the pointer over a comfortable square and the dot stays exactly where
+ * the column put it. Nothing above this has to know the dot became a control.
+ */
+const TARGET = '-m-2 p-2'
+
+/**
+ * A mark, and — where there is something to do about it — the menu to do it.
+ *
+ * The menu is a prop rather than something the mark works out for itself,
+ * because the same four shapes are drawn in three places and only one of them
+ * is a grid of live tasks. The legend draws marks that stand for a state rather
+ * than being in one, and a legend you could right-click into re-running
+ * somebody's video is a bug waiting for a slow afternoon.
+ */
+export function Mark({
+  cell,
+  className,
+  menu,
+}: {
+  cell: Cell
+  className?: string
+  menu?: MenuItem[]
+}) {
   const label = cell.stale ? `${TITLE[cell.state]} · an input changed since` : TITLE[cell.state]
+  const tooltip = cell.task?.error || label
+
+  if (!menu || menu.length === 0) {
+    return (
+      <span title={tooltip} aria-label={label} className={cn('inline-flex shrink-0', className)}>
+        <Shape cell={cell} />
+      </span>
+    )
+  }
+
+  // The caller's className stays on the outer span in both branches, and the
+  // target grows inside it. The column passes alignment through here (`pt-1`),
+  // and letting that land on the same element as the target's own padding would
+  // have tailwind-merge collapse the two — leaving actionable dots sitting four
+  // pixels above the inert ones in the same row.
   return (
-    <span
-      title={cell.task?.error || label}
-      aria-label={label}
-      className={cn('inline-flex shrink-0', className)}
-    >
-      <Shape cell={cell} />
+    <span className={cn('inline-flex shrink-0', className)}>
+      {/* `align="start"` so the card hangs from the dot's own edge. A twelve-pixel
+          trigger centred under a 176-pixel menu says nothing about which of eighty
+          slides it belongs to, and that is the one thing it has to be clear about. */}
+      <Menu items={menu} align="start">
+        <button
+          type="button"
+          title={tooltip}
+          aria-label={`${label} — actions`}
+          className={cn('inline-flex cursor-default rounded-full', TARGET)}
+        >
+          <Shape cell={cell} />
+        </button>
+      </Menu>
     </span>
   )
 }
