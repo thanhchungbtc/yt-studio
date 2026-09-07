@@ -11,10 +11,14 @@ import { ClipViewer } from './clip-viewer'
 import { ChapterOutline } from './outline'
 import { SlideViewer } from './slide-viewer'
 
-/** A slide the viewer can open: where its bytes are, and what to call it. */
+/** A slide the viewer can open: its bytes, its name, and what drew it. */
 interface Slide {
   id: string
   title: string
+  /** The prompt the image was generated from; absent until they are written. */
+  prompt?: string
+  /** An input moved after it was drawn, so the prompt may not be its own. */
+  stale?: boolean
 }
 
 /**
@@ -123,6 +127,8 @@ export function ScriptView({ video, chapters, tasks }: ViewProps) {
         <SlideViewer
           src={`/assets/${viewing.id}`}
           title={viewing.title}
+          prompt={viewing.prompt}
+          stale={viewing.stale}
           onClose={() => setViewing(null)}
         />
       ) : null}
@@ -266,6 +272,7 @@ function ChapterBlock({
                     cell={cell}
                     id={chapter.slideAssetIds[slot]}
                     slot={slot}
+                    prompt={chapter.slidePrompts[slot]}
                     onView={(slide) =>
                       onView({ ...slide, title: `${chapter.title} · ${slide.title}` })
                     }
@@ -333,18 +340,30 @@ function Slide({
   id,
   cell,
   slot,
+  prompt,
   onView,
 }: {
   id: string | undefined
   cell: Cell
   slot: number
+  prompt: string | undefined
   onView: (slide: Slide) => void
 }) {
   if (id) {
     return (
       <button
         type="button"
-        onClick={() => onView({ id, title: `Slide ${slot + 1}` })}
+        // The staleness travels with the prompt because it is about the pairing
+        // rather than about either one: the image is intact and the text is
+        // current, and what changed is whether the second describes the first.
+        onClick={() =>
+          onView({
+            id,
+            title: `Slide ${slot + 1}`,
+            ...(prompt ? { prompt } : {}),
+            stale: cell.stale,
+          })
+        }
         // The ring rather than a brightness lift: macOS shows a picture is
         // pickable by outlining it, and the picture itself should not change
         // colour under the pointer.

@@ -231,6 +231,30 @@
 }
 
 /*
+  The panel that floats over a picture.
+
+  Dark in both themes, which is the one place this application ignores its own
+  appearance setting and is right to. Every other surface sits over the window,
+  whose colour it knows; this one sits over whatever a model happened to draw. A
+  light card over a chalkboard slide reads as a hole punched through the
+  picture, and there is no theme in which that is what was wanted. Photos, Quick
+  Look and every video player reach for dark chrome over media for the same
+  reason.
+
+  The blur is the same material the menus use, so it belongs to this application
+  rather than being borrowed from a website. The hairline is white here instead
+  of `--separator`: over an arbitrary image the edge has to come from the panel,
+  since the thing behind it cannot be relied on to provide contrast.
+*/
+@utility surface-overlay {
+  background-color: rgb(28 28 30 / 0.72);
+  backdrop-filter: saturate(180%) blur(30px);
+  box-shadow:
+    0 0 0 0.5px rgb(255 255 255 / 0.14),
+    0 8px 30px -8px rgb(0 0 0 / 0.55);
+}
+
+/*
   The seam between two panes, drawn by the sash that sits between them.
 
   One element rather than a rule on each side: a pane that draws its own edge
