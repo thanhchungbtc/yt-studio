@@ -76,10 +76,27 @@ interface DialogProps {
    * body take what is left has no such trapdoor.
    */
   height?: number | string
+  /**
+   * Take Escape before the dialog does, and keep it open by returning true.
+   *
+   * For a dialog holding an unsaved edit, where one Escape closing the window
+   * *and* discarding the text is two answers to a keystroke that asked one
+   * question. Radix listens on the document, so a handler on the field inside
+   * cannot stop this by itself — the interception has to happen here, which is
+   * the only place the event is seen before the close.
+   */
+  onEscape?: () => boolean
   children: ReactNode
 }
 
-export function Dialog({ open, onOpenChange, width = 480, height, children }: DialogProps) {
+export function Dialog({
+  open,
+  onOpenChange,
+  width = 480,
+  height,
+  onEscape,
+  children,
+}: DialogProps) {
   const content = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -94,6 +111,9 @@ export function Dialog({ open, onOpenChange, width = 480, height, children }: Di
         <Radix.Overlay className="scrim fixed inset-0 z-40" />
         <Radix.Content
           ref={content}
+          onEscapeKeyDown={(event) => {
+            if (onEscape?.()) event.preventDefault()
+          }}
           // Radix opens focus on the first tabbable element, which is whatever
           // happens to come first in the DOM — in the new-video dialog that is
           // the channel pop-up, which already has an answer. `data-autofocus`

@@ -1,7 +1,11 @@
-import { Check, Copy, Info } from 'lucide-react'
-import { useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Check, Copy, Info, LoaderCircle, Pencil } from 'lucide-react'
+import { useState, type KeyboardEvent } from 'react'
 
+import { api, qk } from '../../../../core/api'
+import type { Chapter } from '../../../../core/types'
 import { cn } from '../../../../core/utils'
+import { Button } from '../../../ui/button'
 import { Dialog } from '../../../ui/dialog'
 
 /**
@@ -23,21 +27,35 @@ import { Dialog } from '../../../ui/dialog'
  * thing you expect to be able to dismiss.
  */
 export function SlideViewer({
+  chapterId,
+  slot,
+  videoId,
   src,
   title,
   prompt,
   stale,
+  drawing,
   onClose,
 }: {
+  chapterId: string
+  /** Which slide of the chapter, which is also where an edit is written. */
+  slot: number
+  /** The cache an edit patches; the response carries the whole chapter. */
+  videoId: string
   src: string
   title: string
   /** What the image was generated from. Absent before the prompts are written. */
   prompt?: string
   /** An input moved after this was drawn, so the prompt may not be its own. */
   stale?: boolean
+  /** The slide is being drawn again right now. */
+  drawing?: boolean
   onClose: () => void
 }) {
   const [showPrompt, setShowPrompt] = useState(remembered)
+  // Held here rather than in the panel because the dialog is what has to know
+  // whether Escape has something to put back before it closes.
+  const [draft, setDraft] = useState<string | null>(null)
   const text = prompt?.trim()
 
   const toggle = () => {
@@ -55,6 +73,11 @@ export function SlideViewer({
       }}
       width="92vw"
       height="88vh"
+      onEscape={() => {
+        if (draft === null) return false
+        setDraft(null)
+        return true
+      }}
     >
       <Dialog.Header title={title} />
 
@@ -85,8 +108,19 @@ export function SlideViewer({
           gutter around an image is just less image. */}
       <Dialog.Body bare>
         <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-5 pb-5">
-          <Framed src={src} title={title}>
-            {showPrompt && text ? <PromptPanel text={text} stale={stale} /> : null}
+          <Framed src={src} title={title} drawing={drawing}>
+            {showPrompt && text ? (
+              <PromptPanel
+                text={text}
+                stale={stale}
+                drawing={drawing}
+                chapterId={chapterId}
+                slot={slot}
+                videoId={videoId}
+                draft={draft}
+                setDraft={setDraft}
+              />
+            ) : null}
           </Framed>
         </div>
       </Dialog.Body>
@@ -128,10 +162,12 @@ let remembered = true
 function Framed({
   src,
   title,
+  drawing,
   children,
 }: {
   src: string
   title: string
+  drawing?: boolean
   children: React.ReactNode
 }) {
   const [ratio, setRatio] = useState<number | null>(null)
@@ -152,10 +188,15 @@ function Framed({
           if (naturalWidth > 0 && naturalHeight > 0) setRatio(naturalWidth / naturalHeight)
         }}
         className={cn(
-          'object-contain',
+          'object-contain transition-opacity duration-200',
           // Once the frame has the picture's shape the image simply fills it;
           // before that it is what decides the shape.
           ratio ? 'size-full' : 'max-h-full max-w-full',
+          // Dimmed while its replacement is being drawn. Still shown, because it
+          // is the only picture there is until the new one lands, and a slot
+          // that went blank would read as work being destroyed rather than
+          // redone — the old slide is kept precisely so it is not.
+          drawing && 'opacity-40',
         )}
       />
       {ratio ? children : null}
@@ -178,19 +219,143 @@ function Framed({
  * mono the reader sets narration in, which is what says *generated* here as
  * well as there.
  */
-function PromptPanel({ text, stale }: { text: string; stale?: boolean }) {
+function PromptPanel({
+  text,
+  stale,
+  drawing,
+  chapterId,
+  slot,
+  videoId,
+  draft,
+  setDraft,
+}: {
+  text: string
+  stale?: boolean
+  drawing?: boolean
+  chapterId: string
+  slot: number
+  videoId: string
+  /** Null while reading; the editor's text otherwise. Owned by the dialog. */
+  draft: string | null
+  setDraft: (draft: string | null) => void
+}) {
+  const client = useQueryClient()
+  const editing = draft !== null
+
+  const generate = useMutation({
+    mutationFn: (next: string) => api.regenerateSlide(chapterId, slot, next),
+    // The response is the whole chapter, so the panel's text is the server's
+    // copy of it a frame later. The picture is not patched here and does not
+    // need to be: the slide runs again from this call, and the viewer is keyed
+    // on the slot, so the new asset arrives on the event stream.
+    onSuccess: (updated) => {
+      client.setQueryData<Chapter[]>(qk.chapters(videoId), (prev) =>
+        prev?.map((row) => (row.id === updated.id ? updated : row)),
+      )
+      setDraft(null)
+    },
+  })
+
+  const value = draft ?? text
+  const unchanged = value.trim() === text.trim()
+  const empty = value.trim() === ''
+  const busy = generate.isPending || drawing
+
+  const submit = () => {
+    if (empty || unchanged || busy) return
+    generate.mutate(value.trim())
+  }
+
+  // ⌘Return submits, which is what every editor of a multi-line field does;
+  // plain Return has to stay a newline in a prompt. Escape is not handled here
+  // — Radix listens on the document, so putting the draft back has to happen
+  // where the close does, which is the dialog's `onEscape`.
+  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault()
+      submit()
+    }
+  }
+
   return (
     // The wrapper takes no pointer events so the picture underneath stays
     // clickable to either side of the panel; the panel takes its own back.
     <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-3">
       <div className="surface-overlay pointer-events-auto w-full max-w-[46rem] rounded-[10px] px-3 py-2.5">
         <div className="flex items-start gap-2">
-          <pre className="max-h-[4.4rem] min-w-0 flex-1 overflow-y-auto font-mono text-[12px] leading-[1.55] whitespace-pre-wrap text-white/90 select-text">
-            {text}
-          </pre>
-          <CopyButton text={text} />
+          {editing ? (
+            <textarea
+              autoFocus
+              value={value}
+              disabled={busy}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={onKeyDown}
+              aria-label="Slide prompt"
+              // Taller than the reading panel, and only while editing: eight
+              // lines is a prompt you can see all of at once, and it is the
+              // picture that pays for them, so it pays only while it has to.
+              className={cn(
+                'field-on-glass min-h-[9rem] min-w-0 flex-1 resize-none rounded-[7px] px-2 py-1.5',
+                'font-mono text-[12px] leading-[1.55] text-white',
+                'disabled:opacity-50',
+              )}
+            />
+          ) : (
+            <pre className="max-h-[4.4rem] min-w-0 flex-1 overflow-y-auto font-mono text-[12px] leading-[1.55] whitespace-pre-wrap text-white/90 select-text">
+              {text}
+            </pre>
+          )}
+
+          {editing ? null : (
+            <>
+              <CopyButton text={text} />
+              {/* The one control that spends money is the one that has to be
+                  reached for. A field always live would make redrawing a slide
+                  something a person can fall into, and it re-runs a backend
+                  task. */}
+              <GlassButton
+                icon={Pencil}
+                label="Edit the prompt"
+                disabled={busy}
+                onClick={() => setDraft(text)}
+              />
+            </>
+          )}
         </div>
-        {stale ? (
+
+        {editing ? (
+          <div className="mt-2 flex items-center justify-end gap-2">
+            {generate.error ? (
+              <p className="mr-auto text-[11px] leading-snug text-[var(--failed)]">
+                {(generate.error as Error).message}
+              </p>
+            ) : null}
+            <Button onClick={() => setDraft(null)} disabled={busy}>
+              Cancel
+            </Button>
+            <Button primary onClick={submit} disabled={empty || unchanged || busy}>
+              {busy ? (
+                <span className="flex items-center gap-1.5">
+                  <LoaderCircle className="size-[13px] animate-spin" strokeWidth={2.5} />
+                  Drawing
+                </span>
+              ) : (
+                'Save and generate'
+              )}
+            </Button>
+          </div>
+        ) : null}
+
+        {/* While a redraw is running with the panel closed for editing, the
+            button is gone and this is the only thing saying so. */}
+        {drawing && !editing ? (
+          <p className="mt-2 flex items-center gap-1.5 text-[11px] text-white/70">
+            <LoaderCircle className="size-[12px] animate-spin" strokeWidth={2.5} />
+            Drawing this slide again…
+          </p>
+        ) : null}
+
+        {stale && !editing && !drawing ? (
           // Only when it is true, which is what keeps it from being chrome. The
           // prompts are rewritten as a batch, so a slide drawn before that
           // happened is one whose panel would otherwise state, with no hedging
@@ -205,6 +370,37 @@ function PromptPanel({ text, stale }: { text: string; stale?: boolean }) {
         ) : null}
       </div>
     </div>
+  )
+}
+
+/** A quiet icon button sized for the glass panel, where the app's own greys
+ * would disappear against an arbitrary picture. */
+function GlassButton({
+  icon: Icon,
+  label,
+  disabled,
+  onClick,
+}: {
+  icon: typeof Pencil
+  label: string
+  disabled?: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        'flex size-[22px] shrink-0 items-center justify-center rounded-[6px] transition-colors',
+        'text-white/60 hover:bg-white/12 hover:text-white',
+        'disabled:pointer-events-none disabled:opacity-40',
+      )}
+    >
+      <Icon className="size-[14px]" strokeWidth={2} />
+    </button>
   )
 }
 

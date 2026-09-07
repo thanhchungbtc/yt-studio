@@ -255,6 +255,28 @@
 }
 
 /*
+  A text field inside the glass panel.
+
+  `.control` cannot be reused here: it is built for a field sitting on the
+  window, and its light fill and `--separator` hairline both vanish against a
+  picture. This is the same shape in the panel's own terms — a slightly darker
+  well than the glass, a white hairline to give it an edge whatever is behind
+  it, and the accent ring on focus that every other field in the application
+  draws.
+*/
+@utility field-on-glass {
+  background-color: rgb(0 0 0 / 0.32);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.16);
+}
+
+.field-on-glass:focus {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.2),
+    0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/*
   The seam between two panes, drawn by the sash that sits between them.
 
   One element rather than a rule on each side: a pane that draws its own edge

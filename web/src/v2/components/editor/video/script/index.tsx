@@ -11,14 +11,18 @@ import { ClipViewer } from './clip-viewer'
 import { ChapterOutline } from './outline'
 import { SlideViewer } from './slide-viewer'
 
-/** A slide the viewer can open: its bytes, its name, and what drew it. */
-interface Slide {
-  id: string
-  title: string
-  /** The prompt the image was generated from; absent until they are written. */
-  prompt?: string
-  /** An input moved after it was drawn, so the prompt may not be its own. */
-  stale?: boolean
+/**
+ * Which slide is open — the slot, not the picture in it.
+ *
+ * A content address would have been the obvious thing to hold and is the wrong
+ * one: redrawing a slide produces a *different* asset, so a viewer keyed on the
+ * old id goes on showing the image you just replaced. Keyed on the slot, the
+ * bytes, the prompt and the staleness are all read fresh on every render, and
+ * the new picture arrives on the event stream without the dialog being told.
+ */
+interface Viewing {
+  chapterId: string
+  slot: number
 }
 
 /**
@@ -52,7 +56,7 @@ export function ScriptView({ video, chapters, tasks }: ViewProps) {
 
   // Which slide is open, and what to call it. Held here rather than per chapter
   // so there is one viewer for the whole scroll and no way to end up with two.
-  const [viewing, setViewing] = useState<Slide | null>(null)
+  const [viewing, setViewing] = useState<Viewing | null>(null)
 
   const scroller = useRef<HTMLDivElement>(null)
   const [active, setActive] = useState<string | null>(null)
@@ -90,6 +94,28 @@ export function ScriptView({ video, chapters, tasks }: ViewProps) {
     return () => observer.disconnect()
   }, [chapters])
 
+  /*
+    The open slide, resolved from the current chapters and tasks rather than
+    from what was true when it was clicked.
+
+    This is what makes a redraw visible without closing anything: the asset id
+    is read here, so the moment the new one lands in the cache the dialog's
+    `src` changes. It also closes itself if the slide disappears underneath it,
+    which is the only sane answer to a chapter that has gone away.
+  */
+  const open = useMemo(() => {
+    if (!viewing) return null
+    const chapter = chapters.find((row) => row.id === viewing.chapterId)
+    const assetId = chapter?.slideAssetIds[viewing.slot]
+    if (!chapter || !assetId) return null
+    return {
+      chapter,
+      slot: viewing.slot,
+      assetId,
+      cell: stages.get(chapter.id)?.slides[viewing.slot],
+    }
+  }, [viewing, chapters, stages])
+
   const jump = (id: string) => {
     scroller.current
       ?.querySelector<HTMLElement>(`[data-chapter="${id}"]`)
@@ -123,12 +149,16 @@ export function ScriptView({ video, chapters, tasks }: ViewProps) {
           />
         ))}
       </div>
-      {viewing ? (
+      {open ? (
         <SlideViewer
-          src={`/assets/${viewing.id}`}
-          title={viewing.title}
-          prompt={viewing.prompt}
-          stale={viewing.stale}
+          chapterId={open.chapter.id}
+          slot={open.slot}
+          videoId={video.id}
+          src={`/assets/${open.assetId}`}
+          title={`${open.chapter.title} · Slide ${open.slot + 1}`}
+          prompt={open.chapter.slidePrompts[open.slot]}
+          stale={open.cell?.stale ?? false}
+          drawing={open.cell?.state === 'running'}
           onClose={() => setViewing(null)}
         />
       ) : null}
@@ -193,7 +223,7 @@ function ChapterBlock({
 }: {
   chapter: Chapter
   slides: Cell[]
-  onView: (slide: Slide) => void
+  onView: (viewing: Viewing) => void
 }) {
   const words = wordsIn(chapter.script)
   // Held here rather than up in the reader: the button that opens it is in this
@@ -272,10 +302,7 @@ function ChapterBlock({
                     cell={cell}
                     id={chapter.slideAssetIds[slot]}
                     slot={slot}
-                    prompt={chapter.slidePrompts[slot]}
-                    onView={(slide) =>
-                      onView({ ...slide, title: `${chapter.title} · ${slide.title}` })
-                    }
+                    onView={() => onView({ chapterId: chapter.id, slot })}
                   />
                 ))}
               </div>
@@ -340,30 +367,18 @@ function Slide({
   id,
   cell,
   slot,
-  prompt,
   onView,
 }: {
   id: string | undefined
   cell: Cell
   slot: number
-  prompt: string | undefined
-  onView: (slide: Slide) => void
+  onView: () => void
 }) {
   if (id) {
     return (
       <button
         type="button"
-        // The staleness travels with the prompt because it is about the pairing
-        // rather than about either one: the image is intact and the text is
-        // current, and what changed is whether the second describes the first.
-        onClick={() =>
-          onView({
-            id,
-            title: `Slide ${slot + 1}`,
-            ...(prompt ? { prompt } : {}),
-            stale: cell.stale,
-          })
-        }
+        onClick={onView}
         // The ring rather than a brightness lift: macOS shows a picture is
         // pickable by outlining it, and the picture itself should not change
         // colour under the pointer.

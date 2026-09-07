@@ -174,6 +174,22 @@ export const api = {
     }),
 
   /**
+   * A new prompt for one slide, and the redraw it implies.
+   *
+   * One call because the server offers no other shape: there is no way to save
+   * a prompt without generating from it, which is what keeps the stored text
+   * and the picture on screen describing each other.
+   *
+   * Only that slide runs again. What was built from the old one — the chapter's
+   * clip, the render, everything after — keeps its artifact and is flagged, the
+   * same non-cascading re-run the pipeline dots use.
+   *
+   * Answers with the whole chapter, so the caller patches rather than refetches.
+   */
+  regenerateSlide: (chapterId: string, index: number, prompt: string) =>
+    post<Chapter>(`/api/chapters/${key(chapterId)}/slides/${index}/generate`, { prompt }),
+
+  /**
    * An asset's bytes, as text.
    *
    * Not `request`: an asset is not an API resource with a problem-detail error
