@@ -105,7 +105,7 @@ func chapterParams(c entity.Chapter) (sqlcgen.UpsertChapterParams, error) {
 		AudioAssetID:      assetIDPtr(c.AudioAssetID),
 		SlideAssetIdsJson: slidesJSON,
 		ClipAssetID:       assetIDPtr(c.ClipAssetID),
-		DurationSeconds:   c.DurationSeconds,
+		AudioDurationSeconds: c.AudioDurationSeconds,
 		EstimatedWords:    int64(c.EstimatedWords),
 		CreatedAt:         toUnix(c.CreatedAt),
 		UpdatedAt:         toUnix(c.UpdatedAt),
@@ -131,13 +131,12 @@ func (s *Store) SetChapterPlan(ctx context.Context, id entity.ChapterID, title, 
 }
 
 // SetChapterScript records a generated or operator-edited narration.
-func (s *Store) SetChapterScript(ctx context.Context, id entity.ChapterID, script string, durationSeconds float64) error {
+func (s *Store) SetChapterScript(ctx context.Context, id entity.ChapterID, script string) error {
 	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
 		return q.SetChapterScript(ctx, sqlcgen.SetChapterScriptParams{
-			Script:          script,
-			DurationSeconds: durationSeconds,
-			UpdatedAt:       toUnix(time.Now()),
-			ID:              string(id),
+			Script:    script,
+			UpdatedAt: toUnix(time.Now()),
+			ID:        string(id),
 		})
 	})
 }
@@ -178,14 +177,22 @@ func (s *Store) SetChapterPrompt(ctx context.Context, id entity.ChapterID, index
 	})
 }
 
-// SetChapterAudio records the narration asset.
-func (s *Store) SetChapterAudio(ctx context.Context, id entity.ChapterID, assetID entity.AssetID) error {
+// SetChapterAudio records the narration asset and how long it runs. One
+// statement for both, so the row cannot name a file and a length belonging to
+// different recordings.
+func (s *Store) SetChapterAudio(
+	ctx context.Context,
+	id entity.ChapterID,
+	assetID entity.AssetID,
+	durationSeconds float64,
+) error {
 	value := string(assetID)
 	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
 		return q.SetChapterAudio(ctx, sqlcgen.SetChapterAudioParams{
-			AudioAssetID: &value,
-			UpdatedAt:    toUnix(time.Now()),
-			ID:           string(id),
+			AudioAssetID:         &value,
+			AudioDurationSeconds: durationSeconds,
+			UpdatedAt:            toUnix(time.Now()),
+			ID:                   string(id),
 		})
 	})
 }

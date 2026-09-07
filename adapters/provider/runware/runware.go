@@ -41,10 +41,16 @@ type Model struct {
 // Models is the shortlist offered on the settings screen, not a catalogue:
 // Runware hosts thousands and a copy here would be stale on the day it shipped.
 // The field still takes any AIR.
+//
+// The two names were transposed here until the settings screen began drawing
+// them, which is what made it visible: 100 is Schnell, the four-step model, and
+// 101 is Dev. Runware's own SDK documents them in that order, and 100 is what a
+// fresh install is seeded with — so read the pairing twice before editing it. A
+// wrong name here is a model nobody chose, picked silently.
 func Models() []Model {
 	return []Model{
-		{AIR: "runware:100@1", Name: "FLUX.1 Dev"},
-		{AIR: "runware:101@1", Name: "FLUX.1 Schnell"},
+		{AIR: "runware:100@1", Name: "FLUX.1 Schnell"},
+		{AIR: "runware:101@1", Name: "FLUX.1 Dev"},
 	}
 }
 

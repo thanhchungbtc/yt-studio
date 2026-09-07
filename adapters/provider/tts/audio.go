@@ -136,3 +136,32 @@ func fadeOut(frames []byte, fadeFrames, channels int) {
 		}
 	}
 }
+
+/*
+DurationSeconds is how long a WAV runs, read from its own header.
+
+Frames over frame rate, which is exact for the PCM every backend here produces —
+there is nothing to estimate and nothing to shell out to. ffprobe would answer
+the same question by starting a process on the slowest path in the pipeline, and
+the ffmpeg adapter's own probe reads the header first for that reason.
+
+Zero, not an error, for anything it cannot read. The caller is storing the audio
+either way, and a chapter is not worth failing over a duration; zero already
+means "no measurement" on the column this lands in. In practice it is nearly
+unreachable — CleanTail has decoded the same bytes a line earlier.
+
+Deliberately not rounded to whole seconds. The Python rounded, and half a second
+per chapter is invisible alone and minutes across fifty of them once anything
+adds them up.
+*/
+func DurationSeconds(audio []byte) float64 {
+	decoded, err := decodeWAV(audio)
+	if err != nil {
+		return 0
+	}
+	perFrame := decoded.bytesPerFrame()
+	if perFrame == 0 || decoded.SampleRate <= 0 {
+		return 0
+	}
+	return float64(len(decoded.Frames)/perFrame) / float64(decoded.SampleRate)
+}

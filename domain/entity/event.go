@@ -74,7 +74,12 @@ type ChapterDelta struct {
 	Title         string    `json:"title"`
 	HasScript     bool      `json:"hasScript"`
 	AudioAssetID  *AssetID  `json:"audioAssetId,omitempty"`
-	SlideAssetIDs []AssetID `json:"slideAssetIds,omitempty"`
+	// Travels with AudioAssetID because it is a fact about that same file. The
+	// script body is deliberately off the wire and fetched on notice, but a
+	// float is not worth a round trip — and without it a chapter would show its
+	// narration arriving while its length stayed at zero.
+	AudioDurationSeconds float64   `json:"audioDurationSeconds,omitempty"`
+	SlideAssetIDs        []AssetID `json:"slideAssetIds,omitempty"`
 	ClipAssetID   *AssetID  `json:"clipAssetId,omitempty"`
 	UpdatedAt     time.Time `json:"updatedAt"`
 }

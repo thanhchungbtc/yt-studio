@@ -30,14 +30,10 @@ func UpdateChapterScript(
 	if err != nil {
 		return entity.Chapter{}, err
 	}
-	// The blueprint's reading speed, so an edited chapter and a generated one
-	// are measured the same way.
-	duration := NarrationSeconds(CountWords(script))
-	if err := fields.SetChapterScript(ctx, id, script, duration); err != nil {
+	if err := fields.SetChapterScript(ctx, id, script); err != nil {
 		return entity.Chapter{}, err
 	}
 	c.Script = script
-	c.DurationSeconds = duration
 
 	// Seeded on the script task: the edit replaces its output, so everything
 	// below is questionable but the task itself is not.
@@ -66,7 +62,8 @@ func chapterDelta(c entity.Chapter) entity.ChapterDelta {
 		Ordinal:       c.Ordinal,
 		Title:         c.Title,
 		HasScript:     c.Script != "",
-		AudioAssetID:  c.AudioAssetID,
+		AudioAssetID:         c.AudioAssetID,
+		AudioDurationSeconds: c.AudioDurationSeconds,
 		SlideAssetIDs: c.SlideAssetIDs,
 		ClipAssetID:   c.ClipAssetID,
 		UpdatedAt:     c.UpdatedAt,

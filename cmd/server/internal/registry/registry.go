@@ -233,10 +233,10 @@ type ttsRouter struct{ p *port[provider.TTS] }
 
 var _ provider.TTS = ttsRouter{}
 
-func (r ttsRouter) Speak(ctx context.Context, req provider.SpeakRequest) (entity.AssetID, error) {
+func (r ttsRouter) Speak(ctx context.Context, req provider.SpeakRequest) (provider.Narration, error) {
 	impl, err := r.p.pick()
 	if err != nil {
-		return "", err
+		return provider.Narration{}, err
 	}
 	return impl.Speak(ctx, req)
 }

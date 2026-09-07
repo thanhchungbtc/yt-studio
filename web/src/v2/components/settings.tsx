@@ -320,29 +320,64 @@ function SettingRow({ setting, where }: { setting: Setting; where?: string }) {
       )
     }
 
-    const listId = setting.suggestions.length > 0 ? `${setting.key}-suggestions` : undefined
-    return (
-      <>
-        <Input
-          type={setting.secret ? 'password' : 'text'}
+    /*
+      A shortlist, drawn as a dropdown.
+
+      This was a `datalist` on a text field, and in the WebKit view the
+      application actually runs in that is very close to nothing: no control
+      says a list exists, it appears only once you have started typing, and an
+      option is rendered by its *value* rather than its label. So the model row
+      offered `runware:100@1` and never the words "FLUX.1 Schnell" — the names
+      have been on the wire since the shortlist was written and nobody could
+      see one. The same was true of the fonts, which had names all along and
+      showed `CabinSketch-Bold.ttf`.
+
+      A dropdown here and a closed `Select` above it, on purpose. `options` is
+      binding — the server refuses anything outside it and `Settings.Load`
+      turns a stray row into a failure to boot — where suggestions are
+      advisory, and a shortlist of two checkpoints out of the thousands Runware
+      hosts has no business being either. The list is what is worth offering;
+      it is not the set of legal answers, and the control says so by leaving
+      the stored value alone rather than by looking different.
+    */
+    if (setting.suggestions.length > 0 && !setting.secret) {
+      const known = setting.suggestions.some((suggestion) => suggestion.value === draft)
+      return (
+        <Select
           className="w-[220px]"
           value={draft}
-          list={listId}
-          placeholder={setting.secret && setting.configured ? 'Set — type to replace' : ''}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={(event) => commit(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') event.currentTarget.blur()
+          onChange={(event) => {
+            setDraft(event.target.value)
+            commit(event.target.value)
           }}
-        />
-        {listId ? (
-          <datalist id={listId}>
-            {setting.suggestions.map((suggestion) => (
-              <option key={suggestion.value} value={suggestion.value} label={suggestion.label} />
-            ))}
-          </datalist>
-        ) : null}
-      </>
+        >
+          {/* A value the shortlist has never heard of is still this setting's
+              value, and a dropdown that silently resolved to its first row
+              would change a backend nobody asked it to change — as the
+              *rendering*, before anything was even clicked. It is shown raw,
+              because the only honest name for it is what it says. */}
+          {known ? null : <option value={draft}>{draft || '—'}</option>}
+          {setting.suggestions.map((suggestion) => (
+            <option key={suggestion.value} value={suggestion.value}>
+              {suggestion.label}
+            </option>
+          ))}
+        </Select>
+      )
+    }
+
+    return (
+      <Input
+        type={setting.secret ? 'password' : 'text'}
+        className="w-[220px]"
+        value={draft}
+        placeholder={setting.secret && setting.configured ? 'Set — type to replace' : ''}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={(event) => commit(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') event.currentTarget.blur()
+        }}
+      />
     )
   }
 

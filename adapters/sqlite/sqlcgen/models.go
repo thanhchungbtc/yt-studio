@@ -28,20 +28,20 @@ type Channel struct {
 }
 
 type Chapter struct {
-	ID                string
-	VideoID           string
-	Ordinal           int64
-	Title             string
-	Summary           string
-	Script            string
-	SlidePromptsJson  string
-	AudioAssetID      *string
-	SlideAssetIdsJson string
-	ClipAssetID       *string
-	DurationSeconds   float64
-	CreatedAt         int64
-	UpdatedAt         int64
-	EstimatedWords    int64
+	ID                   string
+	VideoID              string
+	Ordinal              int64
+	Title                string
+	Summary              string
+	Script               string
+	SlidePromptsJson     string
+	AudioAssetID         *string
+	SlideAssetIdsJson    string
+	ClipAssetID          *string
+	AudioDurationSeconds float64
+	CreatedAt            int64
+	UpdatedAt            int64
+	EstimatedWords       int64
 }
 
 type Setting struct {

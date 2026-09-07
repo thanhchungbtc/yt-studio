@@ -257,18 +257,19 @@ type speechRequest struct {
 	Speed          float64 `json:"speed"`
 }
 
-// Speak narrates exactly one chapter and returns the audio's content address.
-func (c *Client) Speak(ctx context.Context, req provider.SpeakRequest) (entity.AssetID, error) {
+// Speak narrates exactly one chapter and returns the audio's content address
+// and its measured length.
+func (c *Client) Speak(ctx context.Context, req provider.SpeakRequest) (provider.Narration, error) {
 	base, err := c.baseURL()
 	if err != nil {
-		return "", err
+		return provider.Narration{}, err
 	}
 	voice := strings.TrimSpace(req.Voice)
 	if voice == "" {
 		// Refused here rather than sent: the server answers an empty voice with a
 		// 500 and "string index out of range", which reads as a server fault and
 		// would be retried as one.
-		return "", fmt.Errorf("%w: no voice is set", ErrUnavailable)
+		return provider.Narration{}, fmt.Errorf("%w: no voice is set", ErrUnavailable)
 	}
 	speed := req.Speed
 	if speed <= 0 {
@@ -286,18 +287,22 @@ func (c *Client) Speak(ctx context.Context, req provider.SpeakRequest) (entity.A
 		Speed:          speed,
 	})
 	if err != nil {
-		return "", err
+		return provider.Narration{}, err
 	}
 	// The server writes a streaming RIFF header, with 0xFFFFFFFF where both
 	// lengths belong. CleanTail re-encodes what it decodes, so trimming the tail
 	// is also what leaves a well-formed file behind for ffmpeg.
 	audio = tts.CleanTail(audio, defaultFadeMillis, defaultSilenceThreshold)
 
+	// Measured from the same bytes that are about to be stored, after CleanTail
+	// rather than before: the trim is what decides where the file ends.
+	seconds := tts.DurationSeconds(audio)
+
 	stored, err := c.store.Put(ctx, entity.AssetKindAudio, bytes.NewReader(audio))
 	if err != nil {
-		return "", fmt.Errorf("store narration: %w", err)
+		return provider.Narration{}, fmt.Errorf("store narration: %w", err)
 	}
-	return stored.ID, nil
+	return provider.Narration{AssetID: stored.ID, Seconds: seconds}, nil
 }
 
 // synthesize speaks one chapter and returns its WAV bytes.

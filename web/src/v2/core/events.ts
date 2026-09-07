@@ -243,6 +243,7 @@ function applyChapters(client: QueryClient, deltas: ChapterDelta[]): void {
           ...chapter,
           title: delta.title || chapter.title,
           audioAssetId: delta.audioAssetId ?? chapter.audioAssetId,
+          audioDurationSeconds: delta.audioDurationSeconds ?? chapter.audioDurationSeconds,
           slideAssetIds: delta.slideAssetIds ?? chapter.slideAssetIds,
           clipAssetId: delta.clipAssetId ?? chapter.clipAssetId,
           updatedAt: delta.updatedAt,
@@ -250,6 +251,7 @@ function applyChapters(client: QueryClient, deltas: ChapterDelta[]): void {
         if (
           merged.title === chapter.title &&
           merged.audioAssetId === chapter.audioAssetId &&
+          merged.audioDurationSeconds === chapter.audioDurationSeconds &&
           merged.clipAssetId === chapter.clipAssetId &&
           sameIds(merged.slideAssetIds, chapter.slideAssetIds)
         ) {

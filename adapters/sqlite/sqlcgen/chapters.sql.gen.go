@@ -19,7 +19,7 @@ func (q *Queries) DeleteChaptersByVideo(ctx context.Context, videoID string) err
 }
 
 const getChapterByID = `-- name: GetChapterByID :one
-SELECT id, video_id, ordinal, title, summary, script, slide_prompts_json, audio_asset_id, slide_asset_ids_json, clip_asset_id, duration_seconds, created_at, updated_at, estimated_words FROM chapters WHERE id = ?
+SELECT id, video_id, ordinal, title, summary, script, slide_prompts_json, audio_asset_id, slide_asset_ids_json, clip_asset_id, audio_duration_seconds, created_at, updated_at, estimated_words FROM chapters WHERE id = ?
 `
 
 func (q *Queries) GetChapterByID(ctx context.Context, id string) (Chapter, error) {
@@ -36,7 +36,7 @@ func (q *Queries) GetChapterByID(ctx context.Context, id string) (Chapter, error
 		&i.AudioAssetID,
 		&i.SlideAssetIdsJson,
 		&i.ClipAssetID,
-		&i.DurationSeconds,
+		&i.AudioDurationSeconds,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.EstimatedWords,
@@ -45,7 +45,7 @@ func (q *Queries) GetChapterByID(ctx context.Context, id string) (Chapter, error
 }
 
 const listChaptersByVideo = `-- name: ListChaptersByVideo :many
-SELECT id, video_id, ordinal, title, summary, script, slide_prompts_json, audio_asset_id, slide_asset_ids_json, clip_asset_id, duration_seconds, created_at, updated_at, estimated_words FROM chapters WHERE video_id = ? ORDER BY ordinal
+SELECT id, video_id, ordinal, title, summary, script, slide_prompts_json, audio_asset_id, slide_asset_ids_json, clip_asset_id, audio_duration_seconds, created_at, updated_at, estimated_words FROM chapters WHERE video_id = ? ORDER BY ordinal
 `
 
 func (q *Queries) ListChaptersByVideo(ctx context.Context, videoID string) ([]Chapter, error) {
@@ -68,7 +68,7 @@ func (q *Queries) ListChaptersByVideo(ctx context.Context, videoID string) ([]Ch
 			&i.AudioAssetID,
 			&i.SlideAssetIdsJson,
 			&i.ClipAssetID,
-			&i.DurationSeconds,
+			&i.AudioDurationSeconds,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.EstimatedWords,
@@ -87,17 +87,28 @@ func (q *Queries) ListChaptersByVideo(ctx context.Context, videoID string) ([]Ch
 }
 
 const setChapterAudio = `-- name: SetChapterAudio :exec
-UPDATE chapters SET audio_asset_id = ?, updated_at = ? WHERE id = ?
+UPDATE chapters
+SET audio_asset_id = ?, audio_duration_seconds = ?, updated_at = ?
+WHERE id = ?
 `
 
 type SetChapterAudioParams struct {
-	AudioAssetID *string
-	UpdatedAt    int64
-	ID           string
+	AudioAssetID         *string
+	AudioDurationSeconds float64
+	UpdatedAt            int64
+	ID                   string
 }
 
+// The narration and its measured length are one write. They describe the same
+// file, so a statement that could set one without the other is a way for the
+// row to claim a duration for audio it no longer has.
 func (q *Queries) SetChapterAudio(ctx context.Context, arg SetChapterAudioParams) error {
-	_, err := q.exec(ctx, q.setChapterAudioStmt, setChapterAudio, arg.AudioAssetID, arg.UpdatedAt, arg.ID)
+	_, err := q.exec(ctx, q.setChapterAudioStmt, setChapterAudio,
+		arg.AudioAssetID,
+		arg.AudioDurationSeconds,
+		arg.UpdatedAt,
+		arg.ID,
+	)
 	return err
 }
 
@@ -188,26 +199,20 @@ func (q *Queries) SetChapterPrompts(ctx context.Context, arg SetChapterPromptsPa
 }
 
 const setChapterScript = `-- name: SetChapterScript :exec
-UPDATE chapters SET script = ?, duration_seconds = ?, updated_at = ? WHERE id = ?
+UPDATE chapters SET script = ?, updated_at = ? WHERE id = ?
 `
 
 type SetChapterScriptParams struct {
-	Script          string
-	DurationSeconds float64
-	UpdatedAt       int64
-	ID              string
+	Script    string
+	UpdatedAt int64
+	ID        string
 }
 
 // Field-scoped updates. Two slide tasks for the same chapter run concurrently,
 // so a read-modify-write of the whole row would lose one of them; each of these
 // is a single atomic statement instead.
 func (q *Queries) SetChapterScript(ctx context.Context, arg SetChapterScriptParams) error {
-	_, err := q.exec(ctx, q.setChapterScriptStmt, setChapterScript,
-		arg.Script,
-		arg.DurationSeconds,
-		arg.UpdatedAt,
-		arg.ID,
-	)
+	_, err := q.exec(ctx, q.setChapterScriptStmt, setChapterScript, arg.Script, arg.UpdatedAt, arg.ID)
 	return err
 }
 
@@ -238,7 +243,7 @@ func (q *Queries) SetChapterSlide(ctx context.Context, arg SetChapterSlideParams
 const upsertChapter = `-- name: UpsertChapter :exec
 INSERT INTO chapters (
     id, video_id, ordinal, title, summary, script, slide_prompts_json,
-    audio_asset_id, slide_asset_ids_json, clip_asset_id, duration_seconds,
+    audio_asset_id, slide_asset_ids_json, clip_asset_id, audio_duration_seconds,
     estimated_words, created_at, updated_at
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (id) DO UPDATE SET
@@ -250,26 +255,26 @@ ON CONFLICT (id) DO UPDATE SET
     audio_asset_id = excluded.audio_asset_id,
     slide_asset_ids_json = excluded.slide_asset_ids_json,
     clip_asset_id = excluded.clip_asset_id,
-    duration_seconds = excluded.duration_seconds,
+    audio_duration_seconds = excluded.audio_duration_seconds,
     estimated_words = excluded.estimated_words,
     updated_at = excluded.updated_at
 `
 
 type UpsertChapterParams struct {
-	ID                string
-	VideoID           string
-	Ordinal           int64
-	Title             string
-	Summary           string
-	Script            string
-	SlidePromptsJson  string
-	AudioAssetID      *string
-	SlideAssetIdsJson string
-	ClipAssetID       *string
-	DurationSeconds   float64
-	EstimatedWords    int64
-	CreatedAt         int64
-	UpdatedAt         int64
+	ID                   string
+	VideoID              string
+	Ordinal              int64
+	Title                string
+	Summary              string
+	Script               string
+	SlidePromptsJson     string
+	AudioAssetID         *string
+	SlideAssetIdsJson    string
+	ClipAssetID          *string
+	AudioDurationSeconds float64
+	EstimatedWords       int64
+	CreatedAt            int64
+	UpdatedAt            int64
 }
 
 func (q *Queries) UpsertChapter(ctx context.Context, arg UpsertChapterParams) error {
@@ -284,7 +289,7 @@ func (q *Queries) UpsertChapter(ctx context.Context, arg UpsertChapterParams) er
 		arg.AudioAssetID,
 		arg.SlideAssetIdsJson,
 		arg.ClipAssetID,
-		arg.DurationSeconds,
+		arg.AudioDurationSeconds,
 		arg.EstimatedWords,
 		arg.CreatedAt,
 		arg.UpdatedAt,

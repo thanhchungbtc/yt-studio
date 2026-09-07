@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 )
 
 // The RIFF/WAVE handling the Python got free from the `wave` module. It is here
@@ -126,4 +127,77 @@ func encodeWAV(audio wavAudio) []byte {
 	binary.LittleEndian.PutUint32(out[40:44], uint32(len(audio.Frames))) //nolint:gosec // as above
 	copy(out[headerSize:], audio.Frames)
 	return out
+}
+
+/*
+DurationOf reads a WAV's length from its header, without holding the audio.
+
+The counterpart to DurationSeconds for a backend that streams its file to the
+store instead of decoding it — the sample narrator is one, and reading a
+recording into memory to learn how long it is would undo the reason it streams.
+
+Only the chunk headers are read: `fmt ` carries the byte rate, `data` declares
+its own size, and everything between is seeked over. So the cost is a handful of
+small reads whatever the file weighs.
+
+The reader is left where it was found, because the caller is about to send the
+same handle to the store and a stream already advanced past its header would be
+written as a headerless fragment.
+
+Zero for anything unreadable, exactly as DurationSeconds does.
+*/
+func DurationOf(r io.ReadSeeker) float64 {
+	start, err := r.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return 0
+	}
+	defer func() { _, _ = r.Seek(start, io.SeekStart) }()
+
+	var header [12]byte
+	if _, err := io.ReadFull(r, header[:]); err != nil {
+		return 0
+	}
+	if string(header[0:4]) != "RIFF" || string(header[8:12]) != "WAVE" {
+		return 0
+	}
+
+	var byteRate, dataSize uint32
+	var chunk [8]byte
+	for {
+		if _, err := io.ReadFull(r, chunk[:]); err != nil {
+			break
+		}
+		id := string(chunk[0:4])
+		size := binary.LittleEndian.Uint32(chunk[4:8])
+		switch id {
+		case "fmt ":
+			var body [16]byte
+			if _, err := io.ReadFull(r, body[:]); err != nil {
+				return 0
+			}
+			byteRate = binary.LittleEndian.Uint32(body[8:12])
+			// Chunks are word-aligned and `fmt ` may carry extension bytes past
+			// the 16 read above; both are skipped by seeking the declared size.
+			if _, err := r.Seek(int64(size)-16+int64(size&1), io.SeekCurrent); err != nil {
+				return 0
+			}
+		case "data":
+			dataSize = size
+			// The size the header declares, not the bytes on disk: a streaming
+			// writer leaves 0xFFFFFFFF here, and that is caught below rather
+			// than turned into a duration measured in centuries.
+			if dataSize == 0xFFFFFFFF {
+				return 0
+			}
+			if byteRate == 0 {
+				return 0
+			}
+			return float64(dataSize) / float64(byteRate)
+		default:
+			if _, err := r.Seek(int64(size)+int64(size&1), io.SeekCurrent); err != nil {
+				return 0
+			}
+		}
+	}
+	return 0
 }

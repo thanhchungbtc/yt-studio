@@ -26,10 +26,13 @@ type ChapterFieldWriter interface {
 	// SetChapterPlan writes what the chapter is meant to cover and how long it
 	// is meant to run: the operator's edit of the approved blueprint.
 	SetChapterPlan(ctx context.Context, id entity.ChapterID, title, summary string, estimatedWords int) error
-	SetChapterScript(ctx context.Context, id entity.ChapterID, script string, durationSeconds float64) error
+	SetChapterScript(ctx context.Context, id entity.ChapterID, script string) error
 	SetChapterPrompts(ctx context.Context, id entity.ChapterID, prompts []string) error
 	SetChapterPrompt(ctx context.Context, id entity.ChapterID, index int, prompt string) error
-	SetChapterAudio(ctx context.Context, id entity.ChapterID, assetID entity.AssetID) error
+	// The audio and its measured length are written together: they describe one
+	// file, and a row that could hold one without the other is a row that can
+	// claim a duration for narration it does not have.
+	SetChapterAudio(ctx context.Context, id entity.ChapterID, assetID entity.AssetID, durationSeconds float64) error
 	SetChapterSlide(ctx context.Context, id entity.ChapterID, index int, assetID entity.AssetID) error
 	SetChapterClip(ctx context.Context, id entity.ChapterID, assetID entity.AssetID) error
 }

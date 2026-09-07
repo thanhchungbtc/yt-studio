@@ -10,7 +10,7 @@ DELETE FROM chapters WHERE video_id = ?;
 -- name: UpsertChapter :exec
 INSERT INTO chapters (
     id, video_id, ordinal, title, summary, script, slide_prompts_json,
-    audio_asset_id, slide_asset_ids_json, clip_asset_id, duration_seconds,
+    audio_asset_id, slide_asset_ids_json, clip_asset_id, audio_duration_seconds,
     estimated_words, created_at, updated_at
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (id) DO UPDATE SET
@@ -22,7 +22,7 @@ ON CONFLICT (id) DO UPDATE SET
     audio_asset_id = excluded.audio_asset_id,
     slide_asset_ids_json = excluded.slide_asset_ids_json,
     clip_asset_id = excluded.clip_asset_id,
-    duration_seconds = excluded.duration_seconds,
+    audio_duration_seconds = excluded.audio_duration_seconds,
     estimated_words = excluded.estimated_words,
     updated_at = excluded.updated_at;
 
@@ -30,7 +30,7 @@ ON CONFLICT (id) DO UPDATE SET
 -- so a read-modify-write of the whole row would lose one of them; each of these
 -- is a single atomic statement instead.
 -- name: SetChapterScript :exec
-UPDATE chapters SET script = ?, duration_seconds = ?, updated_at = ? WHERE id = ?;
+UPDATE chapters SET script = ?, updated_at = ? WHERE id = ?;
 
 -- The three fields the blueprint plans with, written together because they are
 -- edited together: re-budgeting a chapter's words usually means rewriting the
@@ -53,8 +53,13 @@ SET slide_prompts_json = json_set(slide_prompts_json, CAST(sqlc.arg(path) AS TEX
     updated_at = sqlc.arg(updated_at)
 WHERE id = sqlc.arg(id);
 
+-- The narration and its measured length are one write. They describe the same
+-- file, so a statement that could set one without the other is a way for the
+-- row to claim a duration for audio it no longer has.
 -- name: SetChapterAudio :exec
-UPDATE chapters SET audio_asset_id = ?, updated_at = ? WHERE id = ?;
+UPDATE chapters
+SET audio_asset_id = ?, audio_duration_seconds = ?, updated_at = ?
+WHERE id = ?;
 
 -- name: SetChapterSlide :exec
 UPDATE chapters

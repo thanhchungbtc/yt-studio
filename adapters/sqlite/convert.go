@@ -165,7 +165,7 @@ func chapterFromRow(r sqlcgen.Chapter) (entity.Chapter, error) {
 		Script:          r.Script,
 		AudioAssetID:    toAssetID(r.AudioAssetID),
 		ClipAssetID:     toAssetID(r.ClipAssetID),
-		DurationSeconds: r.DurationSeconds,
+		AudioDurationSeconds: r.AudioDurationSeconds,
 		EstimatedWords:  int(r.EstimatedWords),
 		CreatedAt:       fromUnix(r.CreatedAt),
 		UpdatedAt:       fromUnix(r.UpdatedAt),

@@ -58,10 +58,9 @@ func UpdateChapterPlan(
 	c.Summary = summary
 	c.EstimatedWords = plan.EstimatedWords
 
-	// DurationSeconds is deliberately untouched. It is what the narration came
-	// to, measured from the script; the projection from the new budget is the
-	// caller's arithmetic — NarrationSeconds — and overwriting a measurement
-	// with an estimate would make the two indistinguishable afterwards.
+	// AudioDurationSeconds is deliberately untouched. It measures narration that
+	// has already been spoken, and re-budgeting a chapter's words does not
+	// shorten a recording that exists.
 	if notifier != nil {
 		notifier.NotifyChapter(chapterDelta(c))
 	}

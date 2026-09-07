@@ -59,13 +59,11 @@ func GenerateScript(
 		return classify(err)
 	}
 
-	duration := NarrationSeconds(script.WordCount)
-	if err := fields.SetChapterScript(ctx, chapter.ID, script.Text, duration); err != nil {
+	if err := fields.SetChapterScript(ctx, chapter.ID, script.Text); err != nil {
 		return classify(err)
 	}
 
 	chapter.Script = script.Text
-	chapter.DurationSeconds = duration
 	chapter.UpdatedAt = now
 	if notifier != nil {
 		notifier.NotifyChapter(chapterDelta(chapter))

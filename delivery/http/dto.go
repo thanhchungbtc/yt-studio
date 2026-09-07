@@ -239,7 +239,7 @@ type ChapterDTO struct {
 	AudioAssetID    string    `json:"audioAssetId,omitempty"`
 	SlideAssetIDs   []string  `json:"slideAssetIds"`
 	ClipAssetID     string    `json:"clipAssetId,omitempty"`
-	DurationSeconds float64   `json:"durationSeconds" doc:"Measured from the script once it exists"`
+	AudioDurationSeconds float64 `json:"audioDurationSeconds" doc:"How long the narration runs, measured from the audio; 0 until it exists"`
 	EstimatedWords  int       `json:"estimatedWords" doc:"Spoken-word budget the blueprint assigned this chapter"`
 	UpdatedAt       time.Time `json:"updatedAt"`
 }
@@ -262,7 +262,7 @@ func chapterFrom(c entity.Chapter) ChapterDTO {
 		Script:          c.Script,
 		SlidePrompts:    prompts,
 		SlideAssetIDs:   slides,
-		DurationSeconds: c.DurationSeconds,
+		AudioDurationSeconds: c.AudioDurationSeconds,
 		EstimatedWords:  c.EstimatedWords,
 		UpdatedAt:       c.UpdatedAt,
 	}

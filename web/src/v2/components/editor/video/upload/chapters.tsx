@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 import type { Chapter } from '../../../../core/types'
 import { cn } from '../../../../core/utils'
 import { Caption } from '../../../ui/caption'
+import { chapterSeconds } from '../stages'
 
 /**
  * The chapters, as a list you click.
@@ -18,7 +19,7 @@ import { Caption } from '../../../ui/caption'
  * list is what a list of chapters is, and it is one row per chapter at one
  * height whether there are two of them or fifty.
  *
- * The times are in the *player's* units, not the plan's. `durationSeconds` is
+ * The times are in the *player's* units, not the plan's. `chapterSeconds` is
  * what the blueprint budgeted, and the cut is whatever ffmpeg produced — here,
  * 7:08 of planned narration against a 2:47 render. Left alone, this would send
  * you to 3:34 of a video that ends at 2:47. So once the player reports its
@@ -67,7 +68,7 @@ export function ChapterList({
   onSeek: (at: number) => void
 }) {
   const { rows, timed } = useMemo(() => {
-    const planned = chapters.reduce((sum, chapter) => sum + chapter.durationSeconds, 0)
+    const planned = chapters.reduce((sum, chapter) => sum + chapterSeconds(chapter), 0)
     // Everything below is in player seconds. See the note above on why.
     const scale = runtime && planned > 0 ? runtime / planned : 1
     let start = 0
@@ -77,7 +78,7 @@ export function ChapterList({
         ordinal: chapter.ordinal,
         title: chapter.title,
         start,
-        seconds: chapter.durationSeconds * scale,
+        seconds: chapterSeconds(chapter) * scale,
       }
       start += row.seconds
       return row

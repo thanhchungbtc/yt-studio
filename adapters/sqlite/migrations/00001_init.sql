@@ -89,7 +89,14 @@ CREATE TABLE chapters (
     audio_asset_id       TEXT,
     slide_asset_ids_json TEXT    NOT NULL DEFAULT '[]',
     clip_asset_id        TEXT,
-    duration_seconds     REAL    NOT NULL DEFAULT 0,
+    -- How long the narration actually runs, measured from the WAV the TTS
+    -- backend produced. Never an estimate: it is written with audio_asset_id
+    -- and by nothing else, so a non-zero value always describes the file that
+    -- column names. Zero means there is no audio yet, and what a chapter is
+    -- *expected* to run to is derived from the script wherever it is wanted --
+    -- a projection is a function of text already on the row, where this is a
+    -- measurement that cannot be recovered once the bytes are gone.
+    audio_duration_seconds REAL  NOT NULL DEFAULT 0,
     created_at           INTEGER NOT NULL,
     updated_at           INTEGER NOT NULL,
     -- The spoken-word budget the blueprint assigned to this one chapter. It is

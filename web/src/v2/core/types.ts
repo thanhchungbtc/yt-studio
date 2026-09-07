@@ -113,7 +113,13 @@ export interface Chapter {
   audioAssetId?: string
   slideAssetIds: string[]
   clipAssetId?: string
-  durationSeconds: number
+  /**
+   * How long the narration runs, measured from the audio file itself — 0 until
+   * there is one. Never an estimate: what a chapter is *expected* to run to is
+   * `projectedSeconds(wordsIn(script))`, computed where it is needed, and the
+   * two were the same field until a seek bar started trusting a word count.
+   */
+  audioDurationSeconds: number
   estimatedWords: number
   updatedAt: string
 }
@@ -263,6 +269,8 @@ export interface ChapterDelta {
   /** The script *body* is not on the wire; this says one has arrived. */
   hasScript: boolean
   audioAssetId?: string
+  /** Measured from the audio above, and on the wire with it. */
+  audioDurationSeconds?: number
   slideAssetIds?: string[]
   clipAssetId?: string
   updatedAt: string

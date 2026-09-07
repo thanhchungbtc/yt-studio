@@ -52,7 +52,7 @@ func SynthesizeNarration(
 	if err != nil {
 		return classify(err)
 	}
-	assetID, err := tts.Speak(ctx, provider.SpeakRequest{
+	narration, err := tts.Speak(ctx, provider.SpeakRequest{
 		VideoID:      video.ID,
 		ChapterID:    chapter.ID,
 		Ordinal:      chapter.Ordinal,
@@ -66,18 +66,24 @@ func SynthesizeNarration(
 		return classify(fmt.Errorf("narrate chapter %d: %w", chapter.Ordinal, err))
 	}
 
-	if _, err := RecordAsset(ctx, assets, store, assetID, entity.AssetKindAudio,
+	if _, err := RecordAsset(ctx, assets, store, narration.AssetID, entity.AssetKindAudio,
 		video.ID, &chapter.ID, "tts.speak", now); err != nil {
 		return classify(err)
 	}
-	if err := fields.SetChapterAudio(ctx, chapter.ID, assetID); err != nil {
+	// The length lands with the audio, in one statement, because this is the
+	// only place either is known to be true. Everything downstream that needs to
+	// know how long a chapter actually runs reads it from here rather than
+	// projecting it from the script — which is the same number the blueprint
+	// budgeted with and routinely a third out from what the voice produced.
+	if err := fields.SetChapterAudio(ctx, chapter.ID, narration.AssetID, narration.Seconds); err != nil {
 		return classify(err)
 	}
 
-	chapter.AudioAssetID = &assetID
+	chapter.AudioAssetID = &narration.AssetID
+	chapter.AudioDurationSeconds = narration.Seconds
 	chapter.UpdatedAt = now
 	if notifier != nil {
 		notifier.NotifyChapter(chapterDelta(chapter))
 	}
-	return entity.Success{Assets: []entity.AssetID{assetID}}
+	return entity.Success{Assets: []entity.AssetID{narration.AssetID}}
 }

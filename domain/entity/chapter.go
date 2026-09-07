@@ -26,8 +26,12 @@ type Chapter struct {
 	SlideAssetIDs []AssetID
 	ClipAssetID   *AssetID
 
-	// DurationSeconds is what the narration came to, measured from the script.
-	DurationSeconds float64
+	// AudioDurationSeconds is how long AudioAssetID runs, measured from the WAV
+	// itself. Written only with that asset and never estimated, so a non-zero
+	// value always describes audio that exists; zero means none has been made.
+	// What a chapter is *expected* to run to is a function of Script and belongs
+	// wherever it is asked for, not on the row beside a measurement.
+	AudioDurationSeconds float64
 	// EstimatedWords is the budget the blueprint assigned this chapter, uneven
 	// by design — a deep chapter carries roughly twice a short one. Zero is unset.
 	EstimatedWords int

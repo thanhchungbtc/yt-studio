@@ -202,9 +202,9 @@ func (c *Client) Check(ctx context.Context) error {
 	return nil
 }
 
-// Speak narrates exactly one chapter and returns the audio's content address.
-// The order of operations below is the Python's.
-func (c *Client) Speak(ctx context.Context, req provider.SpeakRequest) (entity.AssetID, error) {
+// Speak narrates exactly one chapter and returns the audio's content address
+// and its measured length. The order of operations below is the Python's.
+func (c *Client) Speak(ctx context.Context, req provider.SpeakRequest) (provider.Narration, error) {
 	opts := c.options()
 	v := voiceOf(req)
 
@@ -221,22 +221,26 @@ func (c *Client) Speak(ctx context.Context, req provider.SpeakRequest) (entity.A
 	for _, chunk := range chunks {
 		part, err := c.synthesize(ctx, chunk, v)
 		if err != nil {
-			return "", err
+			return provider.Narration{}, err
 		}
 		parts = append(parts, part)
 	}
 
 	joined, err := tts.ConcatWavs(parts, opts.ChunkSilenceMillis)
 	if err != nil {
-		return "", err
+		return provider.Narration{}, err
 	}
 	audio := tts.CleanTail(joined, defaultFadeMillis, defaultSilenceThreshold)
 
+	// After the join and the trim, so the measurement covers the inter-chunk
+	// silence and stops where the trim did.
+	seconds := tts.DurationSeconds(audio)
+
 	stored, err := c.store.Put(ctx, entity.AssetKindAudio, bytes.NewReader(audio))
 	if err != nil {
-		return "", fmt.Errorf("store narration: %w", err)
+		return provider.Narration{}, fmt.Errorf("store narration: %w", err)
 	}
-	return stored.ID, nil
+	return provider.Narration{AssetID: stored.ID, Seconds: seconds}, nil
 }
 
 // generateResponse is the half of the reply this package reads; the server

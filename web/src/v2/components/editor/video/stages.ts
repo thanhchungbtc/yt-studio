@@ -176,6 +176,22 @@ export function projectedSeconds(words: number): number {
   return (words / NARRATION_WPM) * 60
 }
 
+/**
+ * How long a chapter runs: measured where there is audio, projected from the
+ * script where there is not.
+ *
+ * The measurement wins whenever it exists, and the fallback is explicitly a
+ * projection rather than a stored number pretending to be one. Reading the two
+ * off a single column is what put a word count behind a seek bar — on a real
+ * video the projection ran a third long, which is fine for a plan and useless
+ * for an offset.
+ */
+export function chapterSeconds(chapter: Chapter): number {
+  return chapter.audioDurationSeconds > 0
+    ? chapter.audioDurationSeconds
+    : projectedSeconds(wordsIn(chapter.script))
+}
+
 /** Words in a written script. The blueprint's estimate is what it is compared to. */
 export function wordsIn(script: string): number {
   const trimmed = script.trim()
@@ -239,7 +255,7 @@ export function columnTotals(chapters: Chapter[], slidesPerChapter: number): Col
     totals.slides.done += chapter.slideAssetIds.filter(Boolean).length
     totals.words += wordsIn(chapter.script)
     totals.estimatedWords += chapter.estimatedWords
-    totals.seconds += chapter.durationSeconds
+    totals.seconds += chapterSeconds(chapter)
   }
   return totals
 }

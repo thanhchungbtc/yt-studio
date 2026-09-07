@@ -5,7 +5,7 @@ import type { Chapter } from '../../../../core/types'
 import { cn } from '../../../../core/utils'
 import { Button } from '../../../ui/button'
 import { Mark } from '../mark'
-import { stagesByChapter, wordsIn, type Cell } from '../stages'
+import { chapterSeconds, stagesByChapter, wordsIn, type Cell } from '../stages'
 import type { ViewProps } from '../view'
 import { ClipViewer } from './clip-viewer'
 import { ChapterOutline } from './outline'
@@ -212,7 +212,7 @@ function ChapterBlock({
           </span>
           <span className="shrink-0 text-[11px] tabular-nums text-tertiary">
             {words > 0
-              ? `${count(words)} words · ${duration(chapter.durationSeconds)}`
+              ? `${count(words)} words · ${duration(chapterSeconds(chapter))}`
               : 'not written yet'}
           </span>
         </div>
