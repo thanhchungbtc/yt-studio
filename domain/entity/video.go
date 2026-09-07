@@ -241,6 +241,12 @@ type Video struct {
 	ThumbnailPlan         *ThumbnailPlan
 	Metadata              *Metadata
 	Upload                *UploadRecord
+	// ChapterOffsets is where each chapter begins in FinalAssetID, in seconds
+	// and in ordinal order. Produced by the concat that made that render and
+	// written with it; empty until there is one. Never recomputed — a chapter's
+	// start depends on the crossfade the cut was made with, not on the setting
+	// in force when somebody asks.
+	ChapterOffsets []float64
 
 	Error       string
 	CreatedAt   time.Time

@@ -137,6 +137,9 @@ func videoFromRow(r sqlcgen.Video) (entity.Video, error) {
 		}
 		v.ThumbnailPlan = &p
 	}
+	if err := decodeJSON(r.ChapterOffsetsJson, &v.ChapterOffsets); err != nil {
+		return entity.Video{}, err
+	}
 	if err := decodeJSON(r.ThumbnailIconIdsJson, &v.ThumbnailIconAssetIDs); err != nil {
 		return entity.Video{}, err
 	}
@@ -157,18 +160,18 @@ func videoFromRow(r sqlcgen.Video) (entity.Video, error) {
 
 func chapterFromRow(r sqlcgen.Chapter) (entity.Chapter, error) {
 	c := entity.Chapter{
-		ID:              entity.ChapterID(r.ID),
-		VideoID:         entity.VideoID(r.VideoID),
-		Ordinal:         int(r.Ordinal),
-		Title:           r.Title,
-		Summary:         r.Summary,
-		Script:          r.Script,
-		AudioAssetID:    toAssetID(r.AudioAssetID),
-		ClipAssetID:     toAssetID(r.ClipAssetID),
+		ID:                   entity.ChapterID(r.ID),
+		VideoID:              entity.VideoID(r.VideoID),
+		Ordinal:              int(r.Ordinal),
+		Title:                r.Title,
+		Summary:              r.Summary,
+		Script:               r.Script,
+		AudioAssetID:         toAssetID(r.AudioAssetID),
+		ClipAssetID:          toAssetID(r.ClipAssetID),
 		AudioDurationSeconds: r.AudioDurationSeconds,
-		EstimatedWords:  int(r.EstimatedWords),
-		CreatedAt:       fromUnix(r.CreatedAt),
-		UpdatedAt:       fromUnix(r.UpdatedAt),
+		EstimatedWords:       int(r.EstimatedWords),
+		CreatedAt:            fromUnix(r.CreatedAt),
+		UpdatedAt:            fromUnix(r.UpdatedAt),
 	}
 	if err := decodeJSON(r.SlidePromptsJson, &c.SlidePrompts); err != nil {
 		return entity.Chapter{}, err

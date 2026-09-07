@@ -95,20 +95,20 @@ func chapterParams(c entity.Chapter) (sqlcgen.UpsertChapterParams, error) {
 		return sqlcgen.UpsertChapterParams{}, fmt.Errorf("encode image asset ids: %w", err)
 	}
 	return sqlcgen.UpsertChapterParams{
-		ID:                string(c.ID),
-		VideoID:           string(c.VideoID),
-		Ordinal:           int64(c.Ordinal),
-		Title:             c.Title,
-		Summary:           c.Summary,
-		Script:            c.Script,
-		SlidePromptsJson:  promptsJSON,
-		AudioAssetID:      assetIDPtr(c.AudioAssetID),
-		SlideAssetIdsJson: slidesJSON,
-		ClipAssetID:       assetIDPtr(c.ClipAssetID),
+		ID:                   string(c.ID),
+		VideoID:              string(c.VideoID),
+		Ordinal:              int64(c.Ordinal),
+		Title:                c.Title,
+		Summary:              c.Summary,
+		Script:               c.Script,
+		SlidePromptsJson:     promptsJSON,
+		AudioAssetID:         assetIDPtr(c.AudioAssetID),
+		SlideAssetIdsJson:    slidesJSON,
+		ClipAssetID:          assetIDPtr(c.ClipAssetID),
 		AudioDurationSeconds: c.AudioDurationSeconds,
-		EstimatedWords:    int64(c.EstimatedWords),
-		CreatedAt:         toUnix(c.CreatedAt),
-		UpdatedAt:         toUnix(c.UpdatedAt),
+		EstimatedWords:       int64(c.EstimatedWords),
+		CreatedAt:            toUnix(c.CreatedAt),
+		UpdatedAt:            toUnix(c.UpdatedAt),
 	}, nil
 }
 

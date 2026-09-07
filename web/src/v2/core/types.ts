@@ -163,6 +163,14 @@ export interface Video {
   /** The plan the pipeline was built from, as the LLM returned it. */
   blueprintAssetId?: string
   finalAssetId?: string
+  /**
+   * Where each chapter begins in `finalAssetId`, in seconds and in ordinal
+   * order. Produced by the concat that cut that render, so it needs no scaling
+   * and no duration from the player. Empty until a render exists, and empty
+   * from a backend that cannot say — the chapter list projects from the scripts
+   * in that case, which is close but not the file.
+   */
+  chapterOffsets: number[]
   /** What the renderer produced. Kept even while an override is live. */
   thumbnailAssetId?: string
   /** One the operator built in the builder; when present, this is what ships. */

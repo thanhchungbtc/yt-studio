@@ -267,10 +267,10 @@ func (r composerRouter) Clip(ctx context.Context, req provider.ClipRequest) (ent
 	return impl.Clip(ctx, req)
 }
 
-func (r composerRouter) Concat(ctx context.Context, req provider.ConcatRequest) (entity.AssetID, error) {
+func (r composerRouter) Concat(ctx context.Context, req provider.ConcatRequest) (provider.Render, error) {
 	impl, err := r.p.pick()
 	if err != nil {
-		return "", err
+		return provider.Render{}, err
 	}
 	return impl.Concat(ctx, req)
 }

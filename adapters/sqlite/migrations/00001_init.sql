@@ -27,6 +27,19 @@ CREATE TABLE videos (
     final_asset_id     TEXT,
     metadata_json      TEXT,
     upload_json        TEXT,
+    -- Where each chapter begins in final_asset_id, in seconds, one entry per
+    -- chapter in ordinal order.
+    --
+    -- Written with final_asset_id and by nothing else, so the timeline always
+    -- belongs to the cut sitting beside it and the next concat replaces both.
+    -- Not derivable afterwards: a crossfade is paid for by both clips at once,
+    -- so a chapter's start depends on every clip before it and on the crossfade
+    -- the render was actually made with -- recomputing from today's settings
+    -- would describe a video nobody has.
+    --
+    -- Empty until a render exists, and empty from a backend that cannot say
+    -- where its chapters are. Readers fall back to projecting from the scripts.
+    chapter_offsets_json TEXT NOT NULL DEFAULT '[]',
     error              TEXT    NOT NULL DEFAULT '',
     created_at         INTEGER NOT NULL,
     updated_at         INTEGER NOT NULL,

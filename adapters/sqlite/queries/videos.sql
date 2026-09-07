@@ -22,8 +22,9 @@ INSERT INTO videos (
     target_duration_minutes, thumbnail_cells, blueprint_asset_id, final_asset_id,
     thumbnail_asset_id, thumbnail_plan_json, thumbnail_icon_ids_json,
     thumbnail_override_asset_id, thumbnail_design_json,
-    metadata_json, upload_json, error, created_at, updated_at, started_at, completed_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    metadata_json, upload_json, chapter_offsets_json,
+    error, created_at, updated_at, started_at, completed_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: UpdateVideo :exec
 UPDATE videos
@@ -32,8 +33,8 @@ SET title = ?, topic = ?, state = ?, chapter_count = ?, slides_per_chapter = ?,
     blueprint_asset_id = ?, final_asset_id = ?, thumbnail_asset_id = ?,
     thumbnail_plan_json = ?, thumbnail_icon_ids_json = ?,
     thumbnail_override_asset_id = ?, thumbnail_design_json = ?,
-    metadata_json = ?, upload_json = ?, error = ?, updated_at = ?,
-    started_at = ?, completed_at = ?
+    metadata_json = ?, upload_json = ?, chapter_offsets_json = ?,
+    error = ?, updated_at = ?, started_at = ?, completed_at = ?
 WHERE id = ?;
 
 -- name: SetVideoState :exec
@@ -51,8 +52,12 @@ DELETE FROM videos WHERE id = ?;
 -- name: SetVideoBlueprintAsset :exec
 UPDATE videos SET blueprint_asset_id = ?, updated_at = ? WHERE id = ?;
 
+-- The cut and the chapter timeline it was rendered with, together: two
+-- statements would allow a row naming one video's file and another's offsets.
 -- name: SetVideoFinalAsset :exec
-UPDATE videos SET final_asset_id = ?, updated_at = ? WHERE id = ?;
+UPDATE videos
+SET final_asset_id = ?, chapter_offsets_json = ?, updated_at = ?
+WHERE id = ?;
 
 -- name: SetVideoThumbnailAsset :exec
 UPDATE videos SET thumbnail_asset_id = ?, updated_at = ? WHERE id = ?;

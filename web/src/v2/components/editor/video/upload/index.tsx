@@ -67,6 +67,7 @@ export function UploadView({ video, chapters, tasks }: ViewProps) {
           <div className="hairline-l min-h-0 w-[276px] shrink-0 overflow-y-auto">
             <ChapterList
               chapters={chapters}
+              offsets={video.chapterOffsets}
               seconds={seconds}
               runtime={runtime}
               seekable={Boolean(video.finalAssetId)}

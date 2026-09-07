@@ -130,6 +130,7 @@ func createVideoParams(v entity.Video) (sqlcgen.CreateVideoParams, error) {
 		ThumbnailAssetID:      assetIDPtr(v.ThumbnailAssetID),
 		ThumbnailPlanJson:     plan,
 		ThumbnailIconIdsJson:  icons,
+		ChapterOffsetsJson:    blobs.offsets,
 		// The operator's own thumbnail and the editor document behind it. Both
 		// are null on a new video: neither exists until the editor is opened.
 		ThumbnailOverrideAssetID: assetIDPtr(v.ThumbnailOverrideAssetID),
@@ -151,6 +152,7 @@ type videoBlobs struct {
 	upload   *string
 	plan     *string
 	icons    string
+	offsets  string
 	// design is the editor document, stored verbatim rather than re-encoded:
 	// the browser authored this JSON and nothing here understands it, so a
 	// round trip through a Go value could only lose something.
@@ -190,6 +192,13 @@ func videoJSON(v entity.Video) (videoBlobs, error) {
 	if err != nil {
 		return videoBlobs{}, fmt.Errorf("encode thumbnail icon ids: %w", err)
 	}
+	// NOT NULL for the same reason, and empty on a new video: chapter offsets
+	// exist only once a concat has produced the render they describe.
+	offsets, err := encodeJSON(orEmptyOffsets(v.ChapterOffsets))
+	if err != nil {
+		return videoBlobs{}, fmt.Errorf("encode chapter offsets: %w", err)
+	}
+	b.offsets = offsets
 	b.icons = s
 	if len(v.ThumbnailDesign) > 0 {
 		b.design = strPtr(string(v.ThumbnailDesign))
@@ -218,6 +227,7 @@ func (s *Store) UpdateVideo(ctx context.Context, v entity.Video) error {
 			ThumbnailAssetID:      assetIDPtr(v.ThumbnailAssetID),
 			ThumbnailPlanJson:     plan,
 			ThumbnailIconIdsJson:  icons,
+			ChapterOffsetsJson:    blobs.offsets,
 			// Carried here too, so a whole-row write stays a whole-row write.
 			// The field setters are what the editor uses; this is the path a
 			// caller holding an entity.Video takes, and dropping the two
@@ -321,16 +331,37 @@ func (s *Store) SetVideoBlueprintAsset(ctx context.Context, id entity.VideoID, a
 	})
 }
 
-// SetVideoFinalAsset records the final render.
-func (s *Store) SetVideoFinalAsset(ctx context.Context, id entity.VideoID, assetID entity.AssetID) error {
+// SetVideoFinalAsset records the final render and the chapter timeline it was
+// cut with. One statement for both: the offsets are only true of this render.
+func (s *Store) SetVideoFinalAsset(
+	ctx context.Context,
+	id entity.VideoID,
+	assetID entity.AssetID,
+	chapterOffsets []float64,
+) error {
 	value := string(assetID)
+	offsets, err := encodeJSON(orEmptyOffsets(chapterOffsets))
+	if err != nil {
+		return err
+	}
 	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
 		return q.SetVideoFinalAsset(ctx, sqlcgen.SetVideoFinalAssetParams{
-			FinalAssetID: &value,
-			UpdatedAt:    toUnix(time.Now()),
-			ID:           string(id),
+			FinalAssetID:       &value,
+			ChapterOffsetsJson: offsets,
+			UpdatedAt:          toUnix(time.Now()),
+			ID:                 string(id),
 		})
 	})
+}
+
+// orEmptyOffsets keeps the column an array. A nil slice encodes as `null`, and
+// the column is NOT NULL with a `[]` default — a backend that reports no
+// offsets should read back as none rather than as a JSON null nothing expects.
+func orEmptyOffsets(offsets []float64) []float64 {
+	if offsets == nil {
+		return []float64{}
+	}
+	return offsets
 }
 
 // SetVideoThumbnailPlan records the grid and sizes the slots its icons will

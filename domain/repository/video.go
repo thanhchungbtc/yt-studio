@@ -39,7 +39,9 @@ type VideoWriter interface {
 // one artifact does not have to read and rewrite the whole row.
 type VideoFieldWriter interface {
 	SetVideoBlueprintAsset(ctx context.Context, id entity.VideoID, assetID entity.AssetID) error
-	SetVideoFinalAsset(ctx context.Context, id entity.VideoID, assetID entity.AssetID) error
+	// The render and the chapter offsets it was built with are one write: the
+	// timeline is only true of that particular cut.
+	SetVideoFinalAsset(ctx context.Context, id entity.VideoID, assetID entity.AssetID, chapterOffsets []float64) error
 	SetVideoThumbnailPlan(ctx context.Context, id entity.VideoID, p entity.ThumbnailPlan) error
 	// SetVideoThumbnailIcon writes one icon into the slot the plan sized, so
 	// icons finishing out of order still land in their own cell.

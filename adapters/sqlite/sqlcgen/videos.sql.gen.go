@@ -49,8 +49,9 @@ INSERT INTO videos (
     target_duration_minutes, thumbnail_cells, blueprint_asset_id, final_asset_id,
     thumbnail_asset_id, thumbnail_plan_json, thumbnail_icon_ids_json,
     thumbnail_override_asset_id, thumbnail_design_json,
-    metadata_json, upload_json, error, created_at, updated_at, started_at, completed_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    metadata_json, upload_json, chapter_offsets_json,
+    error, created_at, updated_at, started_at, completed_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type CreateVideoParams struct {
@@ -73,6 +74,7 @@ type CreateVideoParams struct {
 	ThumbnailDesignJson      *string
 	MetadataJson             *string
 	UploadJson               *string
+	ChapterOffsetsJson       string
 	Error                    string
 	CreatedAt                int64
 	UpdatedAt                int64
@@ -101,6 +103,7 @@ func (q *Queries) CreateVideo(ctx context.Context, arg CreateVideoParams) error 
 		arg.ThumbnailDesignJson,
 		arg.MetadataJson,
 		arg.UploadJson,
+		arg.ChapterOffsetsJson,
 		arg.Error,
 		arg.CreatedAt,
 		arg.UpdatedAt,
@@ -120,7 +123,7 @@ func (q *Queries) DeleteVideo(ctx context.Context, id string) error {
 }
 
 const getVideoByID = `-- name: GetVideoByID :one
-SELECT id, channel_id, ref, title, topic, state, chapter_count, slides_per_chapter, blueprint_asset_id, final_asset_id, metadata_json, upload_json, error, created_at, updated_at, started_at, completed_at, target_duration_minutes, thumbnail_asset_id, thumbnail_cells, thumbnail_plan_json, thumbnail_icon_ids_json, thumbnail_override_asset_id, thumbnail_design_json FROM videos WHERE id = ?
+SELECT id, channel_id, ref, title, topic, state, chapter_count, slides_per_chapter, blueprint_asset_id, final_asset_id, metadata_json, upload_json, chapter_offsets_json, error, created_at, updated_at, started_at, completed_at, target_duration_minutes, thumbnail_asset_id, thumbnail_cells, thumbnail_plan_json, thumbnail_icon_ids_json, thumbnail_override_asset_id, thumbnail_design_json FROM videos WHERE id = ?
 `
 
 func (q *Queries) GetVideoByID(ctx context.Context, id string) (Video, error) {
@@ -139,6 +142,7 @@ func (q *Queries) GetVideoByID(ctx context.Context, id string) (Video, error) {
 		&i.FinalAssetID,
 		&i.MetadataJson,
 		&i.UploadJson,
+		&i.ChapterOffsetsJson,
 		&i.Error,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -156,7 +160,7 @@ func (q *Queries) GetVideoByID(ctx context.Context, id string) (Video, error) {
 }
 
 const getVideoByRef = `-- name: GetVideoByRef :one
-SELECT id, channel_id, ref, title, topic, state, chapter_count, slides_per_chapter, blueprint_asset_id, final_asset_id, metadata_json, upload_json, error, created_at, updated_at, started_at, completed_at, target_duration_minutes, thumbnail_asset_id, thumbnail_cells, thumbnail_plan_json, thumbnail_icon_ids_json, thumbnail_override_asset_id, thumbnail_design_json FROM videos WHERE ref = ?
+SELECT id, channel_id, ref, title, topic, state, chapter_count, slides_per_chapter, blueprint_asset_id, final_asset_id, metadata_json, upload_json, chapter_offsets_json, error, created_at, updated_at, started_at, completed_at, target_duration_minutes, thumbnail_asset_id, thumbnail_cells, thumbnail_plan_json, thumbnail_icon_ids_json, thumbnail_override_asset_id, thumbnail_design_json FROM videos WHERE ref = ?
 `
 
 func (q *Queries) GetVideoByRef(ctx context.Context, ref string) (Video, error) {
@@ -175,6 +179,7 @@ func (q *Queries) GetVideoByRef(ctx context.Context, ref string) (Video, error) 
 		&i.FinalAssetID,
 		&i.MetadataJson,
 		&i.UploadJson,
+		&i.ChapterOffsetsJson,
 		&i.Error,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -192,7 +197,7 @@ func (q *Queries) GetVideoByRef(ctx context.Context, ref string) (Video, error) 
 }
 
 const listVideos = `-- name: ListVideos :many
-SELECT id, channel_id, ref, title, topic, state, chapter_count, slides_per_chapter, blueprint_asset_id, final_asset_id, metadata_json, upload_json, error, created_at, updated_at, started_at, completed_at, target_duration_minutes, thumbnail_asset_id, thumbnail_cells, thumbnail_plan_json, thumbnail_icon_ids_json, thumbnail_override_asset_id, thumbnail_design_json FROM videos
+SELECT id, channel_id, ref, title, topic, state, chapter_count, slides_per_chapter, blueprint_asset_id, final_asset_id, metadata_json, upload_json, chapter_offsets_json, error, created_at, updated_at, started_at, completed_at, target_duration_minutes, thumbnail_asset_id, thumbnail_cells, thumbnail_plan_json, thumbnail_icon_ids_json, thumbnail_override_asset_id, thumbnail_design_json FROM videos
 WHERE (CAST(?1 AS TEXT) = '' OR channel_id = ?1)
   AND (CAST(?2 AS TEXT) = '' OR state = ?2)
 ORDER BY created_at DESC
@@ -233,6 +238,7 @@ func (q *Queries) ListVideos(ctx context.Context, arg ListVideosParams) ([]Video
 			&i.FinalAssetID,
 			&i.MetadataJson,
 			&i.UploadJson,
+			&i.ChapterOffsetsJson,
 			&i.Error,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -275,17 +281,27 @@ func (q *Queries) SetVideoBlueprintAsset(ctx context.Context, arg SetVideoBluepr
 }
 
 const setVideoFinalAsset = `-- name: SetVideoFinalAsset :exec
-UPDATE videos SET final_asset_id = ?, updated_at = ? WHERE id = ?
+UPDATE videos
+SET final_asset_id = ?, chapter_offsets_json = ?, updated_at = ?
+WHERE id = ?
 `
 
 type SetVideoFinalAssetParams struct {
-	FinalAssetID *string
-	UpdatedAt    int64
-	ID           string
+	FinalAssetID       *string
+	ChapterOffsetsJson string
+	UpdatedAt          int64
+	ID                 string
 }
 
+// The cut and the chapter timeline it was rendered with, together: two
+// statements would allow a row naming one video's file and another's offsets.
 func (q *Queries) SetVideoFinalAsset(ctx context.Context, arg SetVideoFinalAssetParams) error {
-	_, err := q.exec(ctx, q.setVideoFinalAssetStmt, setVideoFinalAsset, arg.FinalAssetID, arg.UpdatedAt, arg.ID)
+	_, err := q.exec(ctx, q.setVideoFinalAssetStmt, setVideoFinalAsset,
+		arg.FinalAssetID,
+		arg.ChapterOffsetsJson,
+		arg.UpdatedAt,
+		arg.ID,
+	)
 	return err
 }
 
@@ -486,8 +502,8 @@ SET title = ?, topic = ?, state = ?, chapter_count = ?, slides_per_chapter = ?,
     blueprint_asset_id = ?, final_asset_id = ?, thumbnail_asset_id = ?,
     thumbnail_plan_json = ?, thumbnail_icon_ids_json = ?,
     thumbnail_override_asset_id = ?, thumbnail_design_json = ?,
-    metadata_json = ?, upload_json = ?, error = ?, updated_at = ?,
-    started_at = ?, completed_at = ?
+    metadata_json = ?, upload_json = ?, chapter_offsets_json = ?,
+    error = ?, updated_at = ?, started_at = ?, completed_at = ?
 WHERE id = ?
 `
 
@@ -508,6 +524,7 @@ type UpdateVideoParams struct {
 	ThumbnailDesignJson      *string
 	MetadataJson             *string
 	UploadJson               *string
+	ChapterOffsetsJson       string
 	Error                    string
 	UpdatedAt                int64
 	StartedAt                *int64
@@ -533,6 +550,7 @@ func (q *Queries) UpdateVideo(ctx context.Context, arg UpdateVideoParams) error 
 		arg.ThumbnailDesignJson,
 		arg.MetadataJson,
 		arg.UploadJson,
+		arg.ChapterOffsetsJson,
 		arg.Error,
 		arg.UpdatedAt,
 		arg.StartedAt,

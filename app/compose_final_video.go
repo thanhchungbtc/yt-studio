@@ -47,7 +47,7 @@ func ComposeFinalVideo(
 		clips = append(clips, *c.ClipAssetID)
 	}
 
-	assetID, err := composer.Concat(ctx, provider.ConcatRequest{
+	render, err := composer.Concat(ctx, provider.ConcatRequest{
 		VideoID:      t.VideoID,
 		ClipAssetIDs: clips,
 		OnPercent:    onPercent,
@@ -56,12 +56,17 @@ func ComposeFinalVideo(
 		return classify(fmt.Errorf("concatenate %d clips: %w", len(clips), err))
 	}
 
-	if _, err := RecordAsset(ctx, assets, store, assetID, entity.AssetKindFinal,
+	if _, err := RecordAsset(ctx, assets, store, render.AssetID, entity.AssetKindFinal,
 		t.VideoID, nil, "compose.concat", now); err != nil {
 		return classify(err)
 	}
-	if err := videoFields.SetVideoFinalAsset(ctx, t.VideoID, assetID); err != nil {
+	// The cut and its chapter timeline in one write. The offsets describe this
+	// render and no other, so a later concat replaces both together and there is
+	// no arrangement of these two columns that points at different videos.
+	//
+	// The clips went in ordinal order, so offset i belongs to chapter i.
+	if err := videoFields.SetVideoFinalAsset(ctx, t.VideoID, render.AssetID, render.ChapterOffsets); err != nil {
 		return classify(err)
 	}
-	return entity.Success{Assets: []entity.AssetID{assetID}}
+	return entity.Success{Assets: []entity.AssetID{render.AssetID}}
 }

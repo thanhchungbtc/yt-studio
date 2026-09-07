@@ -19,21 +19,21 @@ import (
 // The clips arrive in ordinal order and every one of them is re-encoded, which
 // is unavoidable here — a crossfade and an overlay both rewrite pixels, so
 // there is no copy path to take.
-func (c *Composer) Concat(ctx context.Context, req provider.ConcatRequest) (entity.AssetID, error) {
+func (c *Composer) Concat(ctx context.Context, req provider.ConcatRequest) (provider.Render, error) {
 	if err := c.Check(); err != nil {
-		return "", err
+		return provider.Render{}, err
 	}
 	if len(req.ClipAssetIDs) == 0 {
-		return "", errors.New("ffmpeg composer: a concat needs at least one clip")
+		return provider.Render{}, errors.New("ffmpeg composer: a concat needs at least one clip")
 	}
 
 	clips, err := c.inputPaths(req.ClipAssetIDs, entity.AssetKindClip)
 	if err != nil {
-		return "", err
+		return provider.Render{}, err
 	}
 	durations, err := probeAll(ctx, clips, c.lanes*2)
 	if err != nil {
-		return "", err
+		return provider.Render{}, err
 	}
 
 	// Each crossfade consumes a second of two chapters at once, so the finished
@@ -51,7 +51,7 @@ func (c *Composer) Concat(ctx context.Context, req provider.ConcatRequest) (enti
 
 	dir, cleanup, err := c.tempDir("concat")
 	if err != nil {
-		return "", err
+		return provider.Render{}, err
 	}
 	defer cleanup()
 
@@ -95,9 +95,15 @@ func (c *Composer) Concat(ctx context.Context, req provider.ConcatRequest) (enti
 		}
 	}
 	if err := c.runProgress(ctx, total, onPercent, args...); err != nil {
-		return "", err
+		return provider.Render{}, err
 	}
-	return c.ingest(ctx, entity.AssetKindFinal, output)
+	assetID, err := c.ingest(ctx, entity.AssetKindFinal, output)
+	if err != nil {
+		return provider.Render{}, err
+	}
+	// The same array the filter graph was built from, so the timeline and the
+	// cut cannot disagree about where a chapter is.
+	return provider.Render{AssetID: assetID, ChapterOffsets: chapterOffsets(durations)}, nil
 }
 
 func itoa(v int) string { return strconv.Itoa(v) }

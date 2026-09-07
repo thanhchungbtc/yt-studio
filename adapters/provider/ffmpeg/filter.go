@@ -94,6 +94,30 @@ func sectionGeometry() (width, height, x, y int) {
 	return width, height, (concatWidth - width) / 2, (concatHeight - height) / 2
 }
 
+/*
+chapterOffsets is where each clip begins in the finished render.
+
+A crossfade is paid for by both sides at once, so every join after the first
+clip pulls everything below it a crossfade earlier — which is the whole reason
+chapter starts are not a running sum of clip lengths.
+
+This is the sequence concatGraph places its transitions at, and it is returned
+to the caller as the video's chapter timeline. One function for both on purpose.
+They were the same arithmetic written twice for about ten minutes, and two
+copies of it is a way for the timeline to describe a cut that was never
+rendered: the numbers here are not a measurement taken afterwards, they are the
+instruction ffmpeg is about to be given.
+*/
+func chapterOffsets(durations []float64) []float64 {
+	offsets := make([]float64, len(durations))
+	at := 0.0
+	for i, d := range durations {
+		offsets[i] = at
+		at += d - chapterCrossfade
+	}
+	return offsets
+}
+
 // concatGraph joins the chapter clips over the looping background, music mixed
 // under the narration. Input 0 is the background, 1..n the clips, n+1 the music
 // when there is any.
@@ -115,7 +139,8 @@ func concatGraph(durations []float64, bgMusicIndex int) string {
 			"[1:a]afade=t=in:st=0:d=1[narration]")
 	} else {
 		prevVideo, prevAudio := "[1:v]", "[1:a]"
-		offset := durations[0] - chapterCrossfade
+		// The i-th transition begins where the i-th clip does.
+		offsets := chapterOffsets(durations)
 		for i := 1; i < n; i++ {
 			last := i == n-1
 			videoOut, audioOut := fmt.Sprintf("[v%02d]", i), fmt.Sprintf("[a%02d]", i)
@@ -124,13 +149,10 @@ func concatGraph(durations []float64, bgMusicIndex int) string {
 			}
 			parts = append(parts,
 				fmt.Sprintf("%s[%d:v]xfade=transition=dissolve:duration=%s:offset=%s%s",
-					prevVideo, i+1, crossfadeArg, f4(offset), videoOut),
+					prevVideo, i+1, crossfadeArg, f4(offsets[i]), videoOut),
 				fmt.Sprintf("%s[%d:a]acrossfade=d=%s%s",
 					prevAudio, i+1, crossfadeArg, audioOut))
 			prevVideo, prevAudio = videoOut, audioOut
-			if !last {
-				offset += durations[i] - chapterCrossfade
-			}
 		}
 		parts = append(parts,
 			fmt.Sprintf("[sec_v]scale=%d:%d[sec_scaled]", secWidth, secHeight),

@@ -32,8 +32,16 @@ func (c *Composer) Clip(ctx context.Context, _ provider.ClipRequest) (entity.Ass
 }
 
 // Concat stores the sample render as the finished video.
-func (c *Composer) Concat(ctx context.Context, _ provider.ConcatRequest) (entity.AssetID, error) {
-	return c.put(ctx, entity.AssetKindFinal)
+// Concat returns the sample take, with no chapter offsets: it is one canned
+// recording rather than those clips laid end to end, so there is no honest
+// answer to where a chapter starts in it. Empty leaves the screen on its
+// estimate instead of giving it confident times for a cut that was never made.
+func (c *Composer) Concat(ctx context.Context, _ provider.ConcatRequest) (provider.Render, error) {
+	assetID, err := c.put(ctx, entity.AssetKindFinal)
+	if err != nil {
+		return provider.Render{}, err
+	}
+	return provider.Render{AssetID: assetID}, nil
 }
 
 // put streams the sample into the store under the kind asked for. Streamed

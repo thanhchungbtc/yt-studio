@@ -57,15 +57,15 @@ func UpdateChapterScript(
 // chapterDelta projects a chapter for the SSE stream.
 func chapterDelta(c entity.Chapter) entity.ChapterDelta {
 	return entity.ChapterDelta{
-		ID:            c.ID,
-		VideoID:       c.VideoID,
-		Ordinal:       c.Ordinal,
-		Title:         c.Title,
-		HasScript:     c.Script != "",
+		ID:                   c.ID,
+		VideoID:              c.VideoID,
+		Ordinal:              c.Ordinal,
+		Title:                c.Title,
+		HasScript:            c.Script != "",
 		AudioAssetID:         c.AudioAssetID,
 		AudioDurationSeconds: c.AudioDurationSeconds,
-		SlideAssetIDs: c.SlideAssetIDs,
-		ClipAssetID:   c.ClipAssetID,
-		UpdatedAt:     c.UpdatedAt,
+		SlideAssetIDs:        c.SlideAssetIDs,
+		ClipAssetID:          c.ClipAssetID,
+		UpdatedAt:            c.UpdatedAt,
 	}
 }

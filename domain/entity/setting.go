@@ -393,7 +393,7 @@ const DefaultHeadlineMinorWords = "a,an,and,are,as,at,be,but,by,for,from,in,is,o
 // is not.
 func DefaultSettings() []Setting {
 	return []Setting{
-		{Key: SettingPoolLLMLimit, Value: "2", Type: SettingTypeInt, Group: GroupPools, Min: 1, Max: MaxPoolLimit, Description: "Concurrent LLM calls across all videos and channels."},
+		{Key: SettingPoolLLMLimit, Value: "1", Type: SettingTypeInt, Group: GroupPools, Min: 1, Max: MaxPoolLimit, Description: "Concurrent LLM calls across all videos and channels."},
 		{Key: SettingPoolTTSLimit, Value: "2", Type: SettingTypeInt, Group: GroupPools, Min: 1, Max: MaxPoolLimit, Description: "Concurrent narration syntheses."},
 		{Key: SettingPoolImageLimit, Value: "2", Type: SettingTypeInt, Group: GroupPools, Min: 1, Max: MaxPoolLimit, Description: "Concurrent slide generations — usually the binding constraint."},
 		{Key: SettingPoolComposeLimit, Value: "2", Type: SettingTypeInt, Group: GroupPools, Min: 1, Max: MaxPoolLimit, Description: "Concurrent clip and concat compositions."},
@@ -420,7 +420,7 @@ func DefaultSettings() []Setting {
 		//nolint:lll // one row, one line
 		{Key: SettingNineRouterKey, Value: "", Type: SettingTypeString, Group: GroupWriting, Backend: BackendNineRouter, Optional: true, Secret: true, Description: "Bearer token for the gateway. Empty is usual: a gateway running locally with auth off needs none."},
 		//nolint:lll // one row, one line
-		{Key: SettingNineRouterModel, Value: "ag/gemini-3-flash", Type: SettingTypeString, Group: GroupWriting, Backend: BackendNineRouter, Description: "Which upstream the 9router backend routes to, e.g. ag/gemini-3-flash. See GET /v1/models on the gateway."},
+		{Key: SettingNineRouterModel, Value: "cc/claude-sonnet-4-6", Type: SettingTypeString, Group: GroupWriting, Backend: BackendNineRouter, Description: "Which upstream the 9router backend routes to, e.g. cc/claude-sonnet-4-6. See GET /v1/models on the gateway."},
 		//nolint:lll // one row, one line
 		{Key: SettingBlueprintChapterTolerancePercent, Value: "20", Type: SettingTypeInt, Group: GroupWriting, Min: 0, Max: 100, Description: "How far an accepted blueprint's chapter count may fall from the target, as a percentage. A roll outside it is rejected and written again."},
 

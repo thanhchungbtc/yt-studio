@@ -19,14 +19,19 @@ import { chapterSeconds } from '../stages'
  * list is what a list of chapters is, and it is one row per chapter at one
  * height whether there are two of them or fifty.
  *
- * The times are in the *player's* units, not the plan's. `chapterSeconds` is
- * what the blueprint budgeted, and the cut is whatever ffmpeg produced — here,
- * 7:08 of planned narration against a 2:47 render. Left alone, this would send
- * you to 3:34 of a video that ends at 2:47. So once the player reports its
- * duration each chapter's *share* of the plan is scaled onto the real runtime:
- * the order and the proportions are the blueprint's, the absolute times are the
- * file's, and a click always lands inside the video. Before the player has read
- * its header the plan is all there is, and the list uses it unscaled.
+ * The times come from the render itself. `video.chapterOffsets` is the array the
+ * concat handed ffmpeg to place its crossfades at, so a row's time is not an
+ * estimate of where a chapter starts — it is where the cut was told to put it.
+ * No scaling, and no waiting for the player to report a duration.
+ *
+ * Before there is a render there are no offsets, and the list falls back to
+ * projecting each chapter from its narration and spreading that across whatever
+ * the player says it is playing. That fallback is worth understanding as the
+ * weaker thing it is: a chapter's clip carries a fixed pad of a few seconds
+ * regardless of length, and scaling by *share* spreads that pad in proportion
+ * instead of evenly, which walks the later rows off by seconds on a long video.
+ * It is close enough to read a plan by and not close enough to seek by, which is
+ * exactly why the offsets are stored rather than recomputed here.
  */
 interface Row {
   id: string
@@ -54,46 +59,57 @@ function offset(seconds: number): string {
 
 export function ChapterList({
   chapters,
+  offsets,
   seconds,
   runtime,
   seekable,
   onSeek,
 }: {
   chapters: Chapter[]
+  /** The render's own chapter timeline; empty before there is a render. */
+  offsets: number[]
   /** Where the player is. */
   seconds: number
-  /** How long the cut actually runs, once the player knows. */
+  /** How long the cut runs, once the player knows. Only the fallback needs it. */
   runtime: number | undefined
   seekable: boolean
   onSeek: (at: number) => void
 }) {
   const { rows, timed } = useMemo(() => {
+    // One offset per chapter or none at all: a shorter array is a timeline from
+    // a render with a different number of chapters, and lining it up by index
+    // would point every row at the wrong place rather than at nothing.
+    const exact = offsets.length === chapters.length ? offsets : null
+
     const planned = chapters.reduce((sum, chapter) => sum + chapterSeconds(chapter), 0)
-    // Everything below is in player seconds. See the note above on why.
     const scale = runtime && planned > 0 ? runtime / planned : 1
     let start = 0
-    const built = chapters.map((chapter) => {
+    const built = chapters.map((chapter, index) => {
+      const seconds = chapterSeconds(chapter) * scale
       const row: Row = {
         id: chapter.id,
         ordinal: chapter.ordinal,
         title: chapter.title,
-        start,
-        seconds: chapterSeconds(chapter) * scale,
+        // `?? start` is unreachable — the length check above is what makes the
+        // index safe — and it is the honest fallback rather than a non-null
+        // assertion, which would trade a wrong time for a blank row.
+        start: exact?.[index] ?? start,
+        seconds,
       }
-      start += row.seconds
+      start += seconds
       return row
     })
     // With nothing narrated yet every duration is zero, so every start is zero
     // and a column of identical `0:00` is worse than no column: it looks like an
     // answer. The order is known, the times are not.
-    return { rows: built, timed: planned > 0 }
-  }, [chapters, runtime])
+    return { rows: built, timed: exact !== null || planned > 0 }
+  }, [chapters, offsets, runtime])
 
   // Which one is playing. Null until there is a cut with a duration, because
   // before that nothing is playing and lighting the first row would say
   // otherwise.
   const playing = useMemo(() => {
-    if (!runtime) return null
+    if (!runtime && !timed) return null
     // The player snaps a seek back to the nearest keyframe, so clicking a
     // chapter can land a fraction of a second *before* it starts. Without the
     // tolerance the row you just clicked is the one row that does not light up.
@@ -101,7 +117,7 @@ export function ChapterList({
     let found: string | null = null
     for (const row of rows) if (row.start <= at) found = row.id
     return found
-  }, [rows, runtime, seconds])
+  }, [rows, runtime, timed, seconds])
 
   return (
     <div className="px-2 py-3">

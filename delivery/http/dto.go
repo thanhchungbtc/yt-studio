@@ -121,7 +121,9 @@ type VideoDTO struct {
 	ThumbnailCells        int    `json:"thumbnailCells" doc:"Tiles in the thumbnail grid; one icon is generated per tile"`
 	BlueprintAssetID      string `json:"blueprintAssetId,omitempty"`
 	FinalAssetID          string `json:"finalAssetId,omitempty"`
-	ThumbnailAssetID      string `json:"thumbnailAssetId,omitempty"`
+	//nolint:lll // one field, one line
+	ChapterOffsets   []float64 `json:"chapterOffsets" doc:"Where each chapter begins in the final render, in seconds and in ordinal order; empty until one exists"`
+	ThumbnailAssetID string    `json:"thumbnailAssetId,omitempty"`
 	//nolint:lll // one field, one line
 	ThumbnailOverrideAssetID string `json:"thumbnailOverrideAssetId,omitempty" doc:"A thumbnail the operator built in the editor; when present this is what publishes"`
 	//nolint:lll // one field, one line
@@ -143,7 +145,14 @@ type VideoDTO struct {
 }
 
 func videoFrom(v entity.Video, counts repository.TaskCounts) VideoDTO {
+	// json:"chapterOffsets" has no omitempty, so a nil slice would serialise as
+	// null where the client's type says array.
+	offsets := v.ChapterOffsets
+	if offsets == nil {
+		offsets = []float64{}
+	}
 	dto := VideoDTO{
+		ChapterOffsets:        offsets,
 		ID:                    string(v.ID),
 		ChannelID:             string(v.ChannelID),
 		Ref:                   string(v.Ref),
@@ -229,19 +238,19 @@ func videoFrom(v entity.Video, counts repository.TaskCounts) VideoDTO {
 
 // ChapterDTO is a chapter as the API presents it.
 type ChapterDTO struct {
-	ID              string    `json:"id"`
-	VideoID         string    `json:"videoId"`
-	Ordinal         int       `json:"ordinal"`
-	Title           string    `json:"title"`
-	Summary         string    `json:"summary"`
-	Script          string    `json:"script"`
-	SlidePrompts    []string  `json:"slidePrompts"`
-	AudioAssetID    string    `json:"audioAssetId,omitempty"`
-	SlideAssetIDs   []string  `json:"slideAssetIds"`
-	ClipAssetID     string    `json:"clipAssetId,omitempty"`
-	AudioDurationSeconds float64 `json:"audioDurationSeconds" doc:"How long the narration runs, measured from the audio; 0 until it exists"`
-	EstimatedWords  int       `json:"estimatedWords" doc:"Spoken-word budget the blueprint assigned this chapter"`
-	UpdatedAt       time.Time `json:"updatedAt"`
+	ID                   string    `json:"id"`
+	VideoID              string    `json:"videoId"`
+	Ordinal              int       `json:"ordinal"`
+	Title                string    `json:"title"`
+	Summary              string    `json:"summary"`
+	Script               string    `json:"script"`
+	SlidePrompts         []string  `json:"slidePrompts"`
+	AudioAssetID         string    `json:"audioAssetId,omitempty"`
+	SlideAssetIDs        []string  `json:"slideAssetIds"`
+	ClipAssetID          string    `json:"clipAssetId,omitempty"`
+	AudioDurationSeconds float64   `json:"audioDurationSeconds" doc:"How long the narration runs, measured from the audio; 0 until it exists"`
+	EstimatedWords       int       `json:"estimatedWords" doc:"Spoken-word budget the blueprint assigned this chapter"`
+	UpdatedAt            time.Time `json:"updatedAt"`
 }
 
 func chapterFrom(c entity.Chapter) ChapterDTO {
@@ -254,17 +263,17 @@ func chapterFrom(c entity.Chapter) ChapterDTO {
 		prompts = []string{}
 	}
 	dto := ChapterDTO{
-		ID:              string(c.ID),
-		VideoID:         string(c.VideoID),
-		Ordinal:         c.Ordinal,
-		Title:           c.Title,
-		Summary:         c.Summary,
-		Script:          c.Script,
-		SlidePrompts:    prompts,
-		SlideAssetIDs:   slides,
+		ID:                   string(c.ID),
+		VideoID:              string(c.VideoID),
+		Ordinal:              c.Ordinal,
+		Title:                c.Title,
+		Summary:              c.Summary,
+		Script:               c.Script,
+		SlidePrompts:         prompts,
+		SlideAssetIDs:        slides,
 		AudioDurationSeconds: c.AudioDurationSeconds,
-		EstimatedWords:  c.EstimatedWords,
-		UpdatedAt:       c.UpdatedAt,
+		EstimatedWords:       c.EstimatedWords,
+		UpdatedAt:            c.UpdatedAt,
 	}
 	if c.AudioAssetID != nil {
 		dto.AudioAssetID = string(*c.AudioAssetID)

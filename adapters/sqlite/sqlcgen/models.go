@@ -96,6 +96,7 @@ type Video struct {
 	FinalAssetID             *string
 	MetadataJson             *string
 	UploadJson               *string
+	ChapterOffsetsJson       string
 	Error                    string
 	CreatedAt                int64
 	UpdatedAt                int64
