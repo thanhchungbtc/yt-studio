@@ -608,6 +608,7 @@ func (c *serveCmd) Run() error {
 		VideoFields:   store,
 		Chapters:      store,
 		ChapterFields: store,
+		Uploader:      providers.Uploader(),
 		Assets:        store,
 		AssetWriter:   store,
 		Tasks:         store,

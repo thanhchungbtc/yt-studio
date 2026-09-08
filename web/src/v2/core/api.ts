@@ -312,6 +312,19 @@ export const api = {
       body: JSON.stringify(metadata),
     }),
 
+  /**
+   * Send a published video's listing to YouTube again.
+   *
+   * `saveMetadata` writes the row and stops there, which is right until the
+   * video is published -- from then on the row and YouTube can disagree, and
+   * this is the only thing that settles it. Separate on purpose: saving a local
+   * edit should never silently rewrite a live video.
+   *
+   * Title, description, tags and category only. Nothing is re-rendered and no
+   * bytes move.
+   */
+  pushMetadata: (ref: string) => post<Video>(`/api/videos/${key(ref)}/metadata/push`, {}),
+
   approveGate: (ref: string, gate: string) =>
     post<Task>(`/api/videos/${key(ref)}/approve`, { gate }),
   rejectGate: (ref: string, gate: string, reason: string) =>

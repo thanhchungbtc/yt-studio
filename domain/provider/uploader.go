@@ -24,7 +24,27 @@ type UploadRequest struct {
 	OnPercent func(int)
 }
 
-// Uploader publishes a finished render.
+// ListingRequest asks for a published video's listing to be corrected in
+// place, with no bytes sent.
+type ListingRequest struct {
+	VideoRef    entity.Ref
+	ChannelSlug entity.Slug
+	// PublishedID is the id on the platform, from the video's upload record.
+	// This is the whole reason the operation exists as its own call: there is
+	// already a video out there, and this names it.
+	PublishedID string
+	Metadata    entity.Metadata
+	DryRun      bool
+}
+
+// Uploader publishes a finished render, and corrects what it published.
 type Uploader interface {
 	Upload(ctx context.Context, req UploadRequest) (entity.UploadRecord, error)
+	// UpdateListing pushes a corrected listing to a video already published.
+	//
+	// Separate from Upload rather than a mode of it because the two have
+	// opposite hazards: an Upload run twice leaves two videos, and is guarded
+	// against everywhere; this is idempotent, cheap, and safe to run as often as
+	// somebody edits a title.
+	UpdateListing(ctx context.Context, req ListingRequest) error
 }

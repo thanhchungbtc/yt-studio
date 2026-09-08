@@ -312,3 +312,11 @@ func (r uploaderRouter) Upload(ctx context.Context, req provider.UploadRequest) 
 	}
 	return impl.Upload(ctx, req)
 }
+
+func (r uploaderRouter) UpdateListing(ctx context.Context, req provider.ListingRequest) error {
+	impl, err := r.p.pick()
+	if err != nil {
+		return err
+	}
+	return impl.UpdateListing(ctx, req)
+}

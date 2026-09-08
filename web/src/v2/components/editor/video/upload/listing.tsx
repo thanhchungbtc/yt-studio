@@ -121,6 +121,7 @@ function Fields({ video }: { video: Video }) {
           >
             Edit
           </button>
+          <Push video={video} />
         </Header>
 
         <Field label="Title">{metadata?.title}</Field>
@@ -189,6 +190,44 @@ function Fields({ video }: { video: Video }) {
 }
 
 /** The section's name, and whatever acts on it. */
+/**
+ * Send the saved listing to a video that is already on YouTube.
+ *
+ * Only for a video that is actually up there: absent before the upload, and
+ * absent for a dry run, whose receipt names no video to correct.
+ *
+ * Its own action rather than something Save does, because the two are different
+ * statements. Saving records what this video should say; this rewrites what a
+ * published one does say, and an edit made to fix a typo before the next render
+ * should not reach into a video the world is already watching.
+ *
+ * The result is spoken rather than left to a toast: this is the one control on
+ * the page whose effect is entirely off-screen, so a line saying what happened
+ * is the only evidence there is.
+ */
+function Push({ video }: { video: Video }) {
+  const published = video.upload && !video.upload.dryRun
+  const push = useMutation({ mutationFn: () => api.pushMetadata(video.ref) })
+  if (!published) return null
+
+  return (
+    <div className="ml-2 flex items-baseline gap-2">
+      <button
+        type="button"
+        onClick={() => push.mutate()}
+        disabled={push.isPending}
+        className="text-[11px] text-[var(--accent)] hover:underline disabled:opacity-50"
+      >
+        {push.isPending ? 'Sending…' : 'Push to YouTube'}
+      </button>
+      {push.isError && (
+        <span className="text-[11px] leading-snug text-[var(--failed)]">{push.error.message}</span>
+      )}
+      {push.isSuccess && <span className="text-[11px] text-tertiary">Sent</span>}
+    </div>
+  )
+}
+
 function Header({ children }: { children: ReactNode }) {
   return (
     <div className="flex items-baseline gap-2">

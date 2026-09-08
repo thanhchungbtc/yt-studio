@@ -46,12 +46,25 @@ const (
 	videosEndpoint  = "https://www.googleapis.com/upload/youtube/v3/videos"
 	thumbsEndpoint  = "https://www.googleapis.com/upload/youtube/v3/thumbnails/set"
 	watchPrefix     = "https://www.youtube.com/watch?v="
+	// listingEndpoint is the ordinary API host, not the upload one: correcting a
+	// listing sends no media, and the upload host does not serve videos.update.
+	listingEndpoint = "https://www.googleapis.com/youtube/v3/videos"
 )
 
-// scopeUpload is the only scope asked for. videos.insert and thumbnails.set are
-// all this program does, and both are covered by it; asking for youtube.force-ssl
-// as well would buy the ability to edit and delete somebody's back catalogue.
-const scopeUpload = "https://www.googleapis.com/auth/youtube.upload"
+// scopeManage is the only scope asked for.
+//
+// Wider than this program would like. videos.insert and thumbnails.set are both
+// covered by youtube.upload, which is what was asked for originally and is the
+// smaller grant by a long way -- but videos.update is not, and Google publishes
+// no narrower scope for correcting a listing you own. So the choice is this or
+// no correcting at all, and what it buys along the way is the ability to edit
+// and delete the channel's whole back catalogue.
+//
+// Widening it invalidates every token already stored: an operator re-authorises
+// each channel once. That is why tokenFile.grants no longer forgives a token
+// that recorded no scope -- before, an unrecorded scope was an old token that
+// worked, and now it is an old token that will 403 on the first correction.
+const scopeManage = "https://www.googleapis.com/auth/youtube"
 
 // defaultRedirect is used when the client file registers none. Nothing listens
 // there: the operator lands on a browser error whose address bar holds the

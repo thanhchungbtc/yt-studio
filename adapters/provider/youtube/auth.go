@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -61,16 +62,15 @@ func (t tokenFile) expiry() (time.Time, bool) {
 // grants reports whether the token's scopes cover what this program does. A
 // grant for something else is not a lesser grant, it is the wrong one, and it
 // will be refused at the first insert rather than here.
+//
+// A token that recorded no scope used to pass. It no longer does, and the
+// change is the point rather than an oversight: every token written before the
+// scope widened holds youtube.upload, which uploads perfectly well and 403s the
+// moment a listing is corrected. Failing here sends the operator to the
+// authorise button, which is where that is fixed; passing sends them to an API
+// error in a log.
 func (t tokenFile) grants() bool {
-	for _, s := range strings.Fields(t.Scope) {
-		if s == scopeUpload {
-			return true
-		}
-	}
-	// An older token may not have recorded its scope at all. Absent is not
-	// wrong, and refusing to publish over a missing field would strand a grant
-	// that works.
-	return strings.TrimSpace(t.Scope) == ""
+	return slices.Contains(strings.Fields(t.Scope), scopeManage)
 }
 
 // refreshSkew is how long before expiry the access token is renewed anyway. An
@@ -150,7 +150,7 @@ func (c *Client) AuthURL(_ context.Context, slug entity.Slug) (string, error) {
 		"client_id":     {client.ID},
 		"redirect_uri":  {client.Redirect},
 		"response_type": {"code"},
-		"scope":         {scopeUpload},
+		"scope":         {scopeManage},
 		// Both are load-bearing. Offline is what asks for a refresh token at
 		// all, and consent is what makes Google issue a new one to an account
 		// that has already granted this client — without it the second

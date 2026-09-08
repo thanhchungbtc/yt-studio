@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -133,12 +134,12 @@ func (c *Client) Upload(ctx context.Context, req provider.UploadRequest) (entity
 	// reported now loses the id of a video that exists, and the retry that
 	// follows uploads a second copy of it. A wrong thumbnail is one cheap call
 	// to put right; a duplicate is not.
-	url := watchPrefix + videoID
+	watch := watchPrefix + videoID
 	if req.ThumbnailAssetID != "" {
 		if err := c.setThumbnail(ctx, bearer, videoID, req.ThumbnailAssetID); err != nil {
 			c.log.Warn("youtube thumbnail was not set; the video is published with a chosen frame",
 				slog.String("video", string(req.VideoRef)),
-				slog.String("url", url),
+				slog.String("url", watch),
 				slog.String("error", err.Error()))
 		}
 	}
@@ -146,12 +147,12 @@ func (c *Client) Upload(ctx context.Context, req provider.UploadRequest) (entity
 	c.log.Info("youtube upload complete",
 		slog.String("channel", string(req.ChannelSlug)),
 		slog.String("video", string(req.VideoRef)),
-		slog.String("url", url),
+		slog.String("url", watch),
 		slog.String("privacy", body.Status.PrivacyStatus))
 
 	return entity.UploadRecord{
 		VideoID:    videoID,
-		URL:        url,
+		URL:        watch,
 		DryRun:     false,
 		UploadedAt: time.Now().UTC(),
 	}, nil
@@ -519,6 +520,146 @@ func rangeEnd(header string) (int64, error) {
 		return 0, fmt.Errorf("youtube reported an unreadable range %q", header)
 	}
 	return last + 1, nil
+}
+
+// UpdateListing corrects the listing of a video already published.
+//
+// Read then write, rather than write alone, and that is the whole shape of it.
+// videos.update replaces every part it is given: send a snippet holding four
+// fields and the fields it does not hold -- defaultLanguage, and whatever
+// YouTube adds next -- are not left alone, they are cleared. So the current
+// snippet is fetched, the four this program owns are laid over it, and the rest
+// goes back exactly as it came.
+//
+// Only part=snippet. The status part carries privacyStatus, the made-for-kids
+// declaration and the synthetic-media disclosure, none of which a title edit
+// has any business rewriting; leaving the part out of the request is what
+// leaves them alone.
+func (c *Client) UpdateListing(ctx context.Context, req provider.ListingRequest) error {
+	if strings.TrimSpace(req.PublishedID) == "" {
+		return errors.New("youtube: no published id to correct")
+	}
+	body := c.listing(provider.UploadRequest{Metadata: req.Metadata})
+
+	bearer, err := c.bearer(ctx, req.ChannelSlug)
+	if err != nil {
+		return err
+	}
+
+	if req.DryRun {
+		c.log.Info("youtube dry run: listing checked, nothing sent",
+			slog.String("channel", string(req.ChannelSlug)),
+			slog.String("video", string(req.VideoRef)),
+			slog.String("published", req.PublishedID),
+			slog.String("title", body.Snippet.Title))
+		return nil
+	}
+
+	current, err := c.currentSnippet(ctx, bearer, req.PublishedID)
+	if err != nil {
+		return err
+	}
+	// Only the four keys this program owns are touched. Every other key goes
+	// back byte for byte, which is what a RawMessage buys over a struct: a field
+	// nobody here has heard of survives the round trip.
+	for key, value := range map[string]any{
+		"title":       body.Snippet.Title,
+		"description": body.Snippet.Description,
+		"tags":        body.Snippet.Tags,
+		"categoryId":  body.Snippet.CategoryID,
+	} {
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			return fmt.Errorf("encode %s: %w", key, err)
+		}
+		current[key] = encoded
+	}
+
+	if err := c.putListing(ctx, bearer, req.PublishedID, current); err != nil {
+		return err
+	}
+	c.log.Info("youtube listing updated",
+		slog.String("channel", string(req.ChannelSlug)),
+		slog.String("video", string(req.VideoRef)),
+		slog.String("url", watchPrefix+req.PublishedID),
+		slog.String("title", body.Snippet.Title))
+	return nil
+}
+
+// currentSnippet reads back what YouTube holds, so the write can preserve it.
+func (c *Client) currentSnippet(ctx context.Context, bearer, id string) (map[string]json.RawMessage, error) {
+	ctx, cancel := context.WithTimeout(ctx, metaTimeout)
+	defer cancel()
+
+	endpoint := listingEndpoint + "?part=snippet&id=" + url.QueryEscape(id)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)
+	if err != nil {
+		return nil, fmt.Errorf("build listing read: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+bearer)
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("read youtube listing: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	payload, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode != http.StatusOK {
+		return nil, apiError("read youtube listing", resp.StatusCode, payload)
+	}
+
+	var listed struct {
+		Items []struct {
+			Snippet map[string]json.RawMessage `json:"snippet"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(payload, &listed); err != nil {
+		return nil, fmt.Errorf("decode youtube listing: %w", err)
+	}
+	// An empty items array is how the API answers for a video that is gone, or
+	// that belongs to another channel. Both are the operator's to sort out, and
+	// neither is worth a retry.
+	if len(listed.Items) == 0 {
+		return nil, fmt.Errorf("youtube has no video %s on this channel", id)
+	}
+	return listed.Items[0].Snippet, nil
+}
+
+// putListing writes the merged snippet back.
+func (c *Client) putListing(
+	ctx context.Context,
+	bearer, id string,
+	snippet map[string]json.RawMessage,
+) error {
+	encoded, err := json.Marshal(struct {
+		ID      string                     `json:"id"`
+		Snippet map[string]json.RawMessage `json:"snippet"`
+	}{ID: id, Snippet: snippet})
+	if err != nil {
+		return fmt.Errorf("encode listing: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, metaTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, listingEndpoint+"?part=snippet",
+		bytes.NewReader(encoded))
+	if err != nil {
+		return fmt.Errorf("build listing update: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+bearer)
+	req.Header.Set("Content-Type", "application/json; charset=UTF-8")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("update youtube listing: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		payload, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		return apiError("update youtube listing", resp.StatusCode, payload)
+	}
+	return nil
 }
 
 // setThumbnail replaces the frame YouTube would otherwise choose.

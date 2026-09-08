@@ -38,6 +38,12 @@ type Deps struct {
 	// port rather than the uploader itself: these four routes never publish, and
 	// the publishing path never touches them.
 	UploadAuth provider.UploadAuthorizer
+	// Uploader is here for one route: correcting the listing of a video that is
+	// already published. Publishing itself belongs to the scheduler, and always
+	// will -- it takes minutes and reports progress. This takes one round trip
+	// and answers with the result, so routing it through a task would buy
+	// nothing but a task to go and look at.
+	Uploader provider.Uploader
 
 	Submitter  app.GraphSubmitter
 	Resumer    app.GraphResumer
@@ -115,7 +121,7 @@ func NewRouter(d Deps) (http.Handler, huma.API) {
 		d.Prompts, d.StaleMark, d.Rerunner)
 	registerThumbnailRoutes(api, d.Videos, d.VideoFields, d.AssetWriter, d.Store,
 		d.Tasks, d.Rerunner, d.Now)
-	registerMetadataRoutes(api, d.Videos, d.VideoFields, d.Tasks)
+	registerMetadataRoutes(api, d.Videos, d.VideoFields, d.Tasks, d.Channels, d.Uploader, d.Settings)
 	registerTaskRoutes(api, d.Videos, d.Tasks, d.TaskRetry, d.Prompts,
 		d.Rerunner, d.StaleRun, d.StaleOK)
 	registerSettingRoutes(api, d.Settings, d.Pools, d.Coalescer, d.LogLevel)

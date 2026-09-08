@@ -85,6 +85,12 @@ func (u *Uploader) Upload(ctx context.Context, req provider.UploadRequest) (enti
 	}, nil
 }
 
+// UpdateListing does nothing but say so. There is no listing here to correct:
+// the sample backend never published one.
+func (u *Uploader) UpdateListing(_ context.Context, _ provider.ListingRequest) error {
+	return nil
+}
+
 // send reads the whole render at the configured rate, reporting as it goes.
 //
 // The bytes are discarded. Reading them is the part of a publish a receipt
