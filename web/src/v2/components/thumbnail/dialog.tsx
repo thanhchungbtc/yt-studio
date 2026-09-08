@@ -3,11 +3,13 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { api, qk } from '../../core/api'
 import type { Video } from '../../core/types'
+import { cn } from '../../core/utils'
 import { Button } from '../ui/button'
 import { Caption } from '../ui/caption'
 import { Dialog } from '../ui/dialog'
 import { Input } from '../ui/field'
 import { compose, gridShape, loadFont, loadImage, type Cell, type Report } from './compose'
+import { IconViewer } from './icon-viewer'
 import { emphasis, headlineKey, minorWords } from './text'
 import { StyleControls } from './controls'
 import {
@@ -187,6 +189,9 @@ export function ThumbnailDialog({
   // than the plan they were made from -- and from the plan when there is not.
   const saved = useMemo(() => readDesign(video.thumbnailDesign), [video.thumbnailDesign])
   const [headline, setHeadline] = useState('')
+  // Which cell's icon is open over this dialog, if any. An index rather than a
+  // boolean and a second index: there is exactly one of these up at a time.
+  const [inspecting, setInspecting] = useState<number>()
   const [captions, setCaptions] = useState<string[]>([])
   const [style, setStyle] = useState<Style>(defaultStyle)
 
@@ -414,9 +419,20 @@ export function ThumbnailDialog({
                   <label key={index} className="flex min-w-0 items-center gap-1.5">
                     {/* The artwork itself rather than an ordinal. Twelve
                         numbered rows all read the same; twelve pictures do
-                        not, and the picture is what is on the tile. */}
-                    <span
-                      className="size-[26px] shrink-0 overflow-hidden rounded-[5px]"
+                        not, and the picture is what is on the tile.
+
+                        A button, because the picture is also the way in to the
+                        prompt that drew it -- the same gesture the slide tiles
+                        answer to, on the same kind of thing. */}
+                    <button
+                      type="button"
+                      onClick={() => setInspecting(index)}
+                      aria-label={`Icon for ${caption || `cell ${index + 1}`}`}
+                      title="Open this icon"
+                      className={cn(
+                        'size-[26px] shrink-0 overflow-hidden rounded-[5px]',
+                        'transition-opacity hover:opacity-70',
+                      )}
                       style={{ backgroundColor: 'var(--band)' }}
                     >
                       {video.thumbnailIconIds[index] ? (
@@ -426,7 +442,7 @@ export function ThumbnailDialog({
                           className="size-full object-cover"
                         />
                       ) : null}
-                    </span>
+                    </button>
                     <Input
                       value={caption}
                       onChange={(event) =>
@@ -510,6 +526,9 @@ export function ThumbnailDialog({
           {publish.isPending ? 'Saving…' : 'Use this thumbnail'}
         </Button>
       </Dialog.Footer>
+      {inspecting !== undefined ? (
+        <IconViewer video={video} index={inspecting} onClose={() => setInspecting(undefined)} />
+      ) : null}
     </Dialog>
   )
 }

@@ -190,6 +190,19 @@ export const api = {
     post<Chapter>(`/api/chapters/${key(chapterId)}/slides/${index}/generate`, { prompt }),
 
   /**
+   * Redraw one thumbnail cell from an edited prompt.
+   *
+   * `regenerateSlide` for the grid under the headline: the prompt is written and
+   * that one icon task re-runs with it. The caption is left alone -- it is what
+   * the tile says, not what the picture is of -- and so is the shared style
+   * clause, which is settings-sourced and appended at generation.
+   *
+   * Answers with the whole video, so the caller patches rather than refetches.
+   */
+  regenerateThumbnailIcon: (ref: string, index: number, prompt: string) =>
+    post<Video>(`/api/videos/${key(ref)}/thumbnail/cells/${index}/generate`, { prompt }),
+
+  /**
    * An asset's bytes, as text.
    *
    * Not `request`: an asset is not an API resource with a problem-detail error
