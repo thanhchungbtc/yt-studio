@@ -23,7 +23,9 @@ func RegenerateChapterSlide(
 	ctx context.Context,
 	chapters repository.ChapterReader,
 	fields repository.ChapterFieldWriter,
+	tasks repository.TaskReader,
 	rerunner TaskRerunner,
+	resumer GraphResumer,
 	notifier ChapterNotifier,
 	id entity.ChapterID,
 	index int,
@@ -56,7 +58,11 @@ func RegenerateChapterSlide(
 	// keep their artifacts and are flagged rather than thrown away. Nothing below
 	// a failed slide ever ran, so nothing below it gets flagged either.
 	seed := entity.NewTaskID(c.VideoID, entity.TaskKindSlide, c.Ordinal, index)
-	if _, err := rerunner.Rerun(ctx, c.VideoID, []entity.TaskID{seed}, false); err != nil {
+	// Through readmitting, so a video the loop has forgotten -- any video that
+	// finished before the last restart -- redraws rather than refusing.
+	if _, err := readmitting(ctx, tasks, resumer, c.VideoID, func() ([]entity.TaskID, error) {
+		return rerunner.Rerun(ctx, c.VideoID, []entity.TaskID{seed}, false)
+	}); err != nil {
 		return entity.Chapter{}, err
 	}
 

@@ -22,7 +22,9 @@ func RegenerateThumbnailIcon(
 	ctx context.Context,
 	videos repository.VideoReader,
 	fields repository.VideoFieldWriter,
+	tasks repository.TaskReader,
 	rerunner TaskRerunner,
+	resumer GraphResumer,
 	videoID entity.VideoID,
 	index int,
 	prompt string,
@@ -56,7 +58,11 @@ func RegenerateThumbnailIcon(
 	// The tail below an icon is short, but it is what the operator judges at the
 	// upload gate, so it is flagged rather than silently rebuilt.
 	seed := entity.NewTaskID(videoID, entity.TaskKindThumbnailIcon, -1, index)
-	if _, err := rerunner.Rerun(ctx, videoID, []entity.TaskID{seed}, false); err != nil {
+	// Through readmitting, so a video the loop has forgotten -- any video that
+	// finished before the last restart -- redraws rather than refusing.
+	if _, err := readmitting(ctx, tasks, resumer, videoID, func() ([]entity.TaskID, error) {
+		return rerunner.Rerun(ctx, videoID, []entity.TaskID{seed}, false)
+	}); err != nil {
 		return entity.Video{}, err
 	}
 	return v, nil

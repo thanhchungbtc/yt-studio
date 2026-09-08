@@ -17,8 +17,10 @@ func UpdateChapterScript(
 	ctx context.Context,
 	chapters repository.ChapterReader,
 	fields repository.ChapterFieldWriter,
+	tasks repository.TaskReader,
 	notifier ChapterNotifier,
 	marker StaleMarker,
+	resumer GraphResumer,
 	id entity.ChapterID,
 	script string,
 ) (entity.Chapter, error) {
@@ -39,12 +41,16 @@ func UpdateChapterScript(
 	// below is questionable but the task itself is not.
 	if marker != nil {
 		seed := entity.NewTaskID(c.VideoID, entity.TaskKindScript, c.Ordinal, -1)
-		if _, err := marker.MarkStale(ctx, c.VideoID, []entity.TaskID{seed}); err != nil {
-			// A video the scheduler does not hold has nothing to invalidate, and
-			// the edit is already committed.
-			if !errors.Is(err, scheduler.ErrUnknownVideo) && !errors.Is(err, scheduler.ErrUnknownTask) {
-				return entity.Chapter{}, err
-			}
+		// Through readmitting, so a video the loop has forgotten is loaded back
+		// and flagged rather than passed over: being finished is not a reason an
+		// edit below it should go unrecorded.
+		_, err := readmitting(ctx, tasks, resumer, c.VideoID, func() ([]entity.TaskID, error) {
+			return marker.MarkStale(ctx, c.VideoID, []entity.TaskID{seed})
+		})
+		// ErrUnknownTask survives that: a graph with no script node for this
+		// chapter has nothing to invalidate, and the edit is already committed.
+		if err != nil && !errors.Is(err, scheduler.ErrUnknownTask) {
+			return entity.Chapter{}, err
 		}
 	}
 

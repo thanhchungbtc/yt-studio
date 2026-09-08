@@ -100,11 +100,13 @@ func putChapterPlan(
 func putChapterScript(
 	chapters repository.ChapterReader,
 	fields repository.ChapterFieldWriter,
+	tasks repository.TaskReader,
 	notifier app.ChapterNotifier,
 	marker app.StaleMarker,
+	resumer app.GraphResumer,
 ) func(context.Context, *UpdateScriptInput) (*ChapterOutput, error) {
 	return func(ctx context.Context, in *UpdateScriptInput) (*ChapterOutput, error) {
-		c, err := app.UpdateChapterScript(ctx, chapters, fields, notifier, marker,
+		c, err := app.UpdateChapterScript(ctx, chapters, fields, tasks, notifier, marker, resumer,
 			entity.ChapterID(in.ID), in.Body.Script)
 		if err != nil {
 			return nil, mapError(err)
@@ -116,12 +118,14 @@ func putChapterScript(
 func postRegenerateSlide(
 	chapters repository.ChapterReader,
 	fields repository.ChapterFieldWriter,
+	tasks repository.TaskReader,
 	rerunner app.TaskRerunner,
+	resumer app.GraphResumer,
 	notifier app.ChapterNotifier,
 ) func(context.Context, *RegenerateSlideInput) (*ChapterOutput, error) {
 	return func(ctx context.Context, in *RegenerateSlideInput) (*ChapterOutput, error) {
-		c, err := app.RegenerateChapterSlide(ctx, chapters, fields, rerunner, notifier,
-			entity.ChapterID(in.ID), in.Index, in.Body.Prompt)
+		c, err := app.RegenerateChapterSlide(ctx, chapters, fields, tasks, rerunner, resumer,
+			notifier, entity.ChapterID(in.ID), in.Index, in.Body.Prompt)
 		if err != nil {
 			return nil, mapError(err)
 		}
@@ -156,6 +160,8 @@ func registerChapterRoutes(
 	prompts app.PromptCacheInvalidator,
 	marker app.StaleMarker,
 	rerunner app.TaskRerunner,
+	tasks repository.TaskReader,
+	resumer app.GraphResumer,
 ) {
 	huma.Register(api, huma.Operation{
 		OperationID: "listChapters", Method: "GET", Path: "/api/videos/{key}/chapters",
@@ -176,7 +182,7 @@ func registerChapterRoutes(
 	huma.Register(api, huma.Operation{
 		OperationID: "updateChapterScript", Method: "PUT", Path: "/api/chapters/{id}/script",
 		Summary: "Edit a chapter's script", Tags: []string{"chapters"},
-	}, putChapterScript(chapters, fields, notifier, marker))
+	}, putChapterScript(chapters, fields, tasks, notifier, marker, resumer))
 
 	huma.Register(api, huma.Operation{
 		OperationID: "regenerateChapterSlide", Method: "POST",
@@ -188,7 +194,7 @@ func registerChapterRoutes(
 			"prompt without generating from it: the stored prompt is always the one the " +
 			"current slide was drawn from.",
 		Tags: []string{"chapters"},
-	}, postRegenerateSlide(chapters, fields, rerunner, notifier))
+	}, postRegenerateSlide(chapters, fields, tasks, rerunner, resumer, notifier))
 
 	huma.Register(api, huma.Operation{
 		OperationID: "retryChapter", Method: "POST", Path: "/api/videos/{key}/chapters/{ordinal}/retry",

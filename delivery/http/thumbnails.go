@@ -30,13 +30,15 @@ func postRegenerateIcon(
 	fields repository.VideoFieldWriter,
 	tasks repository.TaskReader,
 	rerunner app.TaskRerunner,
+	resumer app.GraphResumer,
 ) func(context.Context, *RegenerateIconInput) (*VideoOutput, error) {
 	return func(ctx context.Context, in *RegenerateIconInput) (*VideoOutput, error) {
 		v, err := app.GetVideo(ctx, videos, in.Key)
 		if err != nil {
 			return nil, mapError(err)
 		}
-		v, err = app.RegenerateThumbnailIcon(ctx, videos, fields, rerunner, v.ID, in.Index, in.Body.Prompt)
+		v, err = app.RegenerateThumbnailIcon(ctx, videos, fields, tasks, rerunner, resumer,
+			v.ID, in.Index, in.Body.Prompt)
 		if err != nil {
 			return nil, mapError(err)
 		}
@@ -188,6 +190,7 @@ func registerThumbnailRoutes(
 	channels repository.ChannelReader,
 	uploader provider.Uploader,
 	settings *service.Settings,
+	resumer app.GraphResumer,
 ) {
 	huma.Register(api, huma.Operation{
 		OperationID: "saveThumbnailDesign", Method: "PUT",
@@ -245,5 +248,5 @@ func registerThumbnailRoutes(
 			"below it keeps its artifact and is flagged stale — and since the upload gate " +
 			"rides on that thumbnail, redrawing a cell reopens the publish decision.",
 		Tags: []string{"videos"},
-	}, postRegenerateIcon(videos, fields, tasks, rerunner))
+	}, postRegenerateIcon(videos, fields, tasks, rerunner, resumer))
 }
