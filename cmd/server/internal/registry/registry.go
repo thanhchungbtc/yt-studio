@@ -320,3 +320,11 @@ func (r uploaderRouter) UpdateListing(ctx context.Context, req provider.ListingR
 	}
 	return impl.UpdateListing(ctx, req)
 }
+
+func (r uploaderRouter) UpdateThumbnail(ctx context.Context, req provider.ThumbnailPushRequest) error {
+	impl, err := r.p.pick()
+	if err != nil {
+		return err
+	}
+	return impl.UpdateThumbnail(ctx, req)
+}

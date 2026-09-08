@@ -662,6 +662,38 @@ func (c *Client) putListing(
 	return nil
 }
 
+// UpdateThumbnail replaces the image fronting a video already published.
+//
+// Thin, because setThumbnail already is exactly this call -- it is what runs as
+// the last step of a publish, and a thumbnail has never been settable any other
+// way. Which also makes this the only repair for a publish whose last step
+// failed: Upload warns and carries on there, leaving a live video fronted by a
+// frame YouTube picked.
+func (c *Client) UpdateThumbnail(ctx context.Context, req provider.ThumbnailPushRequest) error {
+	if strings.TrimSpace(req.PublishedID) == "" {
+		return errors.New("youtube: no published id to set a thumbnail on")
+	}
+	bearer, err := c.bearer(ctx, req.ChannelSlug)
+	if err != nil {
+		return err
+	}
+	if req.DryRun {
+		c.log.Info("youtube dry run: thumbnail checked, nothing sent",
+			slog.String("channel", string(req.ChannelSlug)),
+			slog.String("video", string(req.VideoRef)),
+			slog.String("published", req.PublishedID))
+		return nil
+	}
+	if err := c.setThumbnail(ctx, bearer, req.PublishedID, req.AssetID); err != nil {
+		return err
+	}
+	c.log.Info("youtube thumbnail updated",
+		slog.String("channel", string(req.ChannelSlug)),
+		slog.String("video", string(req.VideoRef)),
+		slog.String("url", watchPrefix+req.PublishedID))
+	return nil
+}
+
 // setThumbnail replaces the frame YouTube would otherwise choose.
 //
 // A second call by YouTube's design: a thumbnail cannot be sent with the video,

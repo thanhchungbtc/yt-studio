@@ -12,6 +12,7 @@ import (
 	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 	"github.com/tbui/yt-studio/domain/repository"
+	"github.com/tbui/yt-studio/domain/service"
 )
 
 // RegenerateIconInput is an edited cell prompt and the instruction to redraw
@@ -142,6 +143,35 @@ func videoOutput(ctx context.Context, tasks repository.TaskReader, v entity.Vide
 	return &VideoOutput{Body: videoFrom(v, counts)}, nil
 }
 
+// PushThumbnailInput names the video whose thumbnail is to be sent again.
+type PushThumbnailInput struct {
+	Key string `path:"key" doc:"Video ref or id"`
+}
+
+// postThumbnailPush sends a published video's thumbnail to YouTube again.
+func postThumbnailPush(
+	videos repository.VideoReader,
+	channels repository.ChannelReader,
+	tasks repository.TaskReader,
+	uploader provider.Uploader,
+	settings *service.Settings,
+) func(context.Context, *PushThumbnailInput) (*VideoOutput, error) {
+	return func(ctx context.Context, in *PushThumbnailInput) (*VideoOutput, error) {
+		v, err := app.GetVideo(ctx, videos, in.Key)
+		if err != nil {
+			return nil, mapError(err)
+		}
+		// The same row the publish path reads: a rehearsal that publishes nothing
+		// and one that re-fronts nothing are the same rehearsal.
+		dry := settings.Bool(entity.SettingUploadDryRun)
+		v, err = app.PushVideoThumbnail(ctx, videos, channels, uploader, v.ID, dry)
+		if err != nil {
+			return nil, mapError(err)
+		}
+		return videoOutput(ctx, tasks, v)
+	}
+}
+
 // registerThumbnailRoutes is its own function rather than more parameters on
 // registerVideoRoutes, which is already at the argument limit.
 //
@@ -155,6 +185,9 @@ func registerThumbnailRoutes(
 	tasks repository.TaskReader,
 	rerunner app.TaskRerunner,
 	now func() time.Time,
+	channels repository.ChannelReader,
+	uploader provider.Uploader,
+	settings *service.Settings,
 ) {
 	huma.Register(api, huma.Operation{
 		OperationID: "saveThumbnailDesign", Method: "PUT",
@@ -181,6 +214,17 @@ func registerThumbnailRoutes(
 		MaxBodyBytes: entity.MaxThumbnailBytes + 4096,
 		Tags:         []string{"videos"},
 	}, postThumbnailOverride(videos, fields, assets, store, tasks, now))
+
+	huma.Register(api, huma.Operation{
+		OperationID: "pushVideoThumbnail", Method: "POST",
+		Path:    "/api/videos/{key}/thumbnail/push",
+		Summary: "Send a published video's thumbnail to YouTube again",
+		Description: "For a video already published. Sends whichever image the video would " +
+			"publish with -- the hand-built one if there is one, otherwise the rendered one " +
+			"-- and nothing else: no video bytes move and the listing is not touched. " +
+			"YouTube caches thumbnails, so the new image can take a few minutes to appear.",
+		Tags: []string{"videos"},
+	}, postThumbnailPush(videos, channels, tasks, uploader, settings))
 
 	huma.Register(api, huma.Operation{
 		OperationID: "clearThumbnailOverride", Method: "DELETE",

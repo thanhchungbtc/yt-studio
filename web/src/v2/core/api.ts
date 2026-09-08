@@ -325,6 +325,15 @@ export const api = {
    */
   pushMetadata: (ref: string) => post<Video>(`/api/videos/${key(ref)}/metadata/push`, {}),
 
+  /**
+   * Send a published video's thumbnail to YouTube again.
+   *
+   * Whichever image the video would publish with -- the hand-built one if there
+   * is one, otherwise the rendered one -- so this and a publish cannot disagree
+   * about which picture fronts the video.
+   */
+  pushThumbnail: (ref: string) => post<Video>(`/api/videos/${key(ref)}/thumbnail/push`, {}),
+
   approveGate: (ref: string, gate: string) =>
     post<Task>(`/api/videos/${key(ref)}/approve`, { gate }),
   rejectGate: (ref: string, gate: string, reason: string) =>

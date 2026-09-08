@@ -85,6 +85,11 @@ func (u *Uploader) Upload(ctx context.Context, req provider.UploadRequest) (enti
 	}, nil
 }
 
+// UpdateThumbnail does nothing, for UpdateListing's reason.
+func (u *Uploader) UpdateThumbnail(_ context.Context, _ provider.ThumbnailPushRequest) error {
+	return nil
+}
+
 // UpdateListing does nothing but say so. There is no listing here to correct:
 // the sample backend never published one.
 func (u *Uploader) UpdateListing(_ context.Context, _ provider.ListingRequest) error {

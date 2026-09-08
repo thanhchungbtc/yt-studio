@@ -47,4 +47,20 @@ type Uploader interface {
 	// against everywhere; this is idempotent, cheap, and safe to run as often as
 	// somebody edits a title.
 	UpdateListing(ctx context.Context, req ListingRequest) error
+	// UpdateThumbnail replaces the image fronting a video already published.
+	//
+	// Its own call and not part of UpdateListing because the platform's are: a
+	// thumbnail is not a field of a video, it is set on one.
+	UpdateThumbnail(ctx context.Context, req ThumbnailPushRequest) error
+}
+
+// ThumbnailPushRequest asks for a published video's image to be replaced.
+type ThumbnailPushRequest struct {
+	VideoRef    entity.Ref
+	ChannelSlug entity.Slug
+	// PublishedID is the id on the platform, from the video's upload record.
+	PublishedID string
+	// AssetID is the image to send: whichever one the video would publish with.
+	AssetID entity.AssetID
+	DryRun  bool
 }

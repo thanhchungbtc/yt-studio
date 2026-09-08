@@ -360,6 +360,47 @@ function Player({
  * composer is meant to produce, and a page that printed that whether or not it
  * was true would be hiding exactly the bug worth catching.
  */
+/**
+ * Send this thumbnail to a video that is already on YouTube.
+ *
+ * Only for a video actually up there: absent before the upload, and absent for
+ * a dry run, whose receipt names no video to re-front. Absent too with no image
+ * to send, which is the same case as the Build one beside it.
+ *
+ * Its own action rather than something the builder does on save, because the
+ * two are different statements: the builder composes the image this video
+ * should publish with, and this rewrites what a published one does show.
+ *
+ * The note about caching is not decoration. The call returns as soon as YouTube
+ * has the image, but what viewers see is served from a cache that takes its own
+ * few minutes -- so "Sent" followed by an unchanged thumbnail reads as a
+ * failure, and this is the only place that can say otherwise.
+ */
+function PublishThumbnail({ video }: { video: Video }) {
+  const push = useMutation({ mutationFn: () => api.pushThumbnail(video.ref) })
+  if (!video.effectiveThumbnailAssetId) return null
+  if (!video.upload || video.upload.dryRun) return null
+
+  return (
+    <span className="flex items-baseline gap-2">
+      {push.isError && (
+        <span className="text-[11px] leading-snug text-[var(--failed)]">{push.error.message}</span>
+      )}
+      {push.isSuccess && (
+        <span className="text-[11px] text-tertiary">Sent — takes a few minutes to appear</span>
+      )}
+      <button
+        type="button"
+        onClick={() => push.mutate()}
+        disabled={push.isPending}
+        className="text-[11px] text-[var(--accent)] hover:underline disabled:opacity-50"
+      >
+        {push.isPending ? 'Publishing…' : 'Publish'}
+      </button>
+    </span>
+  )
+}
+
 function Thumbnail({ video, onBuild }: { video: Video; onBuild: () => void }) {
   const id = video.effectiveThumbnailAssetId
   const [size, setSize] = useState<string>()
@@ -369,13 +410,16 @@ function Thumbnail({ video, onBuild }: { video: Video; onBuild: () => void }) {
       <div className="flex items-baseline gap-2">
         <Caption>Thumbnail</Caption>
         {size ? <span className="text-[11px] tabular-nums text-tertiary">{size}</span> : null}
-        <button
-          type="button"
-          onClick={onBuild}
-          className="ml-auto text-[11px] text-[var(--accent)] hover:underline"
-        >
-          {id ? 'Edit' : 'Build one'}
-        </button>
+        <div className="ml-auto flex items-baseline gap-3">
+          <PublishThumbnail video={video} />
+          <button
+            type="button"
+            onClick={onBuild}
+            className="text-[11px] text-[var(--accent)] hover:underline"
+          >
+            {id ? 'Edit' : 'Build one'}
+          </button>
+        </div>
       </div>
 
       {id ? (
