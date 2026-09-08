@@ -1,7 +1,11 @@
-import { useState, type RefObject } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useState, type ReactNode, type RefObject } from 'react'
 
+import { api, qk } from '../../../../core/api'
 import type { Video } from '../../../../core/types'
+import { Button } from '../../../ui/button'
 import { Caption } from '../../../ui/caption'
+import { Input, Textarea } from '../../../ui/field'
 
 /**
  * Everything that gets sent, in the form it gets sent in.
@@ -17,8 +21,10 @@ import { Caption } from '../../../ui/caption'
  * are what the upload carries; a description "tidied" for display would be the
  * one thing on the page that is not what publishes.
  *
- * Read-only throughout. The metadata is the model's, and editing it is a
- * separate step with a backend behind it that does not exist yet.
+ * Reading is the default and editing is a mode, because this screen is opened to
+ * check what is about to be published far more often than to change it. Pressing
+ * Edit swaps the three strings for the controls that write them; nothing else on
+ * the page moves.
  */
 export function Listing({
   video,
@@ -35,19 +41,159 @@ export function Listing({
   /** Opens the builder over this video. */
   onBuild: () => void
 }) {
-  const metadata = video.metadata
-
   return (
     <div className="flex flex-col gap-6 px-6 py-5">
       <Player video={video} playerRef={playerRef} onTime={onTime} onRuntime={onRuntime} />
 
-      <Field label="Title">{metadata?.title}</Field>
-      <Field label="Description">{metadata?.description}</Field>
-      {/* Comma-separated, which is how a tag field is filled in — not one per
-          line, which would make six tags look like six paragraphs. */}
-      <Field label="Tags">{metadata?.tags.join(', ')}</Field>
+      <Fields video={video} />
 
       <Thumbnail video={video} onBuild={onBuild} />
+    </div>
+  )
+}
+
+/** The draft, as it is typed: tags are one comma-separated line, not a list. */
+interface Draft {
+  title: string
+  description: string
+  tags: string
+}
+
+/**
+ * The three strings, read or written.
+ *
+ * `undefined` is the read mode rather than a separate flag, so the draft cannot
+ * outlive the editing of it: leaving the mode is the same statement as throwing
+ * the draft away, and there is no third state where a stale draft sits behind a
+ * page showing the saved values.
+ */
+function Fields({ video }: { video: Video }) {
+  const metadata = video.metadata
+  const client = useQueryClient()
+  const [draft, setDraft] = useState<Draft>()
+
+  const save = useMutation({
+    mutationFn: (edit: Draft) =>
+      api.saveMetadata(video.ref, {
+        // What the server handed over, with the three fields this screen owns
+        // replaced. The spread is the whole of the round trip: `thumbnailText`
+        // and the two nobody displays go back exactly as they came, so editing a
+        // title cannot quietly erase the hook the thumbnail was built around.
+        thumbnailText: '',
+        categoryId: '',
+        privacy: '',
+        ...metadata,
+        title: edit.title,
+        description: edit.description,
+        // Split here rather than on the server, because a comma-separated line
+        // is a fact about this control and not about the format. Empty entries
+        // survive the split — a list is finished with a trailing comma as often
+        // as not — and are dropped when they are written.
+        tags: edit.tags
+          .split(',')
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+      }),
+    onSuccess: (next) => {
+      // The response is the whole video, so the cache takes it directly. The
+      // list is invalidated rather than written: a title change shows up in the
+      // sidebar row, which is keyed differently.
+      client.setQueryData(qk.video(video.ref), next)
+      void client.invalidateQueries({ queryKey: qk.videos })
+      setDraft(undefined)
+    },
+  })
+
+  if (!draft) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Header>
+          <button
+            type="button"
+            onClick={() =>
+              setDraft({
+                title: metadata?.title ?? '',
+                description: metadata?.description ?? '',
+                tags: metadata?.tags.join(', ') ?? '',
+              })
+            }
+            className="ml-auto text-[11px] text-[var(--accent)] hover:underline"
+          >
+            Edit
+          </button>
+        </Header>
+
+        <Field label="Title">{metadata?.title}</Field>
+        <Field label="Description">{metadata?.description}</Field>
+        {/* Comma-separated, which is how a tag field is filled in — not one per
+            line, which would make six tags look like six paragraphs. */}
+        <Field label="Tags">{metadata?.tags.join(', ')}</Field>
+      </div>
+    )
+  }
+
+  const edit = (patch: Partial<Draft>) => setDraft({ ...draft, ...patch })
+
+  return (
+    <div className="flex flex-col gap-6">
+      <Header>
+        <div className="ml-auto flex items-center gap-2">
+          <Button onClick={() => setDraft(undefined)} disabled={save.isPending}>
+            Cancel
+          </Button>
+          <Button primary onClick={() => save.mutate(draft)} disabled={save.isPending}>
+            {save.isPending ? 'Saving…' : 'Save'}
+          </Button>
+        </div>
+      </Header>
+
+      {/*
+        The server's complaint, verbatim. The limits it enforces are YouTube's,
+        and there is no copy of them on this side to check against first — a
+        second set of numbers here would be a second thing to keep in step with
+        an API neither of them owns.
+      */}
+      {save.error ? (
+        <p className="text-[11px] leading-snug text-[var(--failed)]">{save.error.message}</p>
+      ) : null}
+
+      {/*
+        Mono in the controls too. The point of this page is that the text on it
+        is the text that publishes, and a description that reflowed the moment
+        you clicked into it would break that in the one mode where it matters.
+      */}
+      <Editable label="Title">
+        <Input
+          value={draft.title}
+          onChange={(event) => edit({ title: event.target.value })}
+          className="font-mono text-[12px]"
+        />
+      </Editable>
+      <Editable label="Description">
+        <Textarea
+          value={draft.description}
+          onChange={(event) => edit({ description: event.target.value })}
+          rows={12}
+          className="font-mono text-[12px] leading-[1.6]"
+        />
+      </Editable>
+      <Editable label="Tags" hint="Separated by commas.">
+        <Input
+          value={draft.tags}
+          onChange={(event) => edit({ tags: event.target.value })}
+          className="font-mono text-[12px]"
+        />
+      </Editable>
+    </div>
+  )
+}
+
+/** The section's name, and whatever acts on it. */
+function Header({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex items-baseline gap-2">
+      <Caption>Listing</Caption>
+      {children}
     </div>
   )
 }
@@ -71,6 +217,32 @@ function Field({ label, children }: { label: string; children: string | undefine
       ) : (
         <span className="text-[12px] text-tertiary">—</span>
       )}
+    </div>
+  )
+}
+
+/**
+ * The same row with a control in it.
+ *
+ * Deliberately the same shape as `Field` — label above, value below, full width
+ * — rather than the dialog's right-aligned label column. A description is a
+ * paragraph, and a paragraph in a form row indented past a label column is a
+ * column of text half as wide as the thing it is meant to be a preview of.
+ */
+function Editable({
+  label,
+  hint,
+  children,
+}: {
+  label: string
+  hint?: string
+  children: ReactNode
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Caption>{label}</Caption>
+      {children}
+      {hint ? <p className="text-[11px] text-tertiary">{hint}</p> : null}
     </div>
   )
 }

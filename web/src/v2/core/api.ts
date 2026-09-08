@@ -1,4 +1,4 @@
-import type { Channel, ChannelAuth, Chapter, Setting, Task, Video } from './types'
+import type { Channel, ChannelAuth, Chapter, Metadata, Setting, Task, Video } from './types'
 
 /**
  * V2's client.
@@ -294,6 +294,23 @@ export const api = {
    */
   acceptStale: (ref: string, taskIds: string[]) =>
     post<{ count: number }>(`/api/videos/${key(ref)}/stale/accept`, { taskIds }),
+
+  /**
+   * The YouTube listing, replaced whole.
+   *
+   * Whole rather than the fields that changed, so nothing has to merge two
+   * partial listings into one row. The screen sends back what it was given with
+   * the three fields it edits replaced, which is also why `Metadata` carries the
+   * two nobody displays.
+   *
+   * Nothing re-runs. The upload reads this row when it runs, so a corrected
+   * title is simply what publishes.
+   */
+  saveMetadata: (ref: string, metadata: Metadata) =>
+    request<Video>(`/api/videos/${key(ref)}/metadata`, {
+      method: 'PUT',
+      body: JSON.stringify(metadata),
+    }),
 
   approveGate: (ref: string, gate: string) =>
     post<Task>(`/api/videos/${key(ref)}/approve`, { gate }),

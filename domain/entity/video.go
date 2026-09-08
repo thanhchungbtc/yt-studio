@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // ErrInvalidVideo is returned by the Video constructor for invalid input.
@@ -106,6 +107,50 @@ type Metadata struct {
 	ThumbnailText string
 	CategoryID    string
 	Privacy       string
+}
+
+// YouTube's ceilings on a listing. Here beside the fields rather than in the
+// editor that fills them in, for the same reason the thumbnail's frame is here:
+// they are the API's numbers, so a listing over them is refused at upload
+// whoever wrote it -- the model or the operator correcting the model.
+//
+// Counted in runes, not bytes. A title is a hundred characters in any script,
+// and a byte count would silently give a Japanese listing a third of the room.
+const (
+	MaxTitleChars       = 100
+	MaxDescriptionChars = 5000
+	// MaxTagsChars bounds the tags taken together, which is how YouTube counts
+	// them: there is no per-tag limit to check against.
+	MaxTagsChars = 500
+)
+
+// Validate reports whether the listing can be published.
+//
+// Only the three fields anyone types are bounded. The rest are the pipeline's
+// own -- a category id and a privacy setting the uploader supplies defaults for
+// -- and inventing limits for them here would be this file guessing at another
+// component's contract.
+func (m Metadata) Validate() error {
+	if strings.TrimSpace(m.Title) == "" {
+		return fmt.Errorf("%w: title must not be empty", ErrInvalidVideo)
+	}
+	if n := utf8.RuneCountInString(m.Title); n > MaxTitleChars {
+		return fmt.Errorf("%w: title is %d characters, over the %d limit",
+			ErrInvalidVideo, n, MaxTitleChars)
+	}
+	if n := utf8.RuneCountInString(m.Description); n > MaxDescriptionChars {
+		return fmt.Errorf("%w: description is %d characters, over the %d limit",
+			ErrInvalidVideo, n, MaxDescriptionChars)
+	}
+	total := 0
+	for _, tag := range m.Tags {
+		total += utf8.RuneCountInString(tag)
+	}
+	if total > MaxTagsChars {
+		return fmt.Errorf("%w: tags are %d characters together, over the %d limit",
+			ErrInvalidVideo, total, MaxTagsChars)
+	}
+	return nil
 }
 
 // EmphasisMark opens and closes a span of ThumbnailText drawn in the

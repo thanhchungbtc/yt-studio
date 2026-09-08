@@ -135,6 +135,16 @@ export interface Metadata {
    * for the same glance the title does.
    */
   thumbnailText: string
+  /**
+   * The two fields the pipeline sets and nothing yet shows.
+   *
+   * Carried in the type rather than left out of it because the listing is saved
+   * whole: the editor sends back what the server handed it with three fields
+   * replaced, and a field missing from this interface is a field that would be
+   * dropped on the way through.
+   */
+  categoryId: string
+  privacy: string
 }
 
 /** One tile of the thumbnail grid. `prompt` is the icon's subject alone. */
