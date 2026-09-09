@@ -2,7 +2,8 @@ import { useEffect } from 'react'
 import { create } from 'zustand'
 
 /**
- * What the language models are producing, right now.
+ * What the machine is doing, right now: every model exchange as it streams, and
+ * a line apiece for every task that has no text to stream.
  *
  * A second `EventSource`, on `/llm`, deliberately separate from the one in
  * `events.ts`. That stream carries *state*: frames are coalesced per video and
@@ -54,12 +55,17 @@ export interface LLMRun {
  * What the client keeps, mirroring what the server retains.
  *
  * Both caps matter and they cap different things. A browser left open across a
- * fifty-chapter render would otherwise accumulate every exchange of it, and a
- * model that has started repeating itself would otherwise grow one of them
- * without limit. Neither is a reason for a log window to become the largest
- * thing in the tab.
+ * fifty-chapter render would otherwise accumulate every run of it, and a model
+ * that has started repeating itself would otherwise grow one of them without
+ * limit. Neither is a reason for a log window to become the largest thing in
+ * the tab.
+ *
+ * The run cap matches `maxRuns` in the server's log deliberately. A client that
+ * kept fewer would drop runs the backlog had just replayed to it, so reopening
+ * the panel would show less than it did a moment before it was closed — and one
+ * that kept more would be holding runs nothing will ever send it again.
  */
-const MAX_RUNS = 32
+const MAX_RUNS = 128
 const MAX_RUN_CHARS = 64 * 1024
 
 interface LLMState {

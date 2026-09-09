@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useLLMConnected, useLLMRuns, type LLMRun } from '../../core/llm'
 
 /**
- * What the models are saying, as they say it.
+ * What the machine is saying, as it says it.
  *
  * The console shows raw text and parses nothing. A blueprint comes back as JSON
  * against a schema, and half of a JSON document is not a document — so the half
@@ -11,24 +11,28 @@ import { useLLMConnected, useLLMRuns, type LLMRun } from '../../core/llm'
  * still lands only at the end through the ordinary API. This view has no
  * opinion about the pipeline and the pipeline does not know it exists.
  *
- * Exchanges are blocks in the order they began rather than lines interleaved by
- * arrival. Two run at once here at most — the LLM pool's limit — and a block
- * per exchange keeps each one readable, where interleaving two token streams
- * would make both unreadable to save a little vertical space.
+ * Runs are blocks in the order they began rather than lines interleaved by
+ * arrival. Interleaving two token streams would make both unreadable to save a
+ * little vertical space, and a block also gives the runs with no stream — a
+ * narration, a clip, an upload — the one shape that says a thing started, took
+ * this long, and ended this way.
+ *
+ * Which is why nothing here distinguishes the two. A model exchange and a task
+ * are the same four fields and the same four states, so they are drawn by the
+ * same component, and what tells them apart is the second column of the header:
+ * an exchange names the model it went to, a task says `task`.
  */
 export function Console() {
   const runs = useLLMRuns()
   const connected = useLLMConnected()
 
   if (runs.length === 0) {
-    return (
-      <Empty>{connected ? 'Nothing has been generated yet.' : 'Console is not connected.'}</Empty>
-    )
+    return <Empty>{connected ? 'Nothing has run yet.' : 'Console is not connected.'}</Empty>
   }
   return (
     <Scroller>
       {runs.map((run) => (
-        <Exchange key={run.run} run={run} />
+        <Block key={run.run} run={run} />
       ))}
     </Scroller>
   )
@@ -83,8 +87,8 @@ function Scroller({ children }: { children: React.ReactNode }) {
   )
 }
 
-/** One exchange: what it was, and what came out of it. */
-function Exchange({ run }: { run: LLMRun }) {
+/** One run: what it was, and what came out of it. */
+function Block({ run }: { run: LLMRun }) {
   return (
     <div className="pt-2">
       <div className="flex items-baseline gap-2 text-[11px] text-tertiary">
@@ -107,19 +111,26 @@ function Exchange({ run }: { run: LLMRun }) {
         {run.text}
         {run.done ? null : <Caret />}
       </pre>
+      {/* Wrapped the way the output above it is, because an error here is no
+          longer always one line: ffmpeg's failures arrive with the tail of its
+          stderr attached, and HTML would fold those newlines into a paragraph —
+          which is how a stack of ffmpeg complaints becomes one unreadable
+          sentence. */}
       {run.error ? (
-        <div className="pt-0.5 font-mono text-[11px] text-[color:var(--failed)]">{run.error}</div>
+        <div className="pt-0.5 font-mono text-[11px] break-all whitespace-pre-wrap text-[color:var(--failed)]">
+          {run.error}
+        </div>
       ) : null}
     </div>
   )
 }
 
 /**
- * How the exchange is going, in the one place a duration belongs.
+ * How the run is going, in the one place a duration belongs.
  *
- * A running exchange shows elapsed time counted here rather than sent — the
- * server has no reason to emit a frame a second so that a number can tick, and
- * a clock is the one thing a client can keep on its own.
+ * A running one shows elapsed time counted here rather than sent — the server
+ * has no reason to emit a frame a second so that a number can tick, and a clock
+ * is the one thing a client can keep on its own.
  */
 function Status({ run }: { run: LLMRun }) {
   const elapsed = useElapsed(run.startedAt, run.done)
@@ -146,11 +157,11 @@ function useElapsed(startedAt: string, done: boolean): number {
 }
 
 /**
- * The block caret at the end of a running exchange.
+ * The block caret at the end of a run still in flight.
  *
  * The one piece of decoration here, and it earns its place: it is what says a
- * model that has gone quiet is still connected. Without it a stalled generation
- * and a finished one look the same.
+ * model that has gone quiet, or a task that produces no text at all, is still
+ * working. Without it a stalled generation and a finished one look the same.
  */
 function Caret() {
   return (

@@ -62,7 +62,8 @@ func toLLMFrame(f provider.LLMFrame) llmFrame {
 	return out
 }
 
-// llmHandler streams what the language models are producing, right now.
+// llmHandler streams what the machine is doing, right now: the models' output
+// as it arrives, and a line apiece for the tasks that produce none.
 //
 // A second SSE endpoint rather than a kind on /events, and the split is the
 // design. The event stream carries *state*: deltas are coalesced per video and

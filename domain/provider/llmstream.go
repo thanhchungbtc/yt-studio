@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"sync/atomic"
 	"time"
 
 	"github.com/tbui/yt-studio/domain/entity"
@@ -21,6 +22,15 @@ import (
 // owns Run, Video, Label, Model, Text, Done and Err. Whoever collects the
 // frames owns StartedAt, Duration and Truncated, because those are properties
 // of the accumulated exchange rather than of the moment being reported.
+//
+// A frame may also report a whole task rather than a model call. The console
+// this feeds is the only place the machine narrates what it is doing, and the
+// eight kinds of work that never reach a model — narration, images, ffmpeg, the
+// upload — had nothing to say there at all. Those frames set Model to `task`
+// and carry a line of prose where an exchange carries a token stream; nothing
+// else about the shape changes, which is exactly why they cost the collector
+// and the client no code. The name is now narrower than what it carries;
+// widening it is a rename, and a rename is a separate change.
 type LLMFrame struct {
 	// Run groups the frames of one exchange. Unique within a process run, and
 	// never zero: a zero Run is how a producer says it has no observer.
@@ -34,6 +44,8 @@ type LLMFrame struct {
 	// Model is the upstream id the exchange was sent to, resolved once when it
 	// began. On the frame rather than read from settings by the reader, so a
 	// model changed mid-generation cannot relabel output it did not produce.
+	// On a frame reporting a task it is `task`, which is the one thing that
+	// distinguishes an envelope from the exchange nested inside it.
 	Model string
 	// Text is what has arrived since the previous frame of this run, or on a
 	// backlog frame everything that has arrived so far. Empty on the frame that
@@ -65,3 +77,17 @@ type LLMFrame struct {
 // rather than calling through a no-op — an adapter with nobody watching should
 // not pay for the frames it would have sent.
 type LLMObserver func(LLMFrame)
+
+// runSeq numbers runs for observers.
+//
+// One counter for every producer, rather than one per package, because a
+// collector groups frames by Run alone: two sequences that both started at one
+// would silently append a task's report into the middle of an LLM exchange's
+// text, which is not a stale reading but a spliced one. Process-local,
+// monotonic, never persisted — a run id groups frames for as long as a console
+// is looking at them and means nothing afterwards.
+var runSeq atomic.Uint64
+
+// NextRun allocates a run id. Never zero, which is how a producer says it has
+// no observer.
+func NextRun() uint64 { return runSeq.Add(1) }

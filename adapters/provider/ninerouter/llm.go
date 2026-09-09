@@ -29,7 +29,6 @@ import (
 	"net/url"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/singleflight"
@@ -153,11 +152,6 @@ func New(cfg Config, store provider.AssetStore, lookup ContextLookup) (*Client, 
 	}, nil
 }
 
-// llmRunSeq numbers exchanges for the observer. Process-local, monotonic, and
-// never persisted: it groups one run's frames for as long as a console is
-// looking at them and means nothing afterwards.
-var llmRunSeq atomic.Uint64
-
 // watcher reports one exchange to the configured observer.
 //
 // A nil watcher is the no-observer case, and every method tolerates one, so the
@@ -177,7 +171,7 @@ func (c *Client) watch(of call, model string, started time.Time) *watcher {
 	w := &watcher{
 		observe: c.cfg.Observe,
 		frame: provider.LLMFrame{
-			Run:       llmRunSeq.Add(1),
+			Run:       provider.NextRun(),
 			Video:     of.Video,
 			Label:     of.Label,
 			Model:     model,

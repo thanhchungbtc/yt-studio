@@ -394,9 +394,9 @@ const DefaultHeadlineMinorWords = "a,an,and,are,as,at,be,but,by,for,from,in,is,o
 func DefaultSettings() []Setting {
 	return []Setting{
 		{Key: SettingPoolLLMLimit, Value: "1", Type: SettingTypeInt, Group: GroupPools, Min: 1, Max: MaxPoolLimit, Description: "Concurrent LLM calls across all videos and channels."},
-		{Key: SettingPoolTTSLimit, Value: "2", Type: SettingTypeInt, Group: GroupPools, Min: 1, Max: MaxPoolLimit, Description: "Concurrent narration syntheses."},
+		{Key: SettingPoolTTSLimit, Value: "1", Type: SettingTypeInt, Group: GroupPools, Min: 1, Max: MaxPoolLimit, Description: "Concurrent narration syntheses."},
 		{Key: SettingPoolImageLimit, Value: "2", Type: SettingTypeInt, Group: GroupPools, Min: 1, Max: MaxPoolLimit, Description: "Concurrent slide generations — usually the binding constraint."},
-		{Key: SettingPoolComposeLimit, Value: "2", Type: SettingTypeInt, Group: GroupPools, Min: 1, Max: MaxPoolLimit, Description: "Concurrent clip and concat compositions."},
+		{Key: SettingPoolComposeLimit, Value: "1", Type: SettingTypeInt, Group: GroupPools, Min: 1, Max: MaxPoolLimit, Description: "Concurrent clip and concat compositions."},
 		{Key: SettingPoolCacheLimit, Value: "32", Type: SettingTypeInt, Group: GroupPools, Min: 1, Max: MaxPoolLimit, Description: "Concurrent slide-prompt cache reads; must never be the bottleneck."},
 		{Key: SettingPoolUploadLimit, Value: "1", Type: SettingTypeInt, Group: GroupPools, Min: 1, Max: MaxPoolLimit, Description: "Concurrent uploads."},
 

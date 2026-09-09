@@ -567,7 +567,7 @@ func (c *serveCmd) Run() error {
 		store, store, store, store, store, store, store,
 		assets, providers.LLM(), providers.TTS(), providers.Slide(),
 		providers.Composer(), providers.Thumbnail(), providers.ThumbnailIcon(),
-		providers.Uploader(), broker,
+		providers.Uploader(), broker, llmConsole.Observe,
 		expander,
 		func() app.BlueprintOptions {
 			return app.BlueprintOptions{

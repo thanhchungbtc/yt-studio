@@ -45,6 +45,7 @@ type TaskRunner struct {
 	icons         provider.IconGenerator
 	uploader      provider.Uploader
 	notifier      Notifier
+	console       provider.LLMObserver
 	expander      GraphExpander
 	blueprintOpts func() BlueprintOptions
 	narrationOpts func() NarrationOptions
@@ -76,6 +77,7 @@ func NewTaskRunner(
 	icons provider.IconGenerator,
 	uploader provider.Uploader,
 	notifier Notifier,
+	console provider.LLMObserver,
 	expander GraphExpander,
 	blueprintOpts func() BlueprintOptions,
 	narrationOpts func() NarrationOptions,
@@ -92,7 +94,7 @@ func NewTaskRunner(
 		chapters: chapters, chapterWriter: chapterWriter, chapterFields: chapterFields,
 		assets: assets, store: store, llm: llm, tts: tts, slides: slides,
 		composer: composer, thumbnails: thumbnails, icons: icons,
-		uploader: uploader, notifier: notifier,
+		uploader: uploader, notifier: notifier, console: console,
 		expander: expander, blueprintOpts: blueprintOpts,
 		narrationOpts: narrationOpts, iconOpts: iconOpts,
 		dryRun: dryRun, now: now, log: log,
@@ -109,7 +111,14 @@ func (r *TaskRunner) Run(ctx context.Context, t entity.Task) entity.TaskOutcome 
 		slog.Int("attempt", t.Attempt))
 	start := r.now()
 
+	// Opened before the work and closed after it, unconditionally. The console
+	// is the only place a person can see that a task which produces no text is
+	// nonetheless running, so the one thing this must never do is leave a block
+	// open — which is why it wraps dispatch rather than living in any branch of
+	// it.
+	watcher := r.watchTask(t, start)
 	outcome := r.dispatch(ctx, t)
+	watcher.close(outcome)
 
 	switch o := outcome.(type) {
 	case entity.Success:

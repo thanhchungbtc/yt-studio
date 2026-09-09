@@ -1,10 +1,14 @@
-// Package llmlog retains the live text of recent language-model exchanges and
-// fans it out to whoever is watching.
+// Package llmlog retains what has recently run — the live text of every
+// language-model exchange, and a line apiece for every other task — and fans it
+// out to whoever is watching.
 //
 // It exists because a blueprint can take minutes and says nothing at all while
 // it does. The scheduler already reports that a task is running; this reports
 // what it is producing, which is the only thing that distinguishes a model
-// working from a model stuck.
+// working from a model stuck. The same silence belongs to a four-minute concat
+// and to eighty slides fetched one at a time, so those runs are retained here
+// too: a run's frames are append-only text either way, and a task that has
+// nothing to stream still has a start, an end and a reason it failed.
 //
 // Three properties are the whole design:
 //
@@ -35,15 +39,22 @@ import (
 )
 
 const (
-	// maxRuns is how many exchanges are retained. Well past what a console
-	// shows, so scrolling back reaches something, and far short of what a long
-	// render produces.
-	maxRuns = 32
+	// maxRuns is how many runs are retained.
+	//
+	// Well past what a console shows, so scrolling back reaches something, and
+	// far short of what a long render produces — a fifty-chapter video is four
+	// hundred tasks and nothing here tries to hold all of them. Chosen against
+	// the *exchanges*, which are the runs worth keeping: a task envelope is a
+	// few hundred bytes and there are many of them, so a cap tight enough to be
+	// crowded out by a chapter's narration and clips would evict the blueprint
+	// text that is the reason anyone opened the panel.
+	maxRuns = 128
 
-	// maxRunBytes bounds one retained exchange. A slide-prompt batch for fifty
+	// maxRunBytes bounds one retained run. A slide-prompt batch for fifty
 	// chapters is the largest thing an LLM here returns and lands under this;
 	// anything above it is a model that has started repeating, and the tail is
-	// the half worth keeping.
+	// the half worth keeping. A task envelope is one line and never approaches
+	// it, which is what makes the run count the only cap that has to be tuned.
 	maxRunBytes = 64 << 10
 
 	// subscriberBuffer is generous enough that a browser doing a little work
@@ -55,7 +66,7 @@ const (
 	defaultWindow = 100 * time.Millisecond
 )
 
-// run is one exchange, as retained.
+// run is one exchange or one task, as retained.
 type run struct {
 	frame provider.LLMFrame
 

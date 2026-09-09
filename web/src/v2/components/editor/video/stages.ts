@@ -283,6 +283,27 @@ export type StageId =
   | 'thumbnail'
   | 'upload'
 
+/**
+ * The kinds each stage is made of, named once.
+ *
+ * The rows below need this to draw a mark, and anything acting on a stage as a
+ * whole needs the same list to find the tasks under it. Two copies of "which
+ * kinds are the thumbnail" is one copy too many: the collapse of thirteen kinds
+ * into ten rows is the fact this table exists to state.
+ */
+export const STAGE_KINDS: Record<StageId, TaskKind[]> = {
+  blueprint: ['blueprint'],
+  slide_prompts: ['prime_slide_prompts', 'slide_prompts'],
+  script: ['script'],
+  narration: ['tts'],
+  slides: ['slide'],
+  clips: ['clip'],
+  cut: ['concat'],
+  metadata: ['metadata'],
+  thumbnail: ['thumbnail', 'thumbnail_plan', 'thumbnail_icon'],
+  upload: ['upload'],
+}
+
 export interface PipelineStage {
   id: StageId
   label: string
@@ -365,53 +386,50 @@ export function pipelineStages(video: Video, chapters: Chapter[], tasks: Task[])
     {
       id: 'blueprint',
       label: 'Blueprint',
-      cell: single(['blueprint'], Boolean(video.blueprintAssetId)),
+      cell: single(STAGE_KINDS.blueprint, Boolean(video.blueprintAssetId)),
     },
     {
       id: 'slide_prompts',
       label: 'Slide prompts',
-      cell: aggregate(tasks, ['prime_slide_prompts', 'slide_prompts'], promptsDone, perChapter),
+      cell: aggregate(tasks, STAGE_KINDS.slide_prompts, promptsDone, perChapter),
       count: { done: promptsDone, total: perChapter },
     },
     {
       id: 'script',
       label: 'Script',
-      cell: aggregate(tasks, ['script'], totals.script.done, perChapter),
+      cell: aggregate(tasks, STAGE_KINDS.script, totals.script.done, perChapter),
       count: { done: totals.script.done, total: perChapter },
     },
     {
       id: 'narration',
       label: 'Narration',
-      cell: aggregate(tasks, ['tts'], totals.narration.done, perChapter),
+      cell: aggregate(tasks, STAGE_KINDS.narration, totals.narration.done, perChapter),
       count: { done: totals.narration.done, total: perChapter },
     },
     {
       id: 'slides',
       label: 'Slides',
-      cell: aggregate(tasks, ['slide'], totals.slides.done, slideTotal),
+      cell: aggregate(tasks, STAGE_KINDS.slides, totals.slides.done, slideTotal),
       count: { done: totals.slides.done, total: slideTotal },
     },
     {
       id: 'clips',
       label: 'Clips',
-      cell: aggregate(tasks, ['clip'], totals.clip.done, perChapter),
+      cell: aggregate(tasks, STAGE_KINDS.clips, totals.clip.done, perChapter),
       count: { done: totals.clip.done, total: perChapter },
     },
-    { id: 'cut', label: 'Cut', cell: single(['concat'], Boolean(video.finalAssetId)) },
+    { id: 'cut', label: 'Cut', cell: single(STAGE_KINDS.cut, Boolean(video.finalAssetId)) },
     {
       id: 'metadata',
       label: 'Metadata',
-      cell: single(['metadata'], Boolean(video.metadata?.title)),
+      cell: single(STAGE_KINDS.metadata, Boolean(video.metadata?.title)),
     },
     {
       id: 'thumbnail',
       label: 'Thumbnail',
-      cell: single(
-        ['thumbnail', 'thumbnail_plan', 'thumbnail_icon'],
-        Boolean(video.effectiveThumbnailAssetId),
-      ),
+      cell: single(STAGE_KINDS.thumbnail, Boolean(video.effectiveThumbnailAssetId)),
     },
-    { id: 'upload', label: 'Upload', cell: single(['upload'], Boolean(video.upload)) },
+    { id: 'upload', label: 'Upload', cell: single(STAGE_KINDS.upload, Boolean(video.upload)) },
   ]
 
   if (!gate) return stages
