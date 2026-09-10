@@ -1,6 +1,9 @@
+import { useState } from 'react'
+
 import { count, duration } from '../../../../core/format'
 import type { Video } from '../../../../core/types'
 import { Button } from '../../../ui/button'
+import { Clamped } from '../../../ui/clamped'
 import { columnTotals, projectedSeconds } from '../stages'
 import { BlueprintPopover } from './blueprint'
 
@@ -39,9 +42,11 @@ function shapeOf(video: Video, totals: ReturnType<typeof columnTotals>): string 
  * The topic used to appear nowhere at all, which made the most load-bearing
  * string in a video the one thing on screen you could not read: it steers the
  * blueprint, and it is re-sent as the summary on every chapter's script call.
- * It sits above the shape because it is what the video *is*, where the shape is
- * how big it is, and it is clamped to two lines because a brief can be five
- * thousand characters and this is a header rather than a document.
+ * It sits under the shape because the shape is the line the controls are on,
+ * and it is folded to two lines because a topic can be five thousand
+ * characters and this is a header rather than a document. The rest is a press
+ * away, which is what keeps the fold from being a sentence that stops
+ * mid-word.
  */
 export function SummaryLine({
   video,
@@ -56,6 +61,10 @@ export function SummaryLine({
   editable: boolean
   onToggleEditing: () => void
 }) {
+  // Per document and no further, like the table's own rows: whether you had a
+  // topic open is not worth a line in the store.
+  const [topicOpen, setTopicOpen] = useState(false)
+
   return (
     <div className="hairline-b shrink-0 px-4 py-2">
       <div className="flex items-center gap-2">
@@ -79,11 +88,19 @@ export function SummaryLine({
       </div>
 
       {/* Absent rather than empty when nothing was briefed: a label over blank
-          space would be the header claiming a field the video does not have. */}
+          space would be the header claiming a field the video does not have.
+
+          The same control the chapter briefs in the table below carry, which is
+          what makes the two read as one page. What it replaced was a `title`
+          attribute, and a five-thousand character topic is not a tooltip. */}
       {video.topic ? (
-        <p className="mt-1 line-clamp-2 text-[12px] leading-snug text-tertiary" title={video.topic}>
-          {video.topic}
-        </p>
+        <Clamped
+          text={video.topic}
+          open={topicOpen}
+          onToggle={() => setTopicOpen((on) => !on)}
+          label="Video topic"
+          className="mt-1 text-[12px] leading-snug text-tertiary"
+        />
       ) : null}
     </div>
   )

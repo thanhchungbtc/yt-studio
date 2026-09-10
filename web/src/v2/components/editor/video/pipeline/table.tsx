@@ -5,6 +5,7 @@ import { api, qk, type ChapterPlan } from '../../../../core/api'
 import { count, duration } from '../../../../core/format'
 import type { Chapter, Task } from '../../../../core/types'
 import { cn } from '../../../../core/utils'
+import { Clamped } from '../../../ui/clamped'
 import type { MenuItem } from '../../../ui/menu'
 import { Mark } from '../mark'
 import { columnTotals, projectedSeconds, stagesByChapter, type Cell } from '../stages'
@@ -227,11 +228,12 @@ export function ChapterTable({
                     {chapter.title || 'Untitled'}
                   </div>
                   {chapter.summary ? (
-                    <Brief
-                      summary={chapter.summary}
-                      ordinal={chapter.ordinal}
+                    <Clamped
+                      text={chapter.summary}
                       open={open.has(chapter.id)}
                       onToggle={() => toggle(chapter.id)}
+                      label={`Chapter ${chapter.ordinal} brief`}
+                      className="mt-1 text-[12px] leading-snug text-secondary"
                     />
                   ) : null}
                 </div>
@@ -259,58 +261,6 @@ export function ChapterTable({
         )
       })}
     </div>
-  )
-}
-
-/**
- * A chapter's brief: two lines, or all of them.
- *
- * The whole paragraph is a press away and the press is the paragraph itself,
- * which is the part worth being deliberate about. A chevron in a gutter would
- * be a twelve-pixel target beside a target-sized block of text that everyone
- * tries to click first; the text *is* the control, and the word underneath says
- * which state it is in so a clamped brief cannot be mistaken for a short one.
- *
- * `line-clamp-2` rather than a character count, because where a sentence runs
- * out of room depends on the width of the window and not on the length of the
- * string.
- */
-function Brief({
-  summary,
-  ordinal,
-  open,
-  onToggle,
-}: {
-  summary: string
-  ordinal: number
-  open: boolean
-  onToggle: () => void
-}) {
-  return (
-    <>
-      {/* Text, and a shortcut to the button below it. Deliberately not a button
-          itself: the brief is the content of this cell, and a paragraph wearing
-          `role="button"` hands a screen reader the word "brief" in place of the
-          sentence it is announcing. */}
-      <p
-        onClick={onToggle}
-        className={cn(
-          'mt-1 cursor-pointer text-[12px] leading-snug text-secondary',
-          !open && 'line-clamp-2',
-        )}
-      >
-        {summary}
-      </p>
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        aria-label={`Chapter ${ordinal} brief`}
-        className="mt-0.5 text-[11px] text-tertiary transition-colors hover:text-secondary"
-      >
-        {open ? 'Less' : 'More'}
-      </button>
-    </>
   )
 }
 
