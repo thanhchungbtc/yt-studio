@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 
 import { api, qk, type ChapterPlan } from '../../../../core/api'
 import { count, duration } from '../../../../core/format'
@@ -29,9 +29,14 @@ import { PLAN_SAVE, useCellMenu } from './regenerate'
  * moment the decision is hardest. What is decidable then is the *plan*: what
  * each chapter covers, and how long it is meant to run.
  *
- * So the summary is printed in full, wrapped, never clamped. A one-line ellipsis
- * of the sentence you are being asked to approve is worse than not showing it,
- * because it looks like you have read it.
+ * The summary is two lines and opens on a press, and the gate opens all of them
+ * for you. Printing every brief in full was the first version of this and it
+ * cost the grid its shape: a fifty-chapter blueprint is fifteen thousand pixels
+ * of prose, so a table whose whole job is *where did this get to* could show two
+ * rows of it. What that version was protecting is still protected — an ellipsis
+ * of the sentence you are approving does look like you have read it, so nothing
+ * is ever clamped while the blueprint gate is open, and a clamped row says so
+ * with a control rather than with a fade.
  *
  * The stage cells stay marks and nothing else. Figures there — a word count, a
  * runtime — were the same numbers the summary line gives as totals, reprinted
@@ -46,16 +51,35 @@ import { PLAN_SAVE, useCellMenu } from './regenerate'
  */
 
 /*
-  The trailing `1fr` is a spacer, and it is the only reason the grid is legible
-  in a wide window.
+  The columns, and the three rules that size them.
 
-  Without it the chapter column takes every spare pixel, and on a wide screen
-  the marks end up half a metre from the title they belong to — the eye has to
-  travel a blank gap to pair them, which is exactly the failure a table is
-  supposed to prevent. Capping the title and parking the slack at the far end
-  keeps the stages beside their chapter at any width.
+  A stage column is as wide as its *heading* and no wider. The heading is a line
+  of ten-pixel uppercase and a mark is twelve pixels square, so the heading is
+  the thing a track has to fit — and fitting it exactly is what stops the four
+  of them costing four hundred pixels between them. The slide column is the one
+  exception, because its content can be six marks wide, and takes whichever of
+  the two is larger.
+
+  There is no trailing spacer any more. The chapter column takes every spare
+  pixel, so the marks sit against the right edge of the table at any width
+  instead of at the end of the widest chapter — a stage is then always in the
+  same place, which is worth more than keeping it close to the title.
+
+  What the spacer was really protecting is the measure of the prose, and prose
+  is what should carry that: past about a hundred characters a line the eye
+  loses its place coming back, so the text inside the column stops at 44rem
+  while the column itself does not.
 */
-const COLUMNS = '2.25rem minmax(13rem, 34rem) 7.5rem 4.5rem 5.5rem minmax(6rem, 12rem) 3.5rem 1fr'
+function columnsFor(slidesPerChapter: number): string {
+  // Capped at six, where the mark row wraps to a second line — cheaper than a
+  // column sized for twenty slides.
+  const slots = Math.min(Math.max(slidesPerChapter, 1), 6)
+  // One mark and its gap each, floored at the heading's own width. That floor
+  // counts the widest tally a heading can carry — `0/500` on a five-hundred
+  // chapter video, not the `0/6` in front of whoever is reading this.
+  const slides = `max(5rem, ${slots * 1.25}rem)`
+  return `2.25rem minmax(14rem, 1fr) 4.5rem 5rem 6.25rem ${slides} 4rem`
+}
 
 interface ChapterTableProps {
   /** The cache key an edit patches; a delta only ever carries the id. */
@@ -82,6 +106,42 @@ export function ChapterTable({
     [chapters, slidesPerChapter],
   )
   const { menuFor, error } = useCellMenu(videoId)
+  const columns = columnsFor(slidesPerChapter)
+
+  /*
+    Which briefs are open, by chapter id.
+
+    Ids rather than an index, so a blueprint that comes back with its chapters
+    renumbered does not leave the wrong rows open.
+  */
+  const [open, setOpen] = useState<ReadonlySet<string>>(new Set())
+  const toggle = (id: string) =>
+    setOpen((current) => {
+      const next = new Set(current)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
+
+  /*
+    The gate opens all of them, once.
+
+    While the blueprint is waiting to be approved the briefs are the decision,
+    and a table that clamped them would be asking for a judgement on text it had
+    folded away. Seeded rather than derived, so approving does not snap thirty
+    rows shut under a pointer that is still reading one — and only once, so a
+    row closed by hand stays closed.
+  */
+  const gateOpen = tasks.some(
+    (task) => task.state === 'awaiting_approval' && task.gate === 'blueprint',
+  )
+  const seeded = useRef(false)
+  useEffect(() => {
+    if (seeded.current || !gateOpen || chapters.length === 0) return
+    seeded.current = true
+    setOpen(new Set(chapters.map((chapter) => chapter.id)))
+  }, [gateOpen, chapters])
+
+  const allOpen = chapters.length > 0 && chapters.every((chapter) => open.has(chapter.id))
 
   if (chapters.length === 0) {
     return (
@@ -95,12 +155,28 @@ export function ChapterTable({
     <div className="min-h-0 flex-1 overflow-auto">
       <div
         role="row"
-        style={{ gridTemplateColumns: COLUMNS }}
+        style={{ gridTemplateColumns: columns }}
         className="surface-band hairline-b sticky top-0 z-10 grid items-center gap-3 px-4 py-1.5 text-[10px] font-semibold tracking-[0.06em] text-tertiary uppercase"
       >
         <span>#</span>
-        <span>Chapter</span>
-        <span>Estimated length</span>
+        <span className="flex items-baseline gap-2">
+          Chapter
+          {/* The one control in the band, and only where it would do something.
+              A blueprint with no briefs in it has nothing to open. */}
+          {chapters.some((chapter) => chapter.summary) ? (
+            <button
+              type="button"
+              onClick={() => setOpen(allOpen ? new Set() : new Set(chapters.map((c) => c.id)))}
+              className="text-[10px] font-semibold tracking-[0.06em] uppercase transition-colors hover:text-secondary"
+            >
+              {allOpen ? 'Collapse' : 'Expand'}
+            </button>
+          ) : null}
+        </span>
+        {/* `Budget`, not `Estimated length`: it is the word count the blueprint
+            planned the chapter at, which is a decision rather than a
+            measurement — and two syllables buys the chapter column an inch. */}
+        <span>Budget</span>
         <Head label="Script" done={totals.script.done} total={totals.script.total} />
         <Head label="Narration" done={totals.narration.done} total={totals.narration.total} />
         <Head label="Slides" done={totals.slides.done} total={totals.slides.total} />
@@ -125,7 +201,7 @@ export function ChapterTable({
           <div
             key={chapter.id}
             role="row"
-            style={{ gridTemplateColumns: COLUMNS }}
+            style={{ gridTemplateColumns: columns }}
             className={cn(
               // Aligned to the top, not the middle: a chapter is two lines tall
               // now, and a mark floating beside the second one belongs to
@@ -143,14 +219,20 @@ export function ChapterTable({
               <PlanFields chapter={chapter} videoId={videoId} />
             ) : (
               <>
-                <div className="min-w-0">
+                {/* The measure lives on the text rather than on the column, so
+                    the marks can sit at the right edge without the brief
+                    running to a line nobody can track back from. */}
+                <div className="min-w-0 max-w-[44rem]">
                   <div className="text-[13px] leading-snug text-primary">
                     {chapter.title || 'Untitled'}
                   </div>
                   {chapter.summary ? (
-                    <p className="mt-1 text-[12px] leading-snug text-secondary">
-                      {chapter.summary}
-                    </p>
+                    <Brief
+                      summary={chapter.summary}
+                      ordinal={chapter.ordinal}
+                      open={open.has(chapter.id)}
+                      onToggle={() => toggle(chapter.id)}
+                    />
                   ) : null}
                 </div>
 
@@ -181,6 +263,58 @@ export function ChapterTable({
 }
 
 /**
+ * A chapter's brief: two lines, or all of them.
+ *
+ * The whole paragraph is a press away and the press is the paragraph itself,
+ * which is the part worth being deliberate about. A chevron in a gutter would
+ * be a twelve-pixel target beside a target-sized block of text that everyone
+ * tries to click first; the text *is* the control, and the word underneath says
+ * which state it is in so a clamped brief cannot be mistaken for a short one.
+ *
+ * `line-clamp-2` rather than a character count, because where a sentence runs
+ * out of room depends on the width of the window and not on the length of the
+ * string.
+ */
+function Brief({
+  summary,
+  ordinal,
+  open,
+  onToggle,
+}: {
+  summary: string
+  ordinal: number
+  open: boolean
+  onToggle: () => void
+}) {
+  return (
+    <>
+      {/* Text, and a shortcut to the button below it. Deliberately not a button
+          itself: the brief is the content of this cell, and a paragraph wearing
+          `role="button"` hands a screen reader the word "brief" in place of the
+          sentence it is announcing. */}
+      <p
+        onClick={onToggle}
+        className={cn(
+          'mt-1 cursor-pointer text-[12px] leading-snug text-secondary',
+          !open && 'line-clamp-2',
+        )}
+      >
+        {summary}
+      </p>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-label={`Chapter ${ordinal} brief`}
+        className="mt-0.5 text-[11px] text-tertiary transition-colors hover:text-secondary"
+      >
+        {open ? 'Less' : 'More'}
+      </button>
+    </>
+  )
+}
+
+/**
  * A column head carrying how far its stage has got across the whole video.
  *
  * This is the arithmetic no individual row can do, and it is most of why the
@@ -190,7 +324,10 @@ export function ChapterTable({
 function Head({ label, done, total }: { label: string; done: number; total: number }) {
   const complete = total > 0 && done === total
   return (
-    <span className="flex items-baseline gap-1.5">
+    // Nowrap because a track is sized to this line: a heading that broke in two
+    // would take the header band's height with it, and the tally is part of the
+    // label rather than a second line under it.
+    <span className="flex items-baseline gap-1.5 whitespace-nowrap">
       <span>{label}</span>
       {total > 0 ? (
         <span className={cn('tabular-nums', complete ? 'opacity-0' : 'opacity-100')}>
