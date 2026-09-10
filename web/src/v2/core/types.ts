@@ -169,6 +169,8 @@ export interface Video {
   state: VideoState
   chapterCount: number
   slidesPerChapter: number
+  /** Tiles in the thumbnail grid, fixed at creation: one icon task per tile. */
+  thumbnailCells: number
   targetDurationMinutes: number
   /** The plan the pipeline was built from, as the LLM returned it. */
   blueprintAssetId?: string

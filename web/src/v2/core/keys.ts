@@ -1,11 +1,15 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { tinykeys } from 'tinykeys'
 
+import { duplicateVideos } from '../components/duplicate-video'
 import { closeActive, closeOthers, openDoc } from '../components/editor/dock'
 import { newVideo } from '../components/new-video'
 import { openSettings } from '../components/settings'
 import { anyModalOpen } from '../components/ui/dialog'
 import { useWorkbench } from '../store/workbench'
+import { qk } from './api'
+import type { Video } from './types'
 
 /**
  * The keyboard, which is the only way to move the panes.
@@ -43,8 +47,28 @@ function windowOnly(run: () => void): Handler {
 }
 
 export function useKeybindings(): void {
+  const client = useQueryClient()
   useEffect(() => {
     const store = useWorkbench.getState()
+
+    /**
+     * ⌘D on whatever the source list has selected.
+     *
+     * The selection holds video refs and channel slugs in one list, so the
+     * videos are found by intersecting it with the library rather than by
+     * asking which scope is showing — which makes the channels scope a no-op
+     * for free, and keeps this from duplicating a channel by coincidence.
+     *
+     * Read from the cache, not subscribed to: a keystroke wants the list as it
+     * stands when it fires, and a subscription here would re-run the whole
+     * keymap every time a task moved.
+     */
+    const duplicateSelection = () => {
+      const wanted = new Set(useWorkbench.getState().selected)
+      const library = client.getQueryData<Video[]>(qk.videos) ?? []
+      duplicateVideos(library.filter((video) => wanted.has(video.ref)))
+    }
+
     return tinykeys(window, {
       '$mod+Digit1': windowOnly(store.togglePrimary),
       '$mod+Digit2': windowOnly(store.toggleBottom),
@@ -53,10 +77,12 @@ export function useKeybindings(): void {
       '$mod+KeyW': windowOnly(closeActive),
       '$mod+Shift+KeyW': windowOnly(closeOthers),
 
+      '$mod+KeyD': windowOnly(duplicateSelection),
+
       '$mod+KeyN': windowOnly(() => newVideo()),
       '$mod+Shift+KeyN': windowOnly(() => openDoc({ kind: 'new', of: 'channel' }, 'New Channel')),
 
       '$mod+Comma': windowOnly(openSettings),
     })
-  }, [])
+  }, [client])
 }

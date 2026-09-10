@@ -142,7 +142,7 @@ export function NewVideoDialog() {
       setTopic('')
       setIdempotencyKey(crypto.randomUUID())
       // Pinned, not previewed: a video you just created is one you meant to open.
-      openDoc({ kind: 'video', ref: video.ref }, video.title || video.ref, {
+      openDoc({ kind: 'video', ref: video.ref }, video.title || 'Untitled', {
         seed: owner?.slug,
         initial: owner?.name,
       })

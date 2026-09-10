@@ -48,8 +48,23 @@ export function EditorTab({ api, params }: IDockviewPanelHeaderProps<DocPanelPar
         icon={isNew ? Plus : undefined}
         className={cn('size-5 text-[11px]', active ? '' : 'opacity-80')}
       />
-      <span className={cn('min-w-0 flex-1 truncate text-[13px]', preview && 'italic')}>
-        {params.title ?? api.title}
+      <span
+        className={cn('flex min-w-0 flex-1 items-baseline gap-1.5 text-[13px]', preview && 'italic')}
+      >
+        {/* Before the title, not after it.
+
+            The title truncates from the end, so a trailing ref is the first
+            thing dropped — and it goes exactly when the strip is crowded, which
+            is when two tabs are hardest to tell apart in the first place.
+            Leading it, it survives every width.
+
+            Read off the doc rather than folded into `params.title`, so the
+            saved layout keeps storing a title and the editor's own fallback
+            does not inherit a decorated one. */}
+        {doc?.kind === 'video' ? (
+          <span className="shrink-0 tabular-nums text-tertiary">{doc.ref}</span>
+        ) : null}
+        <span className="min-w-0 truncate">{params.title ?? api.title}</span>
       </span>
       <button
         type="button"

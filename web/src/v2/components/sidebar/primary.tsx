@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, ChevronRight, SquarePen, Trash2, Tv } from 'lucide-react'
+import { ChevronDown, ChevronRight, Copy, SquarePen, Trash2, Tv } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 
 import { api, qk } from '../../core/api'
 import { listTimestamp } from '../../core/format'
 import type { Channel, Video, VideoState } from '../../core/types'
 import { useWorkbench, type SidebarScope } from '../../store/workbench'
+import { duplicateLabel, duplicateVideos } from '../duplicate-video'
 import { openDoc, pinPreview, docId, useDock } from '../editor/dock'
 import { newVideo } from '../new-video'
 import { avatarColor } from '../ui/avatar'
@@ -312,18 +313,29 @@ export function PrimarySidebar() {
                         key={video.id}
                         id={docId({ kind: 'video', ref: video.ref })}
                         title={video.title || 'Untitled'}
-                        // The state leads, in full strength, because it is the
-                        // one part of this line anyone reads. The slug follows
-                        // it rather than pushing it off the end.
+                        // The ref leads, then the state at full strength.
+                        //
+                        // The state used to lead, on the grounds that it is the
+                        // one part of this line anyone reads — but what it led
+                        // was the channel slug, which every row in the group
+                        // repeats and the group header already says. The ref is
+                        // the row's identity, and two videos with the same title
+                        // differ nowhere else on screen.
+                        //
+                        // First is also the only position where the figures line
+                        // up. Behind a state word the refs would sit at whatever
+                        // x "Draft" and "Needs approval" leave them at, which is
+                        // no column at all and nothing for the eye to run down.
                         subtitle={
                           <>
-                            {/* The state at full strength, except when it is
-                                "Completed" — a finished row whose loudest word
-                                tells you to ignore it is backwards. */}
+                            <span className="font-medium tabular-nums">{video.ref}</span>
+                            {' · '}
+                            {/* Full strength, except when it is "Completed" — a
+                                finished row whose loudest word tells you to
+                                ignore it is backwards. */}
                             <span className={video.state === 'completed' ? undefined : 'row-state'}>
                               {STATE_LABEL[video.state]}
                             </span>
-                            {` · ${group.channel.slug}`}
                           </>
                         }
                         // The date the order is built from. Showing "last
@@ -346,7 +358,7 @@ export function PrimarySidebar() {
                           if (event.metaKey) return toggle(video.ref)
                           select([video.ref])
                           setAnchor(video.ref)
-                          openDoc({ kind: 'video', ref: video.ref }, video.title || video.ref, {
+                          openDoc({ kind: 'video', ref: video.ref }, video.title || 'Untitled', {
                             preview: true,
                             seed: group.channel.slug,
                             initial: group.channel.name,
@@ -363,6 +375,14 @@ export function PrimarySidebar() {
                           setAnchor(video.ref)
                         }}
                         menu={[
+                          {
+                            // No ellipsis: this asks nothing and does it now.
+                            label: duplicateLabel(targetsFor(video, selected, videos.data ?? [])),
+                            icon: Copy,
+                            shortcut: '⌘D',
+                            onSelect: () =>
+                              duplicateVideos(targetsFor(video, selected, videos.data ?? [])),
+                          },
                           {
                             label: deleteLabel(targetsFor(video, selected, videos.data ?? [])),
                             icon: Trash2,

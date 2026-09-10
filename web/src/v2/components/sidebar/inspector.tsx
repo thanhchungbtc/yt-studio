@@ -69,6 +69,18 @@ function VideoPipeline({ videoRef }: { videoRef: string }) {
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto py-1.5">
+      {/* What this is the pipeline of.
+
+          The pane follows the front tab and used to say so nowhere, so
+          switching tabs changed all ten rows with nothing on screen accounting
+          for it. The ref carries that on its own — it is the one label that is
+          different for two videos of the same name — and the title follows it
+          for the times you know the video by its name and not its number. */}
+      <div className="flex items-baseline gap-1.5 px-3 pt-0.5 pb-2 text-[11px]">
+        <span className="shrink-0 font-medium tabular-nums text-secondary">{data.ref}</span>
+        <span className="min-w-0 truncate text-tertiary">{data.title || 'Untitled'}</span>
+      </div>
+
       {/* Above the rows rather than beside the dot that caused it: the menu has
           closed by the time this exists, and the pane is too narrow to hang a
           message off a twelve-pixel target. One at a time, as there is one
