@@ -103,7 +103,6 @@ export function NewVideoDialog() {
 
   const chapters = Number(brief.chapterCount) || 0
   const slides = Number(brief.slidesPerChapter) || 0
-  const minutes = Number(brief.durationMinutes) || 0
   const cells = Number(brief.thumbnailCells) || 0
   // Mirrors scheduler.NodeCountFor: seven video-level tasks, four per chapter,
   // one per slide, and one icon per thumbnail tile.
@@ -161,14 +160,12 @@ export function NewVideoDialog() {
         </form>
       </Dialog.Body>
       <Dialog.Footer>
+        {/* What the run costs, beside the button that starts it. The length it
+            comes to is on the brief's own readout above, where the numbers it
+            is derived from are — printing it here as well would be the dialog
+            saying the same thing in two places. */}
         <span className="mr-auto text-[11px] text-tertiary">
           About <span className="font-medium tabular-nums">{count(tasks)}</span> tasks
-          {minutes > 0 ? (
-            <>
-              {' '}
-              over <span className="font-medium tabular-nums">{minutes}</span> min
-            </>
-          ) : null}
         </span>
         <Button className="h-[26px] px-3.5" onClick={hide}>
           Cancel

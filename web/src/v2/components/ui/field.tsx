@@ -1,6 +1,7 @@
 import { ChevronsUpDown } from 'lucide-react'
 import {
   useId,
+  type CSSProperties,
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
@@ -46,20 +47,33 @@ export function Field({
 }
 
 /**
- * A number and its unit on one line.
+ * A number you can sweep or type: a track, the figure, and its unit.
  *
- * The field is sized to the number rather than to the row. A three-digit value
- * in a control stretched across the whole dialog is the single thing that makes
- * a form look unconsidered, and the space it wastes is exactly where the unit
- * wants to be.
+ * Both controls, because the two ways of answering are different questions.
+ * "About three hours" is a drag — you are choosing a size, and a slider is the
+ * only control that lets you feel where the ends are — and "exactly 137" is
+ * typed. A form that offered one would make the other a chore, and the range
+ * input is what carries the keyboard: arrows step, Home and End go to the
+ * bounds, and none of that has to be written here.
+ *
+ * This was a lone number box, which is why it is worth saying what the track
+ * bought: a `1–500` printed beside an empty field is a range you have to
+ * imagine, where a knob a fifth of the way along is one you can see.
+ *
+ * The value is a string because a half-typed field holds `""`, and a `0` there
+ * would be the form answering for you. The track needs a number, so an unset
+ * field parks its knob at the floor.
  */
-export function NumberField({
+export function RangeField({
   label,
   unit,
   value,
   onChange,
   min,
   max,
+  step = 1,
+  /** Under the row, in the control column: what this shape comes to. */
+  children,
 }: {
   label: string
   unit: ReactNode
@@ -67,23 +81,45 @@ export function NumberField({
   onChange: (value: string) => void
   min: number
   max: number
+  step?: number
+  children?: ReactNode
 }) {
   const id = useId()
+  const current = Number(value)
+  const position = Number.isFinite(current) ? Math.min(Math.max(current, min), max) : min
+  // Clamped before it is a percentage, so a typed 9999 fills the track rather
+  // than overrunning the gradient.
+  const fill = max > min ? ((position - min) / (max - min)) * 100 : 0
+
   return (
-    <div className="flex items-center gap-3 py-[5px]">
-      <label htmlFor={id} className={LABEL}>
-        {label}
-      </label>
-      <input
-        id={id}
-        type="number"
-        min={min}
-        max={max}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="control w-[68px] text-right tabular-nums"
-      />
-      <span className="min-w-0 flex-1 truncate text-[11px] text-tertiary">{unit}</span>
+    <div className="py-[5px]">
+      <div className="flex items-center gap-3">
+        <label htmlFor={id} className={LABEL}>
+          {label}
+        </label>
+        <input
+          type="range"
+          aria-label={label}
+          min={min}
+          max={max}
+          step={step}
+          value={position}
+          onChange={(event) => onChange(event.target.value)}
+          className="slider min-w-0 flex-1"
+          style={{ '--slider-fill': `${fill}%` } as CSSProperties}
+        />
+        <input
+          id={id}
+          type="number"
+          min={min}
+          max={max}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="control w-[58px] shrink-0 text-right tabular-nums"
+        />
+        <span className="w-[92px] shrink-0 truncate text-[11px] text-tertiary">{unit}</span>
+      </div>
+      {children ? <div className={cn(INDENT, 'pt-1.5')}>{children}</div> : null}
     </div>
   )
 }

@@ -358,6 +358,64 @@
 }
 
 /*
+  A slider in a form on the window.
+
+  The filled portion is the whole reason this is not the rail's slider below: a
+  form has three or four of these and the fill is what makes each one readable
+  at a glance, where a column of twenty filled tracks — which is what the
+  builder's rail is — reads as a barcode. So there are two, the difference is
+  one property, and each is right where it is used.
+
+  The fraction has to come in from outside. A range input does not expose its
+  own position to CSS, so the component sets `--slider-fill` as a percentage and
+  the gradient has two hard stops at it: accent behind the knob, track ahead of
+  it, no blend between them.
+*/
+.slider {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 18px;
+  background: transparent;
+  cursor: pointer;
+  --slider-fill: 0%;
+}
+
+.slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--accent) 0 var(--slider-fill),
+    var(--idle-selection) var(--slider-fill) 100%
+  );
+}
+
+.slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  /* Half the knob's height less half the track's, so it rides centred. */
+  margin-top: -5px;
+  border-radius: 999px;
+  background: var(--raised);
+  box-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.24),
+    0 1px 2px rgb(0 0 0 / 0.2);
+  transition: transform 90ms ease-out;
+}
+
+.slider:active::-webkit-slider-thumb {
+  transform: scale(1.08);
+}
+
+.slider:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 0.5px var(--accent),
+    0 0 0 3px var(--accent-wash-strong);
+}
+
+/*
   The slider in the thumbnail builder's rail.
 
   Written here for the same reason `.control` is: the track and the knob are
