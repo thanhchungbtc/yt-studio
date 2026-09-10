@@ -1,22 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { create } from 'zustand'
 
 import { api, qk } from '../core/api'
 import { count } from '../core/format'
 import { openDoc } from './editor/dock'
 import { Button } from './ui/button'
-import {
-  Checkbox,
-  Field,
-  FieldDivider,
-  INDENT,
-  Input,
-  NumberField,
-  Select,
-  Textarea,
-} from './ui/field'
+import { Checkbox, Field, FieldDivider, INDENT, Select } from './ui/field'
 import { Dialog } from './ui/dialog'
+import { BLANK_BRIEF, BriefFields, briefReady, requestFrom } from './video-brief'
 
 /**
  * The new-video dialog.
@@ -25,11 +17,11 @@ import { Dialog } from './ui/dialog'
  * an answer — you fill it in and it is over — where a document is a place you
  * come back to. The video it produces is the document.
  *
- * Two groups, one rule between them: what the video is *about*, and how big it
- * is. The first three fields are prose and want the width; the last four are
- * numbers and want none of it. That is the whole layout, and it is why the
- * numeric fields are sized to three digits with their unit beside them rather
- * than stretched across the dialog.
+ * The six fields in the middle are the brief, and they live in
+ * `video-brief.tsx` because the edit dialog asks for exactly the same six. What
+ * is left here is the three things only creating a video involves: the channel
+ * it belongs to, the size of the run it is about to start, and whether to start
+ * it.
  *
  * The store is here rather than in `store/workbench.ts` for the same reason
  * `openDoc` lives beside the dock: whoever opens this — a menu, a keystroke, a
@@ -57,38 +49,6 @@ export function newVideo(channel?: string): void {
   useNewVideo.getState().show(channel)
 }
 
-// The server's caps, from the CreateVideoInput schema in
-// delivery/http/videos.go. Mirrored rather than discovered: they are part of
-// the request contract, and a form that finds out its own limits by being
-// rejected is the thing this mirrors them to avoid. Both count the trimmed
-// value, because trimmed is what gets sent.
-const TITLE_MAX = 200
-const TOPIC_MAX = 5000
-
-/**
- * The character count, shown only once it is worth knowing.
- *
- * A counter under an empty field is noise on every field nobody was ever going
- * to overrun. This one appears in the last fifth — where "will this fit" starts
- * being a real question — and turns red once the answer is no.
- *
- * Neither field is given a `maxLength`. The browser enforces that by silently
- * discarding the overflow, including on paste, and a topic is pasted prose: the
- * operator would lose the tail of a brief without being told. Showing the
- * overrun and refusing to submit keeps the text where they can edit it.
- */
-function counterFor(length: number, max: number): ReactNode {
-  if (length < max * 0.8) return undefined
-  return (
-    <span
-      className="shrink-0 tabular-nums"
-      style={length > max ? { color: 'var(--failed)' } : undefined}
-    >
-      {count(length)}/{count(max)}
-    </span>
-  )
-}
-
 export function NewVideoDialog() {
   // The dialog does not know about forms. This screen has both the form and the
   // button that submits it, so the id that associates them across the two
@@ -102,12 +62,7 @@ export function NewVideoDialog() {
   const channels = useQuery({ queryKey: qk.channels, queryFn: api.listChannels, enabled: open })
 
   const [channel, setChannel] = useState('')
-  const [title, setTitle] = useState('')
-  const [topic, setTopic] = useState('')
-  const [chapterCount, setChapterCount] = useState('50')
-  const [durationMinutes, setDurationMinutes] = useState('180')
-  const [slidesPerChapter, setSlidesPerChapter] = useState('2')
-  const [thumbnailCells, setThumbnailCells] = useState('12')
+  const [brief, setBrief] = useState(BLANK_BRIEF)
   const [start, setStart] = useState(true)
   // Minted per dialog session, so a double submit is a no-op rather than a
   // second video — including the resubmit of a request that timed out on the
@@ -123,13 +78,8 @@ export function NewVideoDialog() {
     mutationFn: () =>
       api.createVideo(
         {
+          ...requestFrom(brief),
           channel: channel || channels.data?.[0]?.slug || '',
-          title: title.trim(),
-          topic: topic.trim(),
-          chapterCount: Number(chapterCount) || 0,
-          targetDurationMinutes: Number(durationMinutes) || 0,
-          slidesPerChapter: Number(slidesPerChapter) || 0,
-          thumbnailCells: Number(thumbnailCells) || 0,
           start,
         },
         idempotencyKey,
@@ -138,8 +88,10 @@ export function NewVideoDialog() {
       void client.invalidateQueries({ queryKey: qk.videos })
       const owner = (channels.data ?? []).find((c) => c.id === video.channelId)
       hide()
-      setTitle('')
-      setTopic('')
+      // The prose only. The four numbers are what this operator sizes videos
+      // with, and clearing them would make every second video a form to fill in
+      // again.
+      setBrief((current) => ({ ...current, title: '', topic: '' }))
       setIdempotencyKey(crypto.randomUUID())
       // Pinned, not previewed: a video you just created is one you meant to open.
       openDoc({ kind: 'video', ref: video.ref }, video.title || 'Untitled', {
@@ -149,20 +101,15 @@ export function NewVideoDialog() {
     },
   })
 
-  const chapters = Number(chapterCount) || 0
-  const slides = Number(slidesPerChapter) || 0
-  const minutes = Number(durationMinutes) || 0
-  const cells = Number(thumbnailCells) || 0
+  const chapters = Number(brief.chapterCount) || 0
+  const slides = Number(brief.slidesPerChapter) || 0
+  const minutes = Number(brief.durationMinutes) || 0
+  const cells = Number(brief.thumbnailCells) || 0
   // Mirrors scheduler.NodeCountFor: seven video-level tasks, four per chapter,
   // one per slide, and one icon per thumbnail tile.
   const tasks = 7 + 4 * chapters + chapters * slides + cells
 
-  // Trimmed, because trimmed is what the mutation sends.
-  const titleLength = title.trim().length
-  const topicLength = topic.trim().length
-  const overrun = titleLength > TITLE_MAX || topicLength > TOPIC_MAX
-
-  const ready = titleLength > 0 && !overrun && !submit.isPending
+  const ready = briefReady(brief) && !submit.isPending
 
   return (
     <Dialog
@@ -170,6 +117,7 @@ export function NewVideoDialog() {
       onOpenChange={(next) => {
         if (!next) hide()
       }}
+      width={640}
     >
       <Dialog.Header
         title="New video"
@@ -195,74 +143,7 @@ export function NewVideoDialog() {
             )}
           </Field>
 
-          <Field label="Title" hint={counterFor(titleLength, TITLE_MAX)}>
-            {(id) => (
-              <Input
-                id={id}
-                data-autofocus
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="The Long Winter of the Harbour"
-              />
-            )}
-          </Field>
-
-          <Field
-            label="Topic"
-            hint={
-              <span className="flex justify-between gap-3">
-                <span>Steers the blueprint, the scripts and the slide prompts.</span>
-                {counterFor(topicLength, TOPIC_MAX)}
-              </span>
-            }
-          >
-            {(id) => (
-              <Textarea
-                id={id}
-                rows={3}
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-                placeholder="A northern port town over one winter, told through its shipping ledgers."
-              />
-            )}
-          </Field>
-
-          <FieldDivider />
-
-          <NumberField
-            label="Duration"
-            unit={minutes > 0 ? 'minutes' : 'minutes — the chapter count decides'}
-            value={durationMinutes}
-            onChange={setDurationMinutes}
-            min={0}
-            max={720}
-          />
-          <NumberField
-            label="Chapters"
-            unit="a target, 1–500"
-            value={chapterCount}
-            onChange={setChapterCount}
-            min={1}
-            max={500}
-          />
-          <NumberField
-            label="Slides"
-            unit="per chapter, 1–20"
-            value={slidesPerChapter}
-            onChange={setSlidesPerChapter}
-            min={1}
-            max={20}
-          />
-          {/* Fixed at creation: the DAG gets one icon task per tile and cannot
-              change width afterwards. */}
-          <NumberField
-            label="Thumbnail"
-            unit="tiles, 1–24 — twelve is two rows of six"
-            value={thumbnailCells}
-            onChange={setThumbnailCells}
-            min={1}
-            max={24}
-          />
+          <BriefFields brief={brief} onChange={setBrief} />
 
           <FieldDivider />
 

@@ -314,44 +314,51 @@ func (v Video) EffectiveThumbnailAssetID() AssetID {
 	return ""
 }
 
+// Validate reports whether a video's own fields are within bounds.
+//
+// The constructor calls it, and so does an edit of the fields it covers, so a
+// title or a chapter count has one set of limits whoever wrote them.
+func (v Video) Validate() error {
+	if strings.TrimSpace(string(v.ID)) == "" {
+		return fmt.Errorf("%w: id must not be empty", ErrInvalidVideo)
+	}
+	if strings.TrimSpace(string(v.ChannelID)) == "" {
+		return fmt.Errorf("%w: channel id must not be empty", ErrInvalidVideo)
+	}
+	if _, _, err := ParseRef(string(v.Ref)); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidVideo, err)
+	}
+	if strings.TrimSpace(v.Title) == "" {
+		return fmt.Errorf("%w: title must not be empty", ErrInvalidVideo)
+	}
+	if v.ChapterCount < MinChapterCount || v.ChapterCount > MaxChapterCount {
+		return fmt.Errorf("%w: chapter count must be %d..%d, got %d",
+			ErrInvalidVideo, MinChapterCount, MaxChapterCount, v.ChapterCount)
+	}
+	if v.SlidesPerChapter < MinSlidesPerChapter || v.SlidesPerChapter > MaxSlidesPerChapter {
+		return fmt.Errorf("%w: slides per chapter must be %d..%d, got %d",
+			ErrInvalidVideo, MinSlidesPerChapter, MaxSlidesPerChapter, v.SlidesPerChapter)
+	}
+	if v.ThumbnailCells < MinThumbnailCells || v.ThumbnailCells > MaxThumbnailCells {
+		return fmt.Errorf("%w: thumbnail cells must be %d..%d, got %d",
+			ErrInvalidVideo, MinThumbnailCells, MaxThumbnailCells, v.ThumbnailCells)
+	}
+	if v.TargetDurationMinutes < 0 || v.TargetDurationMinutes > MaxDurationMinutes {
+		return fmt.Errorf("%w: target duration must be 0..%d minutes, got %d",
+			ErrInvalidVideo, MaxDurationMinutes, v.TargetDurationMinutes)
+	}
+	return nil
+}
+
 // NewVideo validates and constructs a Video in the draft state.
 //
 //nolint:revive // the parameter list is the video's shape
 func NewVideo(id VideoID, channelID ChannelID, ref Ref, title, topic string, chapterCount, slidesPerChapter, thumbnailCells, targetDurationMinutes int, now time.Time) (Video, error) {
-	if strings.TrimSpace(string(id)) == "" {
-		return Video{}, fmt.Errorf("%w: id must not be empty", ErrInvalidVideo)
-	}
-	if strings.TrimSpace(string(channelID)) == "" {
-		return Video{}, fmt.Errorf("%w: channel id must not be empty", ErrInvalidVideo)
-	}
-	if _, _, err := ParseRef(string(ref)); err != nil {
-		return Video{}, fmt.Errorf("%w: %w", ErrInvalidVideo, err)
-	}
-	title = strings.TrimSpace(title)
-	if title == "" {
-		return Video{}, fmt.Errorf("%w: title must not be empty", ErrInvalidVideo)
-	}
-	if chapterCount < MinChapterCount || chapterCount > MaxChapterCount {
-		return Video{}, fmt.Errorf("%w: chapter count must be %d..%d, got %d",
-			ErrInvalidVideo, MinChapterCount, MaxChapterCount, chapterCount)
-	}
-	if slidesPerChapter < MinSlidesPerChapter || slidesPerChapter > MaxSlidesPerChapter {
-		return Video{}, fmt.Errorf("%w: slides per chapter must be %d..%d, got %d",
-			ErrInvalidVideo, MinSlidesPerChapter, MaxSlidesPerChapter, slidesPerChapter)
-	}
-	if thumbnailCells < MinThumbnailCells || thumbnailCells > MaxThumbnailCells {
-		return Video{}, fmt.Errorf("%w: thumbnail cells must be %d..%d, got %d",
-			ErrInvalidVideo, MinThumbnailCells, MaxThumbnailCells, thumbnailCells)
-	}
-	if targetDurationMinutes < 0 || targetDurationMinutes > MaxDurationMinutes {
-		return Video{}, fmt.Errorf("%w: target duration must be 0..%d minutes, got %d",
-			ErrInvalidVideo, MaxDurationMinutes, targetDurationMinutes)
-	}
-	return Video{
+	v := Video{
 		ID:                    id,
 		ChannelID:             channelID,
 		Ref:                   ref,
-		Title:                 title,
+		Title:                 strings.TrimSpace(title),
 		Topic:                 strings.TrimSpace(topic),
 		State:                 VideoStateDraft,
 		ChapterCount:          chapterCount,
@@ -360,10 +367,14 @@ func NewVideo(id VideoID, channelID ChannelID, ref Ref, title, topic string, cha
 		TargetDurationMinutes: targetDurationMinutes,
 		CreatedAt:             now,
 		UpdatedAt:             now,
-	}, nil
+	}
+	if err := v.Validate(); err != nil {
+		return Video{}, err
+	}
+	return v, nil
 }
 
-// Bounds on video shape, enforced by the constructor.
+// Bounds on video shape, enforced by Validate.
 const (
 	MinChapterCount     = 1
 	MaxChapterCount     = 500

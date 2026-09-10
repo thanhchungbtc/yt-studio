@@ -100,6 +100,22 @@ export interface NewVideo {
 }
 
 /**
+ * A video's brief, whole.
+ *
+ * The channel is absent because it is not editable, and `start` because editing
+ * is not a lifecycle verb. Everything else is required: the dialog holds all six
+ * and sends all six, so there is nothing for the server to merge.
+ */
+export interface VideoBrief {
+  title: string
+  topic: string
+  chapterCount: number
+  slidesPerChapter: number
+  thumbnailCells: number
+  targetDurationMinutes: number
+}
+
+/**
  * What a re-run did: the tasks that ran again, and the ones it left flagged.
  *
  * Nothing renders this yet — the grid catches up over the event stream — but it
@@ -134,6 +150,18 @@ export const api = {
   createVideo: (body: NewVideo, idempotencyKey: string) =>
     post<Video>('/api/videos', body, idempotencyKey),
   getVideo: (ref: string) => request<Video>(`/api/videos/${key(ref)}`),
+  /**
+   * Corrects the brief a video was created from.
+   *
+   * The server re-runs nothing. These fields are read as each task runs, so an
+   * edit reaches whatever has not happened yet and leaves what has alone. The
+   * response is the whole video, so callers can patch the cache from it.
+   */
+  updateVideo: (ref: string, brief: VideoBrief) =>
+    request<Video>(`/api/videos/${key(ref)}`, {
+      method: 'PUT',
+      body: JSON.stringify(brief),
+    }),
   /**
    * The one verb that gets a stopped video moving again.
    *

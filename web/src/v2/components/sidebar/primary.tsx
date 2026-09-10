@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, ChevronRight, Copy, SquarePen, Trash2, Tv } from 'lucide-react'
+import { ChevronDown, ChevronRight, Copy, Pencil, SquarePen, Trash2, Tv } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 
 import { api, qk } from '../../core/api'
@@ -7,6 +7,7 @@ import { listTimestamp } from '../../core/format'
 import type { Channel, Video, VideoState } from '../../core/types'
 import { useWorkbench, type SidebarScope } from '../../store/workbench'
 import { duplicateLabel, duplicateVideos } from '../duplicate-video'
+import { editVideo } from '../edit-video'
 import { openDoc, pinPreview, docId, useDock } from '../editor/dock'
 import { newVideo } from '../new-video'
 import { avatarColor } from '../ui/avatar'
@@ -375,6 +376,15 @@ export function PrimarySidebar() {
                           setAnchor(video.ref)
                         }}
                         menu={[
+                          {
+                            // The ellipsis is the promise: this opens a form
+                            // rather than doing something. One video, always —
+                            // the fields are per-video, and there is nothing a
+                            // multi-row edit could prefill them with.
+                            label: 'Edit…',
+                            icon: Pencil,
+                            onSelect: () => editVideo(video),
+                          },
                           {
                             // No ellipsis: this asks nothing and does it now.
                             label: duplicateLabel(targetsFor(video, selected, videos.data ?? [])),

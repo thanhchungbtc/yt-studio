@@ -60,6 +60,22 @@ type CreateVideoInput struct {
 	}
 }
 
+// UpdateVideoInput is the edit-video request body: the brief, whole, as the
+// dialog holds it. The channel is absent because it is not editable.
+type UpdateVideoInput struct {
+	Key  string `path:"key" doc:"Video ref (e.g. DSS-14) or id"`
+	Body struct {
+		Title string `json:"title" required:"true" minLength:"1" maxLength:"200"`
+		Topic string `json:"topic,omitempty" maxLength:"5000"`
+		//nolint:lll // one field, one line
+		ChapterCount     int `json:"chapterCount" required:"true" minimum:"1" maximum:"500"`
+		SlidesPerChapter int `json:"slidesPerChapter" required:"true" minimum:"1" maximum:"20"`
+		ThumbnailCells   int `json:"thumbnailCells" required:"true" minimum:"1" maximum:"24"`
+		//nolint:lll // one field, one line
+		TargetDurationMinutes int `json:"targetDurationMinutes,omitempty" minimum:"0" maximum:"720" doc:"Planned running time; zero means the chapter count decides"`
+	}
+}
+
 // GateInput is an approval or rejection request.
 type GateInput struct {
 	Key  string `path:"key" doc:"Video ref or id"`
@@ -153,6 +169,32 @@ func postVideo(
 				startOptions(settings), string(v.ID)); err != nil {
 				return nil, mapError(err)
 			}
+		}
+		counts, err := tasks.CountTasksByVideo(ctx, v.ID)
+		if err != nil {
+			return nil, mapError(err)
+		}
+		return &VideoOutput{Body: videoFrom(v, counts)}, nil
+	}
+}
+
+func putVideo(
+	videos repository.VideoReader,
+	writer repository.VideoWriter,
+	tasks repository.TaskReader,
+	now func() time.Time,
+) func(context.Context, *UpdateVideoInput) (*VideoOutput, error) {
+	return func(ctx context.Context, in *UpdateVideoInput) (*VideoOutput, error) {
+		v, err := app.UpdateVideo(ctx, videos, writer, now(), in.Key, app.UpdateVideoInput{
+			Title:                 in.Body.Title,
+			Topic:                 in.Body.Topic,
+			ChapterCount:          in.Body.ChapterCount,
+			SlidesPerChapter:      in.Body.SlidesPerChapter,
+			ThumbnailCells:        in.Body.ThumbnailCells,
+			TargetDurationMinutes: in.Body.TargetDurationMinutes,
+		})
+		if err != nil {
+			return nil, mapError(err)
 		}
 		counts, err := tasks.CountTasksByVideo(ctx, v.ID)
 		if err != nil {
@@ -315,6 +357,14 @@ func registerVideoRoutes(
 		Summary: "Create a video", Tags: []string{"videos"}, DefaultStatus: 201,
 	}, postVideo(channels, channelWriter, videoWriter, videos, taskReader, submitter, resumer,
 		requeuer, settings, newID, now))
+
+	huma.Register(api, huma.Operation{
+		OperationID: "updateVideo", Method: "PUT", Path: "/api/videos/{key}",
+		Summary: "Edit a video's brief", Tags: []string{"videos"},
+		Description: "Replaces the title, topic and shape of a video. Re-runs nothing: " +
+			"these fields are read as each task runs, so an edit reaches whatever has " +
+			"not happened yet.",
+	}, putVideo(videos, videoWriter, taskReader, now))
 
 	huma.Register(api, huma.Operation{
 		OperationID: "startVideo", Method: "POST", Path: "/api/videos/{key}/start",
