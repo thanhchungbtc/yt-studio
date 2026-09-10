@@ -27,7 +27,7 @@ export type TaskKind =
   | 'upload'
 
 /** The two moments the pipeline stops and waits for a person. */
-export type GateKind = 'blueprint' | 'upload'
+export type GateKind = 'blueprint' | 'script' | 'upload'
 
 export interface Channel {
   id: string

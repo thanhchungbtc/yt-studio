@@ -80,7 +80,7 @@ type UpdateVideoInput struct {
 type GateInput struct {
 	Key  string `path:"key" doc:"Video ref or id"`
 	Body struct {
-		Gate   string `json:"gate,omitempty" enum:"blueprint,upload" doc:"Which gate to act on; omit to act on whichever is open"`
+		Gate   string `json:"gate,omitempty" enum:"blueprint,script,upload" doc:"Which gate to act on; omit to act on whichever is open"`
 		Reason string `json:"reason,omitempty" maxLength:"500"`
 	}
 }
@@ -216,6 +216,7 @@ func startOptions(settings *service.Settings) app.StartVideoOptions {
 func expandOptions(settings *service.Settings) app.ExpandOptions {
 	return app.ExpandOptions{
 		MaxAttempts: settings.Int(entity.SettingTaskMaxAttempts),
+		ScriptGate:  settings.GateEnabled(entity.GateScript),
 		UploadGate:  settings.GateEnabled(entity.GateUpload),
 	}
 }

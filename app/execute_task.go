@@ -17,12 +17,13 @@ import (
 type BlueprintOptions struct {
 	ChapterTolerancePercent int
 	MaxAttempts             int
+	ScriptGate              bool
 	UploadGate              bool
 }
 
 // Expand narrows the options to the ones the tail is built from.
 func (o BlueprintOptions) Expand() ExpandOptions {
-	return ExpandOptions{MaxAttempts: o.MaxAttempts, UploadGate: o.UploadGate}
+	return ExpandOptions{MaxAttempts: o.MaxAttempts, ScriptGate: o.ScriptGate, UploadGate: o.UploadGate}
 }
 
 // TaskRunner adapts the use cases below to the scheduler's Runner port. It is

@@ -15,6 +15,7 @@ import (
 // blueprint still applies to the video they approve.
 type ExpandOptions struct {
 	MaxAttempts int
+	ScriptGate  bool
 	UploadGate  bool
 }
 
@@ -54,6 +55,7 @@ func ExpandVideoGraph(
 		// graph gets, and the graph can never grow after.
 		ThumbnailCells: v.ThumbnailCells,
 		MaxAttempts:    opts.MaxAttempts,
+		ScriptGate:     opts.ScriptGate,
 		UploadGate:     opts.UploadGate,
 		Now:            now,
 	})

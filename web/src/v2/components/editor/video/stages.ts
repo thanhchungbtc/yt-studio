@@ -343,15 +343,51 @@ function aggregate(tasks: Task[], kinds: TaskKind[], done: number, total: number
 /**
  * Which gate a paused task is holding, when the field is empty.
  *
- * `gate` is what the server says and is trusted first. The fallback exists
- * because only two kinds ever wait for a person, so a task that has stopped at
- * `awaiting_approval` without saying which gate it is has still told us.
+ * `gate` is what the server says and is trusted first. The fallback covers the
+ * two kinds that are a gate all by themselves; a script is not one of them,
+ * because a script task without the field set is a script with no gate on it.
  */
 function gateKindOf(task: Task): GateKind | undefined {
-  if (task.gate === 'blueprint' || task.gate === 'upload') return task.gate
+  if (task.gate === 'blueprint' || task.gate === 'script' || task.gate === 'upload') return task.gate
   if (task.kind === 'blueprint') return 'blueprint'
   if (task.kind === 'upload') return 'upload'
   return undefined
+}
+
+/** Whether the script gate can be answered, and whether something is in its way. */
+export interface ScriptGate {
+  /** Every script has settled and none failed: the set is ready to be read. */
+  open: boolean
+  /** Every script has settled but one failed, so there is nothing to approve. */
+  stuck: boolean
+}
+
+/**
+ * When the script gate becomes a question worth asking.
+ *
+ * Alone among the three, this gate is a set: one parked task per chapter, and
+ * they are siblings under the blueprint that run independently of each other.
+ * So the first one to park is not the gate opening — it is one chapter of a
+ * stage still being written, and answering it there would release that
+ * chapter's narration while the rest were unwritten. The gate opens when the
+ * whole stage has stopped moving.
+ *
+ * A failure holds it shut rather than opening it, because approving a set with
+ * a hole in it would send an unwritten chapter to be narrated. That is `stuck`:
+ * the caller shows the failure instead, and the retry re-parks the chapter and
+ * opens the gate for real.
+ */
+export function scriptGateState(tasks: Task[]): ScriptGate {
+  const scripts = tasks.filter((task) => task.kind === 'script')
+  if (!scripts.some((task) => task.state === 'awaiting_approval')) {
+    return { open: false, stuck: false }
+  }
+  const moving = scripts.some(
+    (task) => task.state === 'blocked' || task.state === 'ready' || task.state === 'running',
+  )
+  if (moving) return { open: false, stuck: false }
+  const broken = scripts.some((task) => task.state === 'failed')
+  return { open: !broken, stuck: broken }
 }
 
 /**
@@ -377,7 +413,10 @@ export function pipelineStages(video: Video, chapters: Chapter[], tasks: Task[])
   const slideTotal = Math.max(video.chapterCount * video.slidesPerChapter, totals.slides.total)
   const promptsDone = chapters.filter((chapter) => chapter.slidePrompts.length > 0).length
 
-  const paused = tasks.find((task) => task.state === 'awaiting_approval')
+  const scriptGate = scriptGateState(tasks)
+  const paused = tasks.find(
+    (task) => task.state === 'awaiting_approval' && (task.kind !== 'script' || scriptGate.open),
+  )
   const gate = paused ? gateKindOf(paused) : undefined
 
   const single = (kinds: TaskKind[], hasArtifact: boolean) => videoStage(tasks, kinds, hasArtifact)

@@ -45,8 +45,10 @@ type BuildSpec struct {
 	ThumbnailCells int
 	MaxAttempts    int
 	// BlueprintGate parks the pipeline after the blueprint for human review;
-	// UploadGate parks it before upload. Both are settings rows.
+	// ScriptGate parks it once every chapter's script is written; UploadGate
+	// parks it before upload. All three are settings rows.
 	BlueprintGate bool
+	ScriptGate    bool
 	UploadGate    bool
 	Now           time.Time
 }
@@ -326,6 +328,14 @@ func BuildGraph(spec BuildSpec) (*Graph, error) {
 	if spec.BlueprintGate {
 		blueprintGate = entity.GateBlueprint
 	}
+	// One gate on each of the n script nodes rather than one node they all feed:
+	// they are siblings under the blueprint, so they run to completion whatever
+	// is parked, and a parked one releases only its own chapter's narration. The
+	// stage settles by itself and the whole tail below it waits.
+	scriptGate := entity.GateNone
+	if spec.ScriptGate {
+		scriptGate = entity.GateScript
+	}
 	uploadGate := entity.GateNone
 	if spec.UploadGate {
 		uploadGate = entity.GateUpload
@@ -341,7 +351,7 @@ func BuildGraph(spec BuildSpec) (*Graph, error) {
 	}
 	scripts := make([]int32, n)
 	for i := range n {
-		scripts[i] = add(entity.TaskKindScript, i+1, -1, entity.GateNone)
+		scripts[i] = add(entity.TaskKindScript, i+1, -1, scriptGate)
 	}
 	tts := make([]int32, n)
 	for i := range n {

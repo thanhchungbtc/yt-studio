@@ -56,6 +56,7 @@ const (
 	SettingPoolUploadLimit  SettingKey = "pool.upload.limit"
 
 	SettingGateBlueprintEnabled SettingKey = "gate.blueprint.enabled"
+	SettingGateScriptEnabled    SettingKey = "gate.script.enabled"
 	SettingGateUploadEnabled    SettingKey = "gate.upload.enabled"
 
 	// One row per port in domain/provider: this group grows when a port is added,
@@ -355,6 +356,8 @@ func GateEnabledKey(g GateKind) SettingKey {
 	switch g {
 	case GateBlueprint:
 		return SettingGateBlueprintEnabled
+	case GateScript:
+		return SettingGateScriptEnabled
 	case GateUpload:
 		return SettingGateUploadEnabled
 	case GateNone:
@@ -401,6 +404,8 @@ func DefaultSettings() []Setting {
 		{Key: SettingPoolUploadLimit, Value: "1", Type: SettingTypeInt, Group: GroupPools, Min: 1, Max: MaxPoolLimit, Description: "Concurrent uploads."},
 
 		{Key: SettingGateBlueprintEnabled, Value: "true", Type: SettingTypeBool, Group: GroupGates, Description: "Pause after the blueprint for human review."},
+		//nolint:lll // one row, one line
+		{Key: SettingGateScriptEnabled, Value: "false", Type: SettingTypeBool, Group: GroupGates, Description: "Pause once every chapter's script is written, for human review. Off by default: it stops the pipeline dead for as long as it takes to read a whole video."},
 		{Key: SettingGateUploadEnabled, Value: "true", Type: SettingTypeBool, Group: GroupGates, Description: "Pause before upload for human review."},
 
 		{Key: SettingProviderLLM, Value: "sample", Type: SettingTypeString, Group: GroupProviders, Description: "Backend for blueprint, script, prompts and metadata."},

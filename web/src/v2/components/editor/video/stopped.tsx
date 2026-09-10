@@ -8,6 +8,7 @@ import type { GateKind, Task, Video } from '../../../core/types'
 import { cn } from '../../../core/utils'
 import { Button } from '../../ui/button'
 import { YouTubeAuthDialog } from '../../youtube-auth'
+import { scriptGateState } from './stages'
 
 /**
  * What the pipeline is doing, and the one thing you can do about it.
@@ -51,6 +52,10 @@ const GATE_COPY: Record<GateKind, { title: string; detail: string }> = {
   blueprint: {
     title: 'The blueprint needs approval',
     detail: 'Nothing is generated until you say so.',
+  },
+  script: {
+    title: 'The scripts need approval',
+    detail: 'Every chapter is written. Nothing is narrated until you say so.',
   },
   upload: {
     title: 'The upload needs approval',
@@ -122,7 +127,20 @@ export function StoppedStrip({ video, tasks }: { video: Video; tasks: Task[] }) 
     void client.invalidateQueries({ queryKey: qk.videos })
   }
 
-  const gate = tasks.find((task) => task.state === 'awaiting_approval')
+  /*
+    Which gate is open, and whether it can be answered yet.
+
+    The blueprint and the upload gate ride on one task each, so finding one is
+    the whole of it. The script gate rides on every chapter's script at once,
+    and those are siblings that run independently — so a strip offered on the
+    first one to park would be asking about a set that is still being written,
+    and approving it there would release chapter 1's narration while chapter 31
+    was unwritten. The question is the whole stage, so it waits for the stage.
+  */
+  const scriptGate = scriptGateState(tasks)
+  const gate = tasks.find(
+    (task) => task.state === 'awaiting_approval' && (task.kind !== 'script' || scriptGate.open),
+  )
   const gateKind = (gate?.gate || 'blueprint') as GateKind
 
   /*
@@ -262,9 +280,19 @@ export function StoppedStrip({ video, tasks }: { video: Video; tasks: Task[] }) 
         detail: copy.detail,
         actions: (
           <>
-            <Button onClick={() => setRejecting(true)} disabled={busy}>
-              Reject
-            </Button>
+            {/*
+              No Reject on the script gate. It holds one task per chapter and
+              the endpoint sends back every task it holds, so one press would
+              discard a whole video's narration — where the other two gates send
+              back a single task each. The instrument for one bad chapter is
+              Regenerate Script on its dot in the table, which is already there
+              and already scoped to the chapter you are looking at.
+            */}
+            {gateKind === 'script' ? null : (
+              <Button onClick={() => setRejecting(true)} disabled={busy}>
+                Reject
+              </Button>
+            )}
             <Button primary onClick={() => publish.mutate()} disabled={busy}>
               {publish.isPending ? 'Approving…' : 'Approve'}
             </Button>
@@ -273,7 +301,23 @@ export function StoppedStrip({ video, tasks }: { video: Video; tasks: Task[] }) 
       }
     }
 
-    if (video.state === 'failed' || video.state === 'blocked') {
+    /*
+      `scriptGate.stuck` is the third way in: the scripts have all stopped, one
+      of them failed, and the rest are parked. The video reads `awaiting_approval`
+      because a parked task outranks a failed one in the census, so neither the
+      gate above nor the two states here would have caught it and the strip would
+      have vanished over a video that needs one press. Resume requeues the failed
+      chapter; it re-parks, and the gate opens for real.
+
+      Deliberately narrowed to that state. While the slides are still drawing the
+      video is `running` and the Running strip is the honest one — the broken
+      chapter is already a red dot in the table.
+    */
+    if (
+      video.state === 'failed' ||
+      video.state === 'blocked' ||
+      (scriptGate.stuck && video.state === 'awaiting_approval')
+    ) {
       const broken = tasks.filter((task) => task.state === 'failed')
       const first = broken[0]
       const error = first?.error || video.error || 'No reason was recorded.'

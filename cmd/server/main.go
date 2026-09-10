@@ -573,6 +573,7 @@ func (c *serveCmd) Run() error {
 			return app.BlueprintOptions{
 				ChapterTolerancePercent: settings.Int(entity.SettingBlueprintChapterTolerancePercent),
 				MaxAttempts:             settings.Int(entity.SettingTaskMaxAttempts),
+				ScriptGate:              settings.GateEnabled(entity.GateScript),
 				UploadGate:              settings.GateEnabled(entity.GateUpload),
 			}
 		},

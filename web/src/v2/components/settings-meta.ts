@@ -47,6 +47,7 @@ const LABELS: Record<string, string> = {
   'pool.upload.limit': 'Uploads',
 
   'gate.blueprint.enabled': 'Approve the blueprint',
+  'gate.script.enabled': 'Approve the scripts',
   'gate.upload.enabled': 'Approve the upload',
 
   'provider.llm': 'Language model',

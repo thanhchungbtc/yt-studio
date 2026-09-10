@@ -115,10 +115,12 @@ function VideoPipeline({ videoRef }: { videoRef: string }) {
  * verb is about. So the gate stays reported and the four settled stages act.
  *
  * The trailing edge holds exactly one thing, in this order: the gate when there
- * is one, then the count, then a percentage. They never collide, because the
- * three sets do not overlap — the only stages that can hold a gate are Blueprint
- * and Upload, and they are two of the five that happen once and have nothing to
- * count; and the only stage that reports a percentage is Cut, which is another.
+ * is one, then the count, then a percentage. Blueprint and Upload have nothing
+ * to count, and Cut is the only stage reporting a percentage, so those never
+ * contend. Script is the one that does — it holds a gate *and* a count — and the
+ * order is what settles it: a script gate only opens once every chapter has
+ * settled, so the count it displaces reads n/n, which the filled disc beside it
+ * has already said.
  *
  * The count comes before the percentage deliberately. `12/21` says how much work
  * there is as well as how much is done, which a percentage cannot; a percentage

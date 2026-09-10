@@ -294,7 +294,7 @@ type TaskDTO struct {
 	Index         int        `json:"index"`
 	State         string     `json:"state" enum:"blocked,ready,running,awaiting_approval,succeeded,failed,cancelled"`
 	Pool          string     `json:"pool" enum:"llm,tts,image,compose,cache,upload"`
-	Gate          string     `json:"gate,omitempty" enum:"blueprint,upload"`
+	Gate          string     `json:"gate,omitempty" enum:"blueprint,script,upload"`
 	Attempt       int        `json:"attempt"`
 	MaxAttempts   int        `json:"maxAttempts"`
 	DepsRemaining int        `json:"depsRemaining"`

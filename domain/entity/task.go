@@ -184,16 +184,22 @@ type GateKind string
 const (
 	GateNone      GateKind = ""
 	GateBlueprint GateKind = "blueprint"
-	GateUpload    GateKind = "upload"
+	// GateScript rides on every chapter's script at once, so unlike the other
+	// two it is a set of parked tasks rather than one. It needs no barrier node:
+	// the scripts are siblings under the blueprint and run to completion on
+	// their own, and each holds only its own chapter's narration, so the whole
+	// stage settles and nothing downstream of it starts.
+	GateScript GateKind = "script"
+	GateUpload GateKind = "upload"
 )
 
 // AllGateKinds lists every real gate, for validation and the UI.
-var AllGateKinds = []GateKind{GateBlueprint, GateUpload}
+var AllGateKinds = []GateKind{GateBlueprint, GateScript, GateUpload}
 
 // Valid reports whether the gate is one of the known constants.
 func (g GateKind) Valid() bool {
 	switch g {
-	case GateNone, GateBlueprint, GateUpload:
+	case GateNone, GateBlueprint, GateScript, GateUpload:
 		return true
 	default:
 		return false
