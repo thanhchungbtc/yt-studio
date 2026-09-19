@@ -4,6 +4,7 @@ import { tinykeys } from 'tinykeys'
 
 import { duplicateVideos } from '../components/duplicate-video'
 import { closeActive, closeOthers, openDoc } from '../components/editor/dock'
+import { newFromBlueprint } from '../components/new-from-blueprint'
 import { newVideo } from '../components/new-video'
 import { openSettings } from '../components/settings'
 import { anyModalOpen } from '../components/ui/dialog'
@@ -80,6 +81,7 @@ export function useKeybindings(): void {
       '$mod+KeyD': windowOnly(duplicateSelection),
 
       '$mod+KeyN': windowOnly(() => newVideo()),
+      '$mod+Alt+KeyN': windowOnly(() => newFromBlueprint()),
       '$mod+Shift+KeyN': windowOnly(() => openDoc({ kind: 'new', of: 'channel' }, 'New Channel')),
 
       '$mod+Comma': windowOnly(openSettings),

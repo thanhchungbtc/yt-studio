@@ -97,6 +97,13 @@ export interface NewVideo {
   thumbnailCells?: number
   /** Enqueue the DAG straight away, rather than leaving it a draft. */
   start?: boolean
+  /**
+   * An outline written elsewhere, sent instead of leaving the model to write
+   * one. Typed as unknown because this layer does not read it: it is the
+   * operator's JSON, forwarded whole, and the server is what has an opinion
+   * about its shape.
+   */
+  blueprint?: unknown
 }
 
 /**

@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"time"
 
@@ -57,6 +58,17 @@ type CreateVideoInput struct {
 		//nolint:lll // one field, one line
 		TargetDurationMinutes int  `json:"targetDurationMinutes,omitempty" minimum:"0" maximum:"720" doc:"Planned running time; omit to let it fall out of the chapter count"`
 		Start                 bool `json:"start,omitempty" doc:"Enqueue the DAG immediately"`
+		// Blueprint is an outline written elsewhere, sent instead of leaving the
+		// model to write one. Accepted but not yet read: the field exists so a
+		// client can send it without being refused, and the run still generates
+		// its own outline until GenerateBlueprint learns to prefer this.
+		//
+		// json.RawMessage rather than a struct mirroring blueprintDoc, so the
+		// document crosses this layer as the bytes the operator pasted. huma
+		// schemas it as "any JSON", which is the honest description of a field
+		// nothing here validates.
+		//nolint:lll // one field, one line
+		Blueprint json.RawMessage `json:"blueprint,omitempty" doc:"A prepared chapter outline, in the shape the pipeline stores; omit to have one written"`
 	}
 }
 
