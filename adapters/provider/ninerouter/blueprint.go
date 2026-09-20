@@ -83,20 +83,7 @@ type storedBlueprint struct {
 // purpose: the use case's tolerance band owns the chapter count and
 // entity.NewChapter owns what makes a chapter well formed.
 func (c *Client) Blueprint(ctx context.Context, req provider.BlueprintRequest) (provider.Blueprint, error) {
-	prompt, err := newBlueprintPrompt(req)
-	if err != nil {
-		return provider.Blueprint{}, err
-	}
-	system, err := render(blueprintSystemPrompt, prompt)
-	if err != nil {
-		return provider.Blueprint{}, err
-	}
-	user, err := render(blueprintUserPrompt, prompt)
-	if err != nil {
-		return provider.Blueprint{}, err
-	}
-
-	content, err := c.chat(ctx, call{Video: req.VideoID, Label: "blueprint"}, system, user)
+	content, err := c.blueprintJSON(ctx, req)
 	if err != nil {
 		return provider.Blueprint{}, err
 	}
@@ -104,9 +91,9 @@ func (c *Client) Blueprint(ctx context.Context, req provider.BlueprintRequest) (
 	// No fence stripping and no seeking for the outermost brace: the contract is
 	// the last thing the prompt says, and ignoring it is a bad roll.
 	var doc blueprintDoc
-	if err := json.Unmarshal([]byte(content), &doc); err != nil {
-		return provider.Blueprint{}, fmt.Errorf("blueprint response is not JSON: %w (%s)",
-			err, snippet(content))
+	if err := json.Unmarshal(content, &doc); err != nil {
+		return provider.Blueprint{}, fmt.Errorf("blueprint is not JSON: %w (%s)",
+			err, snippet(string(content)))
 	}
 	doc.normalise(req)
 
@@ -134,6 +121,30 @@ func (c *Client) Blueprint(ctx context.Context, req provider.BlueprintRequest) (
 		},
 		AssetID: assetID,
 	}, nil
+}
+
+func (c *Client) blueprintJSON(ctx context.Context, req provider.BlueprintRequest) ([]byte, error) {
+	if raw := req.Options.Blueprint; len(raw) > 0 {
+		return raw, nil
+	}
+
+	prompt, err := newBlueprintPrompt(req)
+	if err != nil {
+		return nil, err
+	}
+	system, err := render(blueprintSystemPrompt, prompt)
+	if err != nil {
+		return nil, err
+	}
+	user, err := render(blueprintUserPrompt, prompt)
+	if err != nil {
+		return nil, err
+	}
+	content, err := c.chat(ctx, call{Video: req.VideoID, Label: "blueprint"}, system, user)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(content), nil
 }
 
 // normalise renumbers the chapters from their position and falls back to the

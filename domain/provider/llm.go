@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/tbui/yt-studio/domain/entity"
 )
@@ -19,6 +20,22 @@ type BlueprintRequest struct {
 	// TargetDurationMinutes is how long the finished video should run. Zero
 	// means unset, and the budget falls back to the default chapter size.
 	TargetDurationMinutes int
+	// Options is material the caller has that a backend may be able to use. Every
+	// field is an offer, not an instruction: what a backend makes of one is its
+	// own decision, and ignoring all of them is a complete implementation.
+	Options BlueprintOptions
+}
+
+// BlueprintOptions are the offers that ride with a blueprint request.
+type BlueprintOptions struct {
+	// Blueprint is an outline prepared outside the app, in the document shape a
+	// backend writes and stores. Nil is the ordinary case.
+	//
+	// Opaque above this port: callers carry the bytes from wherever the operator
+	// put them to whichever backend is selected, and never read them. So one
+	// backend may return such an outline as written and another treat it as a
+	// draft to sharpen, without either being a use case's business.
+	Blueprint json.RawMessage
 }
 
 // BlueprintChapter is one outlined chapter.
