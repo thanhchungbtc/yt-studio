@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -30,6 +31,7 @@ func GenerateBlueprint(
 	assets repository.AssetWriter,
 	store provider.AssetStore,
 	notifier ChapterNotifier,
+	loadPreparedBlueprint func(entity.Ref) json.RawMessage,
 	tolerancePercent int,
 	now time.Time,
 ) entity.TaskOutcome {
@@ -50,6 +52,11 @@ func GenerateBlueprint(
 		Topic:                 video.Topic,
 		ChapterCount:          video.ChapterCount,
 		TargetDurationMinutes: video.TargetDurationMinutes,
+		// Offered, not applied. An outline prepared outside the app is handed to
+		// the backend as bytes this function never reads: whether it comes back as
+		// written, is used as a draft or is ignored is the backend's decision, and
+		// an absent one is simply the ordinary request.
+		Options: provider.BlueprintOptions{Blueprint: loadPreparedBlueprint(video.Ref)},
 	})
 	if err != nil {
 		return classify(fmt.Errorf("generate blueprint: %w", err))

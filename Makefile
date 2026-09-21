@@ -205,7 +205,7 @@ clean:
 # until somebody adds a directory the author of the exclusion never saw, and
 # then it deletes a gigabyte of somebody else's video; a list of four names can
 # only ever be incomplete, which costs a `rm -rf` and not a re-download.
-RESET_DIRS := db assets transcripts log
+RESET_DIRS := db assets transcripts log tmp
 
 reset:
 	rm -rf $(addprefix $(DEV_HOME)/,$(RESET_DIRS))

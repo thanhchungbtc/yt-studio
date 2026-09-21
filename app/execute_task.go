@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
@@ -48,12 +49,16 @@ type TaskRunner struct {
 	notifier      Notifier
 	console       provider.LLMObserver
 	expander      GraphExpander
-	blueprintOpts func() BlueprintOptions
-	narrationOpts func() NarrationOptions
-	iconOpts      func() IconOptions
-	dryRun        func() bool
-	now           func() time.Time
-	log           *slog.Logger
+	// loadPreparedBlueprint answers with an outline prepared outside the app, or
+	// nil for the ordinary video. A func rather than a port because there is no
+	// behaviour to stand behind one: the whole contract is "bytes, or nothing".
+	loadPreparedBlueprint func(entity.Ref) json.RawMessage
+	blueprintOpts         func() BlueprintOptions
+	narrationOpts         func() NarrationOptions
+	iconOpts              func() IconOptions
+	dryRun                func() bool
+	now                   func() time.Time
+	log                   *slog.Logger
 }
 
 var _ scheduler.Runner = (*TaskRunner)(nil)
@@ -80,6 +85,7 @@ func NewTaskRunner(
 	notifier Notifier,
 	console provider.LLMObserver,
 	expander GraphExpander,
+	loadPreparedBlueprint func(entity.Ref) json.RawMessage,
 	blueprintOpts func() BlueprintOptions,
 	narrationOpts func() NarrationOptions,
 	iconOpts func() IconOptions,
@@ -96,7 +102,8 @@ func NewTaskRunner(
 		assets: assets, store: store, llm: llm, tts: tts, slides: slides,
 		composer: composer, thumbnails: thumbnails, icons: icons,
 		uploader: uploader, notifier: notifier, console: console,
-		expander: expander, blueprintOpts: blueprintOpts,
+		expander: expander, loadPreparedBlueprint: loadPreparedBlueprint,
+		blueprintOpts: blueprintOpts,
 		narrationOpts: narrationOpts, iconOpts: iconOpts,
 		dryRun: dryRun, now: now, log: log,
 	}
@@ -229,7 +236,8 @@ func (r *TaskRunner) reporter(t entity.Task) func(int) {
 func (r *TaskRunner) runBlueprint(ctx context.Context, t entity.Task) entity.TaskOutcome {
 	opts := r.blueprintOpts()
 	outcome := GenerateBlueprint(ctx, t, r.videos, r.channels, r.llm, r.chapterWriter,
-		r.videoFields, r.assets, r.store, r.notifier, opts.ChapterTolerancePercent, r.now())
+		r.videoFields, r.assets, r.store, r.notifier, r.loadPreparedBlueprint,
+		opts.ChapterTolerancePercent, r.now())
 	if _, ok := outcome.(entity.Success); !ok {
 		return outcome
 	}

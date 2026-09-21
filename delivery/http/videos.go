@@ -156,6 +156,7 @@ func postVideo(
 	resumer app.GraphResumer,
 	requeuer app.VideoRequeuer,
 	settings *service.Settings,
+	savePreparedBlueprint func(entity.Ref, json.RawMessage) error,
 	newID func() string,
 	now func() time.Time,
 ) func(context.Context, *CreateVideoInput) (*VideoOutput, error) {
@@ -175,6 +176,20 @@ func postVideo(
 			})
 		if err != nil {
 			return nil, mapError(err)
+		}
+		// Between the two: the ref is minted by the create and the blueprint task
+		// the start enqueues is what reads the file. Written rather than carried,
+		// because that task runs on the dispatch loop once a pool slot frees,
+		// which is after this request has answered.
+		//
+		// A failure here is returned rather than swallowed. It leaves a draft that
+		// was never started, which is a thing the operator can see and delete —
+		// where carrying on would start a video that quietly gets an outline
+		// nobody asked for.
+		if len(in.Body.Blueprint) > 0 {
+			if err := savePreparedBlueprint(v.Ref, in.Body.Blueprint); err != nil {
+				return nil, mapError(err)
+			}
 		}
 		if in.Body.Start {
 			if _, err := app.StartVideo(ctx, videos, tasks, submitter, resumer, requeuer, now(),
@@ -351,6 +366,7 @@ func registerVideoRoutes(
 	forgetter app.VideoForgetter,
 	store provider.AssetStore,
 	settings *service.Settings,
+	savePreparedBlueprint func(entity.Ref, json.RawMessage) error,
 	newID func() string,
 	now func() time.Time,
 	log *slog.Logger,
@@ -369,7 +385,7 @@ func registerVideoRoutes(
 		OperationID: "createVideo", Method: "POST", Path: "/api/videos",
 		Summary: "Create a video", Tags: []string{"videos"}, DefaultStatus: 201,
 	}, postVideo(channels, channelWriter, videoWriter, videos, taskReader, submitter, resumer,
-		requeuer, settings, newID, now))
+		requeuer, settings, savePreparedBlueprint, newID, now))
 
 	huma.Register(api, huma.Operation{
 		OperationID: "updateVideo", Method: "PUT", Path: "/api/videos/{key}",

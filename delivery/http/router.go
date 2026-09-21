@@ -1,6 +1,7 @@
 package http
 
 import (
+	"encoding/json"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/tbui/yt-studio/app"
+	"github.com/tbui/yt-studio/domain/entity"
 	"github.com/tbui/yt-studio/domain/provider"
 	"github.com/tbui/yt-studio/domain/repository"
 	"github.com/tbui/yt-studio/domain/service"
@@ -66,6 +68,10 @@ type Deps struct {
 	Coalescer  app.CoalesceSetter
 	Events     EventSource
 	SSEClients func() int
+	// SavePreparedBlueprint files an outline sent with a create request where the
+	// blueprint task will look for it. Nil is not allowed: the create route calls
+	// it whenever a request carries one.
+	SavePreparedBlueprint func(entity.Ref, json.RawMessage) error
 	// LLMStream is the live text of recent model exchanges, for the console. A
 	// nil one is the feature switched off and the route answers 503 — it is a
 	// view onto work, never a part of it.
@@ -115,7 +121,7 @@ func NewRouter(d Deps) (http.Handler, huma.API) {
 	registerVideoRoutes(api, d.Videos, d.VideoWriter, d.VideoStates, d.Channels, d.ChannelWriter,
 		d.Tasks, d.Chapters, d.Submitter, d.Resumer, d.Requeuer, d.Expander, d.Canceller, d.Approver,
 		d.Rejecter, d.Forgetter,
-		d.Store, d.Settings, d.NewID, d.Now, d.Log)
+		d.Store, d.Settings, d.SavePreparedBlueprint, d.NewID, d.Now, d.Log)
 	registerYouTubeRoutes(api, d.Channels, d.ChannelWriter, d.UploadAuth, d.Now)
 	registerChapterRoutes(api, d.Videos, d.Chapters, d.ChapterFields, d.Notifier, d.ChapRetry,
 		d.Prompts, d.StaleMark, d.Rerunner, d.Tasks, d.Resumer)

@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -91,6 +92,11 @@ func (b bootstrap) assets() string      { return filepath.Join(b.Home, "assets")
 func (b bootstrap) resources() string   { return filepath.Join(b.Home, "resources") }
 func (b bootstrap) transcripts() string { return filepath.Join(b.Home, "transcripts") }
 
+// tmp is scratch space under the installation: work in flight, owned by nothing
+// that has to survive a restart. Its first tenant is blueprints/, where an
+// outline pasted into a create request waits for the task that consumes it.
+func (b bootstrap) tmp() string { return filepath.Join(b.Home, "tmp") }
+
 // credentials is the root of the per-channel OAuth directories: one directory
 // per channel slug, holding the client the operator downloaded and the token
 // the authorization flow writes beside it.
@@ -131,6 +137,10 @@ func (b bootstrap) ensureHome() error {
 	}
 	if err := os.MkdirAll(b.credentials(), 0o700); err != nil {
 		return fmt.Errorf("create %s: %w", b.credentials(), err)
+	}
+	blueprints := filepath.Join(b.tmp(), "blueprints")
+	if err := os.MkdirAll(blueprints, 0o700); err != nil {
+		return fmt.Errorf("create %s: %w", blueprints, err)
 	}
 	return nil
 }
@@ -563,12 +573,31 @@ func (c *serveCmd) Run() error {
 	// scheduler and the scheduler needs the runner. The reference is filled in
 	// below, before anything can run.
 	expander := &lateExpander{}
+	// An outline prepared outside the app travels from the create request to the
+	// blueprint task as a file, because those two are a request apart: the task
+	// runs on the dispatch loop once a pool slot frees, long after the response
+	// has gone. Named by ref, so the directory reads as the videos waiting on it.
+	blueprintFile := func(ref entity.Ref) string {
+		return filepath.Join(c.tmp(), "blueprints", string(ref)+".json")
+	}
+	savePreparedBlueprint := func(ref entity.Ref, raw json.RawMessage) error {
+		return os.WriteFile(blueprintFile(ref), raw, 0o600)
+	}
+	// Absent is the ordinary video, not a fault: nil sends an unadorned request
+	// and the backend plans the outline itself.
+	loadPreparedBlueprint := func(ref entity.Ref) json.RawMessage {
+		raw, err := os.ReadFile(blueprintFile(ref))
+		if err != nil {
+			return nil
+		}
+		return raw
+	}
 	runner := app.NewTaskRunner(
 		store, store, store, store, store, store, store,
 		assets, providers.LLM(), providers.TTS(), providers.Slide(),
 		providers.Composer(), providers.Thumbnail(), providers.ThumbnailIcon(),
 		providers.Uploader(), broker, llmConsole.Observe,
-		expander,
+		expander, loadPreparedBlueprint,
 		func() app.BlueprintOptions {
 			return app.BlueprintOptions{
 				ChapterTolerancePercent: settings.Int(entity.SettingBlueprintChapterTolerancePercent),
@@ -601,21 +630,22 @@ func (c *serveCmd) Run() error {
 		dist = nil
 	}
 	handler, _ := deliveryhttp.NewRouter(deliveryhttp.Deps{
-		Channels:      store,
-		ChannelWriter: store,
-		Videos:        store,
-		VideoWriter:   store,
-		VideoStates:   store,
-		VideoFields:   store,
-		Chapters:      store,
-		ChapterFields: store,
-		Uploader:      providers.Uploader(),
-		Assets:        store,
-		AssetWriter:   store,
-		Tasks:         store,
-		Store:         assets,
-		Settings:      settings,
-		UploadAuth:    youtubeClient,
+		SavePreparedBlueprint: savePreparedBlueprint,
+		Channels:              store,
+		ChannelWriter:         store,
+		Videos:                store,
+		VideoWriter:           store,
+		VideoStates:           store,
+		VideoFields:           store,
+		Chapters:              store,
+		ChapterFields:         store,
+		Uploader:              providers.Uploader(),
+		Assets:                store,
+		AssetWriter:           store,
+		Tasks:                 store,
+		Store:                 assets,
+		Settings:              settings,
+		UploadAuth:            youtubeClient,
 
 		Submitter:  sched,
 		Resumer:    sched,
