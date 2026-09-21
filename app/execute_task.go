@@ -156,7 +156,7 @@ func (r *TaskRunner) dispatch(ctx context.Context, t entity.Task) entity.TaskOut
 		return ResolveSlidePrompts(ctx, t, r.llm, r.chapters, r.chapterFields)
 	case entity.TaskKindScript:
 		return GenerateScript(ctx, t, r.videos, r.chapters, r.llm,
-			r.chapterFields, r.assets, r.store, r.notifier, r.now())
+			r.chapterFields, r.assets, r.store, r.notifier, r.loadPreparedBlueprint, r.now())
 	case entity.TaskKindTTS:
 		return SynthesizeNarration(ctx, t, r.videos, r.chapters, r.tts,
 			r.chapterFields, r.assets, r.store, r.notifier, r.narrationOpts(), r.now())

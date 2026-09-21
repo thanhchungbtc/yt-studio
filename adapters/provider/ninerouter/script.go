@@ -2,6 +2,7 @@ package ninerouter
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -41,22 +42,13 @@ func newScriptPrompt(req provider.ScriptRequest) (scriptPrompt, error) {
 // Script writes one chapter's narration. The completion is the narration —
 // prose, not JSON — so no parse error catches a model that prefaced its answer,
 // which is why the system prompt spends a section on it.
+//
+// Narration offered in the request is taken as written, chapter by chapter. A
+// chapter the document does not cover is written by the model as usual, so a
+// half-finished set of scripts is a video the two of you wrote together rather
+// than a request that fails.
 func (c *Client) Script(ctx context.Context, req provider.ScriptRequest) (provider.Script, error) {
-	prompt, err := newScriptPrompt(req)
-	if err != nil {
-		return provider.Script{}, err
-	}
-	system, err := render(scriptSystemPrompt, prompt)
-	if err != nil {
-		return provider.Script{}, err
-	}
-	user, err := render(scriptUserPrompt, prompt)
-	if err != nil {
-		return provider.Script{}, err
-	}
-
-	text, err := c.chat(ctx,
-		call{Video: req.VideoID, Label: fmt.Sprintf("script-ch%d", req.Ordinal)}, system, user)
+	text, err := c.scriptText(ctx, req)
 	if err != nil {
 		return provider.Script{}, err
 	}
@@ -70,4 +62,61 @@ func (c *Client) Script(ctx context.Context, req provider.ScriptRequest) (provid
 		WordCount: len(strings.Fields(text)),
 		AssetID:   assetID,
 	}, nil
+}
+
+// preparedScripts is the prepared document as this path reads it.
+//
+// Stripped to one field on purpose: the outline is already in req.Blueprint,
+// projected from the chapter rows, so declaring it again here would be a second
+// copy to disagree. Everything else in the document is ignored.
+type preparedScripts struct {
+	Scripts []struct {
+		Order  int    `json:"order"`
+		Script string `json:"script"`
+	} `json:"scripts"`
+}
+
+// scriptText answers where one chapter's narration comes from: the prepared
+// document if it covers this chapter, and the model otherwise.
+//
+// Only the source differs. What comes back is stored, counted and addressed
+// identically either way, so nothing downstream can tell which chapters were
+// written here and which were handed in.
+func (c *Client) scriptText(ctx context.Context, req provider.ScriptRequest) (string, error) {
+	if raw := req.Options.PreparedScripts; len(raw) > 0 {
+		var doc preparedScripts
+		// Malformed is an error rather than a fall-through. The bytes are the
+		// operator's, they will not parse differently next time, and quietly
+		// writing a chapter they meant to supply is the one outcome nobody could
+		// detect.
+		if err := json.Unmarshal(raw, &doc); err != nil {
+			return "", fmt.Errorf("prepared scripts are not JSON: %w (%s)", err, snippet(string(raw)))
+		}
+		for _, entry := range doc.Scripts {
+			if entry.Order != req.Ordinal {
+				continue
+			}
+			// Blank counts as absent: an empty narration would give the TTS task
+			// nothing and fail three stages below, pointing at the wrong one.
+			if text := strings.TrimSpace(entry.Script); text != "" {
+				return text, nil
+			}
+			break
+		}
+	}
+
+	prompt, err := newScriptPrompt(req)
+	if err != nil {
+		return "", err
+	}
+	system, err := render(scriptSystemPrompt, prompt)
+	if err != nil {
+		return "", err
+	}
+	user, err := render(scriptUserPrompt, prompt)
+	if err != nil {
+		return "", err
+	}
+	return c.chat(ctx,
+		call{Video: req.VideoID, Label: fmt.Sprintf("script-ch%d", req.Ordinal)}, system, user)
 }

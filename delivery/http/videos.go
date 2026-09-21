@@ -192,8 +192,21 @@ func postVideo(
 			}
 		}
 		if in.Body.Start {
+			opts := startOptions(settings)
+			// The blueprint gate exists so an operator reads what the model
+			// planned before the video spends anything on it. A pasted outline is
+			// one they wrote, so the gate has nothing left to ask and this video
+			// runs straight through — whatever the settings row says for the
+			// ordinary case.
+			//
+			// Per video rather than per installation, and decided here because
+			// this is the only place that knows both the setting and the request
+			// that carried the outline.
+			if len(in.Body.Blueprint) > 0 {
+				opts.BlueprintGate = false
+			}
 			if _, err := app.StartVideo(ctx, videos, tasks, submitter, resumer, requeuer, now(),
-				startOptions(settings), string(v.ID)); err != nil {
+				opts, string(v.ID)); err != nil {
 				return nil, mapError(err)
 			}
 		}

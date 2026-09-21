@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -23,6 +24,7 @@ func GenerateScript(
 	assets repository.AssetWriter,
 	store provider.AssetStore,
 	notifier ChapterNotifier,
+	loadPreparedBlueprint func(entity.Ref) json.RawMessage,
 	now time.Time,
 ) entity.TaskOutcome {
 	if t.ChapterID == nil {
@@ -49,6 +51,10 @@ func GenerateScript(
 		Ordinal:     chapter.Ordinal,
 		Blueprint:   outline,
 		TargetWords: chapter.EstimatedWords,
+		// The same document the blueprint was offered, and for the same reason:
+		// it may carry this chapter's narration. Which part of it a backend reads
+		// is the backend's business; this function never opens it.
+		Options: provider.ScriptOptions{PreparedScripts: loadPreparedBlueprint(video.Ref)},
 	})
 	if err != nil {
 		return classify(fmt.Errorf("generate script for chapter %d: %w", chapter.Ordinal, err))

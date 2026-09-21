@@ -85,6 +85,24 @@ type ScriptRequest struct {
 	// TargetWords is the resolved budget: what the blueprint assigned this
 	// chapter, or the default when it assigned none.
 	TargetWords int
+	// Options is material the caller can offer, on the same terms as
+	// BlueprintOptions: every field is an offer a backend may ignore.
+	Options ScriptOptions
+}
+
+// ScriptOptions are the offers that ride with a script request.
+type ScriptOptions struct {
+	// PreparedScripts is narration written outside the app, keyed by the chapter
+	// ordinals in ScriptRequest.Ordinal.
+	//
+	// The bytes are the whole prepared document — the same ones the blueprint
+	// request was offered — because the two are pasted together and travel
+	// together. The name is what this request may take from them, not an
+	// inventory of what they hold; a backend declares the part it reads.
+	//
+	// Opaque above this port, like BlueprintOptions.Blueprint. Ordinals are the
+	// renumbered ones: a chapter's position in the outline, counted from 1.
+	PreparedScripts json.RawMessage
 }
 
 // Script is one chapter's narration plus the asset it was written to.
