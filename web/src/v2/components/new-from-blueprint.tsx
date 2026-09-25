@@ -68,7 +68,8 @@ const PLACEHOLDER = `{
       "key_points": ["Open: cold — the last clean signal"],
       "tone": "curious",
       "role": "hook",
-      "estimated_words": 900
+      "estimated_words": 900,
+      "script": "optional — paste the narration and this chapter skips the model"
     }
   ]
 }`
@@ -102,7 +103,12 @@ interface Outlined {
   concept: string
   role: string
   tone: string
+  /** The budget the outline assigned this chapter. Zero is unset. */
   words: number
+  /** Narration written outside the app, or '' for a chapter the model will write. */
+  script: string
+  /** How long that narration actually runs, against the budget above. */
+  scriptWords: number
 }
 
 /**
@@ -118,7 +124,12 @@ interface Outline {
   title: string
   summary: string
   chapters: Outlined[]
+  /** What the outline budgeted, summed. */
   words: number
+  /** What the pasted narration actually comes to, summed. */
+  scriptWords: number
+  /** How many chapters arrived with narration; the rest fall to the model. */
+  scripted: number
   blockers: string[]
   warnings: string[]
   /** The document as pasted, forwarded to the server untouched. */
@@ -206,6 +217,7 @@ function parseOutline(text: string): Parsed {
     if (title === '') {
       return { ok: false, message: `Chapter ${index + 1} has no title`, offset: null }
     }
+    const script = str(row, 'script')
     chapters.push({
       // Displayed as written so a gap is visible; the pipeline renumbers from
       // position on the way in, which is what the warning below says.
@@ -217,12 +229,19 @@ function parseOutline(text: string): Parsed {
       role: str(row, 'role'),
       tone: str(row, 'tone'),
       words: num(row, 'estimated_words'),
+      // Optional, and absent for every ordinary blueprint. The backend reads it
+      // from this same position in the array, so what is shown beside a chapter
+      // here is the narration that chapter will actually be given.
+      script,
+      scriptWords: script === '' ? 0 : script.split(/\s+/).length,
     })
   }
 
   const title = str(raw, 'title')
   const summary = str(raw, 'summary')
   const words = chapters.reduce((total, c) => total + c.words, 0)
+  const scriptWords = chapters.reduce((total, c) => total + c.scriptWords, 0)
+  const scripted = chapters.filter((c) => c.script !== '').length
 
   return {
     ok: true,
@@ -231,6 +250,8 @@ function parseOutline(text: string): Parsed {
       summary,
       chapters,
       words,
+      scriptWords,
+      scripted,
       blockers: blockersOf(title, summary),
       warnings: warningsOf(chapters),
       raw,
@@ -276,6 +297,17 @@ function warningsOf(chapters: Outlined[]): string[] {
   const thin = chapters.filter((c) => c.words > 0 && c.words < THIN_CHAPTER_WORDS)
   if (thin.length > 0) {
     found.push(`${plural(thin.length, 'chapter')} under ${THIN_CHAPTER_WORDS} words: ${list(thin)}`)
+  }
+
+  // Only when the document is partly scripted. All or nothing is a decision, not
+  // an oversight; a gap in the middle is usually the second.
+  const unscripted = chapters.filter((c) => c.script === '')
+  if (unscripted.length > 0 && unscripted.length < chapters.length) {
+    const scripted = chapters.length - unscripted.length
+    const which = unscripted.length === 1 ? 'chapter' : 'chapters'
+    found.push(
+      `${count(scripted)} of ${plural(chapters.length, 'chapter')} ${scripted === 1 ? 'carries' : 'carry'} a script — the model will write ${which} ${list(unscripted)}`,
+    )
   }
 
   const seen = new Map<string, number>()
@@ -532,8 +564,19 @@ export function NewFromBlueprintDialog() {
             <span style={{ color: 'var(--failed)' }}>{(submit.error as Error).message}</span>
           ) : outline ? (
             <>
-              About <span className="font-medium tabular-nums">{count(tasks)}</span> tasks · starts
-              immediately and parks at the blueprint gate
+              About <span className="font-medium tabular-nums">{count(tasks)}</span> tasks ·{' '}
+              {/*
+                What pressing the button costs, in the only currency that is not
+                obvious from the numbers beside it. A pasted outline skips the
+                blueprint gate, so nothing pauses to be read: the question worth
+                answering here is how much of this video the model still has to
+                write.
+              */}
+              {outline.scripted === outline.chapters.length
+                ? 'starts immediately, no model calls before narration'
+                : outline.scripted === 0
+                  ? 'starts immediately and writes every script'
+                  : `starts immediately · ${count(outline.chapters.length - outline.scripted)} of ${count(outline.chapters.length)} scripts still to write`}
             </>
           ) : null}
         </span>
@@ -704,12 +747,24 @@ function OutlinePane({
         ) : null}
         <p className="mt-2.5 text-[11px] text-tertiary">
           <span className="tabular-nums">{count(outline.chapters.length)}</span> chapters
+          {outline.scripted > 0 ? (
+            <>
+              {' · '}
+              <span className="tabular-nums">{count(outline.scripted)}</span> scripts
+            </>
+          ) : null}
           {words > 0 ? (
             <>
               {' · '}
-              <span className="tabular-nums">{count(words)}</span> words
+              <span className="tabular-nums">{count(words)}</span> planned
               {' · ≈ '}
               <span className="tabular-nums">{coarse(minutes)}</span>
+            </>
+          ) : null}
+          {outline.scriptWords > 0 ? (
+            <>
+              {' · '}
+              <span className="tabular-nums">{count(outline.scriptWords)}</span> written
             </>
           ) : null}
           {' · '}
@@ -729,11 +784,7 @@ function OutlinePane({
         </div>
       ) : null}
 
-      <ol className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
-        {outline.chapters.map((chapter, index) => (
-          <ChapterRow key={index} chapter={chapter} />
-        ))}
-      </ol>
+      <ChapterList chapters={outline.chapters} flagMissing={outline.scripted > 0} />
     </div>
   )
 }
@@ -750,44 +801,168 @@ function Note({ tone, mark, text }: { tone: string; mark: string; text: string }
 }
 
 /**
- * One chapter, at a glance.
+ * The chapters, open by default.
  *
- * Every part is a field the blueprint already carries, and the order is the
- * order the questions come in: which chapter, what it is called, what it is
- * for, how it feels, how long it runs. `pacing` is the one field left out —
- * `role` and the word count already say it twice.
+ * Open, because the scripts are the reason to look: a pane that hid them behind
+ * a disclosure would make checking a video an errand of thirty clicks, and the
+ * one thing worth checking before pressing the button is that the narration
+ * against each chapter is the narration meant for it.
+ *
+ * So what is tracked is the exception — the rows deliberately folded away —
+ * which is also why the set survives an edit to the document. Indices shift
+ * under it when chapters are added or removed, but the cost of that is a row
+ * someone has to click open again, and resetting on every keystroke would undo
+ * a fold the moment it was made.
  */
-function ChapterRow({ chapter }: { chapter: Outlined }) {
+function ChapterList({ chapters, flagMissing }: { chapters: Outlined[]; flagMissing: boolean }) {
+  const [collapsed, setCollapsed] = useState<ReadonlySet<number>>(() => new Set())
+  const toggle = (index: number) =>
+    setCollapsed((current) => {
+      const next = new Set(current)
+      if (!next.delete(index)) next.add(index)
+      return next
+    })
+
   return (
-    <li className="flex gap-2.5 rounded-md px-2 py-[7px] transition-colors hover:bg-[var(--hover)]">
-      <span className="w-[22px] shrink-0 pt-[1px] text-right text-[11px] text-tertiary tabular-nums">
-        {chapter.order}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
-          <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-primary">
-            {chapter.title}
-          </span>
-          {chapter.role ? <Chip>{chapter.role.replace(/_/g, ' ')}</Chip> : null}
-          {chapter.tone ? (
-            <span className="shrink-0 text-[10.5px] text-tertiary">{chapter.tone}</span>
+    <ol className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+      {chapters.map((chapter, index) => (
+        <ChapterRow
+          key={index}
+          chapter={chapter}
+          open={!collapsed.has(index)}
+          flagMissing={flagMissing}
+          onToggle={() => toggle(index)}
+        />
+      ))}
+    </ol>
+  )
+}
+
+/**
+ * One chapter, at a glance and then in full.
+ *
+ * Collapsed, the second line is the script's opening rather than the chapter's
+ * brief whenever there is a script. That is the line that answers the question
+ * this pane exists for — not "what was this chapter meant to cover" but "is the
+ * narration sitting against chapter three the narration I wrote for chapter
+ * three". An off-by-one is invisible in a brief and obvious in a first
+ * sentence.
+ *
+ * Open, both are shown: the brief the writer would have been given, then the
+ * words that will actually be spoken, quoted and inset so the two can never be
+ * read as the same kind of text.
+ *
+ * `pacing` is the one field left out — `role` and the word count already say it.
+ */
+function ChapterRow({
+  chapter,
+  open,
+  flagMissing,
+  onToggle,
+}: {
+  chapter: Outlined
+  open: boolean
+  /** Whether a missing script is worth remarking on — see the note below. */
+  flagMissing: boolean
+  onToggle: () => void
+}) {
+  const scripted = chapter.script !== ''
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full gap-2.5 rounded-md px-2 py-[7px] text-left transition-colors hover:bg-[var(--hover)]"
+      >
+        <span className="w-[22px] shrink-0 pt-[1px] text-right text-[11px] text-tertiary tabular-nums">
+          {chapter.order}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-2">
+            <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-primary">
+              {chapter.title}
+            </span>
+            {scripted ? (
+              <span
+                aria-label="has a script"
+                title="A script was pasted for this chapter"
+                className="shrink-0 text-[11px]"
+                style={{ color: 'var(--done)' }}
+              >
+                ✎
+              </span>
+            ) : null}
+            {chapter.role ? <Chip>{chapter.role.replace(/_/g, ' ')}</Chip> : null}
+            {chapter.tone ? (
+              <span className="shrink-0 text-[10.5px] text-tertiary">{chapter.tone}</span>
+            ) : null}
+            <span
+              className="w-[46px] shrink-0 text-right text-[11px] tabular-nums"
+              style={{
+                color:
+                  chapter.words > 0 && chapter.words < THIN_CHAPTER_WORDS
+                    ? 'var(--running)'
+                    : 'var(--text-secondary)',
+              }}
+            >
+              {chapter.words > 0 ? `${count(chapter.words)}w` : '—'}
+            </span>
+            <span
+              aria-hidden
+              className="w-[10px] shrink-0 text-[10px] text-tertiary transition-transform"
+              style={{ transform: open ? 'rotate(90deg)' : undefined }}
+            >
+              ›
+            </span>
+          </div>
+          {/* Italic when it is narration, upright when it is direction. A
+              quotation mark would be cut off by the truncation before its pair
+              ever appeared, which reads as a typo rather than as a quote. */}
+          {!open ? (
+            <p
+              className="mt-[3px] truncate text-[11px] text-tertiary"
+              style={scripted ? { fontStyle: 'italic' } : undefined}
+            >
+              {scripted ? chapter.script : chapter.concept}
+            </p>
           ) : null}
-          <span
-            className="w-[46px] shrink-0 text-right text-[11px] tabular-nums"
-            style={{
-              color:
-                chapter.words > 0 && chapter.words < THIN_CHAPTER_WORDS
-                  ? 'var(--running)'
-                  : 'var(--text-secondary)',
-            }}
-          >
-            {chapter.words > 0 ? `${count(chapter.words)}w` : '—'}
-          </span>
         </div>
-        {chapter.concept ? (
-          <p className="mt-[3px] truncate text-[11px] text-tertiary">{chapter.concept}</p>
-        ) : null}
-      </div>
+      </button>
+
+      {open ? (
+        <div className="mb-1 pr-2 pl-[34px]">
+          {chapter.concept ? (
+            <p className="text-[11px] leading-relaxed text-tertiary">{chapter.concept}</p>
+          ) : null}
+          {scripted ? (
+            <>
+              <blockquote
+                className="mt-2 rounded-[6px] border-l-2 py-1.5 pr-2 pl-2.5 text-[11.5px] leading-relaxed whitespace-pre-wrap text-secondary"
+                style={{ backgroundColor: 'var(--band)', borderColor: 'var(--accent-wash-strong)' }}
+              >
+                {chapter.script}
+              </blockquote>
+              <p className="mt-1 text-[10.5px] text-tertiary">
+                <span className="tabular-nums">{count(chapter.scriptWords)}</span> words written
+                {chapter.words > 0 ? (
+                  <>
+                    {' · '}
+                    <span className="tabular-nums">{count(chapter.words)}</span> planned
+                  </>
+                ) : null}
+              </p>
+            </>
+          ) : flagMissing ? (
+            // Only when some other chapter has one. An ordinary blueprint has no
+            // scripts anywhere and is not missing anything, so saying so against
+            // every chapter of it would be thirty warnings about nothing.
+            <p className="mt-2 text-[11px]" style={{ color: 'var(--running)' }}>
+              No script — the model will write this chapter.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </li>
   )
 }

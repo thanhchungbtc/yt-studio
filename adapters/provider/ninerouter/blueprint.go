@@ -69,6 +69,17 @@ type chapterDoc struct {
 	Pacing         string   `json:"pacing" doc:"short | medium | deep"`
 	Role           string   `json:"role" doc:"hook | exploration | contrast | deep_dive"`
 	EstimatedWords int      `json:"estimated_words" doc:"this chapter's share of the video's spoken-word budget"`
+	// Script is the chapter's narration, when it was written outside the app and
+	// pasted in with the outline. Optional, and never asked for: `hidden` keeps it
+	// out of jsonSchemaOf's output, so the contract handed to the model is the plan
+	// alone. A blueprint prompt that asked for thirty chapters of narration would
+	// not fit in one completion, let alone be worth paying for.
+	//
+	// Declared here rather than only in the reader that wants it, so the document
+	// has one type that describes it and the stored blueprint asset is what the
+	// operator actually pasted. brief() must keep ignoring it: the script writer is
+	// not shown the script it is being asked to write.
+	Script string `json:"script,omitempty" hidden:"true"`
 }
 
 // storedBlueprint is the outline plus the identity the caller stamps on it.

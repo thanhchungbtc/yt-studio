@@ -70,10 +70,9 @@ func (c *Client) Script(ctx context.Context, req provider.ScriptRequest) (provid
 // projected from the chapter rows, so declaring it again here would be a second
 // copy to disagree. Everything else in the document is ignored.
 type preparedScripts struct {
-	Scripts []struct {
-		Order  int    `json:"order"`
+	Chapters []struct {
 		Script string `json:"script"`
-	} `json:"scripts"`
+	} `json:"chapters"`
 }
 
 // scriptText answers where one chapter's narration comes from: the prepared
@@ -92,16 +91,16 @@ func (c *Client) scriptText(ctx context.Context, req provider.ScriptRequest) (st
 		if err := json.Unmarshal(raw, &doc); err != nil {
 			return "", fmt.Errorf("prepared scripts are not JSON: %w (%s)", err, snippet(string(raw)))
 		}
-		for _, entry := range doc.Scripts {
-			if entry.Order != req.Ordinal {
-				continue
-			}
+		// Matched by position rather than by the document's own order field.
+		// normalise renumbers chapters from their position, so chapters[i] is the
+		// chapter that becomes ordinal i+1 whatever it called itself — and its
+		// script sits inside it, so the two cannot come apart.
+		if i := req.Ordinal - 1; i >= 0 && i < len(doc.Chapters) {
 			// Blank counts as absent: an empty narration would give the TTS task
 			// nothing and fail three stages below, pointing at the wrong one.
-			if text := strings.TrimSpace(entry.Script); text != "" {
+			if text := strings.TrimSpace(doc.Chapters[i].Script); text != "" {
 				return text, nil
 			}
-			break
 		}
 	}
 

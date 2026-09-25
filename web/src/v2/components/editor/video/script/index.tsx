@@ -1,5 +1,7 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
+import { api, qk } from '../../../../core/api'
 import { count, duration } from '../../../../core/format'
 import type { Chapter } from '../../../../core/types'
 import { cn } from '../../../../core/utils'
@@ -259,17 +261,7 @@ function ChapterBlock({
           from different edges and the ordinal would sit 24px off the first word. */}
       <div className="px-6 pt-5 pb-12">
         <div className={cn(COLUMN, 'flex flex-col gap-7')}>
-          <Part label="Script">
-            {chapter.script ? (
-              <pre className={SCRIPT} style={PANEL}>
-                {chapter.script}
-              </pre>
-            ) : (
-              <p className="text-[12px] text-tertiary">
-                The script for this chapter has not been written yet.
-              </p>
-            )}
-          </Part>
+          <ScriptPart chapter={chapter} />
 
           {chapter.audioAssetId ? (
             <Part label="Narration">
@@ -339,12 +331,130 @@ function ChapterBlock({
  * question. One word does. They are the same 10px uppercase caption FINAL and
  * INSPECTOR already use, so this reads as the same application.
  */
-function Part({ label, children }: { label: string; children: ReactNode }) {
+/**
+ * The script, and the one thing anyone wants to do to it.
+ *
+ * Reading is the default posture of this page, so editing is a mode you enter
+ * rather than a textarea sitting open: the panel keeps the same width, the same
+ * face and the same size in both, so entering the mode moves no text.
+ *
+ * Nothing guards the button. A script task still to run will overwrite whatever
+ * is typed here when it lands, and a script gate is exactly the moment an edit
+ * is wanted — the two are indistinguishable from a button's point of view, and
+ * the operator knows which one they are looking at. The server takes the same
+ * position: it writes the edit, flags the narration and the clip derived from
+ * the replaced text as stale, and re-runs nothing.
+ */
+function ScriptPart({ chapter }: { chapter: Chapter }) {
+  const client = useQueryClient()
+  // null is "not editing". A separate boolean would let the two disagree about
+  // whether there is a draft.
+  const [draft, setDraft] = useState<string | null>(null)
+
+  const save = useMutation({
+    mutationFn: (script: string) => api.updateChapterScript(chapter.id, script),
+    // The response is the whole row, so this patches the cache rather than
+    // refetching — and the word count in the header moves with the patch.
+    onSuccess: (updated) => {
+      client.setQueryData<Chapter[]>(qk.chapters(chapter.videoId), (prev) =>
+        prev?.map((row) => (row.id === updated.id ? updated : row)),
+      )
+      setDraft(null)
+    },
+  })
+
+  if (draft === null) {
+    return (
+      <Part
+        label="Script"
+        action={
+          <Button className="h-[22px] px-2.5 text-[11px]" onClick={() => setDraft(chapter.script)}>
+            Edit
+          </Button>
+        }
+      >
+        {chapter.script ? (
+          <pre className={SCRIPT} style={PANEL}>
+            {chapter.script}
+          </pre>
+        ) : (
+          <p className="text-[12px] text-tertiary">
+            The script for this chapter has not been written yet.
+          </p>
+        )}
+      </Part>
+    )
+  }
+
+  const trimmed = draft.trim()
+  // An empty script is refused by the server, and an unchanged one is a request
+  // that would flag the narration stale for nothing.
+  const ready = trimmed !== '' && trimmed !== chapter.script && !save.isPending
+
+  return (
+    <Part
+      label="Script"
+      action={
+        <>
+          <Button
+            className="h-[22px] px-2.5 text-[11px]"
+            onClick={() => {
+              save.reset()
+              setDraft(null)
+            }}
+            disabled={save.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            primary
+            className="h-[22px] px-2.5 text-[11px]"
+            onClick={() => save.mutate(trimmed)}
+            disabled={!ready}
+          >
+            {save.isPending ? 'Saving…' : 'Save'}
+          </Button>
+        </>
+      }
+    >
+      {/* Same metrics as the `pre` it replaces, so the words do not move when
+          the mode changes. A minimum height rather than the panel's cap: an
+          edit is worth more room than a read, and a box that scrolls at nineteen
+          rem while you are writing in it is the wrong trade. */}
+      <textarea
+        autoFocus
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        className={cn(SCRIPT, 'max-h-none min-h-[19rem] w-full resize-y outline-none')}
+        style={{ ...PANEL, boxShadow: '0 0 0 1px var(--accent)' }}
+      />
+      {save.error ? (
+        <p className="text-[12px]" style={{ color: 'var(--failed)' }}>
+          {(save.error as Error).message}
+        </p>
+      ) : null}
+    </Part>
+  )
+}
+
+function Part({
+  label,
+  action,
+  children,
+}: {
+  label: string
+  /** Buttons for this part, on the label's line. */
+  action?: ReactNode
+  children: ReactNode
+}) {
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-[10px] font-semibold tracking-[0.07em] text-tertiary uppercase">
-        {label}
-      </span>
+      <div className="flex min-h-[20px] items-center gap-3">
+        <span className="text-[10px] font-semibold tracking-[0.07em] text-tertiary uppercase">
+          {label}
+        </span>
+        {action ? <div className="ml-auto flex items-center gap-1.5">{action}</div> : null}
+      </div>
       {children}
     </div>
   )

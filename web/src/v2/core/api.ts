@@ -209,6 +209,20 @@ export const api = {
     }),
 
   /**
+   * Replaces a chapter's narration with the operator's own.
+   *
+   * The server re-runs nothing, and flags what the replaced text had already
+   * produced — the narration and the clip — as stale, so the decision to redo
+   * them stays with whoever made the edit. The response is the whole chapter,
+   * so the cache is patched from it rather than refetched.
+   */
+  updateChapterScript: (id: string, script: string) =>
+    request<Chapter>(`/api/chapters/${key(id)}/script`, {
+      method: 'PUT',
+      body: JSON.stringify({ script }),
+    }),
+
+  /**
    * A new prompt for one slide, and the redraw it implies.
    *
    * One call because the server offers no other shape: there is no way to save
