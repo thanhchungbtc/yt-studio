@@ -64,7 +64,7 @@ func (c *Client) Metadata(ctx context.Context, req provider.MetadataRequest) (pr
 		return provider.Metadata{}, err
 	}
 
-	content, err := c.chat(ctx, call{Video: req.VideoID, Label: "metadata"}, system, user)
+	content, err := c.chat(ctx, call{Video: req.VideoID, Label: "metadata", Kind: KindMetadata}, system, user)
 	if err != nil {
 		return provider.Metadata{}, err
 	}

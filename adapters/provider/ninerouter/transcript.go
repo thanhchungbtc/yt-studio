@@ -21,6 +21,11 @@ type call struct {
 	Video entity.VideoID
 	// Label is the filename's readable half, e.g. "blueprint" or "script-ch12".
 	Label string
+	// Kind is which of the five generations this is, stable across chapters
+	// where Label is not. It selects the model, so it is a key rather than a
+	// caption: parsing "script-ch12" back into "script" to pick one would make
+	// a filename load-bearing.
+	Kind string
 }
 
 // transcript is one recorded exchange.

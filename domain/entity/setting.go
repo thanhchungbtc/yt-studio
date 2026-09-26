@@ -27,6 +27,7 @@ const (
 	GroupPools     = "pools"
 	GroupGates     = "gates"
 	GroupProviders = "providers"
+	GroupModels    = "models"
 	GroupWriting   = "writing"
 	GroupNarration = "narration"
 	GroupSlides    = "slides"
@@ -83,7 +84,25 @@ const (
 	// meaningful: a gateway running with auth off needs none, which is usual.
 	SettingNineRouterKey SettingKey = "ninerouter.key"
 	// SettingNineRouterModel picks which upstream the 9router backend routes to.
+	// It is the default: every generation uses it unless the per-step row below
+	// for that step names another.
 	SettingNineRouterModel SettingKey = "ninerouter.model"
+
+	// The per-step overrides. Empty means the row above; the seeded values are an
+	// opinion rather than a placeholder, because the five things this backend
+	// generates are not one job. An outline and a chapter of narration reward a
+	// model that reasons and ship with one. A batch of slide prompts, a YouTube
+	// listing and a thumbnail plan are shape-filling work against a schema, where
+	// a fast model is as good and costs a fraction, so they ship with that.
+	//
+	// One row per distinct call rather than per task kind. prime_slide_prompts
+	// and slide_prompts are two nodes in the DAG but one generation — the first
+	// warms a cache the rest read — so SettingModelSlidePrompts covers both.
+	SettingModelBlueprint     SettingKey = "ninerouter.model.blueprint"
+	SettingModelScript        SettingKey = "ninerouter.model.script"
+	SettingModelSlidePrompts  SettingKey = "ninerouter.model.slide_prompts"
+	SettingModelMetadata      SettingKey = "ninerouter.model.metadata"
+	SettingModelThumbnailPlan SettingKey = "ninerouter.model.thumbnail_plan"
 	// SettingBlueprintChapterTolerancePercent bounds how far an accepted
 	// blueprint's chapter count may fall from the briefed target.
 	SettingBlueprintChapterTolerancePercent SettingKey = "blueprint.chapter_tolerance_percent"
@@ -425,7 +444,17 @@ func DefaultSettings() []Setting {
 		//nolint:lll // one row, one line
 		{Key: SettingNineRouterKey, Value: "", Type: SettingTypeString, Group: GroupWriting, Backend: BackendNineRouter, Optional: true, Secret: true, Description: "Bearer token for the gateway. Empty is usual: a gateway running locally with auth off needs none."},
 		//nolint:lll // one row, one line
-		{Key: SettingNineRouterModel, Value: "cc/claude-sonnet-4-6", Type: SettingTypeString, Group: GroupWriting, Backend: BackendNineRouter, Description: "Which upstream the 9router backend routes to, e.g. cc/claude-sonnet-4-6. See GET /v1/models on the gateway."},
+		{Key: SettingNineRouterModel, Value: "cc/claude-sonnet-4-6", Type: SettingTypeString, Group: GroupModels, Backend: BackendNineRouter, Description: "The model every step uses unless it has one of its own below, e.g. cc/claude-sonnet-4-6. See GET /v1/models on the gateway."},
+		//nolint:lll // one row, one line
+		{Key: SettingModelBlueprint, Value: "cc/claude-sonnet-5", Type: SettingTypeString, Group: GroupModels, Backend: BackendNineRouter, Optional: true, Description: "The model that plans the chapters. Empty uses the default above."},
+		//nolint:lll // one row, one line
+		{Key: SettingModelScript, Value: "cc/claude-sonnet-5", Type: SettingTypeString, Group: GroupModels, Backend: BackendNineRouter, Optional: true, Description: "The model that writes each chapter's narration — the one output a listener actually hears. Empty uses the default above."},
+		//nolint:lll // one row, one line
+		{Key: SettingModelSlidePrompts, Value: "ag/gemini-3-flash", Type: SettingTypeString, Group: GroupModels, Backend: BackendNineRouter, Optional: true, Description: "The model that writes the slide prompts, in one batch for the whole video. Empty uses the default above."},
+		//nolint:lll // one row, one line
+		{Key: SettingModelMetadata, Value: "ag/gemini-3-flash", Type: SettingTypeString, Group: GroupModels, Backend: BackendNineRouter, Optional: true, Description: "The model that writes the YouTube title, description and tags. Empty uses the default above."},
+		//nolint:lll // one row, one line
+		{Key: SettingModelThumbnailPlan, Value: "ag/gemini-3-flash", Type: SettingTypeString, Group: GroupModels, Backend: BackendNineRouter, Optional: true, Description: "The model that plans the thumbnail grid and its icons. Empty uses the default above."},
 		//nolint:lll // one row, one line
 		{Key: SettingBlueprintChapterTolerancePercent, Value: "20", Type: SettingTypeInt, Group: GroupWriting, Min: 0, Max: 100, Description: "How far an accepted blueprint's chapter count may fall from the target, as a percentage. A roll outside it is rejected and written again."},
 

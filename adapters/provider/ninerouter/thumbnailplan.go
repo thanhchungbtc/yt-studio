@@ -47,7 +47,7 @@ func (c *Client) ThumbnailPlan(ctx context.Context, req provider.ThumbnailPlanRe
 		return provider.ThumbnailPlan{}, err
 	}
 
-	content, err := c.chat(ctx, call{Video: req.VideoID, Label: "thumbnail_plan"}, system, user)
+	content, err := c.chat(ctx, call{Video: req.VideoID, Label: "thumbnail_plan", Kind: KindThumbnailPlan}, system, user)
 	if err != nil {
 		return provider.ThumbnailPlan{}, err
 	}

@@ -407,7 +407,7 @@ func (c *serveCmd) Run() error {
 	nineRouter, err := ninerouter.New(ninerouter.Config{
 		BaseURL:       func() string { return settings.String(entity.SettingNineRouterURL) },
 		APIKey:        func() string { return settings.String(entity.SettingNineRouterKey) },
-		Model:         func() string { return settings.String(entity.SettingNineRouterModel) },
+		Model:         modelFor(settings),
 		TranscriptDir: c.transcripts(),
 		Observe:       llmConsole.Observe,
 	}, assets, nineRouterContextLookup(store))
@@ -794,6 +794,30 @@ func narrationOptions(settings *service.Settings) app.NarrationOptions {
 // nineRouterContextLookup resolves a video id into the plan its slides
 // illustrate. Only SlidePrompts needs it: the port hands that method an id and
 // nothing else, and a provider may never read the database itself.
+// modelFor resolves which upstream one kind of generation goes to.
+//
+// The fallback lives here rather than in the backend because it is a question
+// about the settings table — which row stands in for an unset one — and the
+// backend's business is only to ask with the right key. An unknown kind, or the
+// empty one the startup banner asks with, gets the default.
+func modelFor(settings *service.Settings) func(kind string) string {
+	overrides := map[string]entity.SettingKey{
+		ninerouter.KindBlueprint:     entity.SettingModelBlueprint,
+		ninerouter.KindScript:        entity.SettingModelScript,
+		ninerouter.KindSlidePrompts:  entity.SettingModelSlidePrompts,
+		ninerouter.KindMetadata:      entity.SettingModelMetadata,
+		ninerouter.KindThumbnailPlan: entity.SettingModelThumbnailPlan,
+	}
+	return func(kind string) string {
+		if key, ok := overrides[kind]; ok {
+			if model := strings.TrimSpace(settings.String(key)); model != "" {
+				return model
+			}
+		}
+		return settings.String(entity.SettingNineRouterModel)
+	}
+}
+
 func nineRouterContextLookup(store *sqlite.Store) ninerouter.ContextLookup {
 	return func(ctx context.Context, videoID entity.VideoID) (ninerouter.VideoContext, error) {
 		v, err := store.VideoByID(ctx, videoID)

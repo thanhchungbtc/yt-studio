@@ -135,7 +135,7 @@ func (c *Client) generateSlidePrompts(ctx context.Context, videoID entity.VideoI
 		return nil, err
 	}
 
-	content, err := c.chat(ctx, call{Video: videoID, Label: "image-prompts"}, system, user)
+	content, err := c.chat(ctx, call{Video: videoID, Label: "slide-prompts", Kind: KindSlidePrompts}, system, user)
 	if err != nil {
 		return nil, err
 	}

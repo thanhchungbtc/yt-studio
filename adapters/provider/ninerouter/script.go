@@ -117,5 +117,5 @@ func (c *Client) scriptText(ctx context.Context, req provider.ScriptRequest) (st
 		return "", err
 	}
 	return c.chat(ctx,
-		call{Video: req.VideoID, Label: fmt.Sprintf("script-ch%d", req.Ordinal)}, system, user)
+		call{Video: req.VideoID, Label: fmt.Sprintf("script-ch%d", req.Ordinal), Kind: KindScript}, system, user)
 }

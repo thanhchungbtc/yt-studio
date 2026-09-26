@@ -1,5 +1,6 @@
 import {
   AudioLines,
+  Brain,
   Clapperboard,
   Gauge,
   Image,
@@ -27,6 +28,7 @@ import {
 
 export const GROUPS: Record<string, { title: string; icon: LucideIcon }> = {
   providers: { title: 'Providers', icon: Plug },
+  models: { title: 'Models', icon: Brain },
   pools: { title: 'Concurrency', icon: Gauge },
   writing: { title: 'Writing', icon: PenLine },
   narration: { title: 'Narration', icon: AudioLines },
@@ -62,7 +64,12 @@ const LABELS: Record<string, string> = {
 
   'ninerouter.url': 'Gateway',
   'ninerouter.key': 'API key',
-  'ninerouter.model': 'Model',
+  'ninerouter.model': 'Default',
+  'ninerouter.model.blueprint': 'Blueprint',
+  'ninerouter.model.script': 'Script',
+  'ninerouter.model.slide_prompts': 'Slide prompts',
+  'ninerouter.model.metadata': 'Listing',
+  'ninerouter.model.thumbnail_plan': 'Thumbnail plan',
   'blueprint.chapter_tolerance_percent': 'Chapter tolerance',
 
   'xtts.url': 'Server',
@@ -119,4 +126,25 @@ export function backendsOf(keys: string[]): string {
   if (names.length === 0) return ''
   if (names.length === 1) return names[0] ?? ''
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+}
+
+/**
+ * Rows that fall back to another row when left empty, and to which.
+ *
+ * A blank override is the common case and the confusing one: the field is empty
+ * whether it is unset or misconfigured, and what it actually resolves to is
+ * three rows up. The screen reads the fallback's current value and shows it as
+ * placeholder text, so an inherited row says what it inherits.
+ *
+ * Declared here rather than derived from the key's shape. `ninerouter.model.x`
+ * falling back to `ninerouter.model` happens to be a prefix relationship today;
+ * making the screen assume that would make every future key with a dot in it a
+ * guess about inheritance.
+ */
+export const INHERITS: Record<string, string> = {
+  'ninerouter.model.blueprint': 'ninerouter.model',
+  'ninerouter.model.script': 'ninerouter.model',
+  'ninerouter.model.slide_prompts': 'ninerouter.model',
+  'ninerouter.model.metadata': 'ninerouter.model',
+  'ninerouter.model.thumbnail_plan': 'ninerouter.model',
 }

@@ -6,7 +6,7 @@ import { create } from 'zustand'
 import { api, qk } from '../core/api'
 import type { Setting } from '../core/types'
 import { cn } from '../core/utils'
-import { backendsOf, GROUPS, labelFor } from './settings-meta'
+import { backendsOf, GROUPS, INHERITS, labelFor } from './settings-meta'
 import { Button } from './ui/button'
 import { Dialog } from './ui/dialog'
 import { Checkbox, Input, Select } from './ui/field'
@@ -88,6 +88,21 @@ export function SettingsDialog() {
 
   const searching = query.trim().length > 0
   const active = group && groups.includes(group) ? group : (groups[0] ?? null)
+
+  /*
+    What an empty row falls back to, resolved once for the whole pane.
+
+    Read off the live rows rather than off the defaults, so a row that inherits
+    shows the model the operator actually set above it — the whole point being
+    that the placeholder and the next generation agree.
+  */
+  const inherited = useMemo(() => {
+    const byKey = new Map(rows.map((row) => [row.key, row.value]))
+    return (key: string) => {
+      const from = INHERITS[key]
+      return from ? (byKey.get(from) ?? undefined) : undefined
+    }
+  }, [rows])
 
   /*
     Search cuts across the groups, because not knowing which group a setting is
@@ -186,7 +201,12 @@ export function SettingsDialog() {
               {found.length > 0 ? (
                 <Card>
                   {found.map((row) => (
-                    <SettingRow key={row.key} setting={row} where={GROUPS[row.group]?.title} />
+                    <SettingRow
+                      key={row.key}
+                      setting={row}
+                      where={GROUPS[row.group]?.title}
+                      inherited={inherited(row.key)}
+                    />
                   ))}
                 </Card>
               ) : (
@@ -199,7 +219,7 @@ export function SettingsDialog() {
               {shown.length > 0 ? (
                 <Card>
                   {shown.map((row) => (
-                    <SettingRow key={row.key} setting={row} />
+                    <SettingRow key={row.key} setting={row} inherited={inherited(row.key)} />
                   ))}
                 </Card>
               ) : null}
@@ -250,7 +270,22 @@ function Card({ children }: { children: ReactNode }) {
   )
 }
 
-function SettingRow({ setting, where }: { setting: Setting; where?: string }) {
+function SettingRow({
+  setting,
+  where,
+  inherited,
+}: {
+  setting: Setting
+  where?: string
+  /**
+   * What this row resolves to while it is empty, shown as placeholder text.
+   *
+   * Without it an unset override and a misconfigured one look identical — an
+   * empty box — and what the step will actually use is three rows away. With
+   * it, a blank field reads as "the same as the default, which is this".
+   */
+  inherited?: string
+}) {
   const client = useQueryClient()
   const [draft, setDraft] = useState(setting.value)
 
@@ -371,7 +406,9 @@ function SettingRow({ setting, where }: { setting: Setting; where?: string }) {
         type={setting.secret ? 'password' : 'text'}
         className="w-[220px]"
         value={draft}
-        placeholder={setting.secret && setting.configured ? 'Set — type to replace' : ''}
+        placeholder={
+          setting.secret && setting.configured ? 'Set — type to replace' : (inherited ?? '')
+        }
         onChange={(event) => setDraft(event.target.value)}
         onBlur={(event) => commit(event.target.value)}
         onKeyDown={(event) => {

@@ -46,9 +46,14 @@ func (s *Store) UpdateSetting(ctx context.Context, key entity.SettingKey, value 
 	}
 	candidate := current
 	candidate.Value = value
-	if err := candidate.Validate(); err != nil {
-		return entity.Setting{}, err
-	}
+	// Deliberately not validated here. Optional, Secret and Options are
+	// properties of the binary rather than of the row, so they are stamped by
+	// service.Settings and are absent from what SettingByKey just read back —
+	// and validating without them refuses every legal empty value, which is how
+	// an optional row became one that could be set once and never cleared.
+	//
+	// The only caller is service.Settings.Set, which validates the candidate
+	// against the full metadata before reaching here. This layer writes.
 	now := time.Now()
 	if err := s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
 		return q.UpdateSettingValue(ctx, sqlcgen.UpdateSettingValueParams{

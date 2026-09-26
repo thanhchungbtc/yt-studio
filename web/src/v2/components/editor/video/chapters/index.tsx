@@ -28,6 +28,30 @@ interface Viewing {
 }
 
 /**
+ * Which of a chapter's four artifacts are drawn.
+ *
+ * A filter rather than a mode list, because the useful views are combinations:
+ * script alone is a proof-reading pass, slides alone is a contact sheet, script
+ * and narration together is checking that the voice says what the page does.
+ * Naming those would be guessing at which three of sixteen anyone wants.
+ */
+interface Shown {
+  script: boolean
+  narration: boolean
+  slides: boolean
+  clip: boolean
+}
+
+const ALL_SHOWN: Shown = { script: true, narration: true, slides: true, clip: true }
+
+const SECTIONS: readonly { key: keyof Shown; label: string }[] = [
+  { key: 'script', label: 'Script' },
+  { key: 'narration', label: 'Narration' },
+  { key: 'slides', label: 'Slides' },
+  { key: 'clip', label: 'Clip' },
+]
+
+/**
  * The video as something to read, rather than something to watch finish.
  *
  * The table says whether each chapter happened. This says what each chapter
@@ -45,7 +69,7 @@ interface Viewing {
  * request of its own, and the refetch `events.ts` fires when a script lands
  * fills it in while it is open.
  */
-export function ScriptView({ video, chapters, tasks }: ViewProps) {
+export function ChaptersView({ video, chapters, tasks }: ViewProps) {
   const slidesPerChapter = video.slidesPerChapter
 
   // Only for the empty slots: a missing picture is either one that has not been
@@ -55,6 +79,11 @@ export function ScriptView({ video, chapters, tasks }: ViewProps) {
     () => stagesByChapter(chapters, tasks, slidesPerChapter),
     [chapters, tasks, slidesPerChapter],
   )
+
+  // Not persisted, for the reason the mode above it is not: a tab that reopened
+  // with the slides hidden, by a choice you had forgotten making, reads as a
+  // video whose slides are missing.
+  const [shown, setShown] = useState<Shown>(ALL_SHOWN)
 
   // Which slide is open, and what to call it. Held here rather than per chapter
   // so there is one viewer for the whole scroll and no way to end up with two.
@@ -136,20 +165,26 @@ export function ScriptView({ video, chapters, tasks }: ViewProps) {
 
   return (
     // `@container` so the card can take itself away when the window is too
-    // narrow to have a margin for it to sit in.
-    <div className="@container relative flex min-h-0 flex-1">
-      <ChapterOutline chapters={chapters} activeId={active} onJump={jump} />
-      {/* The card's footprint, reserved at exactly the width the card appears
-          at, so the two can never disagree about whether there is room. */}
-      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto @[54rem]:pl-[216px]">
-        {chapters.map((chapter) => (
-          <ChapterBlock
-            key={chapter.id}
-            chapter={chapter}
-            slides={stages.get(chapter.id)?.slides ?? []}
-            onView={setViewing}
-          />
-        ))}
+    // narrow to have a margin for it to sit in. On the column rather than the
+    // row, so the filter bar can indent by the card's width too and line up
+    // with the chapter bands under it.
+    <div className="@container flex min-h-0 flex-1 flex-col">
+      <FilterBar shown={shown} onToggle={(key) => setShown((s) => ({ ...s, [key]: !s[key] }))} />
+      <div className="relative flex min-h-0 flex-1">
+        <ChapterOutline chapters={chapters} activeId={active} onJump={jump} />
+        {/* The card's footprint, reserved at exactly the width the card appears
+            at, so the two can never disagree about whether there is room. */}
+        <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto @[54rem]:pl-[216px]">
+          {chapters.map((chapter) => (
+            <ChapterBlock
+              key={chapter.id}
+              chapter={chapter}
+              slides={stages.get(chapter.id)?.slides ?? []}
+              shown={shown}
+              onView={setViewing}
+            />
+          ))}
+        </div>
       </div>
       {open ? (
         <SlideViewer
@@ -206,6 +241,48 @@ const COLUMN = 'mx-auto w-full max-w-[40rem]'
  * hands the scroll back to the page, which is the browser's default and the
  * behaviour worth keeping.
  */
+/**
+ * What to draw, as four switches.
+ *
+ * Above the scroll rather than in the window's mode bar: these belong to this
+ * view and nothing else, and the mode bar is shared chrome. Indented to the
+ * same column the chapter bands use, so the row reads as the head of the list
+ * rather than as a strip laid over it.
+ */
+function FilterBar({ shown, onToggle }: { shown: Shown; onToggle: (key: keyof Shown) => void }) {
+  return (
+    <div className="hairline-b shrink-0 @[54rem]:pl-[216px]">
+      <div className="px-6 py-2">
+        <div className={cn(COLUMN, 'flex items-center gap-1.5')}>
+          <span className="mr-1 text-[10px] font-semibold tracking-[0.07em] text-tertiary uppercase">
+            Show
+          </span>
+          {SECTIONS.map((section) => {
+            const on = shown[section.key]
+            return (
+              <button
+                key={section.key}
+                type="button"
+                aria-pressed={on}
+                onClick={() => onToggle(section.key)}
+                className={cn(
+                  'rounded-[5px] px-2 py-[3px] text-[11px] transition-colors',
+                  on ? 'font-medium' : 'text-tertiary hover:bg-[var(--hover)] hover:text-secondary',
+                )}
+                style={
+                  on ? { backgroundColor: 'var(--accent-wash)', color: 'var(--accent)' } : undefined
+                }
+              >
+                {section.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const SCRIPT = [
   'max-h-[19rem] overflow-y-auto',
   'rounded-[7px] px-3.5 py-3',
@@ -221,16 +298,27 @@ const PANEL = {
 function ChapterBlock({
   chapter,
   slides,
+  shown,
   onView,
 }: {
   chapter: Chapter
   slides: Cell[]
+  shown: Shown
   onView: (viewing: Viewing) => void
 }) {
   const words = wordsIn(chapter.script)
   // Held here rather than up in the reader: the button that opens it is in this
   // component, so there is nothing to thread, and a chapter has one clip.
   const [playing, setPlaying] = useState(false)
+
+  // The script part draws either way — it says so when a chapter has none — so
+  // it alone is enough to keep the body. The other three have nothing to say
+  // about an artifact that does not exist.
+  const body =
+    shown.script ||
+    (shown.narration && chapter.audioAssetId) ||
+    (shown.slides && slides.length > 0) ||
+    (shown.clip && chapter.clipAssetId)
 
   return (
     <section data-chapter={chapter.id}>
@@ -259,13 +347,17 @@ function ChapterBlock({
       {/* Padding outside the column and not on it, exactly as the header does
           it: with `px-6` on the capped element itself the two would be measured
           from different edges and the ordinal would sit 24px off the first word. */}
-      <div className="px-6 pt-5 pb-12">
-        <div className={cn(COLUMN, 'flex flex-col gap-7')}>
-          <ScriptPart chapter={chapter} />
+      {/* Hidden whole rather than left empty: with every section switched off a
+          chapter is its header alone, and thirty-two rems of padding under each
+          one would turn a table of contents into a column of gaps. */}
+      {body ? (
+        <div className="px-6 pt-5 pb-12">
+          <div className={cn(COLUMN, 'flex flex-col gap-7')}>
+            {shown.script ? <ScriptPart chapter={chapter} /> : null}
 
-          {chapter.audioAssetId ? (
-            <Part label="Narration">
-              {/*
+            {shown.narration && chapter.audioAssetId ? (
+              <Part label="Narration">
+                {/*
                 The platform control, not one built here. It arrives knowing how
                 to seek, how to answer the keyboard and where the system volume
                 goes, and the asset handler serves ranges, so scrubbing works.
@@ -276,40 +368,41 @@ function ChapterBlock({
                 pull the better part of a hundred megabytes for a page nobody
                 has pressed play on yet.
               */}
-              <audio
-                controls
-                preload="none"
-                src={`/assets/${chapter.audioAssetId}`}
-                className="h-[32px] w-full"
-              />
-            </Part>
-          ) : null}
+                <audio
+                  controls
+                  preload="none"
+                  src={`/assets/${chapter.audioAssetId}`}
+                  className="h-[32px] w-full"
+                />
+              </Part>
+            ) : null}
 
-          {slides.length > 0 ? (
-            <Part label="Slides">
-              <div className="flex flex-wrap gap-2.5">
-                {slides.map((cell, slot) => (
-                  <Slide
-                    key={slot}
-                    cell={cell}
-                    id={chapter.slideAssetIds[slot]}
-                    slot={slot}
-                    onView={() => onView({ chapterId: chapter.id, slot })}
-                  />
-                ))}
-              </div>
-            </Part>
-          ) : null}
+            {shown.slides && slides.length > 0 ? (
+              <Part label="Slides">
+                <div className="flex flex-wrap gap-2.5">
+                  {slides.map((cell, slot) => (
+                    <Slide
+                      key={slot}
+                      cell={cell}
+                      id={chapter.slideAssetIds[slot]}
+                      slot={slot}
+                      onView={() => onView({ chapterId: chapter.id, slot })}
+                    />
+                  ))}
+                </div>
+              </Part>
+            ) : null}
 
-          {chapter.clipAssetId ? (
-            <Part label="Clip">
-              <Button className="self-start" onClick={() => setPlaying(true)}>
-                Play clip
-              </Button>
-            </Part>
-          ) : null}
+            {shown.clip && chapter.clipAssetId ? (
+              <Part label="Clip">
+                <Button className="self-start" onClick={() => setPlaying(true)}>
+                  Play clip
+                </Button>
+              </Part>
+            ) : null}
+          </div>
         </div>
-      </div>
+      ) : null}
 
       {playing && chapter.clipAssetId ? (
         <ClipViewer

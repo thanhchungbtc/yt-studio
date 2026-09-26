@@ -151,7 +151,7 @@ func (c *Client) blueprintJSON(ctx context.Context, req provider.BlueprintReques
 	if err != nil {
 		return nil, err
 	}
-	content, err := c.chat(ctx, call{Video: req.VideoID, Label: "blueprint"}, system, user)
+	content, err := c.chat(ctx, call{Video: req.VideoID, Label: "blueprint", Kind: KindBlueprint}, system, user)
 	if err != nil {
 		return nil, err
 	}

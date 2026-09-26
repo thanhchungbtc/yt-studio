@@ -66,6 +66,18 @@ const (
 	maxErrorBody = 1 << 13
 )
 
+// The five generations this backend makes, as the keys Config.Model is asked
+// with. Exported because the composition root maps them onto settings rows, and
+// a caller that had to spell them itself would be one typo from a silent
+// fallback to the default model.
+const (
+	KindBlueprint     = "blueprint"
+	KindScript        = "script"
+	KindSlidePrompts  = "slide_prompts"
+	KindMetadata      = "metadata"
+	KindThumbnailPlan = "thumbnail_plan"
+)
+
 // Config is everything needed to reach a 9router instance.
 type Config struct {
 	// BaseURL resolves the gateway root, e.g. http://localhost:20128. A function
@@ -76,10 +88,16 @@ type Config struct {
 	// APIKey resolves the bearer token, sent only when non-empty. A local gateway
 	// may run with auth disabled, which is the usual case.
 	APIKey func() string
-	// Model resolves the namespaced upstream id, e.g. ag/gemini-3-flash. A
-	// function, so a model picked on the settings screen applies to the next
-	// generation rather than the next restart.
-	Model func() string
+	// Model resolves the namespaced upstream id, e.g. ag/gemini-3-flash, for one
+	// of the five kinds of generation this client makes. A function, so a model
+	// picked on the settings screen applies to the next generation rather than
+	// the next restart — and one that takes the kind, so the outline and the
+	// narration can be written by a model that reasons while the listing and the
+	// slide prompts go somewhere cheaper.
+	//
+	// Resolving the fallback is the caller's job, not this package's: which row
+	// stands in for an unset one is a question about the settings table.
+	Model func(kind string) string
 	// Timeout bounds one request; zero means defaultTimeout.
 	Timeout time.Duration
 	// TranscriptDir is where each exchange with the model is written for
@@ -207,8 +225,10 @@ func (w *watcher) close(err error) {
 	w.observe(f)
 }
 
-// Model returns the currently selected upstream id, for the startup log line.
-func (c *Client) Model() string { return c.cfg.Model() }
+// Model returns the default upstream id, for the startup log line. The empty
+// kind is the question "what would an unconfigured step use", which is the one
+// worth logging: printing all five would make a banner of a footnote.
+func (c *Client) Model() string { return c.cfg.Model("") }
 
 // BaseURL returns the gateway root as currently configured, for log lines and
 // error messages. Empty when the row is unset or unusable.
@@ -350,7 +370,7 @@ func (c *Client) chat(ctx context.Context, of call, system, user string) (string
 	// Resolved once, here, for the whole exchange. The request, the transcript
 	// and the console must all name the same model, and a settings edit landing
 	// mid-generation would otherwise label output a model did not produce.
-	model := strings.TrimSpace(c.cfg.Model())
+	model := strings.TrimSpace(c.cfg.Model(of.Kind))
 	record := transcript{call: of, Model: model, System: system, User: user, StartedAt: started}
 	defer func() {
 		record.Duration = time.Since(started)

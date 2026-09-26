@@ -10,7 +10,7 @@ import type { DocPanelParams } from './dock'
 import { Placeholder } from './placeholder'
 import { EditorShell } from './shell'
 import { PipelineView } from './video/pipeline'
-import { ScriptView } from './video/script'
+import { ChaptersView } from './video/chapters'
 import { StoppedStrip } from './video/stopped'
 import { UploadView } from './video/upload'
 import type { ViewProps } from './video/view'
@@ -39,7 +39,7 @@ import type { ViewProps } from './video/view'
  * so adding one is a folder and a line, and no mode can grow a prop that the
  * editor has to learn about.
  */
-type Mode = 'pipeline' | 'script' | 'upload'
+type Mode = 'pipeline' | 'chapters' | 'upload'
 
 interface ModeEntry extends Segment<Mode> {
   View: ComponentType<ViewProps>
@@ -47,7 +47,7 @@ interface ModeEntry extends Segment<Mode> {
 
 const MODES: readonly ModeEntry[] = [
   { value: 'pipeline', label: 'Pipeline', View: PipelineView },
-  { value: 'script', label: 'Script', View: ScriptView },
+  { value: 'chapters', label: 'Chapters', View: ChaptersView },
   { value: 'upload', label: 'Upload', View: UploadView },
 ]
 
