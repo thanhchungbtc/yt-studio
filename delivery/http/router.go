@@ -127,7 +127,8 @@ func NewRouter(d Deps) (http.Handler, huma.API) {
 		d.Prompts, d.StaleMark, d.Rerunner, d.Tasks, d.Resumer)
 	registerThumbnailRoutes(api, d.Videos, d.VideoFields, d.AssetWriter, d.Store,
 		d.Tasks, d.Rerunner, d.Now, d.Channels, d.Uploader, d.Settings, d.Resumer)
-	registerMetadataRoutes(api, d.Videos, d.VideoFields, d.Tasks, d.Channels, d.Uploader, d.Settings)
+	registerMetadataRoutes(api, d.Videos, d.VideoFields, d.Tasks, d.Channels, d.Chapters,
+		d.Uploader, d.Settings)
 	registerTaskRoutes(api, d.Videos, d.Tasks, d.TaskRetry, d.Prompts,
 		d.Rerunner, d.StaleRun, d.StaleOK)
 	registerSettingRoutes(api, d.Settings, d.Pools, d.Coalescer, d.LogLevel)

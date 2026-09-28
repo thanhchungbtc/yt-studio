@@ -26,6 +26,7 @@ func PushVideoMetadata(
 	ctx context.Context,
 	videos repository.VideoReader,
 	channels repository.ChannelReader,
+	chapters repository.ChapterReader,
 	uploader provider.Uploader,
 	videoID entity.VideoID,
 	dryRun bool,
@@ -52,11 +53,22 @@ func PushVideoMetadata(
 			ErrValidation, channel.Slug, channel.Credentials)
 	}
 
+	// The same composition the upload used. Without it a correction would send
+	// the prose alone and strip the chapter links off the live video, which is
+	// the one way this screen could quietly undo something it never mentioned.
+	listing := *video.Metadata
+	rows, err := chapters.ListChaptersByVideo(ctx, video.ID)
+	if err != nil {
+		return entity.Video{}, err
+	}
+	listing.Description = DescriptionWithChapters(
+		listing.Description, video.ChapterOffsets, rows, entity.MaxDescriptionChars)
+
 	if err := uploader.UpdateListing(ctx, provider.ListingRequest{
 		VideoRef:    video.Ref,
 		ChannelSlug: channel.Slug,
 		PublishedID: video.Upload.VideoID,
-		Metadata:    *video.Metadata,
+		Metadata:    listing,
 		DryRun:      dryRun,
 	}); err != nil {
 		return entity.Video{}, fmt.Errorf("push listing for %s: %w", video.Ref, err)

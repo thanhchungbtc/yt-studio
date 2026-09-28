@@ -84,6 +84,16 @@ export function useKeybindings(): void {
       '$mod+Alt+KeyN': windowOnly(() => newFromBlueprint()),
       '$mod+Shift+KeyN': windowOnly(() => openDoc({ kind: 'new', of: 'channel' }, 'New Channel')),
 
+      // Opens the console if it is closed, because a find that silently does
+      // nothing is worse than one that shows you what it is searching.
+      '$mod+KeyF': windowOnly(() => {
+        if (!useWorkbench.getState().bottomVisible) useWorkbench.getState().toggleBottom()
+        // After the panel has mounted, which on a first press it has not.
+        requestAnimationFrame(() => {
+          document.querySelector<HTMLInputElement>('[data-console-search]')?.focus()
+        })
+      }),
+
       '$mod+Comma': windowOnly(openSettings),
     })
   }, [client])

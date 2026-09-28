@@ -20,6 +20,7 @@ func PublishVideo(
 	t entity.Task,
 	videos repository.VideoReader,
 	channels repository.ChannelReader,
+	chapters repository.ChapterReader,
 	uploader provider.Uploader,
 	videoFields repository.VideoFieldWriter,
 	dryRun func() bool,
@@ -79,13 +80,24 @@ func PublishVideo(
 		}
 	}
 
+	// The listing as published: the operator's prose, plus the chapter timeline
+	// YouTube turns into links. Composed here rather than stored, so it is always
+	// the timeline of the cut being sent.
+	listing := *video.Metadata
+	rows, err := chapters.ListChaptersByVideo(ctx, video.ID)
+	if err != nil {
+		return classify(err)
+	}
+	listing.Description = DescriptionWithChapters(
+		listing.Description, video.ChapterOffsets, rows, entity.MaxDescriptionChars)
+
 	record, err := uploader.Upload(ctx, provider.UploadRequest{
 		VideoID:          video.ID,
 		VideoRef:         video.Ref,
 		ChannelSlug:      channel.Slug,
 		FinalAssetID:     *video.FinalAssetID,
 		ThumbnailAssetID: thumbnailAssetID,
-		Metadata:         *video.Metadata,
+		Metadata:         listing,
 		DryRun:           dry,
 		OnPercent:        onPercent,
 	})

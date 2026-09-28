@@ -63,6 +63,7 @@ type PushMetadataInput struct {
 func postVideoMetadataPush(
 	videos repository.VideoReader,
 	channels repository.ChannelReader,
+	chapters repository.ChapterReader,
 	tasks repository.TaskReader,
 	uploader provider.Uploader,
 	settings *service.Settings,
@@ -75,7 +76,7 @@ func postVideoMetadataPush(
 		// The same row the publish path reads. A dry run that publishes nothing
 		// and a dry run that corrects nothing are the same rehearsal.
 		dry := settings.Bool(entity.SettingUploadDryRun)
-		v, err = app.PushVideoMetadata(ctx, videos, channels, uploader, v.ID, dry)
+		v, err = app.PushVideoMetadata(ctx, videos, channels, chapters, uploader, v.ID, dry)
 		if err != nil {
 			return nil, mapError(err)
 		}
@@ -93,6 +94,7 @@ func registerMetadataRoutes(
 	fields repository.VideoFieldWriter,
 	tasks repository.TaskReader,
 	channels repository.ChannelReader,
+	chapters repository.ChapterReader,
 	uploader provider.Uploader,
 	settings *service.Settings,
 ) {
@@ -114,5 +116,5 @@ func registerMetadataRoutes(
 			"category are rewritten, and every other field of the listing is left as YouTube " +
 			"holds it. Refused for a video that was never published.",
 		Tags: []string{"videos"},
-	}, postVideoMetadataPush(videos, channels, tasks, uploader, settings))
+	}, postVideoMetadataPush(videos, channels, chapters, tasks, uploader, settings))
 }

@@ -1,6 +1,8 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Search, Trash2, X } from 'lucide-react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
-import { useLLMConnected, useLLMRuns, type LLMRun } from '../../core/llm'
+import { clearRuns, useLLMConnected, useLLMRuns, type LLMRun } from '../../core/llm'
+import { cn } from '../../core/utils'
 
 /**
  * What the machine is saying, as it says it.
@@ -22,19 +24,216 @@ import { useLLMConnected, useLLMRuns, type LLMRun } from '../../core/llm'
  * same component, and what tells them apart is the second column of the header:
  * an exchange names the model it went to, a task says `task`.
  */
+export type Filter = 'all' | 'failed' | 'running'
+
+const FILTERS: readonly { value: Filter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'failed', label: 'Failed' },
+  { value: 'running', label: 'Running' },
+]
+
+function matchesFilter(run: LLMRun, filter: Filter): boolean {
+  if (filter === 'failed') return run.error !== undefined
+  if (filter === 'running') return !run.done
+  return true
+}
+
+/** Where the needle appears in a run, which is also whether it appears at all. */
+function hits(run: LLMRun, needle: string): number {
+  if (needle === '') return 0
+  const hay = `${run.label} ${run.model} ${run.text} ${run.error ?? ''}`.toLowerCase()
+  let found = 0
+  for (let at = hay.indexOf(needle); at !== -1; at = hay.indexOf(needle, at + needle.length)) {
+    found++
+  }
+  return found
+}
+
 export function Console() {
   const runs = useLLMRuns()
   const connected = useLLMConnected()
+  const [filter, setFilter] = useState<Filter>('all')
+  const [query, setQuery] = useState('')
+  const [at, setAt] = useState(0)
 
-  if (runs.length === 0) {
-    return <Empty>{connected ? 'Nothing has run yet.' : 'Console is not connected.'}</Empty>
+  const needle = query.trim().toLowerCase()
+  const shown = useMemo(() => {
+    const byFilter = runs.filter((run) => matchesFilter(run, filter))
+    return needle === '' ? byFilter : byFilter.filter((run) => hits(run, needle) > 0)
+  }, [runs, filter, needle])
+
+  // Where the cursor is, in runs rather than in characters: a match is a block
+  // you read, and stepping to the next one means bringing that block into view.
+  const total = shown.length
+  const cursor = total === 0 ? 0 : Math.min(at, total - 1)
+  useEffect(() => setAt(0), [needle, filter])
+
+  const body = () => {
+    if (runs.length === 0) {
+      return <Empty>{connected ? 'Nothing has run yet.' : 'Console is not connected.'}</Empty>
+    }
+    if (shown.length === 0) {
+      return <Empty>{needle === '' ? 'Nothing matches that filter.' : 'No matches.'}</Empty>
+    }
+    return (
+      // Searching parks the scroller: a view that jumps to the newest frame
+      // while you are reading a match you asked it to find is a search that
+      // cannot be used on a console that is still running.
+      <Scroller follow={needle === '' && filter === 'all'}>
+        {shown.map((run, index) => (
+          <Block
+            key={run.run}
+            run={run}
+            needle={needle}
+            current={needle !== '' && index === cursor}
+          />
+        ))}
+      </Scroller>
+    )
   }
+
   return (
-    <Scroller>
-      {runs.map((run) => (
-        <Block key={run.run} run={run} />
-      ))}
-    </Scroller>
+    <div className="flex h-full min-h-0 flex-col">
+      <Toolbar
+        query={query}
+        onQuery={setQuery}
+        matches={needle === '' ? null : { at: total === 0 ? 0 : cursor + 1, of: total }}
+        onStep={(by) => setAt((i) => (total === 0 ? 0 : (i + by + total) % total))}
+        filter={filter}
+        onFilter={setFilter}
+        onClear={clearRuns}
+        clearable={runs.length > 0}
+      />
+      <div className="min-h-0 flex-1">{body()}</div>
+    </div>
+  )
+}
+
+/** The controls, in one row under the panel's title. */
+function Toolbar({
+  query,
+  onQuery,
+  matches,
+  onStep,
+  filter,
+  onFilter,
+  onClear,
+  clearable,
+}: {
+  query: string
+  onQuery: (value: string) => void
+  /** Null while nothing is being searched for. */
+  matches: { at: number; of: number } | null
+  onStep: (by: number) => void
+  filter: Filter
+  onFilter: (value: Filter) => void
+  onClear: () => void
+  clearable: boolean
+}) {
+  return (
+    <div className="hairline-b flex h-[28px] shrink-0 items-center gap-1.5 px-3">
+      <div className="relative flex min-w-0 flex-1 items-center">
+        <Search
+          aria-hidden
+          className="pointer-events-none absolute left-1.5 size-[11px] text-tertiary"
+          strokeWidth={2}
+        />
+        <input
+          data-console-search
+          value={query}
+          onChange={(event) => onQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') onQuery('')
+            if (event.key === 'Enter') onStep(event.shiftKey ? -1 : 1)
+          }}
+          placeholder="Find"
+          spellCheck={false}
+          className="control h-[19px] w-full min-w-0 py-0 pr-1.5 pl-[22px] text-[11px]"
+        />
+      </div>
+
+      {matches ? (
+        <>
+          <span className="shrink-0 text-[10.5px] tabular-nums text-tertiary">
+            {matches.of === 0 ? 'none' : `${matches.at}/${matches.of}`}
+          </span>
+          <Step label="Previous match" disabled={matches.of === 0} onClick={() => onStep(-1)}>
+            ‹
+          </Step>
+          <Step label="Next match" disabled={matches.of === 0} onClick={() => onStep(1)}>
+            ›
+          </Step>
+          <button
+            type="button"
+            aria-label="Clear the search"
+            onClick={() => onQuery('')}
+            className="flex size-[19px] shrink-0 items-center justify-center rounded-[5px] text-tertiary transition-colors hover:bg-[var(--hover)] hover:text-primary"
+          >
+            <X className="size-[11px]" strokeWidth={2.2} />
+          </button>
+        </>
+      ) : null}
+
+      <div
+        className="flex shrink-0 items-center gap-0.5 rounded-[5px] p-0.5"
+        style={{ backgroundColor: 'var(--idle-selection)' }}
+      >
+        {FILTERS.map((entry) => (
+          <button
+            key={entry.value}
+            type="button"
+            aria-pressed={filter === entry.value}
+            onClick={() => onFilter(entry.value)}
+            className={cn(
+              'rounded-[4px] px-1.5 py-[1px] text-[10.5px] transition-colors',
+              filter === entry.value ? 'text-primary' : 'text-tertiary hover:text-secondary',
+            )}
+            style={
+              filter === entry.value
+                ? { backgroundColor: 'var(--raised)', boxShadow: '0 1px 2px rgb(0 0 0 / 0.14)' }
+                : undefined
+            }
+          >
+            {entry.label}
+          </button>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        aria-label="Clear the console"
+        title="Clear the console"
+        disabled={!clearable}
+        onClick={onClear}
+        className="flex size-[19px] shrink-0 items-center justify-center rounded-[5px] text-tertiary transition-colors hover:bg-[var(--hover)] hover:text-primary disabled:pointer-events-none disabled:opacity-35"
+      >
+        <Trash2 className="size-[12px]" strokeWidth={1.9} />
+      </button>
+    </div>
+  )
+}
+
+function Step({
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string
+  disabled: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className="flex size-[19px] shrink-0 items-center justify-center rounded-[5px] text-[13px] text-tertiary transition-colors hover:bg-[var(--hover)] hover:text-primary disabled:pointer-events-none disabled:opacity-35"
+    >
+      {children}
+    </button>
   )
 }
 
@@ -55,7 +254,7 @@ function Empty({ children }: { children: React.ReactNode }) {
  * again the moment you come back. Nothing is announced and there is no button —
  * the scrollbar is the control.
  */
-function Scroller({ children }: { children: React.ReactNode }) {
+function Scroller({ follow, children }: { follow: boolean; children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null)
   const [pinned, setPinned] = useState(true)
 
@@ -64,7 +263,7 @@ function Scroller({ children }: { children: React.ReactNode }) {
   // a frame and then jumps.
   useLayoutEffect(() => {
     const node = ref.current
-    if (node && pinned) node.scrollTop = node.scrollHeight
+    if (node && follow && pinned) node.scrollTop = node.scrollHeight
   })
 
   useEffect(() => {
@@ -87,13 +286,61 @@ function Scroller({ children }: { children: React.ReactNode }) {
   )
 }
 
+/**
+ * Splits text around a needle, so the matches can be drawn and the rest cannot.
+ * An empty needle returns the text whole, which is the ordinary case.
+ */
+function Highlight({ text, needle }: { text: string; needle: string }) {
+  if (needle === '' || text === '') return <>{text}</>
+  const parts: React.ReactNode[] = []
+  const hay = text.toLowerCase()
+  let from = 0
+  for (let at = hay.indexOf(needle); at !== -1; at = hay.indexOf(needle, from)) {
+    if (at > from) parts.push(text.slice(from, at))
+    parts.push(
+      <mark
+        key={at}
+        className="rounded-[2px] px-px"
+        style={{ backgroundColor: 'var(--accent-wash-strong)', color: 'inherit' }}
+      >
+        {text.slice(at, at + needle.length)}
+      </mark>,
+    )
+    from = at + needle.length
+  }
+  if (from < text.length) parts.push(text.slice(from))
+  return <>{parts}</>
+}
+
 /** One run: what it was, and what came out of it. */
-function Block({ run }: { run: LLMRun }) {
+function Block({
+  run,
+  needle,
+  current,
+}: {
+  run: LLMRun
+  needle: string
+  /** The match the ‹ › buttons are on, scrolled to and outlined. */
+  current: boolean
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (current) ref.current?.scrollIntoView({ block: 'nearest' })
+  }, [current])
+
   return (
-    <div className="pt-2">
+    <div
+      ref={ref}
+      className={cn('pt-2', current && 'rounded-[5px] px-1.5')}
+      style={current ? { backgroundColor: 'var(--accent-wash)' } : undefined}
+    >
       <div className="flex items-baseline gap-2 text-[11px] text-tertiary">
-        <span className="font-semibold text-secondary">{run.label}</span>
-        <span className="min-w-0 truncate">{run.model}</span>
+        <span className="font-semibold text-secondary">
+          <Highlight text={run.label} needle={needle} />
+        </span>
+        <span className="min-w-0 truncate">
+          <Highlight text={run.model} needle={needle} />
+        </span>
         <span className="ml-auto shrink-0 tabular-nums">
           <Status run={run} />
         </span>
@@ -108,7 +355,7 @@ function Block({ run }: { run: LLMRun }) {
           because what wraps here is frequently JSON, which has no spaces to
           wrap at. */}
       <pre className="font-mono text-[11px] leading-[1.45] break-all whitespace-pre-wrap text-secondary">
-        {run.text}
+        <Highlight text={run.text} needle={needle} />
         {run.done ? null : <Caret />}
       </pre>
       {/* Wrapped the way the output above it is, because an error here is no
@@ -118,7 +365,7 @@ function Block({ run }: { run: LLMRun }) {
           sentence. */}
       {run.error ? (
         <div className="pt-0.5 font-mono text-[11px] break-all whitespace-pre-wrap text-[color:var(--failed)]">
-          {run.error}
+          <Highlight text={run.error} needle={needle} />
         </div>
       ) : null}
     </div>

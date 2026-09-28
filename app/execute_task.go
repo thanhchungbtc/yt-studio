@@ -182,7 +182,7 @@ func (r *TaskRunner) dispatch(ctx context.Context, t entity.Task) entity.TaskOut
 		return BuildThumbnail(ctx, t, r.videos, r.thumbnails,
 			r.videoFields, r.assets, r.store, r.now())
 	case entity.TaskKindUpload:
-		return PublishVideo(ctx, t, r.videos, r.channels, r.uploader, r.videoFields,
+		return PublishVideo(ctx, t, r.videos, r.channels, r.chapters, r.uploader, r.videoFields,
 			r.dryRun, r.reporter(t))
 	default:
 		return entity.Failed{Err: fmt.Errorf("unhandled task kind %q", t.Kind), Retryable: false}

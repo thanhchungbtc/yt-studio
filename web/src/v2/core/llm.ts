@@ -86,6 +86,17 @@ export function useLLMConnected(): boolean {
 }
 
 /**
+ * Empties the console.
+ *
+ * The client's copy only. The server retains its own backlog and replays it to
+ * the next subscriber, so reopening the panel brings the runs back — which is
+ * what a log does.
+ */
+export function clearRuns(): void {
+  useStore.setState({ runs: [] })
+}
+
+/**
  * Applies one frame.
  *
  * A run it has not seen is a new exchange; one it has appends. That is the same
