@@ -88,13 +88,23 @@ function layOutGrid(cells: number, style: Style): Grid {
   )
   // The one case where the tiles give way instead: a grid so tall that the
   // headline would not get its floor.
+  //
+  // The floor is one line at the smallest font unless `headlineAreaPercent`
+  // asks for more, which is the whole of what that slider does: the tiles keep
+  // shrinking until the headline has the share it names. Zero leaves the
+  // original floor, so a design that has never touched it lays out exactly as
+  // the Go renderer does.
+  const floor = Math.max(
+    style.headlineTopMargin + style.headlineFontMin,
+    Math.round((frameHeight * style.headlineAreaPercent) / 100),
+  )
   while (
     tile > 1 &&
     frameHeight -
       blockHeight(rows, tile, style) -
       style.gridBottomMargin -
       style.headlineToGridGap <
-      style.headlineTopMargin + style.headlineFontMin
+      floor
   ) {
     tile -= 2
   }

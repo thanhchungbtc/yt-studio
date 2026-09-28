@@ -160,6 +160,23 @@ export function StyleControls({
 
   return (
     <div className="flex flex-col">
+      {/*
+        First, because it is the only control that decides how much room the
+        rest are working in: the type sizes below fit whatever height this
+        leaves, and the tiles shrink to give it. Zero is the renderer's own
+        proportions, which is why it reads as a share to claim rather than a
+        number to correct.
+      */}
+      <Group title="Layout">
+        <Knob
+          label="Headline area %"
+          value={style.headlineAreaPercent}
+          min={0}
+          max={55}
+          onChange={set('headlineAreaPercent')}
+        />
+      </Group>
+
       <Group title="Type">
         {/*
           The only control here that is not a number, so it does not fit the

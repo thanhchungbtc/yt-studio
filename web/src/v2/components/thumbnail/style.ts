@@ -108,6 +108,20 @@ export interface Style {
   captionFontMin: number
   captionColor: string
 
+  /**
+   * The share of the frame's height reserved for the headline, 0-55.
+   *
+   * Zero is the renderer's own behaviour and the default: the grid is sized
+   * from the frame width and the headline takes whatever height is left, which
+   * on a ten-tile thumbnail is about a sixth of the frame. Above zero the
+   * headline is given that share and the tiles shrink until it fits.
+   *
+   * Editor-only. `style.go` has no such field, so a thumbnail the pipeline
+   * renders keeps the original proportions until the design is opened here and
+   * saved — which is the same bargain every other value on this panel strikes.
+   */
+  headlineAreaPercent: number
+
   /* headline — fitted into whatever height the grid left above it */
 
   headlineSideMargin: number
@@ -186,6 +200,8 @@ export const defaultStyle: Style = {
   captionFontMax: 26,
   captionFontMin: 12,
   captionColor: '#e2e2de',
+
+  headlineAreaPercent: 0,
 
   headlineSideMargin: 40,
   headlineTopMargin: 22,
