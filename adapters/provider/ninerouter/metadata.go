@@ -69,7 +69,7 @@ func (c *Client) Metadata(ctx context.Context, req provider.MetadataRequest) (pr
 		return provider.Metadata{}, err
 	}
 	var doc metadataDoc
-	if err := json.Unmarshal([]byte(content), &doc); err != nil {
+	if err := json.Unmarshal(normaliseJSON([]byte(content)), &doc); err != nil {
 		return provider.Metadata{}, fmt.Errorf("metadata response is not JSON: %w (%s)",
 			err, snippet(content))
 	}

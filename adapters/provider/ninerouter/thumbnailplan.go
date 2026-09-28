@@ -52,7 +52,7 @@ func (c *Client) ThumbnailPlan(ctx context.Context, req provider.ThumbnailPlanRe
 		return provider.ThumbnailPlan{}, err
 	}
 	var doc thumbnailPlanDoc
-	if err := json.Unmarshal([]byte(content), &doc); err != nil {
+	if err := json.Unmarshal(normaliseJSON([]byte(content)), &doc); err != nil {
 		return provider.ThumbnailPlan{}, fmt.Errorf("thumbnail plan response is not JSON: %w (%s)",
 			err, snippet(content))
 	}

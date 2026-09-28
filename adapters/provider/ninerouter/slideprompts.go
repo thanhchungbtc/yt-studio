@@ -140,7 +140,7 @@ func (c *Client) generateSlidePrompts(ctx context.Context, videoID entity.VideoI
 		return nil, err
 	}
 	var doc slidePromptsDoc
-	if err := json.Unmarshal([]byte(content), &doc); err != nil {
+	if err := json.Unmarshal(normaliseJSON([]byte(content)), &doc); err != nil {
 		return nil, fmt.Errorf("slide prompt response is not JSON: %w (%s)", err, snippet(content))
 	}
 

@@ -102,7 +102,7 @@ func (c *Client) Blueprint(ctx context.Context, req provider.BlueprintRequest) (
 	// No fence stripping and no seeking for the outermost brace: the contract is
 	// the last thing the prompt says, and ignoring it is a bad roll.
 	var doc blueprintDoc
-	if err := json.Unmarshal(content, &doc); err != nil {
+	if err := json.Unmarshal(normaliseJSON(content), &doc); err != nil {
 		return provider.Blueprint{}, fmt.Errorf("blueprint is not JSON: %w (%s)",
 			err, snippet(string(content)))
 	}
