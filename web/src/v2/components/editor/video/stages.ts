@@ -101,6 +101,27 @@ export function cellAction(cell: Cell): CellAction | null {
 }
 
 /**
+ * The chapters holding at least one stale artifact.
+ *
+ * Stale is the one state you go looking for rather than notice: a script edit
+ * flags the narration and the clip under it, and on a fifty-chapter video those
+ * two dots are somewhere in four hundred. The set is what lets the table show
+ * only the rows worth opening.
+ *
+ * Any cell counts. A chapter with one stale slide and a chapter with four are
+ * the same answer to the question being asked — which rows do I have to deal
+ * with — and the dots inside say the rest.
+ */
+export function staleChapterIds(stages: Map<string, ChapterStages>): Set<string> {
+  const found = new Set<string>()
+  for (const [id, chapter] of stages) {
+    const cells = [chapter.script, chapter.narration, chapter.clip, ...chapter.slides]
+    if (cells.some((cell) => cell.stale)) found.add(id)
+  }
+  return found
+}
+
+/**
  * Indexes every task by the chapter and slot it belongs to, once per render of
  * the table rather than once per row. Forty rows each filtering a 300-task list
  * is forty passes for one answer.
@@ -348,7 +369,8 @@ function aggregate(tasks: Task[], kinds: TaskKind[], done: number, total: number
  * because a script task without the field set is a script with no gate on it.
  */
 function gateKindOf(task: Task): GateKind | undefined {
-  if (task.gate === 'blueprint' || task.gate === 'script' || task.gate === 'upload') return task.gate
+  if (task.gate === 'blueprint' || task.gate === 'script' || task.gate === 'upload')
+    return task.gate
   if (task.kind === 'blueprint') return 'blueprint'
   if (task.kind === 'upload') return 'upload'
   return undefined

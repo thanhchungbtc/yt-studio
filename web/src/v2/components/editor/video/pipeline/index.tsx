@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 
-import { columnTotals } from '../stages'
+import { columnTotals, stagesByChapter, staleChapterIds } from '../stages'
 import type { ViewProps } from '../view'
 import { Legend } from './legend'
 import { SummaryLine } from './summary'
@@ -31,6 +31,28 @@ export function PipelineView({ video, chapters, tasks }: ViewProps) {
     [chapters, video.slidesPerChapter],
   )
 
+  /*
+    Which chapters hold something stale, and whether the table is showing only
+    those.
+
+    Computed here rather than in the table because the count belongs to the
+    summary line and the filter belongs to the table, and the one set answers
+    both. The table recomputes its own stages from whatever list it is handed —
+    three chapters instead of fifty — so this is the only extra pass.
+
+    Not persisted, like the mode switch above it: a table you do not remember
+    filtering reads as a video that lost its chapters.
+  */
+  const stale = useMemo(
+    () => staleChapterIds(stagesByChapter(chapters, tasks, video.slidesPerChapter)),
+    [chapters, tasks, video.slidesPerChapter],
+  )
+  const [onlyStale, setOnlyStale] = useState(false)
+  // The filter releases itself when the last stale artifact is dealt with,
+  // rather than leaving an empty table and a pressed button to explain it.
+  const filtering = onlyStale && stale.size > 0
+  const shown = filtering ? chapters.filter((chapter) => stale.has(chapter.id)) : chapters
+
   // There is nothing to edit until the blueprint has written the rows, and a
   // switch that turns an empty table into an empty table is a switch that
   // teaches the wrong thing about what it does.
@@ -44,14 +66,20 @@ export function PipelineView({ video, chapters, tasks }: ViewProps) {
         editing={editing && editable}
         editable={editable}
         onToggleEditing={() => setEditing((on) => !on)}
+        staleCount={stale.size}
+        onlyStale={filtering}
+        onToggleStale={() => setOnlyStale((on) => !on)}
       />
 
       <ChapterTable
         videoId={video.id}
-        chapters={chapters}
+        chapters={shown}
         tasks={tasks}
         slidesPerChapter={video.slidesPerChapter}
         editing={editing && editable}
+        {...(filtering
+          ? { filtered: { of: chapters.length, onClear: () => setOnlyStale(false) } }
+          : {})}
       />
 
       <Legend />

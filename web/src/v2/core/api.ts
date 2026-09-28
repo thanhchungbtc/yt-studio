@@ -179,6 +179,16 @@ export const api = {
   startVideo: (ref: string) => post<Video>(`/api/videos/${key(ref)}/start`),
   cancelVideo: (ref: string) => post<Video>(`/api/videos/${key(ref)}/cancel`),
   /**
+   * Publishes an already-published video again, as a second YouTube video.
+   *
+   * YouTube cannot replace a video's file, so this does not replace anything:
+   * the one already up stays up, and the app forgets it in order to track the
+   * new one. The response carries the abandoned URL because nothing here will
+   * know it afterwards.
+   */
+  republishVideo: (ref: string) =>
+    post<{ previousUrl: string; previousVideoId: string }>(`/api/videos/${key(ref)}/republish`),
+  /**
    * Removes the video, its chapters, its task graph and the files only it was
    * using. There is no undo and no trash: the server unlinks what nothing else
    * references, so this is the one call in here that destroys work.

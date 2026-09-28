@@ -1,11 +1,15 @@
-import { useQuery } from '@tanstack/react-query'
-import { useMemo, type ReactNode } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Check, Copy, Upload } from 'lucide-react'
+import { useMemo, useState, type ReactNode } from 'react'
 
 import { api, qk } from '../../core/api'
+import type { Video } from '../../core/types'
 import { useDock } from '../editor/dock'
 import { Mark } from '../editor/video/mark'
 import { useStageMenu } from '../editor/video/pipeline/regenerate'
 import { pipelineStages, type PipelineStage } from '../editor/video/stages'
+import { Button } from '../ui/button'
+import { Dialog } from '../ui/dialog'
 import type { MenuItem } from '../ui/menu'
 
 /**
@@ -63,9 +67,31 @@ function VideoPipeline({ videoRef }: { videoRef: string }) {
   // where there is no video yet — and `menuFor` is never called in it, because
   // there are no stages to call it for.
   const { menuFor, error } = useStageMenu(data?.id ?? '', tasks.data ?? [])
+  const [republishing, setRepublishing] = useState(false)
 
   if (video.error) return <Note>That video could not be loaded.</Note>
   if (!data) return <div className="min-h-0 flex-1" />
+
+  /*
+    Upload is the one row whose dot does not offer a re-run, and the reason is
+    in `regenerate.ts`: re-running an upload is a republish rather than a
+    regeneration. YouTube cannot replace a video's file, so there is no version
+    of this that edits what is already published — it can only add a second
+    video and abandon the first.
+
+    So the item is here rather than in the stage menu, worded as what it does
+    and ending in an ellipsis, because the dialog it opens is the only place
+    the abandoned URL is ever shown again.
+  */
+  const published = data.upload !== undefined && !data.upload.dryRun
+  const menuOf = (stage: PipelineStage): MenuItem[] => {
+    const items = menuFor(stage)
+    if (stage.id !== 'upload' || !published) return items
+    return [
+      ...items,
+      { label: 'Upload Again…', icon: Upload, onSelect: () => setRepublishing(true) },
+    ]
+  }
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto py-1.5">
@@ -90,8 +116,12 @@ function VideoPipeline({ videoRef }: { videoRef: string }) {
       ) : null}
 
       {stages.map((stage) => (
-        <StageRow key={stage.id} stage={stage} menu={menuFor(stage)} />
+        <StageRow key={stage.id} stage={stage} menu={menuOf(stage)} />
       ))}
+
+      {republishing ? (
+        <RepublishDialog video={data} onClose={() => setRepublishing(false)} />
+      ) : null}
     </div>
   )
 }
@@ -173,5 +203,103 @@ function Note({ children }: { children: ReactNode }) {
     <div className="flex min-h-0 flex-1 items-center justify-center px-6">
       <p className="text-center text-[12px] text-tertiary">{children}</p>
     </div>
+  )
+}
+
+/**
+ * The one irreversible thing this app does, asked for out loud.
+ *
+ * Not a guard — the operator has already decided, and `PublishVideo`'s own
+ * refusal is what this walks through deliberately. It is here because pressing
+ * it destroys the only record of where the current video lives: the app keeps
+ * one upload receipt, the new one overwrites it, and nothing else remembers
+ * the old URL. So the dialog's real job is to put that URL on screen, with a
+ * copy button, at the last moment anything can.
+ *
+ * What it does not claim: that the old video is removed. YouTube has no way to
+ * replace a video's file, so the first one stays up exactly as it is, and
+ * tidying it is a job for YouTube rather than for this.
+ */
+function RepublishDialog({ video, onClose }: { video: Video; onClose: () => void }) {
+  const client = useQueryClient()
+  const [copied, setCopied] = useState(false)
+  const url = video.upload?.url ?? ''
+
+  const republish = useMutation({
+    mutationFn: () => api.republishVideo(video.ref),
+    onSuccess: () => {
+      // The receipt is gone and the upload task has been reset; both are on the
+      // video and its tasks, which every other pane reads.
+      void client.invalidateQueries({ queryKey: qk.video(video.ref) })
+      void client.invalidateQueries({ queryKey: qk.tasks(video.ref) })
+      onClose()
+    },
+  })
+
+  return (
+    <Dialog open onOpenChange={(next) => (next ? undefined : onClose())} width={460}>
+      <Dialog.Header
+        title="Upload again?"
+        description="This sends a new video to YouTube. The one already there is not replaced."
+      />
+      <Dialog.Body>
+        <p className="text-[12px] leading-relaxed text-secondary">
+          {video.ref} is published. YouTube cannot replace a video&rsquo;s file, so uploading again
+          adds a second video and leaves the first one up — still public, still at its own address.
+          This app will stop tracking it, so copy the link now if you mean to take it down.
+        </p>
+        <div
+          className="mt-3 flex items-center gap-2 rounded-[7px] px-2.5 py-2"
+          style={{ backgroundColor: 'var(--band)' }}
+        >
+          <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-primary">
+            {url || 'No URL was recorded'}
+          </span>
+          {url ? (
+            <button
+              type="button"
+              aria-label={copied ? 'Copied' : 'Copy the link'}
+              title={copied ? 'Copied' : 'Copy the link'}
+              onClick={() => {
+                void navigator.clipboard.writeText(url).then(() => {
+                  setCopied(true)
+                  setTimeout(() => setCopied(false), 1400)
+                })
+              }}
+              className="flex size-[22px] shrink-0 items-center justify-center rounded-[6px] text-tertiary transition-colors hover:bg-[var(--hover)] hover:text-primary"
+              style={copied ? { color: 'var(--done)' } : undefined}
+            >
+              {copied ? (
+                <Check className="size-[13px]" strokeWidth={2.5} />
+              ) : (
+                <Copy className="size-[13px]" strokeWidth={2} />
+              )}
+            </button>
+          ) : null}
+        </div>
+        {republish.error ? (
+          <p className="mt-2 text-[12px]" style={{ color: 'var(--failed)' }}>
+            {(republish.error as Error).message}
+          </p>
+        ) : null}
+      </Dialog.Body>
+      <Dialog.Footer>
+        <Button
+          className="ml-auto h-[26px] px-3.5"
+          onClick={onClose}
+          disabled={republish.isPending}
+        >
+          Cancel
+        </Button>
+        <Button
+          primary
+          className="h-[26px] px-3.5"
+          onClick={() => republish.mutate()}
+          disabled={republish.isPending}
+        >
+          {republish.isPending ? 'Uploading…' : 'Upload Again'}
+        </Button>
+      </Dialog.Footer>
+    </Dialog>
   )
 }

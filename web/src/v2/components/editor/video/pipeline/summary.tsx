@@ -54,12 +54,19 @@ export function SummaryLine({
   editing,
   editable,
   onToggleEditing,
+  staleCount,
+  onlyStale,
+  onToggleStale,
 }: {
   video: Video
   totals: ReturnType<typeof columnTotals>
   editing: boolean
   editable: boolean
   onToggleEditing: () => void
+  /** How many chapters hold something stale. Zero hides the control entirely. */
+  staleCount: number
+  onlyStale: boolean
+  onToggleStale: () => void
 }) {
   // Per document and no further, like the table's own rows: whether you had a
   // topic open is not worth a line in the store.
@@ -83,6 +90,33 @@ export function SummaryLine({
         progress beside a switch that restyles some text. It lives with the other
         lifecycle verbs now, in the strip above.
       */}
+        {/*
+          Absent when nothing is stale, which is most of the time — a filter
+          that can only ever find nothing is a control that teaches you it does
+          nothing. Appearing is also how a video says something *went* stale,
+          which until now was a thing you found by scrolling.
+        */}
+        {staleCount > 0 ? (
+          <button
+            type="button"
+            aria-pressed={onlyStale}
+            onClick={onToggleStale}
+            title={
+              onlyStale
+                ? 'Showing only the chapters with stale artifacts'
+                : 'Show only the chapters with stale artifacts'
+            }
+            className="flex shrink-0 items-center gap-1.5 rounded-[5px] px-2 py-[3px] text-[11px] transition-colors"
+            style={
+              onlyStale
+                ? { backgroundColor: 'var(--running)', color: '#fff' }
+                : { backgroundColor: 'var(--band)', color: 'var(--running)' }
+            }
+          >
+            <span aria-hidden>⚠</span>
+            <span className="tabular-nums">{count(staleCount)}</span> stale
+          </button>
+        ) : null}
         {video.blueprintAssetId ? <BlueprintPopover assetId={video.blueprintAssetId} /> : null}
         {editable ? <Button onClick={onToggleEditing}>{editing ? 'Done' : 'Edit'}</Button> : null}
       </div>

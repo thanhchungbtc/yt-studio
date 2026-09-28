@@ -63,6 +63,10 @@ type VideoFieldWriter interface {
 	ClearVideoThumbnailOverride(ctx context.Context, id entity.VideoID) error
 	SetVideoMetadata(ctx context.Context, id entity.VideoID, m entity.Metadata) error
 	SetVideoUpload(ctx context.Context, id entity.VideoID, r entity.UploadRecord) error
+	// ClearVideoUpload forgets the receipt, which is what lets a published video
+	// be published again: PublishVideo refuses one that already has a real
+	// record, and this is the only door through that refusal.
+	ClearVideoUpload(ctx context.Context, id entity.VideoID) error
 }
 
 // VideoStateWriter is the scheduler's narrow lifecycle port: a derived state

@@ -120,7 +120,7 @@ func NewRouter(d Deps) (http.Handler, huma.API) {
 		d.Store, d.NewID, d.Now, d.Log)
 	registerVideoRoutes(api, d.Videos, d.VideoWriter, d.VideoStates, d.Channels, d.ChannelWriter,
 		d.Tasks, d.Chapters, d.Submitter, d.Resumer, d.Requeuer, d.Expander, d.Canceller, d.Approver,
-		d.Rejecter, d.Forgetter,
+		d.Rejecter, d.Forgetter, d.VideoFields, d.Rerunner,
 		d.Store, d.Settings, d.SavePreparedBlueprint, d.NewID, d.Now, d.Log)
 	registerYouTubeRoutes(api, d.Channels, d.ChannelWriter, d.UploadAuth, d.Now)
 	registerChapterRoutes(api, d.Videos, d.Chapters, d.ChapterFields, d.Notifier, d.ChapRetry,

@@ -494,6 +494,21 @@ func (s *Store) SetVideoMetadata(ctx context.Context, id entity.VideoID, m entit
 	})
 }
 
+// ClearVideoUpload drops the upload receipt, leaving the video looking as it
+// did before it was published. The video on YouTube is untouched — this forgets
+// it, it does not remove it — which is the whole of what the caller is asking
+// for and the whole of what this can do.
+func (s *Store) ClearVideoUpload(ctx context.Context, id entity.VideoID) error {
+	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
+		// A nil *string is the NULL the reader turns back into no record.
+		return q.SetVideoUpload(ctx, sqlcgen.SetVideoUploadParams{
+			UploadJson: nil,
+			UpdatedAt:  toUnix(time.Now()),
+			ID:         string(id),
+		})
+	})
+}
+
 // SetVideoUpload records the upload receipt.
 func (s *Store) SetVideoUpload(ctx context.Context, id entity.VideoID, r entity.UploadRecord) error {
 	encoded, err := encodeJSON(r)

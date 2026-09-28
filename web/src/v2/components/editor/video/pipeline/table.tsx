@@ -89,6 +89,11 @@ interface ChapterTableProps {
   tasks: Task[]
   slidesPerChapter: number
   editing: boolean
+  /**
+   * Set while `chapters` is a subset, so the table can say so. Absent is the
+   * whole video, which needs no explaining.
+   */
+  filtered?: { of: number; onClear: () => void }
 }
 
 export function ChapterTable({
@@ -97,6 +102,7 @@ export function ChapterTable({
   tasks,
   slidesPerChapter,
   editing,
+  filtered,
 }: ChapterTableProps) {
   const stages = useMemo(
     () => stagesByChapter(chapters, tasks, slidesPerChapter),
@@ -190,6 +196,25 @@ export function ChapterTable({
           of these at a time because there is one press at a time. */}
       {error ? (
         <p className="hairline-b px-4 py-1.5 text-[11px] text-[var(--failed)]">{error.message}</p>
+      ) : null}
+
+      {/* A table showing three rows of fifty has to say so on the table, not on
+          the button that did it: the totals in the band above still count the
+          whole video, and without this line the two read as a contradiction. */}
+      {filtered ? (
+        <div className="hairline-b flex items-center gap-3 px-4 py-1.5 text-[11px] text-tertiary">
+          <span>
+            Showing <span className="tabular-nums">{count(chapters.length)}</span> of{' '}
+            <span className="tabular-nums">{count(filtered.of)}</span> chapters
+          </span>
+          <button
+            type="button"
+            onClick={filtered.onClear}
+            className="ml-auto transition-colors hover:text-primary"
+          >
+            Show all
+          </button>
+        </div>
       ) : null}
 
       {chapters.map((chapter, index) => {

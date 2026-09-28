@@ -88,6 +88,18 @@ type UpdateVideoInput struct {
 	}
 }
 
+// RepublishOutput reports what the republish disowned. The URL is the only
+// record of the video left behind on YouTube, and clearing it is what let the
+// second upload start, so it is answered with rather than dropped.
+type RepublishOutput struct {
+	Body struct {
+		//nolint:lll // one field, one line
+		PreviousURL string `json:"previousUrl" doc:"The video left on YouTube, which this app no longer tracks"`
+		//nolint:lll // one field, one line
+		PreviousVideoID string `json:"previousVideoId" doc:"Its YouTube id, for finding it again"`
+	}
+}
+
 // GateInput is an approval or rejection request.
 type GateInput struct {
 	Key  string `path:"key" doc:"Video ref or id"`
@@ -128,6 +140,25 @@ func getVideos(videos repository.VideoReader, tasks repository.TaskReader) func(
 			out.Body.Videos = append(out.Body.Videos, dto)
 		}
 		out.Body.Total = total
+		return out, nil
+	}
+}
+
+func postRepublish(
+	videos repository.VideoReader,
+	fields repository.VideoFieldWriter,
+	tasks repository.TaskReader,
+	rerunner app.TaskRerunner,
+	resumer app.GraphResumer,
+) func(context.Context, *VideoKeyInput) (*RepublishOutput, error) {
+	return func(ctx context.Context, in *VideoKeyInput) (*RepublishOutput, error) {
+		previous, err := app.RepublishVideo(ctx, videos, fields, tasks, rerunner, resumer, in.Key)
+		if err != nil {
+			return nil, mapError(err)
+		}
+		out := &RepublishOutput{}
+		out.Body.PreviousURL = previous.URL
+		out.Body.PreviousVideoID = previous.VideoID
 		return out, nil
 	}
 }
@@ -377,6 +408,8 @@ func registerVideoRoutes(
 	approver app.GateApprover,
 	rejecter app.GateRejecter,
 	forgetter app.VideoForgetter,
+	videoFields repository.VideoFieldWriter,
+	rerunner app.TaskRerunner,
 	store provider.AssetStore,
 	settings *service.Settings,
 	savePreparedBlueprint func(entity.Ref, json.RawMessage) error,
@@ -414,6 +447,17 @@ func registerVideoRoutes(
 		Description: "Enqueues the blueprint of a draft, or requeues whatever a cancelled " +
 			"or failed video stopped on. Idempotent: a video with nothing stopped is left alone.",
 	}, postVideoStart(videos, taskReader, submitter, resumer, requeuer, settings, now))
+
+	huma.Register(api, huma.Operation{
+		OperationID: "republishVideo", Method: "POST", Path: "/api/videos/{key}/republish",
+		Summary: "Publish an already-published video again, as a second YouTube video",
+		Description: "Forgets this video's upload record and re-runs the upload task, " +
+			"which sends a new video to YouTube. The one already there is not touched " +
+			"and not removed: YouTube cannot replace a video's file, so the old one " +
+			"stays up and this app stops tracking it. The response carries its URL, " +
+			"which is the last time anything here can tell you what it was.",
+		Tags: []string{"videos"},
+	}, postRepublish(videos, videoFields, taskReader, rerunner, resumer))
 
 	huma.Register(api, huma.Operation{
 		OperationID: "cancelVideo", Method: "POST", Path: "/api/videos/{key}/cancel",
