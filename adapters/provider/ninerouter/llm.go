@@ -45,7 +45,7 @@ var ErrUnavailable = fmt.Errorf("9router: %w", provider.ErrUnavailable)
 // defaultTimeout bounds one request. It is generous because a fifty-chapter
 // outline and a hundred-prompt batch are genuinely slow; the cost is that a
 // hung call holds one of two LLM slots, and cancelling is the way out.
-const defaultTimeout = 20 * time.Minute
+const defaultTimeout = 60 * time.Minute
 
 const (
 	// streamDone is the sentinel the gateway ends a completion with, in place
