@@ -1,39 +1,71 @@
 import * as Radix from '@radix-ui/react-context-menu'
-import type { ReactNode } from 'react'
+import { Slot } from '@radix-ui/react-slot'
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 
-import type { MenuItem } from './menu'
+import { MENU_CONTENT, MENU_ITEM, MenuRow, type MenuItem } from './menu'
 
 /**
- * A macOS contextual menu: the same card, rows and highlight the pull-down menu
+ * A contextual menu: the same card, rows and highlight the pull-down menu
  * uses, opened by the right button instead of by a control.
  *
  * It shares `MenuItem` with the pull-down rather than defining its own. The two
- * differ in what summons them and in nothing else — a list of labels and the
- * things they do — and a second shape for the same idea would be two places to
- * remember when a row needs an icon or a colour.
+ * differ in what summons them and in nothing else.
  *
- * Radix for the parts that are tedious and easy to get subtly wrong: pointer
- * capture, placing the card against a screen edge, typeahead, and closing on the
- * next click anywhere.
+ * Mounted on first use. A source list carries one of these per row, and a Radix
+ * menu per row was a few thousand components on screen for a gesture made on
+ * one of them. Until the first right-click the child stands alone; that click
+ * mounts the menu and is handed to it again, at the same point, so it opens
+ * where it always did. After that it stays mounted.
  */
 export function ContextMenu({ items, children }: { items: MenuItem[]; children: ReactNode }) {
+  const trigger = useRef<HTMLElement>(null)
+  const [mounted, setMounted] = useState(false)
+  const [replay, setReplay] = useState<{ x: number; y: number } | null>(null)
+
+  useEffect(() => {
+    if (!replay) return
+    setReplay(null)
+    trigger.current?.dispatchEvent(
+      new window.MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        button: 2,
+        clientX: replay.x,
+        clientY: replay.y,
+      }),
+    )
+  }, [replay])
+
+  if (!mounted) {
+    return (
+      <Slot
+        ref={trigger}
+        onContextMenu={(event: MouseEvent) => {
+          event.preventDefault()
+          setMounted(true)
+          setReplay({ x: event.clientX, y: event.clientY })
+        }}
+      >
+        {children}
+      </Slot>
+    )
+  }
+
   return (
     <Radix.Root>
-      <Radix.Trigger asChild>{children}</Radix.Trigger>
+      <Radix.Trigger ref={trigger} asChild>
+        {children}
+      </Radix.Trigger>
       <Radix.Portal>
-        <Radix.Content className="surface-menu z-50 min-w-[176px] rounded-[7px] p-1 text-[13px]">
+        <Radix.Content collisionPadding={8} className={MENU_CONTENT}>
           {items.map((item) => (
             <Radix.Item
               key={item.label}
               onSelect={item.onSelect}
               data-danger={item.danger ? '' : undefined}
-              className="menu-item flex cursor-default items-center gap-2 rounded-[4px] px-2 py-[3px] outline-none"
+              className={MENU_ITEM}
             >
-              {item.icon ? <item.icon className="size-[15px] shrink-0" strokeWidth={1.75} /> : null}
-              <span className="flex-1 whitespace-nowrap">{item.label}</span>
-              {item.shortcut ? (
-                <span className="menu-shortcut shrink-0 tabular-nums">{item.shortcut}</span>
-              ) : null}
+              <MenuRow item={item} />
             </Radix.Item>
           ))}
         </Radix.Content>

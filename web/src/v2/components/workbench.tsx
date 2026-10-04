@@ -1,10 +1,12 @@
 import 'dockview-react/dist/styles/dockview.css'
 import '../styles.css'
 
+import type { ReactNode } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 
 import { useEventStream } from '../core/events'
 import { useKeybindings } from '../core/keys'
+import { cn } from '../core/utils'
 import { useWorkbench } from '../store/workbench'
 import { EditorArea } from './editor/area'
 import { DuplicateVideoHost } from './duplicate-video'
@@ -16,40 +18,29 @@ import { BottomPanel } from './panel/bottom'
 import { PrimarySidebar } from './sidebar/primary'
 import { SecondarySidebar } from './sidebar/secondary'
 import { StatusBar } from './status-bar'
-import { DragRegion } from './ui/drag-region'
+import { TooltipProvider } from './ui/tooltip'
 
 /**
- * Workbench V2.
+ * Workbench V2: floating glass cards on the window's material.
  *
- *   ┌────────────┬───────────────────────────────┬───────────┐
- *   │ ● ● ●      │ tabs                          │           │  38
- *   │ LIBRARY  ✎ ├───────────────────────────────┤ inspector │  30
- *   │ ┌────────┐ │ title                         │           │  50
- *   │ │ videos │ │                               │           │
- *   │ └────────┘ │                               │           │
- *   │ CHANNEL  ▾ │ document                      │           │
- *   │   video    │                               │           │
- *   │   video    │                               │           │
- *   ├────────────┴───────────────────────────────┴───────────┤
- *   │ console                                                │  ⌘J
- *   ├────────────────────────────────────────────────────────┤
- *   │ status                                                 │  24
- *   └────────────────────────────────────────────────────────┘
+ *   ┌ library ┐┌──── documents (tabs, splits) ───┐┌ inspector ┐
+ *   │ ● ● ●   ││ tabs                             ││           │
+ *   │         ││ document                         ││           │
+ *   └─────────┘└──────────────────────────────────┘└───────────┘
+ *   ┌──────────────────── console (full width) ─────────────────┐
+ *   └───────────────────────────────────────────────────────────┘
+ *    status: pools · pane toggles · settings
  *
- * Three things are load-bearing.
+ * Every card is separated by the same gap, and every corner is concentric with
+ * the window's. The gaps are the resize handles: grabbing the space between two
+ * cards moves the split, and a grip appears there under the pointer.
  *
- * The traffic lights live in the *sidebar*, not over the documents — which is
- * why the sidebar is the one pane that reaches the top of the window, and why
- * hiding it has to hand its top strip to the column beside it rather than
- * simply removing it. macOS has nowhere else to put those three buttons.
+ * The traffic lights sit in the top-left card — the library when it is
+ * showing, the first group of documents when it is not — which is why both
+ * reserve room for them.
  *
- * The bottom panel spans the whole window rather than sitting under the editor
- * alone. It is about the *session*, not about the document that happens to be
- * open, and a panel indented to the width of one column claims otherwise. That
- * is why the vertical split is the outer one here.
- *
- * And the panes are chrome around exactly one document. Everything translucent
- * is a frame; the single opaque surface is the thing being worked on.
+ * The console spans the whole window rather than sitting under the editor
+ * alone. It is about the session, not about whichever document is open.
  */
 export function WorkbenchV2() {
   useKeybindings()
@@ -63,93 +54,104 @@ export function WorkbenchV2() {
   const bottomVisible = useWorkbench((s) => s.bottomVisible)
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <PanelGroup direction="vertical" autoSaveId="yts.v2.rows" className="min-h-0 flex-1">
-        <Panel id="upper" order={1} minSize={30}>
-          <PanelGroup direction="horizontal" autoSaveId="yts.v2.columns">
-            {primaryVisible ? (
-              <>
-                <Panel id="primary" order={1} defaultSize={22} minSize={14} maxSize={40}>
-                  <PrimarySidebar />
-                </Panel>
-                <Sash direction="horizontal" />
-              </>
-            ) : null}
+    <TooltipProvider>
+      <div className="flex h-full flex-col overflow-hidden">
+        <div className="min-h-0 flex-1 px-[var(--gap)] pt-[var(--gap)]">
+          <PanelGroup direction="vertical" autoSaveId="yts.v2.rows" className="h-full">
+            <Panel id="upper" order={1} minSize={30}>
+              <PanelGroup direction="horizontal" autoSaveId="yts.v2.columns">
+                {primaryVisible ? (
+                  <>
+                    <Panel id="primary" order={1} defaultSize={22} minSize={15} maxSize={40}>
+                      <Card className="glass-sidebar">
+                        <PrimarySidebar />
+                      </Card>
+                    </Panel>
+                    <Gap />
+                  </>
+                ) : null}
 
-            <Panel id="center" order={2} minSize={30}>
-              <div className="flex h-full flex-col">
-                {/* With the sidebar hidden there is nothing else reaching the
-                    top of the window, so this column has to make room for the
-                    traffic lights instead. */}
-                {primaryVisible ? null : (
-                  <DragRegion className="surface-chrome hairline-b h-[38px] shrink-0" />
-                )}
-                <div className="min-h-0 flex-1">
+                <Panel id="center" order={2} minSize={30}>
                   <EditorArea />
-                </div>
-              </div>
+                </Panel>
+
+                {secondaryVisible ? (
+                  <>
+                    <Gap />
+                    {/* Floored wider than the other panes: the inspector's rows
+                        put a mark, a name, a count and — at a gate — a button
+                        on one line, and the first thing a narrower pane loses
+                        is the name. */}
+                    <Panel id="secondary" order={3} defaultSize={22} minSize={18} maxSize={40}>
+                      <Card className="glass-sidebar">
+                        <SecondarySidebar />
+                      </Card>
+                    </Panel>
+                  </>
+                ) : null}
+              </PanelGroup>
             </Panel>
 
-            {secondaryVisible ? (
+            {bottomVisible ? (
               <>
-                <Sash direction="horizontal" />
-                {/* Floored wider than the other panes: the inspector's rows put
-                    a mark, a name, a count and — at a gate — a button on one
-                    line, and the first thing a narrower pane loses is the name. */}
-                <Panel id="secondary" order={3} defaultSize={22} minSize={18} maxSize={40}>
-                  <SecondarySidebar />
+                <Gap vertical />
+                <Panel id="bottom" order={2} defaultSize={28} minSize={10} maxSize={70}>
+                  <Card className="bg-content">
+                    <BottomPanel />
+                  </Card>
                 </Panel>
               </>
             ) : null}
           </PanelGroup>
-        </Panel>
+        </div>
 
-        {bottomVisible ? (
-          <>
-            <Sash direction="vertical" />
-            <Panel id="bottom" order={2} defaultSize={28} minSize={10} maxSize={70}>
-              <BottomPanel />
-            </Panel>
-          </>
-        ) : null}
-      </PanelGroup>
+        <StatusBar />
+        <NewVideoDialog />
+        <NewFromBlueprintDialog />
+        <DuplicateVideoHost />
+        <EditVideoDialog />
+        <SettingsDialog />
+      </div>
+    </TooltipProvider>
+  )
+}
 
-      <StatusBar />
-      <NewVideoDialog />
-      <NewFromBlueprintDialog />
-      <DuplicateVideoHost />
-      <EditVideoDialog />
-      <SettingsDialog />
+/** A floating glass card that hosts a pane. */
+function Card({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div
+      className={cn(
+        'glass-card view-enter h-full min-h-0 overflow-hidden rounded-[var(--card-radius)]',
+        className,
+      )}
+    >
+      {children}
     </div>
   )
 }
 
 /**
- * The divider between two panes: one device pixel to look at, eight to grab.
+ * The gap between two cards, and the handle that moves the split.
  *
- * The sash *is* the seam. Neither pane draws an edge of its own, because two
- * panes drawing their own edges on either side of a handle that occupies space
- * is three things where there should be one — and that is exactly what a
- * doubled, muddy divider is made of.
- *
- * It does not light up while being dragged. A divider that highlights under the
- * cursor is a web idiom; on macOS the feedback is the panes moving, which is
- * the feedback that was asked for.
+ * Nothing is drawn at rest — the gap itself is the separation. Under the
+ * pointer, or while dragging, a short accent grip appears in the middle of it,
+ * so the handle is discoverable without being a line across the window.
  */
-function Sash({ direction }: { direction: 'horizontal' | 'vertical' }) {
-  const horizontal = direction === 'horizontal'
+function Gap({ vertical = false }: { vertical?: boolean }) {
   return (
     <PanelResizeHandle
-      className={
-        horizontal ? 'seam-v relative z-20 outline-none' : 'seam-h relative z-20 outline-none'
-      }
+      className={cn(
+        'group/sep relative flex items-center justify-center outline-none',
+        vertical ? 'h-[var(--gap)] cursor-row-resize' : 'w-[var(--gap)] cursor-col-resize',
+      )}
     >
-      <div
-        className={
-          horizontal
-            ? 'absolute inset-y-0 -right-1 -left-1 cursor-col-resize'
-            : 'absolute inset-x-0 -top-1 -bottom-1 cursor-row-resize'
-        }
+      <span
+        className={cn(
+          'rounded-full bg-accent/70 opacity-0 transition-opacity duration-150',
+          'group-hover/sep:opacity-100 group-data-[resize-handle-state=drag]/sep:opacity-100',
+          'group-focus-visible/sep:opacity-100',
+          vertical ? 'h-[3px] w-12' : 'h-12 w-[3px]',
+        )}
       />
     </PanelResizeHandle>
   )

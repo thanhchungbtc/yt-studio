@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { create } from 'zustand'
 
 import { api, qk } from '../core/api'
+import { uuid } from '../core/utils'
 import type { Channel, Video } from '../core/types'
 import { useWorkbench } from '../store/workbench'
 import { openDoc } from './editor/dock'
@@ -55,8 +56,8 @@ export function duplicateVideos(videos: Video[]): void {
 }
 
 /** What the menu calls this, so the label and the action cannot disagree. */
-export function duplicateLabel(targets: Video[]): string {
-  return targets.length > 1 ? `Duplicate ${targets.length} Videos` : 'Duplicate'
+export function duplicateLabel(count: number): string {
+  return count > 1 ? `Duplicate ${count} Videos` : 'Duplicate'
 }
 
 /**
@@ -101,7 +102,7 @@ export function DuplicateVideoHost() {
               // the one outcome nobody duplicated a video to get.
               start: false,
             },
-            crypto.randomUUID(),
+            uuid(),
           ),
         ),
       )

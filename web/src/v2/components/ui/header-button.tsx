@@ -1,38 +1,48 @@
 import type { LucideIcon } from 'lucide-react'
 
 import { cn } from '../../core/utils'
+import { Tooltip } from './tooltip'
 
 interface HeaderButtonProps {
   icon: LucideIcon
   label: string
+  /** Shown beside the label in the tooltip. */
+  shortcut?: string
   active?: boolean
   onClick?: () => void
   className?: string
+  tooltipSide?: 'top' | 'bottom' | 'left' | 'right'
 }
 
 /**
- * The quiet, borderless button macOS puts in a titlebar or a toolbar: no chrome
- * of its own until the pointer is on it, and a tinted fill when it is holding
- * something open.
+ * The quiet capsule a toolbar carries: no chrome of its own until the pointer
+ * is on it, and a tinted fill when it is holding something open.
  */
-export function HeaderButton({ icon: Icon, label, active, onClick, className }: HeaderButtonProps) {
+export function HeaderButton({
+  icon: Icon,
+  label,
+  shortcut,
+  active,
+  onClick,
+  className,
+  tooltipSide = 'bottom',
+}: HeaderButtonProps) {
   return (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      aria-pressed={active}
-      onClick={onClick}
-      className={cn(
-        'flex size-[22px] shrink-0 items-center justify-center rounded-md transition-colors',
-        'text-secondary hover:bg-[var(--hover)] hover:text-primary',
-        className,
-      )}
-      style={
-        active ? { backgroundColor: 'var(--idle-selection)', color: 'var(--text)' } : undefined
-      }
-    >
-      <Icon className="size-[15px]" strokeWidth={1.75} />
-    </button>
+    <Tooltip content={label} shortcut={shortcut} side={tooltipSide}>
+      <button
+        type="button"
+        aria-label={label}
+        aria-pressed={active}
+        onClick={onClick}
+        className={cn(
+          'inline-flex size-7 shrink-0 items-center justify-center rounded-full transition-colors duration-100',
+          'text-secondary hover:bg-hover hover:text-primary',
+          active && 'bg-active text-primary',
+          className,
+        )}
+      >
+        <Icon className="size-4" strokeWidth={1.8} />
+      </button>
+    </Tooltip>
   )
 }

@@ -21,11 +21,11 @@ interface ButtonProps {
 }
 
 /**
- * A macOS push button: small, rounded, and quiet unless it is the default.
+ * A push button: a capsule, quiet unless it is the default.
  *
- * Two weights only. AppKit's own vocabulary is wider, but every extra weight is
- * a decision at each call site about how loud a thing should be, and the answer
- * is nearly always "this one, and not the others".
+ * Two weights only. Every extra weight is a decision at each call site about
+ * how loud a thing should be, and the answer is nearly always "this one, and
+ * not the others".
  */
 export function Button({
   children,
@@ -43,17 +43,15 @@ export function Button({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        'flex h-[22px] shrink-0 items-center justify-center rounded-[5px] px-2.5',
-        'text-[12px] font-medium whitespace-nowrap transition-[background-color,opacity]',
-        'disabled:pointer-events-none disabled:opacity-40',
-        primary ? 'text-white hover:brightness-105' : 'text-primary hover:bg-[var(--hover)]',
+        'inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-full px-3',
+        'text-[12.5px] font-medium whitespace-nowrap select-none',
+        'transition-[background-color,color,filter,box-shadow] duration-100',
+        'disabled:pointer-events-none disabled:opacity-45',
+        primary
+          ? 'bg-accent-fill text-accent-fg shadow-[inset_0_1px_0_rgb(255_255_255/0.18),0_1px_2px_rgb(0_0_0/0.12)] hover:bg-accent-fill-hover'
+          : 'hairline bg-content text-primary shadow-card hover:bg-hover',
         className,
       )}
-      style={
-        primary
-          ? { backgroundColor: 'var(--accent)' }
-          : { backgroundColor: 'var(--raised)', boxShadow: '0 0 0 0.5px var(--separator-strong)' }
-      }
     >
       {children}
     </button>

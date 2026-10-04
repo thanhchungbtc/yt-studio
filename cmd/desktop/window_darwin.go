@@ -19,15 +19,20 @@ static void ytsOnMain(dispatch_block_t block) {
 	}
 }
 
-// ytsMakeVibrant puts an NSVisualEffectView behind the web view and lets the
+// ytsMakeVibrant puts the window's material behind the web view and lets the
 // content run the full height of the window.
 //
+// On macOS 26 and later that material is Liquid Glass, an NSGlassEffectView;
+// before it, the sidebar NSVisualEffectView. The glass class is looked up by
+// name rather than linked, so the binary builds against any SDK and runs on
+// any release, and simply gets the older material where the newer one is
+// missing.
+//
 // The web view starts out as the window's contentView, so it is re-parented
-// rather than replaced: the effect view becomes the content, and the web view
-// becomes its only subview. Everything the page then draws with an alpha below
-// one is composited over the desktop by AppKit, which is the only way to get
-// the real material — CSS backdrop-filter can only blur what is inside the
-// page, and behind the page there is nothing.
+// rather than replaced: the material becomes the content, and the web view sits
+// inside it. Everything the page then draws with an alpha below one is
+// composited over the material by AppKit, which is the only way to get the
+// real thing — CSS backdrop-filter can only blur what is inside the page.
 //
 // The web view must also be told to stop painting its own opaque backdrop,
 // which is what `drawsBackground` does. It is not in WKWebView's public
@@ -42,10 +47,22 @@ static void ytsMakeVibrant(void *handle) {
 		}
 
 		// The traffic lights float over the page, and the page reserves room
-		// for them: see --traffic-lights in the v2 stylesheet.
+		// for them: see --traffic-lights-inset in the v2 stylesheet.
 		window.titlebarAppearsTransparent = YES;
 		window.titleVisibility = NSWindowTitleHidden;
 		window.styleMask |= NSWindowStyleMaskFullSizeContentView;
+
+		// An empty unified toolbar, for its geometry alone: it drops the
+		// traffic lights to the centre of the page's first 36pt strip, below
+		// an 8pt gap, and gives the window the larger corner the cards inside
+		// it are concentric with. It has no items and draws nothing.
+		NSToolbar *toolbar = [[NSToolbar alloc] initWithIdentifier:@"yts.toolbar"];
+		window.toolbar = toolbar;
+		[toolbar release];
+		if (@available(macOS 11.0, *)) {
+			window.toolbarStyle = NSWindowToolbarStyleUnified;
+			window.titlebarSeparatorStyle = NSTitlebarSeparatorStyleNone;
+		}
 
 		if ([web isKindOfClass:[WKWebView class]]) {
 			@try {
@@ -57,23 +74,71 @@ static void ytsMakeVibrant(void *handle) {
 			}
 		}
 
-		NSVisualEffectView *effect =
-			[[NSVisualEffectView alloc] initWithFrame:[[window contentView] bounds]];
-		effect.material = NSVisualEffectMaterialSidebar;
-		effect.blendingMode = NSVisualEffectBlendingModeBehindWindow;
-		// Following the window means the material greys out when the app is in
-		// the background, exactly as every other macOS window does.
-		effect.state = NSVisualEffectStateFollowsWindowActiveState;
-		effect.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-
 		[web retain];
-		[window setContentView:effect];
-		web.frame = effect.bounds;
-		web.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-		[effect addSubview:web];
+		NSRect bounds = [[window contentView] bounds];
+		Class glassClass = NSClassFromString(@"NSGlassEffectView");
+		NSView *material = nil;
+		if (glassClass != nil) {
+			@try {
+				NSView *glass = [[glassClass alloc] initWithFrame:bounds];
+				[window setContentView:glass];
+				web.frame = glass.bounds;
+				web.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+				[glass setValue:web forKey:@"contentView"];
+				material = glass;
+			} @catch (NSException *ignored) {
+				material = nil;
+			}
+		}
+		if (material == nil) {
+			NSVisualEffectView *effect = [[NSVisualEffectView alloc] initWithFrame:bounds];
+			effect.material = NSVisualEffectMaterialSidebar;
+			effect.blendingMode = NSVisualEffectBlendingModeBehindWindow;
+			// Following the window means the material greys out when the app
+			// is in the background, exactly as every other macOS window does.
+			effect.state = NSVisualEffectStateFollowsWindowActiveState;
+			[window setContentView:effect];
+			web.frame = effect.bounds;
+			web.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+			[effect addSubview:web];
+			material = effect;
+		}
+		material.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+		[material release];
+
+		// Reduce Transparency, Reduce Motion and Increase Contrast are not all
+		// visible to the page — WebKit reports no transparency preference — so
+		// the page asks through ytsAccessibility, and is told when they change.
+		if ([web isKindOfClass:[WKWebView class]]) {
+			WKWebView *view = (WKWebView *)web;
+			[[[NSWorkspace sharedWorkspace] notificationCenter]
+				addObserverForName:NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification
+							object:nil
+							 queue:[NSOperationQueue mainQueue]
+						usingBlock:^(NSNotification *note) {
+							[view evaluateJavaScript:@"window.dispatchEvent(new Event('yts-accessibility'))"
+								   completionHandler:nil];
+						}];
+		}
 		[web release];
-		[effect release];
 	});
+}
+
+// ytsAccessibilityFlags reads the display accessibility settings: bit 0 is
+// Reduce Transparency, bit 1 Reduce Motion, bit 2 Increase Contrast.
+static int ytsAccessibilityFlags(void) {
+	NSWorkspace *workspace = [NSWorkspace sharedWorkspace];
+	int flags = 0;
+	if (workspace.accessibilityDisplayShouldReduceTransparency) {
+		flags |= 1;
+	}
+	if (workspace.accessibilityDisplayShouldReduceMotion) {
+		flags |= 2;
+	}
+	if (workspace.accessibilityDisplayShouldIncreaseContrast) {
+		flags |= 4;
+	}
+	return flags;
 }
 
 // ytsDragging guards the fallback loop below against being entered twice. The
@@ -284,5 +349,15 @@ func dressWindow(w webview.WebView) {
 	_ = w.Bind("ytsWindowZoom", func() error {
 		C.ytsWindowZoom(handle)
 		return nil
+	})
+	// What System Settings says about transparency, motion and contrast. The
+	// page re-asks whenever the shell tells it they changed.
+	_ = w.Bind("ytsAccessibility", func() (map[string]bool, error) {
+		flags := C.ytsAccessibilityFlags()
+		return map[string]bool{
+			"reduceTransparency": flags&1 != 0,
+			"reduceMotion":       flags&2 != 0,
+			"increaseContrast":   flags&4 != 0,
+		}, nil
 	})
 }

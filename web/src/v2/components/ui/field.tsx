@@ -139,8 +139,7 @@ export function Textarea({ className, ...props }: TextareaProps) {
 type SelectProps = SelectHTMLAttributes<HTMLSelectElement>
 
 /**
- * A macOS pop-up button: a well with the accent cap and its double chevron on
- * the trailing edge. The chevron is the affordance — a select drawn as a plain
+ * A pop-up button: a well with its double chevron on the trailing edge. The chevron is the affordance — a select drawn as a plain
  * text field is a control nobody knows they can click.
  */
 export function Select({ className, children, ...props }: SelectProps) {
@@ -151,10 +150,9 @@ export function Select({ className, children, ...props }: SelectProps) {
       </select>
       <span
         aria-hidden
-        className="pointer-events-none absolute top-1/2 right-[3px] flex size-[17px] -translate-y-1/2 items-center justify-center rounded-[4px]"
-        style={{ backgroundColor: 'var(--accent)' }}
+        className="pointer-events-none absolute top-1/2 right-[5px] flex size-[17px] -translate-y-1/2 items-center justify-center rounded-full text-secondary"
       >
-        <ChevronsUpDown className="size-3 text-white" strokeWidth={2.5} />
+        <ChevronsUpDown className="size-3" strokeWidth={2.2} />
       </span>
     </div>
   )
@@ -176,7 +174,7 @@ export function Checkbox({
         type="checkbox"
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
-        className="size-[13px] accent-[var(--accent)]"
+        className="size-[14px] accent-[var(--accent-fill)]"
       />
       {children}
     </label>

@@ -18,8 +18,9 @@ interface PopoverProps {
  * click anywhere dismisses it, nothing is blocked while it is up, and it takes
  * no decision with it when it goes.
  *
- * It wears the same translucent card as the pull-down menu, because on macOS
- * everything that floats out of a control is the same material.
+ * It wears the same glass as the pull-down menu, because everything that
+ * floats out of a control is the same material, and it grows out of that
+ * control.
  */
 export function Popover({ trigger, children, align = 'start', width = 560 }: PopoverProps) {
   return (
@@ -31,7 +32,7 @@ export function Popover({ trigger, children, align = 'start', width = 560 }: Pop
           sideOffset={6}
           collisionPadding={12}
           style={{ width }}
-          className="popover surface-menu z-50 overflow-hidden rounded-[9px]"
+          className="popover glass-pop glass-dense animate-pop-in z-50 max-h-[var(--radix-popover-content-available-height)] overflow-hidden rounded-[14px]"
         >
           {children}
         </Radix.Content>

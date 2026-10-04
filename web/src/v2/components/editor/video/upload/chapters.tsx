@@ -176,16 +176,15 @@ function ChapterRow({
       // The full text, because a narrow pane truncates most of these.
       title={row.title}
       className={cn(
-        'group flex w-full items-baseline gap-2 rounded-[7px] px-2 py-[5px] text-left',
-        'transition-colors duration-75',
-        !selected && seekable && 'hover:bg-[var(--hover)]',
+        'group flex w-full items-baseline gap-2 rounded-[8px] px-2 py-[5px] text-left',
+        'transition-colors duration-100',
+        selected ? 'row-selected' : seekable && 'hover:bg-hover',
       )}
-      style={selected ? { backgroundColor: 'var(--accent)' } : undefined}
     >
       <span
         className={cn(
           'w-[13px] shrink-0 text-right text-[11px] tabular-nums',
-          selected ? 'text-white/70' : 'text-tertiary',
+          selected ? 'text-accent' : 'text-tertiary',
         )}
       >
         {row.ordinal}
@@ -193,7 +192,7 @@ function ChapterRow({
       <span
         className={cn(
           'min-w-0 flex-1 truncate text-[12px]',
-          selected ? 'text-white' : 'text-secondary group-hover:text-primary',
+          selected ? 'font-medium text-primary' : 'text-secondary group-hover:text-primary',
         )}
       >
         {row.title}
@@ -202,7 +201,7 @@ function ChapterRow({
         <span
           className={cn(
             'shrink-0 text-[11px] tabular-nums',
-            selected ? 'text-white/80' : 'text-tertiary',
+            selected ? 'text-secondary' : 'text-tertiary',
           )}
         >
           {offset(row.start)}

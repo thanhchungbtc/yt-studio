@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Play } from 'lucide-react'
 import { useState, type ReactNode, type RefObject } from 'react'
 
 import { api, qk } from '../../../../core/api'
@@ -309,29 +310,64 @@ function Player({
 }) {
   const poster = video.effectiveThumbnailAssetId
   const frame = 'aspect-video w-full overflow-hidden rounded-[10px]'
+  const [live, setLive] = useState(false)
 
   if (video.finalAssetId) {
     return (
-      <video
-        ref={playerRef}
-        controls
-        preload="metadata"
-        poster={poster ? `/assets/${poster}` : undefined}
-        src={`/assets/${video.finalAssetId}`}
-        // Both, because a seek from the rail has to move the playhead even
-        // while the video is paused, and `timeupdate` only fires while it runs.
-        onTimeUpdate={(event) => onTime(event.currentTarget.currentTime)}
-        onSeeked={(event) => onTime(event.currentTarget.currentTime)}
-        // `metadata` is enough to learn the duration, which is the whole reason
-        // this is not `preload="none"`: the chapter list is timed in these
-        // seconds.
-        onLoadedMetadata={(event) => {
-          const seconds = event.currentTarget.duration
-          if (Number.isFinite(seconds) && seconds > 0) onRuntime(seconds)
-        }}
-        className={frame}
-        style={{ backgroundColor: '#000' }}
-      />
+      <div className="relative">
+        <video
+          ref={playerRef}
+          // The platform's controls, but not until they are wanted. WebKit
+          // builds them in script, and on this page that was most of what the
+          // first visit to Upload cost; the element itself is free, and it is
+          // the element the duration and the chapter rail depend on.
+          controls={live}
+          preload="metadata"
+          poster={poster ? `/assets/${poster}` : undefined}
+          src={`/assets/${video.finalAssetId}`}
+          onPlay={() => setLive(true)}
+          // Both, because a seek from the rail has to move the playhead even
+          // while the video is paused, and `timeupdate` only fires while it runs.
+          onTimeUpdate={(event) => onTime(event.currentTarget.currentTime)}
+          onSeeked={(event) => {
+            setLive(true)
+            onTime(event.currentTarget.currentTime)
+          }}
+          // `metadata` is enough to learn the duration, which is the whole reason
+          // this is not `preload="none"`: the chapter list is timed in these
+          // seconds.
+          onLoadedMetadata={(event) => {
+            const seconds = event.currentTarget.duration
+            if (Number.isFinite(seconds) && seconds > 0) onRuntime(seconds)
+          }}
+          className={frame}
+          style={{ backgroundColor: '#000' }}
+        />
+        {live ? null : (
+          <button
+            type="button"
+            aria-label="Play the cut"
+            // On the press: the controls appear and playback starts while the
+            // hand is still down.
+            onPointerDown={(event) => {
+              if (event.button !== 0) return
+              setLive(true)
+              void playerRef.current?.play()
+            }}
+            onClick={(event) => {
+              if (event.detail === 0) {
+                setLive(true)
+                void playerRef.current?.play()
+              }
+            }}
+            className="group/play absolute inset-0 flex items-center justify-center rounded-[10px]"
+          >
+            <span className="flex size-14 items-center justify-center rounded-full bg-black/55 text-white shadow-lg backdrop-blur-md transition-transform duration-150 group-hover/play:scale-105">
+              <Play className="ml-1 size-6 fill-current" strokeWidth={0} />
+            </span>
+          </button>
+        )}
+      </div>
     )
   }
 

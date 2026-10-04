@@ -15,9 +15,9 @@ import type { Video } from './types'
 /**
  * The keyboard, which is the only way to move the panes.
  *
- * There are no toggle buttons in the chrome. Every one of them was a control
- * standing in for a keystroke, taking permanent space to save a person who
- * already knows the keystroke nothing.
+ * The status bar carries a toggle for each pane, but only as a way to learn
+ * the keystroke: each names its key in its tooltip, and none of them takes
+ * space anywhere the work happens.
  *
  * The panes are numbered by where they are — ⌘1 left, ⌘2 below, ⌘3 right —
  * rather than named by what they hold. A number is a position, and a position

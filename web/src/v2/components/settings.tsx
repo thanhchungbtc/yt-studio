@@ -136,7 +136,7 @@ export function SettingsDialog() {
     >
       <Dialog.Header title="Settings" />
       <Dialog.Body bare>
-        <nav className="surface-band flex w-[196px] shrink-0 flex-col">
+        <nav className="flex w-[196px] shrink-0 flex-col">
           <div className="relative shrink-0 px-2.5 pt-1 pb-2">
             <Search
               className="pointer-events-none absolute top-1/2 left-[18px] size-[13px] -translate-y-1/2 text-tertiary"
@@ -147,11 +147,11 @@ export function SettingsDialog() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search"
-              className="control h-[24px] w-full pl-[22px] text-[12px]"
+              className="control h-[26px] w-full pl-[27px] text-[12px]"
             />
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+          <div className="scroll-edge min-h-0 flex-1 overflow-y-auto pb-2">
             {groups.map((name) => {
               const meta = GROUPS[name]
               const Icon = meta?.icon
@@ -166,17 +166,16 @@ export function SettingsDialog() {
                   }}
                   aria-current={selected}
                   className={cn(
-                    'mx-2 flex w-[calc(100%-16px)] items-center gap-2 rounded-[6px] px-2 py-[5px]',
-                    'text-left text-[12px] transition-colors',
-                    selected ? 'text-white' : 'text-primary hover:bg-[var(--hover)]',
+                    'mx-2 flex h-7 w-[calc(100%-16px)] items-center gap-2 rounded-[8px] px-2',
+                    'text-left text-[12.5px] transition-colors duration-100',
+                    selected ? 'row-selected text-primary' : 'text-secondary hover:bg-hover hover:text-primary',
                   )}
-                  style={selected ? { backgroundColor: 'var(--accent)' } : undefined}
                 >
                   {Icon ? (
                     <Icon
                       className={cn(
                         'size-[15px] shrink-0',
-                        selected ? 'text-white' : 'text-tertiary',
+                        selected ? 'text-accent' : 'text-tertiary',
                       )}
                       strokeWidth={1.75}
                     />
@@ -188,9 +187,9 @@ export function SettingsDialog() {
           </div>
         </nav>
 
-        <div className="seam-v shrink-0" />
+        <div className="seam-v my-2 shrink-0" />
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        <div className="scroll-edge min-h-0 flex-1 overflow-y-auto px-5 py-4">
           {settings.error ? (
             <p className="text-[12px] text-[var(--failed)]">{(settings.error as Error).message}</p>
           ) : null}

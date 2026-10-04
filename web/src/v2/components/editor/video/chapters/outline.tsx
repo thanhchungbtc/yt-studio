@@ -1,27 +1,22 @@
+import { useEffect, useRef } from 'react'
+
+import { count } from '../../../../core/format'
 import type { Chapter } from '../../../../core/types'
 import { cn } from '../../../../core/utils'
 
 /**
- * The table of contents, floating in the margin.
+ * The table of contents, as the reader's leading column.
  *
- * A card rather than a column, and the difference is the whole design. A column
- * divides the view and claims the full height whether or not it has anything to
- * put there; seven chapters is a short list, and a short list stretched down a
- * window is mostly empty rule. This is sized to what it holds and sits in space
- * the centred reading column was already leaving blank.
+ * It was a card floating in the margin once, sized to what it held. That suited
+ * seven chapters and nothing past them: a fifty-chapter video turned the card
+ * into a short window on a long list, sitting over a reader that had been
+ * narrowed to make room for it — so the margin it lived in was the space the
+ * text gave up, and the list still scrolled.
  *
- * It is outside the scroller, so it does not move at all while the content runs
- * past it — no sticking, no catching up. And it clears the pinned chapter band
- * above it rather than overlapping: the band is translucent, a card over it goes
- * muddy, and the two are answering different questions anyway. The band is the
- * chapter you are *in*; this is the map of all of them.
- *
- * The reader makes room for it rather than the card being squeezed into whatever
- * margin happens to be left over. Centring a 40rem column in a 900px reader
- * leaves 130px a side, and a 188px card dropped into that sits on the words — so
- * the scroller is padded by the card's footprint at the same width the card
- * appears at, and the column then centres inside what remains. The card still
- * floats; it is the text that steps aside.
+ * A column claims the full height, which for a long video is exactly what the
+ * list wants, and it gives the reader everything to its right without anything
+ * overlapping anything. It is hidden on a window too narrow for both, where the
+ * pinned chapter band alone says where you are.
  */
 export function ChapterOutline({
   chapters,
@@ -33,47 +28,66 @@ export function ChapterOutline({
   activeId: string | null
   onJump: (id: string) => void
 }) {
+  const list = useRef<HTMLDivElement>(null)
+
+  // The bar follows the reader, and the list follows the bar: on a long video
+  // the active row would otherwise scroll out of the column it is reporting in.
+  // `nearest`, so a row already in view does not move at all.
+  useEffect(() => {
+    if (!activeId) return
+    list.current
+      ?.querySelector<HTMLElement>(`[data-outline="${activeId}"]`)
+      ?.scrollIntoView({ block: 'nearest' })
+  }, [activeId])
+
   return (
     <nav
-      // Below the pinned band, and hidden until there is a margin to sit in.
-      className={cn(
-        'absolute top-[38px] left-3 z-10 hidden w-[188px] overflow-y-auto rounded-[8px] py-1',
-        'max-h-[60%] @[54rem]:block',
-      )}
-      // Raised rather than banded. `--band` is four percent black — fine over the
-      // chrome it was made for, and over a document it is a pane of glass with
-      // the script legible straight through it.
-      style={{
-        backgroundColor: 'var(--raised)',
-        boxShadow: '0 0 0 0.5px var(--separator-strong), 0 4px 14px -6px rgb(0 0 0 / 0.22)',
-      }}
+      aria-label="Chapters"
+      className="hairline-r hidden w-[220px] shrink-0 flex-col @[54rem]:flex"
     >
-      {chapters.map((chapter) => {
-        const active = chapter.id === activeId
-        return (
-          <button
-            key={chapter.id}
-            type="button"
-            onClick={() => onJump(chapter.id)}
-            className={cn(
-              'relative flex w-full items-baseline gap-2 py-[3px] pr-2.5 pl-3 text-left',
-              'text-[12px] transition-colors',
-              active ? 'text-primary' : 'text-secondary hover:text-primary',
-            )}
-          >
-            {/* Two pixels on the leading edge. A filled pill would say *you
-                chose this*; the outline is reporting where you are. */}
-            {active ? (
-              <span
-                className="absolute top-[3px] bottom-[3px] left-0 w-[2px] rounded-r-full"
-                style={{ backgroundColor: 'var(--accent)' }}
-              />
-            ) : null}
-            <span className="shrink-0 tabular-nums text-tertiary">{chapter.ordinal}</span>
-            <span className="min-w-0 flex-1 truncate">{chapter.title}</span>
-          </button>
-        )
-      })}
+      <div className="flex shrink-0 items-baseline gap-2 px-4 pt-2.5 pb-1.5">
+        <span className="text-[10px] font-semibold tracking-[0.07em] text-tertiary uppercase">
+          Chapters
+        </span>
+        <span className="ml-auto text-[11px] tabular-nums text-tertiary">
+          {count(chapters.length)}
+        </span>
+      </div>
+      <div ref={list} className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+        {chapters.map((chapter) => {
+          const active = chapter.id === activeId
+          return (
+            <button
+              key={chapter.id}
+              type="button"
+              data-outline={chapter.id}
+              aria-current={active ? 'location' : undefined}
+              onClick={() => onJump(chapter.id)}
+              className={cn(
+                'relative flex w-full items-baseline gap-2 rounded-[6px] py-[4px] pr-2 pl-2.5 text-left',
+                'text-[12px] transition-colors',
+                active
+                  ? 'bg-[var(--hover)] text-primary'
+                  : 'text-secondary hover:bg-[var(--hover)] hover:text-primary',
+              )}
+              title={chapter.title}
+            >
+              {/* Two pixels on the leading edge. A filled pill alone would say
+               *you chose this*; the bar is reporting where you are. */}
+              {active ? (
+                <span
+                  className="absolute top-[5px] bottom-[5px] left-0 w-[2px] rounded-r-full"
+                  style={{ backgroundColor: 'var(--accent)' }}
+                />
+              ) : null}
+              <span className="w-[1.5rem] shrink-0 text-right tabular-nums text-tertiary">
+                {chapter.ordinal}
+              </span>
+              <span className="min-w-0 flex-1 truncate">{chapter.title || 'Untitled'}</span>
+            </button>
+          )
+        })}
+      </div>
     </nav>
   )
 }

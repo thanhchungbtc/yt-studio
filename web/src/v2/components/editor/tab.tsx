@@ -31,7 +31,7 @@ export function EditorTab({ api, params }: IDockviewPanelHeaderProps<DocPanelPar
     <div
       data-tab-id={api.id}
       className={cn(
-        'group/tab flex h-full w-full items-center gap-2 pr-1.5 pl-3',
+        'group/tab flex h-full w-full max-w-60 min-w-0 items-center gap-1.5',
         active ? 'text-primary' : 'text-secondary',
       )}
       onDoubleClick={() => pinPreview(api.id)}
@@ -46,23 +46,23 @@ export function EditorTab({ api, params }: IDockviewPanelHeaderProps<DocPanelPar
         name={params.initial ?? params.title ?? '?'}
         seed={params.seed ?? api.id}
         icon={isNew ? Plus : undefined}
-        className={cn('size-5 text-[11px]', active ? '' : 'opacity-80')}
+        className={cn('size-4 text-[9px]', active ? '' : 'opacity-75')}
       />
       <span
-        className={cn('flex min-w-0 flex-1 items-baseline gap-1.5 text-[13px]', preview && 'italic')}
+        className={cn(
+          'flex min-w-0 flex-1 items-baseline gap-1.5 text-[12.5px]',
+          active && 'font-medium',
+          preview && 'italic',
+        )}
       >
         {/* Before the title, not after it.
 
             The title truncates from the end, so a trailing ref is the first
             thing dropped — and it goes exactly when the strip is crowded, which
             is when two tabs are hardest to tell apart in the first place.
-            Leading it, it survives every width.
-
-            Read off the doc rather than folded into `params.title`, so the
-            saved layout keeps storing a title and the editor's own fallback
-            does not inherit a decorated one. */}
+            Leading it, it survives every width. */}
         {doc?.kind === 'video' ? (
-          <span className="shrink-0 tabular-nums text-tertiary">{doc.ref}</span>
+          <span className="shrink-0 font-normal tabular-nums text-tertiary">{doc.ref}</span>
         ) : null}
         <span className="min-w-0 truncate">{params.title ?? api.title}</span>
       </span>
@@ -75,12 +75,12 @@ export function EditorTab({ api, params }: IDockviewPanelHeaderProps<DocPanelPar
           api.close()
         }}
         className={cn(
-          'flex size-[18px] shrink-0 items-center justify-center rounded-[4px]',
-          'hover:bg-[var(--hover)] hover:text-primary',
-          active || hovered ? 'opacity-100' : 'opacity-0',
+          'ml-0.5 flex size-4 shrink-0 items-center justify-center rounded-full transition-opacity duration-100',
+          'hover:bg-hover hover:!opacity-100',
+          hovered ? 'opacity-70' : active ? 'opacity-50' : 'opacity-0',
         )}
       >
-        <X className="size-[13px]" strokeWidth={2} />
+        <X className="size-3" strokeWidth={2.2} />
       </button>
     </div>
   )

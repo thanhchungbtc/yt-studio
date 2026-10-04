@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useId, useMemo, useRef, useState } from 'react'
+import { useDeferredValue, useId, useMemo, useRef, useState } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { create } from 'zustand'
 
 import { api, qk } from '../core/api'
+import { uuid } from '../core/utils'
 import { count } from '../core/format'
 import { openDoc } from './editor/dock'
 import { Button } from './ui/button'
@@ -374,7 +375,7 @@ export function NewFromBlueprintDialog() {
   // Minted per dialog session, so a double submit is a no-op rather than a
   // second video — including the resubmit of a request that timed out on the
   // way back after the server had already made one.
-  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID())
+  const [idempotencyKey, setIdempotencyKey] = useState(() => uuid())
 
   const editor = useRef<HTMLTextAreaElement>(null)
 
@@ -383,7 +384,12 @@ export function NewFromBlueprintDialog() {
   // wrong channel selected, and this is derived state, not a subscription.
   const selected = channel || from || channels.data?.[0]?.slug || ''
 
-  const parsed = useMemo(() => (json.trim() === '' ? null : parseOutline(json)), [json])
+  // Parsed behind the keystroke rather than in the same pass. The text field is
+  // what the hand is on, and a five-hundred-chapter outline is a parse and a
+  // preview to redraw — done inline, every character waited for both. The
+  // preview catches up a moment later, and is never shown half-made.
+  const parsing = useDeferredValue(json)
+  const parsed = useMemo(() => (parsing.trim() === '' ? null : parseOutline(parsing)), [parsing])
 
   /**
    * The last outline that parsed, which is what the right-hand pane draws.
@@ -397,7 +403,7 @@ export function NewFromBlueprintDialog() {
    * A ref written during render rather than an effect, because an effect would
    * leave the preview one keystroke behind the text that produced it, which is
    * the one thing a live preview may not be. The write is a pure function of
-   * `json`, so a double render produces the same value.
+   * the parsed text, so a double render produces the same value.
    */
   const held = useRef<Outline | null>(null)
   if (parsed?.ok) held.current = parsed.outline
@@ -442,7 +448,7 @@ export function NewFromBlueprintDialog() {
       // how this operator shapes videos, and clearing them would make every
       // second one a form to fill in again.
       setJson('')
-      setIdempotencyKey(crypto.randomUUID())
+      setIdempotencyKey(uuid())
       openDoc({ kind: 'video', ref: video.ref }, video.title || 'Untitled', {
         seed: owner?.slug,
         initial: owner?.name,
@@ -451,6 +457,8 @@ export function NewFromBlueprintDialog() {
   })
 
   const ready =
+    // Never submit a reading of text that has since changed.
+    parsing === json &&
     outline !== null &&
     !stale &&
     outline.blockers.length === 0 &&

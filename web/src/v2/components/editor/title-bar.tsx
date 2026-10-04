@@ -19,9 +19,10 @@ interface EditorTitleBarProps {
 /**
  * The strip a document wears above itself: what this is, and how it is doing.
  *
- * Translucent and outside the document's own surface, because it is chrome —
- * which is also why it is a drag region, and why the window can be picked up
- * from the widest piece of it on screen.
+ * It sits on the card, above the document, and is separated from it by a
+ * hairline in calm materials and by nothing at all with Liquid Glass — the
+ * content scrolls away beneath it instead. It is chrome, which is also why it
+ * is a drag region.
  */
 export function EditorTitleBar({
   title,
@@ -33,21 +34,23 @@ export function EditorTitleBar({
   actions,
 }: EditorTitleBarProps) {
   return (
-    <DragRegion className="surface-chrome hairline-b flex h-[50px] shrink-0 items-center gap-2.5 px-3.5">
+    <DragRegion className="edge-line relative z-[1] flex h-[48px] shrink-0 items-center gap-2.5 px-4">
       <Avatar name={initial ?? title} seed={seed ?? title} icon={icon} className="size-7" />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] font-semibold text-primary">{title}</div>
+        <div className="truncate text-[13px] leading-tight font-semibold tracking-[-0.005em] text-primary">
+          {title}
+        </div>
         {status ? (
-          <div className="flex items-center gap-1.5 text-[11px] text-secondary">
+          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-secondary">
             <span
-              className="size-[7px] shrink-0 rounded-full"
+              className="size-1.5 shrink-0 rounded-full"
               style={{ backgroundColor: statusColor ?? 'var(--accent)' }}
             />
             <span className="truncate">{status}</span>
           </div>
         ) : null}
       </div>
-      {actions}
+      {actions ? <div className="flex shrink-0 items-center gap-1.5">{actions}</div> : null}
     </DragRegion>
   )
 }

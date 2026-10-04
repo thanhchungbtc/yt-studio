@@ -1,13 +1,15 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Play } from 'lucide-react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { api, qk } from '../../../../core/api'
 import { count, duration } from '../../../../core/format'
 import type { Chapter } from '../../../../core/types'
 import { cn } from '../../../../core/utils'
 import { Button } from '../../../ui/button'
+import { NearbyProvider, useNear, useNearbyRoot } from '../../../ui/nearby'
 import { Mark } from '../mark'
-import { chapterSeconds, stagesByChapter, wordsIn, type Cell } from '../stages'
+import { chapterSeconds, useChapterStages, wordsIn, type Cell } from '../stages'
 import type { ViewProps } from '../view'
 import { ClipViewer } from './clip-viewer'
 import { ChapterOutline } from './outline'
@@ -44,6 +46,9 @@ interface Shown {
 
 const ALL_SHOWN: Shown = { script: true, narration: true, slides: true, clip: true }
 
+/** One empty list, so a chapter without stages does not defeat the memo. */
+const NO_CELLS: Cell[] = []
+
 const SECTIONS: readonly { key: keyof Shown; label: string }[] = [
   { key: 'script', label: 'Script' },
   { key: 'narration', label: 'Narration' },
@@ -75,10 +80,7 @@ export function ChaptersView({ video, chapters, tasks }: ViewProps) {
   // Only for the empty slots: a missing picture is either one that has not been
   // drawn or one that failed, and a blank box that cannot tell you which is a
   // blank box you have to go to the other view to understand.
-  const stages = useMemo(
-    () => stagesByChapter(chapters, tasks, slidesPerChapter),
-    [chapters, tasks, slidesPerChapter],
-  )
+  const stages = useChapterStages(chapters, tasks, slidesPerChapter)
 
   // Not persisted, for the reason the mode above it is not: a tab that reopened
   // with the slides hidden, by a choice you had forgotten making, reads as a
@@ -90,6 +92,16 @@ export function ChaptersView({ video, chapters, tasks }: ViewProps) {
   const [viewing, setViewing] = useState<Viewing | null>(null)
 
   const scroller = useRef<HTMLDivElement>(null)
+  const { root: nearbyRoot, watch } = useNearbyRoot()
+  // The reader's scroller is read directly (the jump, the scroll-spy) and is
+  // also the root the chapters measure their distance from.
+  const setScroller = useCallback(
+    (element: HTMLDivElement | null) => {
+      scroller.current = element
+      nearbyRoot(element)
+    },
+    [nearbyRoot],
+  )
   const [active, setActive] = useState<string | null>(null)
 
   /*
@@ -148,9 +160,21 @@ export function ChaptersView({ video, chapters, tasks }: ViewProps) {
   }, [viewing, chapters, stages])
 
   const jump = (id: string) => {
-    scroller.current
-      ?.querySelector<HTMLElement>(`[data-chapter="${id}"]`)
-      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    const root = scroller.current
+    const target = root?.querySelector<HTMLElement>(`[data-chapter="${id}"]`)
+    if (!root || !target) return
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    // Chapters off screen are not laid out until they come into view, so the
+    // distance to a far one is an estimate until the scroll gets there. Once it
+    // settles, the landing is checked and corrected without animation.
+    const settle = () => {
+      root.removeEventListener('scrollend', settle)
+      window.clearTimeout(timer)
+      const off = target.getBoundingClientRect().top - root.getBoundingClientRect().top
+      if (Math.abs(off) > 2) target.scrollIntoView({ block: 'start' })
+    }
+    root.addEventListener('scrollend', settle)
+    const timer = window.setTimeout(settle, 900)
   }
 
   if (chapters.length === 0) {
@@ -164,26 +188,27 @@ export function ChaptersView({ video, chapters, tasks }: ViewProps) {
   }
 
   return (
-    // `@container` so the card can take itself away when the window is too
-    // narrow to have a margin for it to sit in. On the column rather than the
-    // row, so the filter bar can indent by the card's width too and line up
-    // with the chapter bands under it.
-    <div className="@container flex min-h-0 flex-1 flex-col">
-      <FilterBar shown={shown} onToggle={(key) => setShown((s) => ({ ...s, [key]: !s[key] }))} />
-      <div className="relative flex min-h-0 flex-1">
-        <ChapterOutline chapters={chapters} activeId={active} onJump={jump} />
-        {/* The card's footprint, reserved at exactly the width the card appears
-            at, so the two can never disagree about whether there is room. */}
-        <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto @[54rem]:pl-[216px]">
-          {chapters.map((chapter) => (
-            <ChapterBlock
-              key={chapter.id}
-              chapter={chapter}
-              slides={stages.get(chapter.id)?.slides ?? []}
-              shown={shown}
-              onView={setViewing}
-            />
-          ))}
+    // `@container` so the outline can take itself away when the window is too
+    // narrow for a column of it beside the reader.
+    <div className="@container flex min-h-0 flex-1">
+      <ChapterOutline chapters={chapters} activeId={active} onJump={jump} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <FilterBar shown={shown} onToggle={(key) => setShown((s) => ({ ...s, [key]: !s[key] }))} />
+        {/* A container of its own, so a chapter lays its script and its media
+            side by side against the reader's width rather than the window's. */}
+        <div ref={setScroller} className="@container/reader min-h-0 flex-1 overflow-y-auto">
+          <NearbyProvider value={watch}>
+            {chapters.map((chapter, index) => (
+              <ChapterBlock
+                key={chapter.id}
+                chapter={chapter}
+                eager={index < EAGER}
+                slides={stages.get(chapter.id)?.slides ?? NO_CELLS}
+                shown={shown}
+                onView={setViewing}
+              />
+            ))}
+          </NearbyProvider>
         </div>
       </div>
       {open ? (
@@ -204,20 +229,19 @@ export function ChaptersView({ video, chapters, tasks }: ViewProps) {
 }
 
 /**
- * The column everything in a chapter lines up in, and why it is not the width
- * of the window.
+ * The column everything in a chapter lines up in.
  *
- * A line stops being readable somewhere past ninety characters — the eye loses
- * the return sweep and starts re-reading lines it has already had — and this
- * window is twice that wide. So the column is capped, and *centred*, with the
- * band headers running full width across it.
- *
- * The centring is the part that was wrong before. Capped and left-aligned puts
- * the whole remainder on one side, which reads as something having failed to
- * fill it; the same cap centred reads as deliberate. Nothing about the measure
- * changed, only which side the leftover is on.
+ * It used to be a 40rem measure centred in the reader, which kept the script
+ * readable and left two thirds of a wide window empty. The measure belongs to
+ * the *script* and nothing else, so it is the script that carries it now: on a
+ * wide reader a chapter is two columns, the script at a readable width and the
+ * narration, slides and clip beside it, and this cap only stops the pair from
+ * drifting apart on a very large display.
  */
-const COLUMN = 'mx-auto w-full max-w-[40rem]'
+const COLUMN = 'mx-auto w-full max-w-[84rem]'
+
+/** The script's own measure, for when it has the chapter to itself. */
+const MEASURE = 'max-w-[52rem]'
 
 /**
  * The script as a bounded panel of machine text.
@@ -251,7 +275,7 @@ const COLUMN = 'mx-auto w-full max-w-[40rem]'
  */
 function FilterBar({ shown, onToggle }: { shown: Shown; onToggle: (key: keyof Shown) => void }) {
   return (
-    <div className="hairline-b shrink-0 @[54rem]:pl-[216px]">
+    <div className="hairline-b shrink-0">
       <div className="px-6 py-2">
         <div className={cn(COLUMN, 'flex items-center gap-1.5')}>
           <span className="mr-1 text-[10px] font-semibold tracking-[0.07em] text-tertiary uppercase">
@@ -284,7 +308,7 @@ function FilterBar({ shown, onToggle }: { shown: Shown; onToggle: (key: keyof Sh
 }
 
 const SCRIPT = [
-  'max-h-[19rem] overflow-y-auto',
+  'max-h-[24rem] overflow-y-auto',
   'rounded-[7px] px-3.5 py-3',
   'font-mono text-[12px] leading-[1.65] whitespace-pre-wrap',
   'text-primary',
@@ -295,18 +319,47 @@ const PANEL = {
   boxShadow: '0 0 0 0.5px var(--separator)',
 }
 
-function ChapterBlock({
+/** How many chapters draw in full before the observer has said anything. */
+const EAGER = 4
+
+/** The stand-in height for a body that has never been drawn. */
+const ESTIMATE = 520
+
+/**
+ * One chapter of the reader.
+ *
+ * Memoised: its chapter and its slide cells keep their identity until something
+ * in this chapter moves, so a frame that lands a slide in chapter 12 redraws
+ * chapter 12 rather than every script on the page.
+ */
+const ChapterBlock = memo(function ChapterBlock({
   chapter,
+  eager,
   slides,
   shown,
   onView,
 }: {
   chapter: Chapter
+  /** Drawn in full from the first frame: the chapters the reader opens on. */
+  eager: boolean
   slides: Cell[]
   shown: Shown
   onView: (viewing: Viewing) => void
 }) {
   const words = wordsIn(chapter.script)
+  const section = useRef<HTMLElement>(null)
+  const inner = useRef<HTMLDivElement>(null)
+  const near = useNear(section, eager, () => {
+    const measured = inner.current?.offsetHeight ?? 0
+    if (measured > 0) height.current = measured
+  })
+  // The height the body last drew at, held for the spacer that stands in for
+  // it while it is away, so the scroll does not jump when it comes back.
+  const height = useRef<number | null>(null)
+  // A body that has been pressed or focused stays drawn: it may be playing its
+  // narration or holding an unsaved edit, and taking it away would end both.
+  const [engaged, setEngaged] = useState(false)
+  const drawn = near || engaged
   // Held here rather than up in the reader: the button that opens it is in this
   // component, so there is nothing to thread, and a chapter has one clip.
   const [playing, setPlaying] = useState(false)
@@ -314,14 +367,19 @@ function ChapterBlock({
   // The script part draws either way — it says so when a chapter has none — so
   // it alone is enough to keep the body. The other three have nothing to say
   // about an artifact that does not exist.
-  const body =
-    shown.script ||
-    (shown.narration && chapter.audioAssetId) ||
-    (shown.slides && slides.length > 0) ||
-    (shown.clip && chapter.clipAssetId)
+  const narration = shown.narration && !!chapter.audioAssetId
+  const pictures = shown.slides && slides.length > 0
+  const clip = shown.clip && !!chapter.clipAssetId
+  const media = narration || pictures || clip
+  const body = shown.script || media
+  // Two columns only when there is something for each of them; a script alone
+  // keeps its measure, and media alone takes the width a contact sheet wants.
+  const split = shown.script && media
 
   return (
-    <section data-chapter={chapter.id}>
+    // `chapter-section` lets the browser skip laying out and painting the
+    // chapters that are off screen — a long video is mostly off screen.
+    <section ref={section} data-chapter={chapter.id} className="chapter-section">
       {/*
         Sticky, and the only thing in this view that is. Eight chapters down a
         scroll the question is always which chapter this is, and a header that
@@ -350,55 +408,62 @@ function ChapterBlock({
       {/* Hidden whole rather than left empty: with every section switched off a
           chapter is its header alone, and thirty-two rems of padding under each
           one would turn a table of contents into a column of gaps. */}
-      {body ? (
-        <div className="px-6 pt-5 pb-12">
-          <div className={cn(COLUMN, 'flex flex-col gap-7')}>
-            {shown.script ? <ScriptPart chapter={chapter} /> : null}
-
-            {shown.narration && chapter.audioAssetId ? (
-              <Part label="Narration">
-                {/*
-                The platform control, not one built here. It arrives knowing how
-                to seek, how to answer the keyboard and where the system volume
-                goes, and the asset handler serves ranges, so scrubbing works.
-
-                `preload="none"` is load-bearing rather than tidy. Narration is
-                served as WAV, which is uncompressed — call it ten megabytes a
-                minute — so seven chapters of players that fetch on sight would
-                pull the better part of a hundred megabytes for a page nobody
-                has pressed play on yet.
-              */}
-                <audio
-                  controls
-                  preload="none"
-                  src={`/assets/${chapter.audioAssetId}`}
-                  className="h-[32px] w-full"
-                />
-              </Part>
+      {body && !drawn ? <div aria-hidden style={{ height: height.current ?? ESTIMATE }} /> : null}
+      {body && drawn ? (
+        <div
+          ref={inner}
+          className="px-6 pt-5 pb-10"
+          onPointerDownCapture={() => setEngaged(true)}
+          onFocusCapture={() => setEngaged(true)}
+        >
+          <div
+            className={cn(
+              COLUMN,
+              'grid gap-x-8 gap-y-7',
+              split && '@[60rem]/reader:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]',
+            )}
+          >
+            {shown.script ? (
+              <div className={cn('min-w-0', !split && MEASURE)}>
+                <ScriptPart chapter={chapter} />
+              </div>
             ) : null}
 
-            {shown.slides && slides.length > 0 ? (
-              <Part label="Slides">
-                <div className="flex flex-wrap gap-2.5">
-                  {slides.map((cell, slot) => (
-                    <Slide
-                      key={slot}
-                      cell={cell}
-                      id={chapter.slideAssetIds[slot]}
-                      slot={slot}
-                      onView={() => onView({ chapterId: chapter.id, slot })}
+            {media ? (
+              <div className="flex min-w-0 flex-col gap-7">
+                {narration ? (
+                  <Part label="Narration">
+                    <Narration
+                      assetId={chapter.audioAssetId ?? ''}
+                      seconds={chapter.audioDurationSeconds}
                     />
-                  ))}
-                </div>
-              </Part>
-            ) : null}
+                  </Part>
+                ) : null}
 
-            {shown.clip && chapter.clipAssetId ? (
-              <Part label="Clip">
-                <Button className="self-start" onClick={() => setPlaying(true)}>
-                  Play clip
-                </Button>
-              </Part>
+                {pictures ? (
+                  <Part label="Slides">
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-2.5">
+                      {slides.map((cell, slot) => (
+                        <Slide
+                          key={slot}
+                          cell={cell}
+                          id={chapter.slideAssetIds[slot]}
+                          slot={slot}
+                          onView={() => onView({ chapterId: chapter.id, slot })}
+                        />
+                      ))}
+                    </div>
+                  </Part>
+                ) : null}
+
+                {clip ? (
+                  <Part label="Clip">
+                    <Button className="self-start" onClick={() => setPlaying(true)}>
+                      Play clip
+                    </Button>
+                  </Part>
+                ) : null}
+              </div>
             ) : null}
           </div>
         </div>
@@ -413,7 +478,7 @@ function ChapterBlock({
       ) : null}
     </section>
   )
-}
+})
 
 /**
  * One of the three things a chapter is made of, with its name over it.
@@ -512,13 +577,13 @@ function ScriptPart({ chapter }: { chapter: Chapter }) {
     >
       {/* Same metrics as the `pre` it replaces, so the words do not move when
           the mode changes. A minimum height rather than the panel's cap: an
-          edit is worth more room than a read, and a box that scrolls at nineteen
+          edit is worth more room than a read, and a box that scrolls at twenty-four
           rem while you are writing in it is the wrong trade. */}
       <textarea
         autoFocus
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
-        className={cn(SCRIPT, 'max-h-none min-h-[19rem] w-full resize-y outline-none')}
+        className={cn(SCRIPT, 'max-h-none min-h-[24rem] w-full resize-y outline-none')}
         style={{ ...PANEL, boxShadow: '0 0 0 1px var(--accent)' }}
       />
       {save.error ? (
@@ -527,6 +592,63 @@ function ScriptPart({ chapter }: { chapter: Chapter }) {
         </p>
       ) : null}
     </Part>
+  )
+}
+
+/**
+ * A chapter's narration: a stand-in until it is pressed, the platform player
+ * after.
+ *
+ * The player is the platform's own — it knows how to seek, how to answer the
+ * keyboard and where the system volume goes, and the asset handler serves
+ * ranges, so scrubbing works. But WebKit builds every player's controls in
+ * script, and a reader of eighty narrated chapters built eighty of them on the
+ * click that opened it: measured, two seconds of a frozen window. So nothing is
+ * built until someone asks to listen, and the press that asks is the one that
+ * starts it — the stand-in is the same height, so nothing moves when it swaps.
+ *
+ * Fetched on the press and not before. Narration is served as WAV, ten
+ * megabytes a minute, and a page of players that fetched on sight would pull
+ * the better part of a hundred megabytes for a page nobody has played.
+ */
+function Narration({ assetId, seconds }: { assetId: string; seconds: number }) {
+  const [live, setLive] = useState(false)
+  if (live) {
+    return (
+      <audio
+        controls
+        autoPlay
+        preload="auto"
+        src={`/assets/${assetId}`}
+        className="h-[32px] w-full"
+      />
+    )
+  }
+  return (
+    <button
+      type="button"
+      // On the press, not the release, so the player is there and starting by
+      // the time the hand lifts.
+      onPointerDown={(event) => {
+        if (event.button === 0) setLive(true)
+      }}
+      onClick={() => setLive(true)}
+      aria-label="Play narration"
+      className="group/play flex h-[32px] w-full items-center gap-2.5 rounded-full px-1 text-left"
+      style={PANEL}
+    >
+      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-white transition-transform duration-100 group-hover/play:scale-105">
+        <Play className="ml-px size-3 fill-current" strokeWidth={0} />
+      </span>
+      <span className="text-[12px] font-medium text-secondary group-hover/play:text-primary">
+        Play
+      </span>
+      {seconds > 0 ? (
+        <span className="ml-auto pr-3 text-[11.5px] tabular-nums text-tertiary">
+          {duration(seconds)}
+        </span>
+      ) : null}
+    </button>
   )
 }
 
@@ -553,8 +675,11 @@ function Part({
   )
 }
 
-/** 1344×768 is what the composer frames a slide at; 1.75 is that, small. */
-const TILE = 'h-[112px] w-[196px] shrink-0 rounded-[6px]'
+/**
+ * 1344×768 is what the composer frames a slide at. The width is the grid's, so
+ * the tiles grow with the column instead of leaving a ragged gap at its end.
+ */
+const TILE = 'aspect-[1344/768] w-full rounded-[6px]'
 
 /**
  * One slot, whether or not it has a picture in it.

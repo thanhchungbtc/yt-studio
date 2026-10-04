@@ -1,3 +1,5 @@
+import { useMemo, useRef } from 'react'
+
 import type { Chapter, GateKind, Task, TaskKind, Video } from '../../../core/types'
 
 /**
@@ -121,6 +123,51 @@ export function staleChapterIds(stages: Map<string, ChapterStages>): Set<string>
   return found
 }
 
+function sameCell(a: Cell, b: Cell): boolean {
+  return a.state === b.state && a.stale === b.stale && a.task === b.task
+}
+
+function sameStages(a: ChapterStages, b: ChapterStages): boolean {
+  return (
+    sameCell(a.script, b.script) &&
+    sameCell(a.narration, b.narration) &&
+    sameCell(a.clip, b.clip) &&
+    a.slides.length === b.slides.length &&
+    a.slides.every((cell, slot) => sameCell(cell, b.slides[slot] as Cell))
+  )
+}
+
+/**
+ * `stagesByChapter`, keeping the previous object for every chapter nothing moved
+ * in.
+ *
+ * Under a running pipeline a frame lands several times a second and touches one
+ * or two tasks. Rebuilt from scratch, every chapter's stages would be a new
+ * object and every memoised row would redraw for a change in somebody else's
+ * row. Reused, a row's props are identical unless its own cells changed — and
+ * a task object is itself only replaced when something in it did, which is
+ * what makes the comparison by identity sound.
+ */
+export function useChapterStages(
+  chapters: Chapter[],
+  tasks: Task[],
+  slidesPerChapter: number,
+): Map<string, ChapterStages> {
+  const previous = useRef<Map<string, ChapterStages> | null>(null)
+  return useMemo(() => {
+    const next = stagesByChapter(chapters, tasks, slidesPerChapter)
+    const before = previous.current
+    if (before) {
+      for (const [id, stages] of next) {
+        const old = before.get(id)
+        if (old && sameStages(old, stages)) next.set(id, old)
+      }
+    }
+    previous.current = next
+    return next
+  }, [chapters, tasks, slidesPerChapter])
+}
+
 /**
  * Indexes every task by the chapter and slot it belongs to, once per render of
  * the table rather than once per row. Forty rows each filtering a 300-task list
@@ -215,8 +262,23 @@ export function chapterSeconds(chapter: Chapter): number {
 
 /** Words in a written script. The blueprint's estimate is what it is compared to. */
 export function wordsIn(script: string): number {
-  const trimmed = script.trim()
-  return trimmed ? trimmed.split(/\s+/).length : 0
+  // Counted in place rather than split: every script of a fifty-chapter video
+  // is counted on every pass over the table, and a split builds an array of
+  // every word in it only to read its length.
+  let words = 0
+  let inWord = false
+  for (let i = 0; i < script.length; i++) {
+    const code = script.charCodeAt(i)
+    // What `\s` matches, short of the rare Unicode spaces.
+    const space =
+      code === 32 || (code >= 9 && code <= 13) || code === 160 || code === 0x3000 || code === 0xfeff
+    if (space) inWord = false
+    else if (!inWord) {
+      inWord = true
+      words++
+    }
+  }
+  return words
 }
 
 /**

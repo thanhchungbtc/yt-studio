@@ -1,26 +1,36 @@
-import { Settings } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { PanelBottom, PanelLeft, PanelRight, Settings } from 'lucide-react'
 
 import { useScheduler } from '../core/events'
 import type { PoolStat } from '../core/types'
+import { cn } from '../core/utils'
+import { useWorkbench } from '../store/workbench'
 import { openSettings } from './settings'
-import { HeaderButton } from './ui/header-button'
+import { DragRegion } from './ui/drag-region'
+import { Tooltip } from './ui/tooltip'
 
 /**
- * The status bar.
+ * The status bar: the floor the cards stand on.
  *
- * Full-width and in the same material as every other pane, so it reads as the
- * floor the window stands on rather than as a strip bolted to the bottom.
+ * No card of its own — it sits straight on the window's material, below the
+ * last gap, so it reads as part of the window rather than as another pane.
  *
  * What lives here is ambient state — about the application, not about anything
  * you have open — which is why the pools are here and not in the video editor.
  * A pool is shared by every video at once; showing it beside one of them would
  * say it belonged to that one.
+ *
+ * The pane toggles on the trailing edge are the keystrokes made visible: each
+ * one names its key in its tooltip, so the keyboard is learnable from here.
  */
 export function StatusBar() {
   const scheduler = useScheduler()
+  const primary = useWorkbench((s) => s.primaryVisible)
+  const bottom = useWorkbench((s) => s.bottomVisible)
+  const secondary = useWorkbench((s) => s.secondaryVisible)
 
   return (
-    <footer className="surface-chrome hairline-t flex h-[24px] shrink-0 items-center gap-3 px-3">
+    <DragRegion className="flex h-7 shrink-0 items-center gap-3 px-3 text-[11px] text-tertiary">
       {/* Clipped rather than crowding: six meters are wider than a narrow
           window, and the thing that must never be pushed off the edge is the
           control, not the readout. */}
@@ -29,13 +39,64 @@ export function StatusBar() {
           <Meter key={pool.pool} pool={pool} />
         ))}
       </div>
-      <HeaderButton
-        icon={Settings}
-        label="Settings"
-        onClick={openSettings}
-        className="-mr-1 size-[18px]"
-      />
-    </footer>
+      <div className="-mr-1.5 flex shrink-0 items-center gap-0.5">
+        <Toggle
+          icon={PanelLeft}
+          label="Toggle Library"
+          shortcut="⌘1"
+          active={primary}
+          onClick={() => useWorkbench.getState().togglePrimary()}
+        />
+        <Toggle
+          icon={PanelBottom}
+          label="Toggle Console"
+          shortcut="⌘2"
+          active={bottom}
+          onClick={() => useWorkbench.getState().toggleBottom()}
+        />
+        <Toggle
+          icon={PanelRight}
+          label="Toggle Inspector"
+          shortcut="⌘3"
+          active={secondary}
+          onClick={() => useWorkbench.getState().toggleSecondary()}
+        />
+        <span className="mx-1 h-3 w-px bg-line-strong" />
+        <Toggle icon={Settings} label="Settings" shortcut="⌘," onClick={openSettings} />
+      </div>
+    </DragRegion>
+  )
+}
+
+/** A compact icon toggle: bright while its pane is showing. */
+function Toggle({
+  icon: Icon,
+  label,
+  shortcut,
+  active,
+  onClick,
+}: {
+  icon: LucideIcon
+  label: string
+  shortcut: string
+  active?: boolean
+  onClick: () => void
+}) {
+  return (
+    <Tooltip content={label} shortcut={shortcut} side="top">
+      <button
+        type="button"
+        aria-label={label}
+        aria-pressed={active}
+        onClick={onClick}
+        className={cn(
+          'flex size-6 items-center justify-center rounded-md transition-colors duration-100 hover:bg-hover hover:text-primary',
+          active === false ? 'text-fg-faint' : 'text-secondary',
+        )}
+      >
+        <Icon className="size-3.5" strokeWidth={1.9} />
+      </button>
+    </Tooltip>
   )
 }
 
@@ -47,7 +108,7 @@ export function StatusBar() {
  * say. The number is the value, which is what you need the moment you go to
  * change a limit, and no bar has ever told anyone whether it meant two or three.
  *
- * Grey is idle, blue is working, amber is full — three states you take in
+ * Grey is idle, the accent is working, amber is full — three states you take in
  * before reading a digit. Amber is not an alarm: a saturated pool is the
  * pipeline using what it was given. It is the row worth acting on, because its
  * limit is the thing standing between you and a faster run.
@@ -77,7 +138,7 @@ function Meter({ pool }: { pool: PoolStat }) {
 
       <span
         className="block h-[4px] w-[18px] overflow-hidden rounded-full"
-        style={{ backgroundColor: 'var(--idle-selection)' }}
+        style={{ backgroundColor: 'var(--active)' }}
       >
         <span
           className="block h-full rounded-full transition-[width,background-color] duration-200 ease-out"

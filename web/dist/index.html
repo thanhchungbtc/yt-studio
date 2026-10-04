@@ -13,12 +13,12 @@
         because the class is not on the element until the bundle has run — which
         is also why `class="dark"` is no longer hardcoded here.
 
-        The two values are --window from the stylesheet, so the pre-paint and the
+        The two values are --window-solid from the stylesheet, so the pre-paint and the
         first real paint are the same colour and there is no step between them.
       */
-      html { background: #e8e8ea; }
+      html { background: #e4e4e9; }
       @media (prefers-color-scheme: dark) {
-        html { background: #1c1c1e; }
+        html { background: #121215; }
       }
       /*
         Except in the desktop window, where the flash to avoid is the opposite
@@ -27,10 +27,10 @@
         then dissolve. The class is added by a user script at document start,
         before this stylesheet has anything to paint.
       */
-      html.yts-vibrancy, html.yts-vibrancy body { background: transparent; }
+      html.yts-vibrancy { background: transparent; }
     </style>
-    <script type="module" crossorigin src="/app/index-0yyYxQVR.js"></script>
-    <link rel="stylesheet" crossorigin href="/app/index-abgN1Za9.css">
+    <script type="module" crossorigin src="/app/index-c_Iv0mrb.js"></script>
+    <link rel="stylesheet" crossorigin href="/app/index-7GFZV7sy.css">
   </head>
   <body>
     <div id="root"></div>

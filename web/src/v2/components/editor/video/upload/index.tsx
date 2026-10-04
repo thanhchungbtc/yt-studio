@@ -52,7 +52,7 @@ export function UploadView({ video, chapters, tasks }: ViewProps) {
 
       {anything ? (
         <div className="flex min-h-0 flex-1">
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="scroll-edge min-h-0 flex-1 overflow-y-auto">
             <Listing
               video={video}
               playerRef={player}
@@ -64,7 +64,7 @@ export function UploadView({ video, chapters, tasks }: ViewProps) {
           {/* Fixed. The list is a fixed amount of information — an ordinal, a
               title and a time per chapter — so width past what that needs would
               be taken from the thing being published. */}
-          <div className="hairline-l min-h-0 w-[276px] shrink-0 overflow-y-auto">
+          <div className="scroll-edge hairline-l min-h-0 w-[276px] shrink-0 overflow-y-auto">
             <ChapterList
               chapters={chapters}
               offsets={video.chapterOffsets}

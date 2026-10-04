@@ -12,6 +12,11 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 15_000,
+      // Kept well past the default five minutes. Coming back to a video you
+      // looked at earlier should draw from memory and refresh behind the
+      // picture, not start again from a blank document — and the stream keeps
+      // what is held current in the meantime.
+      gcTime: 30 * 60_000,
       refetchOnWindowFocus: false,
       retry: (failureCount, error) => {
         const status = (error as { status?: number }).status

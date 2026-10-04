@@ -1,9 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Check, Copy, Upload } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 
 import { api, qk } from '../../core/api'
 import type { Video } from '../../core/types'
+import { useVideoDoc } from '../../core/queries'
 import { useDock } from '../editor/dock'
 import { Mark } from '../editor/video/mark'
 import { useStageMenu } from '../editor/video/pipeline/regenerate'
@@ -41,24 +42,9 @@ function VideoPipeline({ videoRef }: { videoRef: string }) {
   // The same three keys the editor uses, deliberately. Two panes asking the
   // same questions of one cache is one fetch and one answer; a private key here
   // would be a second copy of the video that drifts from the one on screen.
-  const video = useQuery({
-    queryKey: qk.video(videoRef),
-    queryFn: () => api.getVideo(videoRef),
-    enabled: Boolean(videoRef),
-  })
-  const id = video.data?.id
-  const chapters = useQuery({
-    queryKey: qk.chapters(id ?? ''),
-    queryFn: () => api.listChapters(videoRef),
-    enabled: Boolean(id),
-  })
-  const tasks = useQuery({
-    queryKey: qk.tasks(id ?? ''),
-    queryFn: () => api.listTasks(videoRef),
-    enabled: Boolean(id),
-  })
+  const { video, chapters, tasks, ready } = useVideoDoc(videoRef)
 
-  const data = video.data
+  const data = ready ? video.data : undefined
   const stages = useMemo(
     () => (data ? pipelineStages(data, chapters.data ?? [], tasks.data ?? []) : []),
     [data, chapters.data, tasks.data],
@@ -94,7 +80,7 @@ function VideoPipeline({ videoRef }: { videoRef: string }) {
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto py-1.5">
+    <div className="scroll-edge min-h-0 flex-1 overflow-y-auto py-1.5">
       {/* What this is the pipeline of.
 
           The pane follows the front tab and used to say so nowhere, so

@@ -1,14 +1,30 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from 'react'
 
 import { api, qk, type ChapterPlan } from '../../../../core/api'
 import { count, duration } from '../../../../core/format'
 import type { Chapter, Task } from '../../../../core/types'
 import { cn } from '../../../../core/utils'
 import { Clamped } from '../../../ui/clamped'
+import { NearbyProvider, useNear, useNearbyRoot } from '../../../ui/nearby'
 import type { MenuItem } from '../../../ui/menu'
 import { Mark } from '../mark'
-import { columnTotals, projectedSeconds, stagesByChapter, type Cell } from '../stages'
+import {
+  columnTotals,
+  projectedSeconds,
+  useChapterStages,
+  type Cell,
+  type ChapterStages,
+} from '../stages'
 import { PLAN_SAVE, useCellMenu } from './regenerate'
 
 /**
@@ -52,35 +68,44 @@ import { PLAN_SAVE, useCellMenu } from './regenerate'
  */
 
 /*
-  The columns, and the three rules that size them.
+  The columns, and how they are sized.
 
-  A stage column is as wide as its *heading* and no wider. The heading is a line
-  of ten-pixel uppercase and a mark is twelve pixels square, so the heading is
-  the thing a track has to fit — and fitting it exactly is what stops the four
-  of them costing four hundred pixels between them. The slide column is the one
-  exception, because its content can be six marks wide, and takes whichever of
-  the two is larger.
+  Every track except the chapter's is sized by what is in it — `auto` is the
+  widest of the heading and the cells under it — rather than by a guess in rems.
+  The guesses were the bug: a heading is a line of ten-pixel uppercase with a
+  tally after it, `NARRATION 317/317` is wider than `NARRATION 0/6`, and a fixed
+  track that fitted the second let the first run into its neighbour.
 
-  There is no trailing spacer any more. The chapter column takes every spare
-  pixel, so the marks sit against the right edge of the table at any width
-  instead of at the end of the widest chapter — a stage is then always in the
-  same place, which is worth more than keeping it close to the title.
+  That only works because the head and the rows are laid out by *one* grid.
+  Each row is a subgrid spanning every column, so a track widened by the head
+  is widened for every row under it, and the alignment is the browser's job
+  rather than two templates agreeing to.
 
-  What the spacer was really protecting is the measure of the prose, and prose
-  is what should carry that: past about a hundred characters a line the eye
-  loses its place coming back, so the text inside the column stops at 44rem
-  while the column itself does not.
+  The chapter column takes every spare pixel, so the marks sit against the right
+  edge at any width. The prose inside it stops at 44rem while the column does
+  not: past about a hundred characters a line the eye loses its place coming
+  back.
+
+  The slide column is the one capped track, because its content can be twenty
+  marks wide. `fit-content` sizes it to the marks up to six of them, and past
+  that the row of marks wraps instead of the column growing.
 */
 function columnsFor(slidesPerChapter: number): string {
-  // Capped at six, where the mark row wraps to a second line — cheaper than a
-  // column sized for twenty slides.
   const slots = Math.min(Math.max(slidesPerChapter, 1), 6)
-  // One mark and its gap each, floored at the heading's own width. That floor
-  // counts the widest tally a heading can carry — `0/500` on a five-hundred
-  // chapter video, not the `0/6` in front of whoever is reading this.
-  const slides = `max(5rem, ${slots * 1.25}rem)`
-  return `2.25rem minmax(14rem, 1fr) 4.5rem 5rem 6.25rem ${slides} 4rem`
+  // One mark and its gap each.
+  const slides = `fit-content(${slots * 1.125}rem)`
+  return `auto minmax(14rem, 1fr) auto auto auto ${slides} auto`
 }
+
+/** A row of the table: every column, laid on the table's own tracks. */
+const ROW = 'col-span-full grid grid-cols-subgrid px-4'
+
+/**
+ * A stage cell, centred under its heading. The track is as wide as the heading,
+ * and a mark at the left of `NARRATION 0/317` sits under the first letter of a
+ * word rather than under the column.
+ */
+const STAGE = 'justify-self-center pt-1'
 
 interface ChapterTableProps {
   /** The cache key an edit patches; a delta only ever carries the id. */
@@ -104,15 +129,13 @@ export function ChapterTable({
   editing,
   filtered,
 }: ChapterTableProps) {
-  const stages = useMemo(
-    () => stagesByChapter(chapters, tasks, slidesPerChapter),
-    [chapters, tasks, slidesPerChapter],
-  )
+  const stages = useChapterStages(chapters, tasks, slidesPerChapter)
   const totals = useMemo(
     () => columnTotals(chapters, slidesPerChapter),
     [chapters, slidesPerChapter],
   )
   const { menuFor, error } = useCellMenu(videoId)
+  const { root, watch } = useNearbyRoot()
   const columns = columnsFor(slidesPerChapter)
 
   /*
@@ -122,12 +145,15 @@ export function ChapterTable({
     renumbered does not leave the wrong rows open.
   */
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set())
-  const toggle = (id: string) =>
-    setOpen((current) => {
-      const next = new Set(current)
-      if (!next.delete(id)) next.add(id)
-      return next
-    })
+  const toggle = useCallback(
+    (id: string) =>
+      setOpen((current) => {
+        const next = new Set(current)
+        if (!next.delete(id)) next.add(id)
+        return next
+      }),
+    [],
+  )
 
   /*
     The gate opens all of them, once.
@@ -159,135 +185,220 @@ export function ChapterTable({
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto">
+    <div ref={root} className="min-h-0 flex-1 overflow-auto">
       <div
-        role="row"
+        role="table"
         style={{ gridTemplateColumns: columns }}
-        className="surface-band hairline-b sticky top-0 z-10 grid items-center gap-3 px-4 py-1.5 text-[10px] font-semibold tracking-[0.06em] text-tertiary uppercase"
+        className="grid content-start gap-x-4"
       >
-        <span>#</span>
-        <span className="flex items-baseline gap-2">
-          Chapter
-          {/* The one control in the band, and only where it would do something.
+        <div
+          role="row"
+          className={cn(
+            ROW,
+            'surface-band hairline-b sticky top-0 z-10 items-center py-1.5 text-[10px] font-semibold tracking-[0.06em] whitespace-nowrap text-tertiary uppercase',
+          )}
+        >
+          <span className="text-right">#</span>
+          <span className="flex items-baseline gap-2">
+            Chapter
+            {/* The one control in the band, and only where it would do something.
               A blueprint with no briefs in it has nothing to open. */}
-          {chapters.some((chapter) => chapter.summary) ? (
-            <button
-              type="button"
-              onClick={() => setOpen(allOpen ? new Set() : new Set(chapters.map((c) => c.id)))}
-              className="text-[10px] font-semibold tracking-[0.06em] uppercase transition-colors hover:text-secondary"
-            >
-              {allOpen ? 'Collapse' : 'Expand'}
-            </button>
-          ) : null}
-        </span>
-        {/* `Budget`, not `Estimated length`: it is the word count the blueprint
+            {chapters.some((chapter) => chapter.summary) ? (
+              <button
+                type="button"
+                onClick={() => setOpen(allOpen ? new Set() : new Set(chapters.map((c) => c.id)))}
+                // Sentence case and the accent, so it reads as the one thing in
+                // the band you can press rather than as a second heading.
+                className="text-[10.5px] font-medium tracking-normal normal-case text-[var(--accent)] hover:underline"
+              >
+                {allOpen ? 'Collapse all' : 'Expand all'}
+              </button>
+            ) : null}
+          </span>
+          {/* `Budget`, not `Estimated length`: it is the word count the blueprint
             planned the chapter at, which is a decision rather than a
             measurement — and two syllables buys the chapter column an inch. */}
-        <span>Budget</span>
-        <Head label="Script" done={totals.script.done} total={totals.script.total} />
-        <Head label="Narration" done={totals.narration.done} total={totals.narration.total} />
-        <Head label="Slides" done={totals.slides.done} total={totals.slides.total} />
-        <Head label="Clip" done={totals.clip.done} total={totals.clip.total} />
-      </div>
+          <span className="text-right">Budget</span>
+          <Head label="Script" done={totals.script.done} total={totals.script.total} />
+          <Head label="Narration" done={totals.narration.done} total={totals.narration.total} />
+          <Head label="Slides" done={totals.slides.done} total={totals.slides.total} />
+          <Head label="Clip" done={totals.clip.done} total={totals.clip.total} />
+        </div>
 
-      {/* Under the head rather than beside the dot that caused it: the menu has
+        {/* Under the head rather than beside the dot that caused it: the menu has
           closed by the time this exists, and a message pinned to a twelve-pixel
           target somewhere in eighty rows is a message nobody finds. There is one
           of these at a time because there is one press at a time. */}
-      {error ? (
-        <p className="hairline-b px-4 py-1.5 text-[11px] text-[var(--failed)]">{error.message}</p>
-      ) : null}
+        {error ? (
+          <p className="hairline-b col-span-full px-4 py-1.5 text-[11px] text-[var(--failed)]">
+            {error.message}
+          </p>
+        ) : null}
 
-      {/* A table showing three rows of fifty has to say so on the table, not on
+        {/* A table showing three rows of fifty has to say so on the table, not on
           the button that did it: the totals in the band above still count the
           whole video, and without this line the two read as a contradiction. */}
-      {filtered ? (
-        <div className="hairline-b flex items-center gap-3 px-4 py-1.5 text-[11px] text-tertiary">
-          <span>
-            Showing <span className="tabular-nums">{count(chapters.length)}</span> of{' '}
-            <span className="tabular-nums">{count(filtered.of)}</span> chapters
-          </span>
-          <button
-            type="button"
-            onClick={filtered.onClear}
-            className="ml-auto transition-colors hover:text-primary"
-          >
-            Show all
-          </button>
-        </div>
-      ) : null}
-
-      {chapters.map((chapter, index) => {
-        const stage = stages.get(chapter.id)
-        if (!stage) return null
-        // The blueprint's budget, not what was written: it is the number the
-        // plan was approved on, and it does not move once the scripts land.
-        const seconds = projectedSeconds(chapter.estimatedWords)
-        return (
-          <div
-            key={chapter.id}
-            role="row"
-            style={{ gridTemplateColumns: columns }}
-            className={cn(
-              // Aligned to the top, not the middle: a chapter is two lines tall
-              // now, and a mark floating beside the second one belongs to
-              // nothing the eye can name.
-              'grid items-start gap-3 px-4 py-2.5',
-              // A row highlighting under the cursor while you type in it is
-              // motion answering nothing.
-              !editing && 'hover:bg-[var(--hover)]',
-              index > 0 && 'hairline-t',
-            )}
-          >
-            <span className="pt-px text-[12px] tabular-nums text-tertiary">{chapter.ordinal}</span>
-
-            {editing ? (
-              <PlanFields chapter={chapter} videoId={videoId} />
-            ) : (
-              <>
-                {/* The measure lives on the text rather than on the column, so
-                    the marks can sit at the right edge without the brief
-                    running to a line nobody can track back from. */}
-                <div className="min-w-0 max-w-[44rem]">
-                  <div className="text-[13px] leading-snug text-primary">
-                    {chapter.title || 'Untitled'}
-                  </div>
-                  {chapter.summary ? (
-                    <Clamped
-                      text={chapter.summary}
-                      open={open.has(chapter.id)}
-                      onToggle={() => toggle(chapter.id)}
-                      label={`Chapter ${chapter.ordinal} brief`}
-                      className="mt-1 text-[12px] leading-snug text-secondary"
-                    />
-                  ) : null}
-                </div>
-
-                <div className="pt-px text-[12px] tabular-nums text-secondary">
-                  {chapter.estimatedWords > 0 ? (
-                    <>
-                      ~{count(chapter.estimatedWords)}w
-                      <span className="block text-[11px] text-tertiary">~{duration(seconds)}</span>
-                    </>
-                  ) : null}
-                </div>
-              </>
-            )}
-
-            <Mark cell={stage.script} className="pt-1" menu={menuFor(stage.script, 'Script')} />
-            <Mark
-              cell={stage.narration}
-              className="pt-1"
-              menu={menuFor(stage.narration, 'Narration')}
-            />
-            <SlotRow cells={stage.slides} className="pt-1" menuFor={menuFor} />
-            <Mark cell={stage.clip} className="pt-1" menu={menuFor(stage.clip, 'Clip')} />
+        {filtered ? (
+          <div className="hairline-b col-span-full flex items-center gap-3 px-4 py-1.5 text-[11px] text-tertiary">
+            <span>
+              Showing <span className="tabular-nums">{count(chapters.length)}</span> of{' '}
+              <span className="tabular-nums">{count(filtered.of)}</span> chapters
+            </span>
+            <button
+              type="button"
+              onClick={filtered.onClear}
+              className="ml-auto transition-colors hover:text-primary"
+            >
+              Show all
+            </button>
           </div>
-        )
-      })}
+        ) : null}
+
+        <NearbyProvider value={watch}>
+          {chapters.map((chapter, index) => {
+            const stage = stages.get(chapter.id)
+            if (!stage) return null
+            return (
+              <ChapterRow
+                key={chapter.id}
+                chapter={chapter}
+                stage={stage}
+                videoId={videoId}
+                first={index === 0}
+                eager={index < EAGER_ROWS}
+                editing={editing}
+                open={open.has(chapter.id)}
+                onToggle={toggle}
+                menuFor={menuFor}
+              />
+            )
+          })}
+        </NearbyProvider>
+      </div>
     </div>
   )
 }
+
+/** Rows drawn from the first frame, before the observer has said anything. */
+const EAGER_ROWS = 12
+
+/** The stand-in height for a row that has never been drawn: two lines of brief. */
+const ROW_ESTIMATE = 88
+
+interface ChapterRowProps {
+  chapter: Chapter
+  stage: ChapterStages
+  videoId: string
+  first: boolean
+  /** Drawn from the first frame; see `EAGER_ROWS`. */
+  eager: boolean
+  editing: boolean
+  open: boolean
+  onToggle: (id: string) => void
+  menuFor: (cell: Cell, noun: string) => MenuItem[]
+}
+
+/**
+ * One chapter's row.
+ *
+ * Memoised, and every prop is either a value or stable: the chapter and its
+ * stages keep their identity until something in *this* row moves, so a frame
+ * that finishes a slide in chapter 12 redraws chapter 12 and nothing else.
+ */
+const ChapterRow = memo(function ChapterRow({
+  chapter,
+  stage,
+  videoId,
+  first,
+  eager,
+  editing,
+  open,
+  onToggle,
+  menuFor,
+}: ChapterRowProps) {
+  const seconds = projectedSeconds(chapter.estimatedWords)
+  const row = useRef<HTMLDivElement>(null)
+  // The height it last drew at, for the empty row that holds its place while it
+  // is far from the viewport; see ui/nearby. The row element itself stays, so
+  // the observer keeps watching it.
+  const height = useRef<number | null>(null)
+  const near = useNear(row, eager, () => {
+    const measured = row.current?.offsetHeight ?? 0
+    if (measured > 0) height.current = measured
+  })
+  // Every row stays drawn while the plan is being edited: its fields hold
+  // drafts, and a row that scrolled away would lose what was typed in it.
+  if (!near && !editing) {
+    return (
+      <div
+        ref={row}
+        role="row"
+        aria-hidden
+        className={cn(ROW, !first && 'hairline-t')}
+        style={{ height: height.current ?? ROW_ESTIMATE }}
+      />
+    )
+  }
+  return (
+    <div
+      ref={row}
+      role="row"
+      className={cn(
+        // Aligned to the top, not the middle: a chapter is two lines tall
+        // now, and a mark floating beside the second one belongs to
+        // nothing the eye can name.
+        ROW,
+        'items-start py-2.5',
+        // A row highlighting under the cursor while you type in it is
+        // motion answering nothing.
+        !editing && 'hover:bg-[var(--hover)]',
+        !first && 'hairline-t',
+      )}
+    >
+      <span className="min-w-[1.25rem] pt-px text-right text-[12px] tabular-nums text-tertiary">
+        {chapter.ordinal}
+      </span>
+
+      {editing ? (
+        <PlanFields chapter={chapter} videoId={videoId} />
+      ) : (
+        <>
+          {/* The measure lives on the text rather than on the column, so
+            the marks can sit at the right edge without the brief
+            running to a line nobody can track back from. */}
+          <div className="min-w-0 max-w-[44rem]">
+            <div className="text-[13px] leading-snug text-primary">
+              {chapter.title || 'Untitled'}
+            </div>
+            {chapter.summary ? (
+              <Clamped
+                text={chapter.summary}
+                open={open}
+                onToggle={() => onToggle(chapter.id)}
+                label={`Chapter ${chapter.ordinal} brief`}
+                className="mt-1 text-[12px] leading-snug text-secondary"
+              />
+            ) : null}
+          </div>
+
+          <div className="pt-px text-right text-[12px] whitespace-nowrap tabular-nums text-secondary">
+            {chapter.estimatedWords > 0 ? (
+              <>
+                ~{count(chapter.estimatedWords)}w
+                <span className="block text-[11px] text-tertiary">~{duration(seconds)}</span>
+              </>
+            ) : null}
+          </div>
+        </>
+      )}
+
+      <Mark cell={stage.script} className={STAGE} menu={menuFor(stage.script, 'Script')} />
+      <Mark cell={stage.narration} className={STAGE} menu={menuFor(stage.narration, 'Narration')} />
+      <SlotRow cells={stage.slides} className={cn(STAGE, 'justify-center')} menuFor={menuFor} />
+      <Mark cell={stage.clip} className={STAGE} menu={menuFor(stage.clip, 'Clip')} />
+    </div>
+  )
+})
 
 /**
  * A column head carrying how far its stage has got across the whole video.
@@ -302,7 +413,7 @@ function Head({ label, done, total }: { label: string; done: number; total: numb
     // Nowrap because a track is sized to this line: a heading that broke in two
     // would take the header band's height with it, and the tally is part of the
     // label rather than a second line under it.
-    <span className="flex items-baseline gap-1.5 whitespace-nowrap">
+    <span className="flex items-baseline justify-center gap-1.5 whitespace-nowrap">
       <span>{label}</span>
       {total > 0 ? (
         <span className={cn('tabular-nums', complete ? 'opacity-0' : 'opacity-100')}>

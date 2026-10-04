@@ -17,8 +17,7 @@ interface RowProps {
    * The state, as one value that drives both marks.
    *
    * The dot and the ring around the token read the same property, so they can
-   * never end up saying different things — and on a selected row a single
-   * override turns both white.
+   * never end up saying different things.
    */
   tone?: 'accent' | 'running' | 'failed'
   /**
@@ -43,8 +42,8 @@ interface RowProps {
    *
    * The point is not the row, it is the list: a mature library is mostly done,
    * so most of it goes quiet and the eye lands on the few rows that are not.
-   * Selection overrides it — a selected row is white on blue whatever state it
-   * is in, because the thing you have just clicked is never the quiet one.
+   * Selection overrides it, because the thing you have just clicked is never
+   * the quiet one.
    */
   finished?: boolean
   selected: boolean
@@ -63,16 +62,20 @@ interface RowProps {
    * empty card.
    */
   menu?: MenuItem[]
+  /**
+   * The pointer arriving on the row and leaving it again, so the caller can
+   * fetch what a click would open while the hand is still on its way.
+   */
+  onHover?: (hovering: boolean) => void
 }
 
 /**
  * One row of the source list, laid out the way a Messages conversation is: a
  * token, two lines of text, and the time on the trailing edge of the first.
  *
- * The selected row is a filled, rounded pill inset from both edges rather than
- * a full-bleed band. That inset is most of why the list reads as macOS and not
- * as a table — and it is what the group headers deliberately break, spanning
- * the full width so the two never read as the same kind of thing.
+ * The selected row is a soft glass capsule inset from both edges rather than a
+ * full-bleed band, concentric with the card it sits in. That inset is most of
+ * why the list reads as macOS and not as a table.
  *
  * The state badge rides on the token rather than sitting in a column of its
  * own. A column of mostly-empty space is a column the eye still has to cross.
@@ -92,25 +95,41 @@ export function Row({
   onOpen,
   onContextMenu,
   menu,
+  onHover,
 }: RowProps) {
   const quiet = finished && !selected
   const row = (
     <button
       type="button"
-      onClick={onSelect}
+      // Selects on the press, the way a Finder or Mail list does, rather than
+      // on the release a click waits for — the hand is still on its way down
+      // and the row is already the selected one and its document is opening.
+      // ⌃-click is the context menu on a Mac, and the right button never
+      // selects here.
+      onPointerDown={(event) => {
+        if (event.button !== 0 || event.ctrlKey) return
+        onSelect(event)
+      }}
+      // Return and Space still press the button; they arrive as a click with
+      // no pointer behind it, which is the only click left to act on.
+      onClick={(event) => {
+        if (event.detail === 0) onSelect(event)
+      }}
       onDoubleClick={onOpen}
       onContextMenu={onContextMenu}
+      onPointerEnter={onHover ? () => onHover(true) : undefined}
+      onPointerLeave={onHover ? () => onHover(false) : undefined}
       aria-current={selected}
       data-row-id={id}
       className={cn(
         // `items-start`, not centred: the token tops with the title, so a row
         // whose second line wraps grows downwards instead of pushing the token
         // out of line with the name it belongs to.
-        'row-item flex w-full items-start gap-[9px] rounded-[8px] px-[9px] py-2 text-left',
-        'transition-colors duration-75',
-        selected && 'row-selected text-white',
+        // No colour transition: a selection that fades in reads as one that
+        // is still deciding. Lists on a Mac light up on the press, at once.
+        'row-item flex w-full items-start gap-[9px] rounded-[var(--radius-inner)] px-[9px] py-[7px] text-left',
+        selected && 'row-selected',
       )}
-      style={selected ? { backgroundColor: 'var(--accent)' } : undefined}
     >
       {/* The token is the loudest thing in the row — a saturated disc — so
           dimming it is most of the effect for one property. */}
@@ -131,8 +150,8 @@ export function Row({
         <span className="flex items-baseline gap-2">
           <span
             className={cn(
-              'min-w-0 flex-1 truncate text-[13px] font-semibold',
-              selected ? 'text-white' : quiet ? 'text-tertiary' : 'text-primary',
+              'min-w-0 flex-1 truncate text-[13px] font-medium',
+              quiet ? 'text-tertiary' : 'text-primary',
             )}
           >
             {title}
@@ -140,8 +159,8 @@ export function Row({
           {timestamp ? (
             <span
               className={cn(
-                'shrink-0 text-[11px] tabular-nums',
-                selected ? 'text-white/80' : 'text-tertiary',
+                'shrink-0 text-[10.5px] tabular-nums',
+                selected ? 'text-secondary' : 'text-tertiary',
               )}
             >
               {timestamp}
@@ -154,7 +173,7 @@ export function Row({
         <span
           className={cn(
             'mt-px line-clamp-2 block text-[12px] leading-[1.35]',
-            selected ? 'text-white/[0.78]' : quiet ? 'text-tertiary' : 'text-secondary',
+            quiet ? 'text-tertiary' : 'text-secondary',
           )}
         >
           {subtitle}

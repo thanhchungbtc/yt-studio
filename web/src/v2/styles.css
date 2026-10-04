@@ -1,341 +1,820 @@
 @import 'tailwindcss';
 
 /*
-  Workbench V2 — a macOS window, drawn the way Messages draws one.
+  Workbench V2 — Liquid Glass.
 
-  Three ideas carry the whole sheet.
+  The same design language as ai-messenger, on purpose: the same material, the
+  same geometry, the same motion, so the two read as one family of macOS 26
+  apps.
 
-  Translucency is a *material*, not a colour. Every chrome surface is a
-  low-alpha wash over whatever is behind it, and behind it is an AppKit
-  `NSVisualEffectView`. So the tokens here are rgba by construction: making them
-  opaque would not merely change a shade, it would put a lid on the material and
-  the window would stop reacting to the desktop underneath it.
+  The window itself is the glass. The desktop binary puts an AppKit
+  `NSGlassEffectView` (or, before macOS 26, an `NSVisualEffectView`) behind a
+  transparent page, and the UI is drawn as floating cards on it, separated by
+  even gaps. Cards are translucent tints over that material, which is what makes
+  them look like glass without paying for CSS blur on every frame.
+  `backdrop-filter` is kept for small, short-lived overlays — menus, popovers,
+  tooltips, dialogs — where it is cheap.
 
-  There is exactly one opaque surface — the document. A translucent editor is
-  where the effect stops being atmosphere and starts being noise, which is
-  precisely the line Messages draws between its sidebar and its transcript.
+  Everything is driven by attributes on <html>, set by core/appearance.ts:
 
-  And the palette is system-derived rather than invented. macOS ships its
-  greys as specific values with specific relationships; approximating them is
-  what makes a web app in a native window read as a web app in a native window.
+    data-theme     light | dark            the system appearance
+    data-glass     present                 Liquid Glass surfaces are on
+    data-material  liquid | solid          solid when Reduce Transparency is on
+    data-motion    spring | reduced        reduced when Reduce Motion is on
+    data-contrast  present                 Increase Contrast
+    .yts-vibrancy  class                   a native material is behind the page
+
+  Without `.yts-vibrancy` — a plain browser tab — there is nothing behind the
+  page, so the window paints an opaque floor and the cards sit on that.
 */
 
-@theme {
+/* ---- Tokens -------------------------------------------------------------- */
+
+:root {
+  color-scheme: light;
   --font-sans:
-    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 'Hiragino Sans',
+    sans-serif;
+  --font-mono: 'SF Mono', ui-monospace, Menlo, Monaco, 'Cascadia Mono', monospace;
+
+  --accent: #c9643f;
+  --accent-strong: #b5552f;
+  --accent-soft: rgb(201 100 63 / 0.13);
+  /* Solid fills (primary buttons) are deep enough for white text (~4:1). */
+  --accent-fill: #c8603d;
+  --accent-fill-hover: #b3522f;
+  --accent-fg: #ffffff;
+  /* Highlighted rows in menus: a soft tint that keeps normal text readable
+     instead of white-on-accent. */
+  --row-highlight: rgb(201 100 63 / 0.14);
+  --focus: rgb(0 122 255 / 0.55);
+
+  --fg: rgb(0 0 0 / 0.9);
+  --fg-muted: rgb(0 0 0 / 0.64);
+  --fg-subtle: rgb(0 0 0 / 0.47);
+  --fg-faint: rgb(0 0 0 / 0.3);
+
+  --window: rgb(216 216 222 / 0.72);
+  /* The floor a browser tab paints, where no material is behind the page. */
+  --window-solid: #e4e4e9;
+  --content: rgb(255 255 255 / 0.9);
+  --content-solid: #fbfbfc;
+  --elevated: rgb(250 250 252 / 0.98);
+  --well: rgb(0 0 0 / 0.045);
+  --hover: rgb(0 0 0 / 0.055);
+  --active: rgb(0 0 0 / 0.09);
+  --selected: rgb(0 0 0 / 0.085);
+  --line: rgb(0 0 0 / 0.1);
+  --line-strong: rgb(0 0 0 / 0.17);
+  --highlight: rgb(255 255 255 / 0.7);
+
+  --success: #1f9d55;
+  --warning: #b7791f;
+  --danger: #d93a3a;
+  --info: #2f6fdb;
+  /* The running mark: bright enough to catch the eye at ten pixels. */
+  --running: #f0a020;
+
+  --shadow-pop:
+    0 12px 40px rgb(0 0 0 / 0.14), 0 2px 8px rgb(0 0 0 / 0.08), 0 0 0 0.5px rgb(0 0 0 / 0.12);
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.08), 0 0 0 0.5px rgb(0 0 0 / 0.12);
+
+  /*
+    Layout: floating cards separated by even gaps. The window's traffic lights
+    sit ~26pt from the top and end ~80pt from the left edge, so the first card
+    row is a 36px strip below an 8px gap (centre at 26pt).
+  */
+  --gap: 8px;
+  /* Concentric corners: everything inside the window derives from its corner,
+     each inner radius = outer radius − the gap between. */
+  --radius-window: 24px;
+  --card-radius: calc(var(--radius-window) - var(--gap));
+  --radius-inner: calc(var(--card-radius) - 6px);
+  --strip-height: 36px;
+  /* Only reserved when there are traffic lights to make room for. */
+  --traffic-lights-inset: 0px;
+  --dock-lights-inset: 0px;
+  --sidebar-card: rgb(249 249 251 / 0.74);
+
+  /* Motion: short, never in the way. The spring settles with a hint of
+     overshoot. */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: linear(
+    0,
+    0.007,
+    0.028 2.4%,
+    0.112 5.1%,
+    0.25 8.1%,
+    0.616 15.6%,
+    0.778 20.3%,
+    0.881 24.9%,
+    0.952 30.1%,
+    0.993 35.6%,
+    1.012 41.7%,
+    1.016 47.6%,
+    1.011 55.3%,
+    1.002 70.2%,
+    1
+  );
+
+  /* Glass surfaces: calm by default (Solid material). */
+  --glass-fill: var(--elevated);
+  --glass-sheen: transparent;
+  --glass-edge: var(--highlight);
+  --glass-rim: var(--line-strong);
+  --glass-shadow: var(--shadow-pop);
+  --pill-fill: var(--well);
+  --thumb-fill: var(--content-solid);
+  --thumb-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 0 0 0.5px var(--line-strong);
+  --selection: var(--active);
+  --selection-edge: transparent;
+
+  /*
+    One *device* pixel, not one CSS pixel. At 2x a 1px rule is two device
+    pixels, twice the weight AppKit draws; the retina override halves it.
+  */
+  --hairline: 1px;
+
+  /* The names the rest of the app was written against, kept as aliases so
+     every surface follows the same tokens. */
+  --text: var(--fg);
+  --text-secondary: var(--fg-muted);
+  --text-tertiary: var(--fg-subtle);
+  --separator: var(--line);
+  --separator-strong: var(--line-strong);
+  --raised: var(--content-solid);
+  --idle-selection: var(--active);
+  --band: var(--well);
+  --accent-text: var(--accent-fg);
+  --accent-wash: var(--accent-soft);
+  --accent-wash-strong: color-mix(in srgb, var(--accent) 34%, transparent);
+  --failed: var(--danger);
+  --failed-wash: color-mix(in srgb, var(--danger) 9%, transparent);
+  --done: var(--success);
+  --menu: var(--glass-fill);
 }
 
-@layer base {
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --accent: #e08565;
+  --accent-strong: #eb9575;
+  --accent-soft: rgb(224 133 101 / 0.16);
+  --accent-fill: #c96a48;
+  --accent-fill-hover: #d47553;
+  --row-highlight: rgb(224 133 101 / 0.2);
+  --focus: rgb(10 132 255 / 0.6);
+
+  --fg: rgb(255 255 255 / 0.93);
+  --fg-muted: rgb(255 255 255 / 0.68);
+  --fg-subtle: rgb(255 255 255 / 0.5);
+  --fg-faint: rgb(255 255 255 / 0.3);
+
+  --window: rgb(8 8 10 / 0.68);
+  --window-solid: #121215;
+  --content: rgb(31 31 36 / 0.92);
+  --content-solid: #1e1e23;
+  --elevated: rgb(38 38 44 / 0.98);
+  --well: rgb(255 255 255 / 0.055);
+  --hover: rgb(255 255 255 / 0.075);
+  --active: rgb(255 255 255 / 0.12);
+  --selected: rgb(255 255 255 / 0.11);
+  --line: rgb(255 255 255 / 0.1);
+  --line-strong: rgb(255 255 255 / 0.17);
+  --highlight: rgb(255 255 255 / 0.07);
+
+  --success: #3fcf7f;
+  --warning: #f0b44c;
+  --danger: #ff6b6b;
+  --info: #6aa7ff;
+
+  --shadow-pop:
+    0 16px 48px rgb(0 0 0 / 0.5), 0 2px 10px rgb(0 0 0 / 0.35), 0 0 0 0.5px rgb(255 255 255 / 0.1);
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.35), 0 0 0 0.5px rgb(255 255 255 / 0.1);
+  --sidebar-card: rgb(52 52 60 / 0.56);
+}
+
+/* Liquid Glass material: translucent, luminous surfaces with a bright top
+   edge, a hairline rim and soft layered shadows. */
+:root[data-glass] {
+  --glass-fill: rgb(250 250 252 / 0.74);
+  --glass-sheen: rgb(255 255 255 / 0.32);
+  --glass-edge: rgb(255 255 255 / 0.9);
+  --glass-rim: rgb(0 0 0 / 0.09);
+  --glass-shadow:
+    0 0 0 0.5px var(--glass-rim), 0 10px 32px rgb(0 0 0 / 0.13), 0 2px 8px rgb(0 0 0 / 0.07);
+  --pill-fill: rgb(255 255 255 / 0.62);
+  --thumb-fill: rgb(255 255 255 / 0.94);
+  --thumb-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.08), inset 0 0.5px 0 rgb(255 255 255 / 1), 0 1px 3px rgb(0 0 0 / 0.1),
+    0 2px 8px rgb(0 0 0 / 0.04);
+  --selection: rgb(0 0 0 / 0.075);
+  --selection-edge: rgb(255 255 255 / 0.55);
+  --sidebar-card: rgb(249 249 251 / 0.6);
+}
+
+:root[data-glass][data-theme='dark'] {
+  --glass-fill: rgb(48 48 54 / 0.68);
+  --glass-sheen: rgb(255 255 255 / 0.07);
+  --glass-edge: rgb(255 255 255 / 0.17);
+  --glass-rim: rgb(255 255 255 / 0.09);
+  --glass-shadow:
+    0 0 0 0.5px var(--glass-rim), 0 14px 40px rgb(0 0 0 / 0.45), 0 2px 10px rgb(0 0 0 / 0.3);
+  --pill-fill: rgb(255 255 255 / 0.07);
+  --thumb-fill: rgb(255 255 255 / 0.17);
+  --thumb-shadow:
+    0 0 0 0.5px rgb(255 255 255 / 0.1), inset 0 0.5px 0 rgb(255 255 255 / 0.22),
+    0 1px 3px rgb(0 0 0 / 0.35);
+  --selection: rgb(255 255 255 / 0.1);
+  --selection-edge: rgb(255 255 255 / 0.1);
+  --sidebar-card: rgb(52 52 60 / 0.46);
+}
+
+/* Large, text-dense surfaces (dialogs) stay firmer. */
+:root[data-glass] .glass-dense {
+  --glass-fill: rgb(250 250 252 / 0.93);
+}
+
+:root[data-glass][data-theme='dark'] .glass-dense {
+  --glass-fill: rgb(42 42 48 / 0.92);
+}
+
+/* Increase Contrast: stronger lines and edges, firmer surfaces. */
+:root[data-contrast] {
+  --line: rgb(0 0 0 / 0.24);
+  --line-strong: rgb(0 0 0 / 0.42);
+  --fg-muted: rgb(0 0 0 / 0.76);
+  --fg-subtle: rgb(0 0 0 / 0.62);
+  --glass-rim: rgb(0 0 0 / 0.38);
+  --glass-fill: rgb(252 252 254 / 0.95);
+  --selection: rgb(0 0 0 / 0.14);
+}
+
+:root[data-contrast][data-theme='dark'] {
+  --line: rgb(255 255 255 / 0.26);
+  --line-strong: rgb(255 255 255 / 0.44);
+  --fg-muted: rgb(255 255 255 / 0.8);
+  --fg-subtle: rgb(255 255 255 / 0.66);
+  --glass-rim: rgb(255 255 255 / 0.4);
+  --glass-fill: rgb(40 40 46 / 0.96);
+  --selection: rgb(255 255 255 / 0.18);
+}
+
+/* Reduce Transparency: opaque surfaces everywhere. */
+:root[data-material='solid'] {
+  --window: #e7e7eb;
+  --window-solid: #e7e7eb;
+  --sidebar-card: #f4f4f6;
+  --content: #ffffff;
+  --elevated: #fbfbfc;
+}
+
+:root[data-material='solid'][data-theme='dark'] {
+  --window: #111114;
+  --window-solid: #111114;
+  --sidebar-card: #26262c;
+  --content: #1e1e23;
+  --elevated: #2a2a30;
+}
+
+/* The traffic lights only exist in the desktop window. */
+.yts-vibrancy {
+  --traffic-lights-inset: 72px;
+  --dock-lights-inset: 78px;
+}
+
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 2dppx) {
   :root {
-    /*
-      The opaque backdrop. In the desktop window this is never seen — the page
-      is transparent and AppKit's material is underneath — but in a browser tab
-      there is nothing behind the translucency, so the alpha needs a floor to
-      sit on or every chrome surface reads as washed-out white.
-    */
-    --window: #e8e8ea;
-
-    --chrome: rgb(246 246 248 / 0.62);
-    --chrome-strong: rgb(236 236 239 / 0.78);
-    --content: #ffffff;
-    --raised: rgb(255 255 255 / 0.92);
-
-    /* NSColor.separatorColor, near enough. */
-    --separator: rgb(0 0 0 / 0.1);
-    --separator-strong: rgb(0 0 0 / 0.16);
-    /*
-      One *device* pixel, not one CSS pixel.
-
-      This is the whole difference between a macOS seam and a web one. At 2x a
-      1px rule is two device pixels, which is twice the weight AppKit draws and
-      reads as a drawn line rather than as an edge. The retina override below
-      halves it; WebKit resolves a sub-pixel inset shadow to a single device
-      row, which is exactly the hairline wanted.
-    */
-    --hairline: 1px;
-
-    --text: #1d1d1f;
-    --text-secondary: rgb(60 60 67 / 0.68);
-    --text-tertiary: rgb(60 60 67 / 0.42);
-
-    /* macOS system blue, and the fill a selected row gets from it. */
-    --accent: #0a6cf5;
-    --accent-text: #ffffff;
-    --hover: rgb(0 0 0 / 0.05);
-    --idle-selection: rgb(0 0 0 / 0.08);
-    /* The band a group header sits on, and the strip the tabs sit on: one step
-       heavier than the surrounding chrome, so a full-bleed header cannot be
-       mistaken for a row. */
-    --band: rgb(0 0 0 / 0.045);
-    /* The tint behind a strip that is waiting for a decision, and the ring
-       AppKit draws around the control that has the keyboard. */
-    --accent-wash: rgb(10 108 245 / 0.07);
-    --accent-wash-strong: rgb(10 108 245 / 0.32);
-    /* Behind a strip that is reporting a failure rather than asking a question. */
-    --failed-wash: rgb(229 72 77 / 0.08);
-    --menu: rgb(250 250 252 / 0.86);
-
-    --running: #f0a020;
-    --failed: #e5484d;
-    --done: #30a46c;
-
-    --radius: 7px;
-    --radius-lg: 11px;
-
-    /* macOS reserves the leading edge of the titlebar for the traffic lights. */
-    --traffic-lights: 0px;
-
-    color-scheme: light;
+    --hairline: 0.5px;
   }
+}
 
-  .dark {
-    --window: #1c1c1e;
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-fill: var(--accent-fill);
+  --color-accent-fill-hover: var(--accent-fill-hover);
+  --color-row-highlight: var(--row-highlight);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-fg-faint: var(--fg-faint);
+  --color-window: var(--window);
+  --color-content: var(--content);
+  --color-elevated: var(--elevated);
+  --color-well: var(--well);
+  --color-hover: var(--hover);
+  --color-active: var(--active);
+  --color-selected: var(--selected);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  --color-running: var(--running);
+  --shadow-pop: var(--shadow-pop);
+  --shadow-card: var(--shadow-card);
+  --text-2xs: 10.5px;
+  --text-xs: 11.5px;
+  --text-sm: 12.5px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --animate-fade-in: fade-in 140ms ease-out;
+  --animate-pop-in: pop-in 150ms cubic-bezier(0.2, 0.9, 0.3, 1.1);
+  --animate-slide-up: slide-up 180ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
 
-    --chrome: rgb(58 58 61 / 0.5);
-    --chrome-strong: rgb(44 44 47 / 0.72);
-    --content: #1e1e20;
-    --raised: rgb(58 58 61 / 0.9);
+/* ---- Keyframes ----------------------------------------------------------- */
 
-    --separator: rgb(255 255 255 / 0.15);
-    --separator-strong: rgb(255 255 255 / 0.22);
-
-    --text: #f5f5f7;
-    --text-secondary: rgb(235 235 245 / 0.6);
-    --text-tertiary: rgb(235 235 245 / 0.35);
-
-    --accent: #0a84ff;
-    --accent-text: #ffffff;
-    --hover: rgb(255 255 255 / 0.06);
-    --idle-selection: rgb(255 255 255 / 0.1);
-    --band: rgb(0 0 0 / 0.16);
-    --accent-wash: rgb(10 132 255 / 0.14);
-    --accent-wash-strong: rgb(10 132 255 / 0.4);
-    --failed-wash: rgb(255 105 97 / 0.14);
-    --menu: rgb(56 56 59 / 0.86);
-
-    --running: #f0a020;
-    --failed: #ff6961;
-    /* Muted rather than system green: on a dark ground the bright one glows,
-       and a column of forty of them is the only thing you can see. */
-    --done: #3fb950;
-
-    color-scheme: dark;
+@keyframes fade-in {
+  from {
+    opacity: 0;
   }
-
-  @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 2dppx) {
-    :root {
-      --hairline: 0.5px;
-    }
+  to {
+    opacity: 1;
   }
+}
 
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes glass-in {
+  from {
+    opacity: 0;
+    transform: scale(0.93);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pop-out {
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes tab-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- Base ---------------------------------------------------------------- */
+
+@layer base {
   html,
   body,
   #root {
     height: 100%;
   }
 
-  body {
-    margin: 0;
-    background-color: var(--window);
-    color: var(--text);
+  html {
     font-family: var(--font-sans);
     font-size: 13px;
-    line-height: 1.4;
-    -webkit-font-smoothing: antialiased;
-    /* A native window is not a document: nothing here scrolls as a whole, and
-       an accidental rubber-band would peel the whole UI off its own chrome. */
+    line-height: 1.45;
+    color: var(--fg);
+    /* macOS's own font smoothing, as native apps render text. */
+    -webkit-font-smoothing: auto;
+    text-rendering: optimizeLegibility;
+    /* A native window is not a document: chrome is not selectable. */
+    -webkit-user-select: none;
+    user-select: none;
+    cursor: default;
+  }
+
+  body {
+    margin: 0;
+    background: var(--window-solid);
+    /* Nothing here scrolls as a whole, and an accidental rubber-band would
+       peel the whole UI off its own chrome. */
     overflow: hidden;
     overscroll-behavior: none;
   }
 
-  /*
-    Added by the desktop binary, at document start, and by nothing else — the
-    page has no way to know it is in a vibrant window and no business guessing.
-    Transparency is what lets the material through; the inset is the room the
-    traffic lights need, and they only exist when there is a real titlebar for
-    them to float out of.
-  */
-  .yts-vibrancy,
-  .yts-vibrancy body {
-    background-color: transparent;
-  }
-
+  /* The native material is behind the page: let it through, tinted. */
   .yts-vibrancy {
-    --traffic-lights: 72px;
-  }
-
-  /* An overlay scrollbar, as every macOS list has. */
-  ::-webkit-scrollbar {
-    width: 9px;
-    height: 9px;
-  }
-
-  ::-webkit-scrollbar-track {
     background: transparent;
   }
 
-  ::-webkit-scrollbar-thumb {
-    background: rgb(0 0 0 / 0.22);
-    border: 2px solid transparent;
-    background-clip: content-box;
-    border-radius: 9px;
+  .yts-vibrancy body {
+    background: var(--window);
   }
 
-  .dark ::-webkit-scrollbar-thumb {
-    background: rgb(255 255 255 / 0.22);
-    background-clip: content-box;
+  :root.yts-vibrancy[data-material='solid'] body {
+    background: var(--window-solid);
+  }
+
+  ::selection {
+    background: var(--accent-soft);
+  }
+
+  /* Text people read or copy is selectable; chrome is not. */
+  .selectable,
+  input,
+  textarea,
+  pre,
+  code,
+  [contenteditable] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  input,
+  textarea,
+  [contenteditable] {
+    cursor: auto;
+  }
+
+  button {
+    cursor: default;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 1px;
+  }
+
+  code,
+  kbd,
+  pre,
+  samp {
+    font-family: var(--font-mono);
+  }
+
+  /* Slim, native-feeling scrollbars. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--fg-faint);
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: rgb(0 0 0 / 0.38);
-    background-clip: content-box;
+    background-color: var(--fg-subtle);
   }
 
-  .dark ::-webkit-scrollbar-thumb:hover {
-    background: rgb(255 255 255 / 0.38);
-    background-clip: content-box;
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
+/* ---- Glass components ---------------------------------------------------- */
+
+@layer components {
+  /*
+    Menus, popovers, tooltips and dialogs: the one place CSS blur is used. They
+    grow out of the control that opened them (Radix supplies the origin).
+  */
+  .glass-pop {
+    background-color: var(--glass-fill);
+    background-image: linear-gradient(to bottom, var(--glass-sheen), transparent 46%);
+    /* Literal values: WebKit drops a backdrop filter given through var(). */
+    backdrop-filter: blur(28px) saturate(1.7);
+    -webkit-backdrop-filter: blur(28px) saturate(1.7);
+    box-shadow:
+      var(--glass-shadow),
+      inset 0 0.5px 0 var(--glass-edge);
+    transform-origin: var(--radix-popper-transform-origin, 50% 0);
+  }
+
+  :root[data-glass] .glass-pop {
+    backdrop-filter: blur(26px) saturate(1.9) brightness(1.05);
+    -webkit-backdrop-filter: blur(26px) saturate(1.9) brightness(1.05);
+  }
+
+  :root[data-glass][data-theme='dark'] .glass-pop {
+    backdrop-filter: blur(26px) saturate(1.7) brightness(0.96);
+    -webkit-backdrop-filter: blur(26px) saturate(1.7) brightness(0.96);
+  }
+
+  :root[data-material='solid'] .glass-pop {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  /* A floating group of toolbar buttons (Liquid Glass capsule). */
+  .glass-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    padding: 2px;
+    border-radius: 999px;
+    background: var(--pill-fill);
+  }
+
+  :root[data-glass] .glass-pill {
+    box-shadow:
+      0 0 0 0.5px var(--glass-rim),
+      inset 0 0.5px 0 var(--glass-edge),
+      0 1px 3px rgb(0 0 0 / 0.05);
+  }
+
+  /* The selected segment of a segmented control (it slides; see SlidingThumb). */
+  .glass-thumb {
+    background: var(--thumb-fill);
+    box-shadow: var(--thumb-shadow);
+  }
+
+  /* Selected rows in lists: a soft capsule. */
+  .row-selected {
+    background: var(--selection);
+    box-shadow: inset 0 0.5px 0 var(--selection-edge);
+  }
+
+  /* A header's bottom edge: a hairline in calm materials; with Liquid Glass
+     the content below fades softly instead (.scroll-edge). */
+  .edge-line {
+    box-shadow: inset 0 calc(-1 * var(--hairline)) 0 var(--line);
+  }
+
+  :root[data-glass] .edge-line {
+    box-shadow: none;
+  }
+
+  .edge-line-t {
+    box-shadow: inset 0 var(--hairline) 0 var(--line);
+  }
+
+  :root[data-glass] .edge-line-t {
+    box-shadow: none;
+  }
+
+  .hairline {
+    box-shadow: inset 0 0 0 0.5px var(--line-strong);
+  }
+
+  /* Floating card on the window's glass: soft shadow + top highlight. */
+  .glass-card {
+    box-shadow:
+      var(--shadow-card),
+      inset 0 0.5px 0 var(--highlight);
+  }
+
+  .glass-sidebar {
+    background: var(--sidebar-card);
+  }
+
+  /* Liquid Glass panels: a hairline rim, a bright top edge, a soft lift;
+     sidebars catch a faint sheen from above. */
+  :root[data-glass] .glass-card {
+    box-shadow:
+      0 0 0 0.5px var(--glass-rim),
+      inset 0 0.5px 0 var(--glass-edge),
+      0 6px 20px rgb(0 0 0 / 0.06),
+      0 1px 3px rgb(0 0 0 / 0.05);
+  }
+
+  :root[data-glass] .glass-sidebar {
+    background-image: linear-gradient(to bottom, var(--glass-sheen), transparent 120px);
   }
 }
 
 /*
-  Surfaces.
-
-  `backdrop-filter` is what makes these work in a browser tab, where there is no
-  AppKit material to sit on: it blurs the window colour and whatever the layout
-  puts behind the strip. Inside the desktop window it is close to a no-op and
-  harmless — the real blur happens a layer below, in AppKit.
+  Soft scroll edges: content fades out as it scrolls under a header instead of
+  meeting a divider line. Scrollers opt in with .scroll-edge; core/appearance
+  marks which edges have content beyond them.
 */
+:root[data-glass] .scroll-edge[data-edge-top] {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--edge-size, 22px));
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--edge-size, 22px));
+}
+
+:root[data-glass] .scroll-edge.scroll-edge-bottom[data-edge-bottom] {
+  -webkit-mask-image: linear-gradient(to top, transparent 0, #000 var(--edge-size, 22px));
+  mask-image: linear-gradient(to top, transparent 0, #000 var(--edge-size, 22px));
+}
+
+:root[data-glass] .scroll-edge.scroll-edge-bottom[data-edge-top][data-edge-bottom] {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--edge-size, 22px),
+    #000 calc(100% - var(--edge-size, 22px)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--edge-size, 22px),
+    #000 calc(100% - var(--edge-size, 22px)),
+    transparent 100%
+  );
+}
+
+/* ---- Motion -------------------------------------------------------------- */
+
+/* Closing overlays fade out quickly. */
+.animate-pop-in[data-state='closed'] {
+  animation: pop-out 110ms ease-in both;
+}
+
+.animate-fade-in[data-state='closed'] {
+  animation: fade-out 110ms ease-in both;
+}
+
+/* Spring motion: Liquid Glass. */
+:root[data-motion='spring'] .animate-pop-in:not([data-state='closed']) {
+  animation: glass-in 200ms var(--ease-spring) both;
+}
+
+:root[data-motion='spring'] .view-enter {
+  animation: rise-in 160ms var(--ease-out) both;
+}
+
+:root[data-motion='spring'][data-ready] .dockview-theme-glass .dv-tab {
+  animation: tab-in 180ms var(--ease-spring) both;
+}
+
+/* Segmented selection glides between options (ui/sliding-thumb). */
+:root[data-motion='spring'] .sliding-thumb[data-moving] {
+  transition:
+    transform 200ms var(--ease-spring),
+    width 200ms var(--ease-spring);
+}
+
+/*
+  Pressed. Every control answers the press itself, at once, before whatever it
+  does has started — a click waits for the release, and the action behind it
+  may take a frame or two more, so without this the first sign that anything
+  was hit is the result. Darker in light, brighter in dark, as AppKit's
+  controls do; it snaps in and eases out on the control's own transition.
+
+  Rows and segments are left out: their selection already moves on the press,
+  and a dimmed row under a fresh selection reads as a second state.
+*/
+button:not(:disabled):not(.row-item):not([role='radio']):active,
+[role='button']:not([aria-disabled='true']):active {
+  filter: brightness(0.9);
+  transition-duration: 0s;
+}
+
+:root[data-theme='dark'] button:not(:disabled):not(.row-item):not([role='radio']):active,
+:root[data-theme='dark'] [role='button']:not([aria-disabled='true']):active {
+  filter: brightness(1.25);
+}
+
+/* Reduce Motion (macOS or the web view): no movement at all. */
+:root[data-motion='reduced'] *,
+:root[data-motion='reduced'] *::before,
+:root[data-motion='reduced'] *::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+}
+
+/* ---- Surfaces and lines -------------------------------------------------- */
+
+/* Chrome sits directly on the card it belongs to; the card is the material. */
 @utility surface-chrome {
-  background-color: var(--chrome);
-  backdrop-filter: saturate(180%) blur(20px);
+  background-color: transparent;
 }
 
 @utility surface-content {
   background-color: var(--content);
 }
 
-/* Layered over chrome rather than replacing it, so the material still shows. */
+/* A sticky band inside a document: firm enough to hide what scrolls under it. */
 @utility surface-band {
-  background-color: var(--band);
-  backdrop-filter: saturate(180%) blur(20px);
+  background-color: color-mix(in srgb, var(--content-solid) 94%, var(--fg) 6%);
 }
 
 @utility surface-menu {
-  background-color: var(--menu);
-  backdrop-filter: saturate(180%) blur(30px);
-  border: 1px solid var(--separator);
+  background-color: var(--glass-fill);
+  background-image: linear-gradient(to bottom, var(--glass-sheen), transparent 46%);
+  backdrop-filter: blur(26px) saturate(1.8);
+  -webkit-backdrop-filter: blur(26px) saturate(1.8);
   box-shadow:
-    0 0 0 0.5px rgb(0 0 0 / 0.12),
-    0 10px 34px -6px rgb(0 0 0 / 0.34);
+    var(--glass-shadow),
+    inset 0 0.5px 0 var(--glass-edge);
 }
 
 /*
-  The panel that floats over a picture.
-
-  Dark in both themes, which is the one place this application ignores its own
-  appearance setting and is right to. Every other surface sits over the window,
-  whose colour it knows; this one sits over whatever a model happened to draw. A
-  light card over a chalkboard slide reads as a hole punched through the
-  picture, and there is no theme in which that is what was wanted. Photos, Quick
-  Look and every video player reach for dark chrome over media for the same
-  reason.
-
-  The blur is the same material the menus use, so it belongs to this application
-  rather than being borrowed from a website. The hairline is white here instead
-  of `--separator`: over an arbitrary image the edge has to come from the panel,
-  since the thing behind it cannot be relied on to provide contrast.
+  The panel that floats over a picture. Dark in both themes: it sits over
+  whatever a model happened to draw, and a light card over a chalkboard slide
+  reads as a hole punched through the picture.
 */
 @utility surface-overlay {
-  background-color: rgb(28 28 30 / 0.72);
-  backdrop-filter: saturate(180%) blur(30px);
+  background-color: rgb(28 28 30 / 0.66);
+  backdrop-filter: saturate(180%) blur(26px);
+  -webkit-backdrop-filter: saturate(180%) blur(26px);
   box-shadow:
     0 0 0 0.5px rgb(255 255 255 / 0.14),
-    0 8px 30px -8px rgb(0 0 0 / 0.55);
+    inset 0 0.5px 0 rgb(255 255 255 / 0.18),
+    0 10px 32px -8px rgb(0 0 0 / 0.55);
 }
 
-/*
-  A text field inside the glass panel.
-
-  `.control` cannot be reused here: it is built for a field sitting on the
-  window, and its light fill and `--separator` hairline both vanish against a
-  picture. This is the same shape in the panel's own terms — a slightly darker
-  well than the glass, a white hairline to give it an edge whatever is behind
-  it, and the accent ring on focus that every other field in the application
-  draws.
-*/
 @utility field-on-glass {
   background-color: rgb(0 0 0 / 0.32);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.16);
+  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.2);
 }
 
 .field-on-glass:focus {
   outline: none;
   box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 0.2),
-    0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent);
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.24),
+    0 0 0 2px var(--focus);
 }
 
-/*
-  The seam between two panes, drawn by the sash that sits between them.
-
-  One element rather than a rule on each side: a pane that draws its own edge
-  and a resize handle that occupies space between the panes make *two* lines
-  with a gap of window between them, which is what a doubled, muddy divider
-  actually is. The divider and the thing you grab to move it are the same
-  object, so there is nowhere for a second line to come from.
-
-  A filled box rather than an inset shadow, too. WebKit snaps a background to
-  the device pixel grid far more willingly than it snaps a shadow, and a pane
-  edge lands on a fractional coordinate every time the split is dragged — which
-  is how a hairline turns into a soft two-pixel smudge.
-*/
+/* The rule between two panes or groups; a filled box snaps to the device
+   pixel grid more willingly than a shadow does. */
 @utility seam-v {
   width: var(--hairline);
-  background-color: var(--separator);
+  background-color: var(--line);
 }
 
 @utility seam-h {
   height: var(--hairline);
-  background-color: var(--separator);
+  background-color: var(--line);
 }
 
-/* The same line, for edges inside a pane, where there is no sash to draw it. */
 @utility hairline-r {
-  box-shadow: inset calc(-1 * var(--hairline)) 0 0 0 var(--separator);
+  box-shadow: inset calc(-1 * var(--hairline)) 0 0 0 var(--line);
 }
 
 @utility hairline-l {
-  box-shadow: inset var(--hairline) 0 0 0 var(--separator);
+  box-shadow: inset var(--hairline) 0 0 0 var(--line);
 }
 
 @utility hairline-b {
-  box-shadow: inset 0 calc(-1 * var(--hairline)) 0 0 var(--separator);
+  box-shadow: inset 0 calc(-1 * var(--hairline)) 0 0 var(--line);
 }
 
 @utility hairline-t {
-  box-shadow: inset 0 var(--hairline) 0 0 var(--separator);
+  box-shadow: inset 0 var(--hairline) 0 0 var(--line);
 }
 
 @utility text-primary {
-  color: var(--text);
+  color: var(--fg);
 }
 
 @utility text-secondary {
-  color: var(--text-secondary);
+  color: var(--fg-muted);
 }
 
 @utility text-tertiary {
-  color: var(--text-tertiary);
+  color: var(--fg-subtle);
 }
 
-/*
-  The running mark: an indeterminate spinner, because that is the one state the
-  eye should catch without being told what a colour means. A rotating arc is the
-  only shape in the vocabulary that *moves*, and motion is read before hue.
+/* ---- Marks --------------------------------------------------------------- */
 
-  Reduced motion leaves the arc where it is. Three quarters of a ring is still
-  unlike a full ring and unlike a disc, so the state survives without spinning.
+/*
+  The running mark: an indeterminate spinner, because motion is read before
+  hue. Reduced motion leaves the arc where it is — three quarters of a ring is
+  still unlike a full ring and unlike a disc.
 */
 @keyframes mark-spin {
   to {
@@ -351,181 +830,154 @@
   animation: mark-spin 700ms linear infinite;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .mark-spinner {
-    animation: none;
-  }
+:root[data-motion='reduced'] .mark-spinner {
+  animation: none;
 }
 
+/* ---- Controls ------------------------------------------------------------ */
+
 /*
-  A slider in a form on the window.
-
-  The filled portion is the whole reason this is not the rail's slider below: a
-  form has three or four of these and the fill is what makes each one readable
-  at a glance, where a column of twenty filled tracks — which is what the
-  builder's rail is — reads as a barcode. So there are two, the difference is
-  one property, and each is right where it is used.
-
-  The fraction has to come in from outside. A range input does not expose its
-  own position to CSS, so the component sets `--slider-fill` as a percentage and
-  the gradient has two hard stops at it: accent behind the knob, track ahead of
-  it, no blend between them.
+  A slider in a form: a thin track filled with the accent up to the thumb. The
+  component sets `--slider-fill` as a percentage — a range input does not expose
+  its own position to CSS.
 */
 .slider {
   appearance: none;
   -webkit-appearance: none;
   height: 18px;
   background: transparent;
-  cursor: pointer;
   --slider-fill: 0%;
 }
 
 .slider::-webkit-slider-runnable-track {
   height: 4px;
-  border-radius: 999px;
+  border-radius: 2px;
   background: linear-gradient(
     to right,
-    var(--accent) 0 var(--slider-fill),
-    var(--idle-selection) var(--slider-fill) 100%
+    var(--accent-fill) 0 var(--slider-fill),
+    var(--active) var(--slider-fill) 100%
   );
 }
 
 .slider::-webkit-slider-thumb {
   appearance: none;
   -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
-  /* Half the knob's height less half the track's, so it rides centred. */
-  margin-top: -5px;
-  border-radius: 999px;
-  background: var(--raised);
+  margin-top: -6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
   box-shadow:
-    0 0 0 0.5px rgb(0 0 0 / 0.24),
-    0 1px 2px rgb(0 0 0 / 0.2);
-  transition: transform 90ms ease-out;
+    0 0 0 0.5px rgb(0 0 0 / 0.18),
+    0 1px 3px rgb(0 0 0 / 0.25);
+  transition: transform 120ms var(--ease-out);
 }
 
 .slider:active::-webkit-slider-thumb {
   transform: scale(1.08);
 }
 
+.slider:focus-visible {
+  outline: none;
+}
+
 .slider:focus-visible::-webkit-slider-thumb {
   box-shadow:
-    0 0 0 0.5px var(--accent),
-    0 0 0 3px var(--accent-wash-strong);
+    0 0 0 2px var(--focus),
+    0 1px 3px rgb(0 0 0 / 0.25);
 }
 
 /*
-  The slider in the thumbnail builder's rail.
-
-  Written here for the same reason `.control` is: the track and the knob are
-  vendor pseudo-elements, and there is no way to reach `::-webkit-slider-thumb`
-  from a utility class. `appearance: none` first, because otherwise the platform
-  control ignores every rule that follows.
-
-  AppKit's proportions rather than the browser's: a thin recessed track and a
-  small raised knob with the shadow the system gives it. The track is 3px so a
-  column of twenty of them reads as a column of settings and not as a column of
-  scrollbars.
+  The slider in the thumbnail builder's rail: no fill, because a column of
+  twenty filled tracks reads as a barcode.
 */
 .thumb-slider {
   appearance: none;
   -webkit-appearance: none;
   height: 16px;
   background: transparent;
-  cursor: pointer;
 }
 
 .thumb-slider::-webkit-slider-runnable-track {
   height: 3px;
   border-radius: 999px;
-  background: var(--idle-selection);
+  background: var(--active);
 }
 
 .thumb-slider::-webkit-slider-thumb {
   appearance: none;
   -webkit-appearance: none;
-  width: 12px;
-  height: 12px;
-  /* Half the knob's height less half the track's, so it rides centred. */
-  margin-top: -4.5px;
-  border-radius: 999px;
-  background: var(--raised);
+  width: 13px;
+  height: 13px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: #fff;
   box-shadow:
-    0 0 0 0.5px rgb(0 0 0 / 0.24),
-    0 1px 2px rgb(0 0 0 / 0.2);
+    0 0 0 0.5px rgb(0 0 0 / 0.18),
+    0 1px 2px rgb(0 0 0 / 0.22);
+}
+
+.thumb-slider:focus-visible {
+  outline: none;
 }
 
 .thumb-slider:focus-visible::-webkit-slider-thumb {
   box-shadow:
-    0 0 0 0.5px var(--accent),
-    0 0 0 3px var(--accent-wash-strong);
+    0 0 0 2px var(--focus),
+    0 1px 2px rgb(0 0 0 / 0.22);
 }
 
+@layer components {
 /*
-  Text controls.
-
-  Written here rather than as Tailwind utilities because the focus ring and the
-  resting border are the *same* property — one box-shadow, two stops — and a
-  ring utility layered over an inline shadow silently wins, which is a focus
-  ring that never appears.
-
-  Half a pixel of border at rest, and on focus the accent takes that half pixel
-  over and a wash spreads outside it. That is AppKit's ring: the control is
-  outlined, not haloed.
+  Text controls: a recessed well with a hairline rim. The rim and the focus ring
+  are the same property, so the ring is written here rather than layered on as
+  a utility — a ring utility over an inline shadow silently loses.
 */
 .control {
-  border-radius: 5px;
-  background-color: var(--content);
-  padding: 3px 8px;
-  font-size: 12px;
-  color: var(--text);
+  border-radius: 8px;
+  background-color: var(--well);
+  padding: 4px 9px;
+  font-size: 12.5px;
+  color: var(--fg);
   outline: none;
-  box-shadow: 0 0 0 0.5px var(--separator-strong);
-  transition: box-shadow 120ms ease-out;
+  box-shadow: inset 0 0 0 0.5px var(--line-strong);
+  transition:
+    box-shadow 120ms var(--ease-out),
+    background-color 120ms var(--ease-out);
+}
+
+.control:hover:not(:focus) {
+  background-color: color-mix(in srgb, var(--well) 60%, var(--hover));
 }
 
 .control::placeholder {
-  color: var(--text-tertiary);
+  color: var(--fg-faint);
 }
 
 .control:focus {
+  background-color: var(--content-solid);
   box-shadow:
-    0 0 0 0.5px var(--accent),
-    0 0 0 3.5px var(--accent-wash-strong);
+    inset 0 0 0 0.5px var(--line-strong),
+    0 0 0 2px var(--focus);
 }
 
-/* The stepper arrows are a Chrome affordance, not a macOS one, and they crowd
-   a field sized to its number. */
+.control:disabled {
+  opacity: 0.5;
+}
+
 .control::-webkit-outer-spin-button,
 .control::-webkit-inner-spin-button {
   appearance: none;
   margin: 0;
 }
+}
+
+/* ---- Overlays ------------------------------------------------------------ */
 
 /*
-  A dialog, and the window behind it.
-
-  It arrives by growing a hair into place rather than sliding: a centred dialog
-  has no edge to have come from, and a slide implies one. Faster on the way out
-  than in, because a dismissal should feel answered rather than sat through.
-
-  The scrim barely darkens. macOS does not black out the window behind a modal;
-  it leaves it legible, because the thing you are being asked about is usually
-  the thing behind it.
-*/
-/*
-  Scale and opacity only — never translate.
-
-  Centring is Tailwind's `-translate-x-1/2 -translate-y-1/2`, and in v4 those
-  emit the standalone `translate` property, not `transform`. The two compose
-  rather than override: a keyframe that also translated by -50% would shift the
-  dialog half its own size up and left *on top of* the centring, and then snap
-  back the instant the animation ended and `transform` returned to none.
-
-  So this animates the one property nothing else is using. `scale(1)` is
-  identical to no transform at all, which is what makes the end of the animation
-  a non-event.
+  A dialog. Scale and opacity only, never translate: centring is Tailwind's
+  standalone `translate` property, and a keyframe that also translated would
+  compose with it and snap at the end.
 */
 @keyframes dialog-in {
   from {
@@ -538,158 +990,80 @@
   }
 }
 
-@keyframes scrim-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+.dialog {
+  transform-origin: 50% 40%;
+  animation: dialog-in 180ms var(--ease-out) both;
 }
 
-/*
-  Four layers, and the reason is falloff.
-
-  Two shadows — one tight, one wide — leave a visible gap between them: the card
-  reads as sharp for four pixels and then as a soft cloud, with nothing joining
-  the two. Three, each roughly tripling its blur and thinning as it spreads, is
-  the gradient AppKit draws and the eye reads as one shadow rather than as a
-  stack of them.
-
-  The hairline ring is not one of the shadows. It is the card's edge, and it has
-  to stay crisp at every radius while everything under it blurs.
-*/
-.dialog {
-  box-shadow:
-    0 0 0 0.5px var(--separator-strong),
-    0 1px 3px -1px rgb(0 0 0 / 0.14),
-    0 10px 24px -6px rgb(0 0 0 / 0.26),
-    0 32px 72px -18px rgb(0 0 0 / 0.45);
-  animation: dialog-in 180ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+:root[data-motion='spring'] .dialog:not([data-state='closed']) {
+  animation: glass-in 220ms var(--ease-spring) both;
 }
 
 .dialog[data-state='closed'] {
-  animation: dialog-in 120ms cubic-bezier(0.4, 0, 1, 1) reverse both;
+  animation: pop-out 120ms ease-in both;
 }
 
+/* The scrim barely darkens: the thing you are being asked about is usually
+   the thing behind it. */
 .scrim {
-  background-color: rgb(0 0 0 / 0.16);
-  animation: scrim-in 180ms ease-out both;
+  background-color: rgb(0 0 0 / 0.2);
+  animation: fade-in 160ms ease-out both;
 }
 
-/*
-  The same restraint costs more alpha here.
- 
-  "Barely darkens" is a perceptual target, not a number: sixteen percent black
-  over a near-black window is almost nothing, so the modal arrives with no
-  separation from the desktop behind it at all. Twice the alpha in the dark
-  palette is the same *step* the light one takes.
-*/
-.dark .scrim {
-  background-color: rgb(0 0 0 / 0.34);
+:root[data-theme='dark'] .scrim {
+  background-color: rgb(0 0 0 / 0.35);
 }
 
 .scrim[data-state='closed'] {
-  animation: scrim-in 120ms ease-in reverse both;
-}
-
-/*
-  A popover.
- 
-  Scale and opacity only, and safe to animate with `transform` where the dialog
-  was not: Radix puts the positioning translate on a wrapper element of its own,
-  so the content's transform is unclaimed. Quicker than a dialog in both
-  directions — this is a glance, and a glance should not have a ceremony.
-*/
-@keyframes popover-in {
-  from {
-    opacity: 0;
-    transform: scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+  animation: fade-out 110ms ease-in both;
 }
 
 .popover {
   transform-origin: var(--radix-popover-content-transform-origin);
-  animation: popover-in 120ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
 }
 
-.popover[data-state='closed'] {
-  animation: popover-in 90ms cubic-bezier(0.4, 0, 1, 1) reverse both;
-}
-
-/*
-  Menu rows. Radix reports the pointer/keyboard highlight as data-highlighted,
-  and macOS answers it with a full-width accent fill rather than a tint.
-*/
+/* Menu rows: a soft tint for the highlight, so text stays readable. */
 .menu-item {
-  color: var(--text);
+  color: var(--fg);
 }
 
 .menu-item[data-highlighted] {
-  background-color: var(--accent);
-  color: var(--accent-text);
+  background-color: var(--row-highlight);
 }
 
-/*
-  A destructive row, in AppKit's red — and still red when highlighted, where the
-  accent fill would otherwise make it look like every other item on the way past.
-*/
+.menu-item[data-disabled] {
+  opacity: 0.4;
+}
+
 .menu-item[data-danger] {
-  color: var(--failed);
+  color: var(--danger);
 }
 
 .menu-item[data-danger][data-highlighted] {
-  background-color: var(--failed);
-  color: #ffffff;
+  background-color: color-mix(in srgb, var(--danger) 12%, transparent);
 }
 
 .menu-shortcut {
-  color: var(--text-tertiary);
-  font-size: 12px;
+  color: var(--fg-subtle);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
 }
 
-.menu-item[data-highlighted] .menu-shortcut {
-  color: rgb(255 255 255 / 0.75);
-}
-
-/*
-  A settings card's separators.
-
-  Not `divide-y`: preflight resets every element to `border: 0 solid`, so a
-  child's border colour resolves to `currentColor` — the row's own text — and
-  setting it on the card does not help, because border-color does not inherit.
-  The result is a near-black rule between every row.
-
-  This is `hairline-t` applied from the second child on, which is the app's own
-  device-pixel rule and puts the line *between* two rows rather than under all
-  of them.
-*/
+/* A settings card's separators, between rows rather than under all of them. */
 .settings-card > * + * {
-  box-shadow: inset 0 var(--hairline) 0 0 var(--separator);
+  box-shadow: inset 0 var(--hairline) 0 0 var(--line);
 }
 
 /* ---- Source-list row ------------------------------------------------------
-   The conversation row: a token, two lines, and the time on the trailing edge
-   of the first. Everything below is about the *token* — the row's own box is
-   Tailwind, because it is only a flex line with padding.
+   A token, two lines, and the time on the trailing edge of the first.
 
-   The status mark is drawn twice, at two ranges. A ten-pixel dot in the corner
-   of a twenty-eight-pixel token is legible when you are looking at it and
-   invisible when you are scanning past, so the same signal is repeated as a ring
-   around the whole token: same hue, same rhythm, a size up. One custom property
-   feeds both, which is what makes it impossible for them to disagree.
-
-   And the rhythm is half the signal, not decoration. At this size hue alone
-   cannot separate "working" from "waiting for you", and for red/green colour
-   blindness it does not separate them at all — so working *orbits* and waiting
-   *beats*, and either is readable with the colour thrown away. */
+   The status mark is drawn twice, at two ranges: a dot in the corner of the
+   token, and a ring around the whole token. One custom property feeds both, so
+   they can never disagree. The rhythm is half the signal: working *orbits* and
+   waiting *beats*, readable with the colour thrown away. */
 
 .row-item:hover:not(.row-selected) {
-  background-color: color-mix(in srgb, var(--text) 8%, transparent);
+  background-color: var(--hover);
 }
 
 .row-avatar {
@@ -698,19 +1072,14 @@
   flex: 0 0 auto;
 }
 
-/* An inset edge, which is what stops a mid-tone token smearing into the blue
-   fill underneath it when the row is selected. */
+/* An inset edge, so a mid-tone token never smears into the surface. */
 .row-avatar::after {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, #000000 12%, transparent);
+  box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.14);
   pointer-events: none;
-}
-
-.row-selected .row-avatar::after {
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, #ffffff 55%, transparent);
 }
 
 .row-avatar[data-tone='accent'] {
@@ -722,23 +1091,11 @@
 }
 
 .row-avatar[data-tone='failed'] {
-  --row-tone: var(--failed);
+  --row-tone: var(--danger);
 }
 
-/* On a selected row every glyph turns white: a semantic hue over the blue fill
-   only goes muddy, and the motion still names the state. */
-.row-selected .row-avatar[data-tone] {
-  --row-tone: #ffffff;
-}
-
-/*
-  The ring.
-
-  Inset far enough to sit inside the row's gap and the dot's own overhang, so it
-  costs no layout — nothing shifts when a video wakes up. Only opacity and
-  transform ever animate; a `box-shadow` spread would repaint every visible row
-  on every frame.
-*/
+/* The ring. Only opacity and transform animate: a box-shadow spread would
+   repaint every visible row on every frame. */
 .row-avatar[data-tone]::before {
   content: '';
   position: absolute;
@@ -748,9 +1105,6 @@
   pointer-events: none;
 }
 
-/* Working — an arc travelling over the faint ring, which stays as its track. The
-   mask keeps the outer 1.5px of both, so the ring brightens where the arc passes
-   instead of the arc floating on nothing. */
 .row-avatar[data-motion='working']::before {
   background: conic-gradient(
     from 0deg,
@@ -762,8 +1116,6 @@
   animation: row-ring-spin 1.8s linear infinite;
 }
 
-/* Needs you — a double tap and a rest, which is a heartbeat rather than a
-   metronome, and is what separates "blocked on you" from "busy" by rhythm. */
 .row-avatar[data-motion='attention']::before {
   border-color: var(--row-tone);
   box-shadow: 0 0 5px color-mix(in srgb, var(--row-tone) 45%, transparent);
@@ -795,59 +1147,27 @@
   }
 }
 
-/*
-  The dot, top-left.
-
-  Not the usual bottom-right presence corner: a list is scanned down its leading
-  edge, so this is the first pixel of the row the eye reaches — and it is the one
-  spot on the token that never collides with the title beside it.
-
-  It straddles the token's edge, so it needs separating from both the token
-  behind it and the row underneath. Translucent rather than surface-coloured: an
-  opaque ring would cut a solid crescent out of the material.
-*/
+/* The dot, bottom-right, where macOS puts a status badge on a token. Top-left
+   sat over the initial, and its pulse smeared the very letter that names the
+   channel. */
 .row-dot {
   position: absolute;
-  top: -2px;
-  left: -2px;
-  width: 10px;
-  height: 10px;
+  right: -2px;
+  bottom: -2px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: var(--row-tone);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--window) 72%, transparent);
+  box-shadow: 0 0 0 2px var(--sidebar-ring, color-mix(in srgb, var(--content-solid) 80%, transparent));
   pointer-events: none;
 }
 
-/* A still dot has no motion to catch the eye, so it gets a halo instead — its
-   own colour at low alpha, outside the separator. */
 .row-dot[data-rest] {
   box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--window) 72%, transparent),
+    0 0 0 2px var(--sidebar-ring, color-mix(in srgb, var(--content-solid) 80%, transparent)),
     0 0 0 4px color-mix(in srgb, var(--row-tone) 22%, transparent);
 }
 
-.row-selected .row-dot {
-  box-shadow: 0 0 0 2px var(--accent);
-}
-
-.row-selected .row-dot[data-rest] {
-  box-shadow:
-    0 0 0 2px var(--accent),
-    0 0 0 4px color-mix(in srgb, #ffffff 30%, transparent);
-}
-
-/*
-  The dot radiates, inside the ring that orbits.
-
-  The ring answers "is there anything here" from across the sidebar; this is what
-  the mark does once you are looking at it. A halo of the dot's own colour swells
-  out of it and fades, so the row is alive at rest rather than merely coloured.
-
-  Scale and opacity only, and on pseudo-elements rather than the dot itself: both
-  are compositor properties, so a sidebar full of live rows never repaints on the
-  main thread. Animating `box-shadow` spread — which is what this looks like it
-  should be — would repaint every visible row every frame.
-*/
 .row-dot[data-motion='working']::after {
   content: '';
   position: absolute;
@@ -857,13 +1177,6 @@
   animation: row-dot-pulse 1.8s ease-out infinite;
 }
 
-/*
-  Needs you — the same swell, twice, 0.18s apart.
-
-  Two beats and a rest reads as a heartbeat where one reads as a metronome, and
-  that is the whole distinction between "waiting for you" and "busy". The dead
-  air from 70% to 100% is what gives the pair its rest.
-*/
 .row-dot[data-motion='attention']::before,
 .row-dot[data-motion='attention']::after {
   content: '';
@@ -891,141 +1204,228 @@
   }
 }
 
-/* The one word on the second line worth reading is the state, so it is the one
-   part of it at full strength. */
+/* The one word on the second line worth reading is the state. */
 .row-state {
-  color: var(--text);
-}
-
-.row-selected .row-state {
-  color: #ffffff;
+  color: var(--fg);
 }
 
 /*
-  Reduced motion still has to answer "is it working?".
-
-  Stopping every animation would collapse the two rhythms into two rings that
-  differ only in hue, which is the failure the rhythms exist to avoid. So they
-  degrade to distinct weights instead: working solid, needs-you solid and
-  blooming.
+  Reduced motion still has to answer "is it working?": the rhythms degrade to
+  distinct weights — working solid, needs-you solid and blooming.
 */
-@media (prefers-reduced-motion: reduce) {
-  .row-avatar[data-motion='working']::before {
-    animation: none;
-    background: none;
-    mask: none;
-    border-color: var(--row-tone);
-  }
-
-  .row-avatar[data-motion='attention']::before {
-    animation: none;
-    opacity: 1;
-  }
-
-  /* The swell is the one part with no still equivalent — a halo frozen mid-flight
-     is just a smudge — so it goes, and the ring carries the state alone. */
-  .row-dot[data-motion]::before,
-  .row-dot[data-motion]::after {
-    display: none;
-  }
+:root[data-motion='reduced'] .row-avatar[data-motion='working']::before {
+  animation: none !important;
+  background: none;
+  mask: none;
+  border-color: var(--row-tone);
 }
 
-/*
-  Dockview, dressed as the window's titlebar.
+:root[data-motion='reduced'] .row-avatar[data-motion='attention']::before {
+  animation: none !important;
+  opacity: 1;
+}
 
-  The tab strip *is* the top of the window, so it is chrome and it is
-  translucent — which means the group behind it has to be transparent, not
-  white. Each editor paints its own opaque surface instead, and the active tab
-  paints the same one: that is what makes the tab and the document read as a
-  single sheet with the strip cut around it, and it is the detail the reference
-  window turns on.
+:root[data-motion='reduced'] .row-dot[data-motion]::before,
+:root[data-motion='reduced'] .row-dot[data-motion]::after {
+  display: none;
+}
 
-  The sashes are invisible until grabbed, which is what a native split does.
-*/
-.dockview-theme-macos {
-  --dv-background-color: transparent;
+/* ---- Dockview: the glass workbench theme ----------------------------------
+   Structural rules adapted from dockview's spaced theme (MIT); colours come
+   from the tokens above. Every group is a floating card; tabs are capsules and
+   the active one is the glass thumb. */
+
+.dockview-theme-glass {
+  --dv-paneview-active-outline-color: var(--focus);
+  --dv-tabs-and-actions-container-font-size: 12.5px;
+  --dv-tabs-and-actions-container-height: var(--strip-height);
+  --dv-tabs-and-actions-container-background-color: var(--content);
   --dv-group-view-background-color: transparent;
-  --dv-tabs-and-actions-container-background-color: transparent;
-  --dv-tabs-and-actions-container-height: 38px;
-  --dv-tabs-and-actions-container-font-size: 13px;
-  --dv-tab-font-size: 13px;
-
-  --dv-activegroup-visiblepanel-tab-background-color: var(--content);
-  --dv-activegroup-visiblepanel-tab-color: var(--text);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--active);
   --dv-activegroup-hiddenpanel-tab-background-color: transparent;
-  --dv-activegroup-hiddenpanel-tab-color: var(--text-secondary);
-  --dv-inactivegroup-visiblepanel-tab-background-color: var(--content);
-  --dv-inactivegroup-visiblepanel-tab-color: var(--text-secondary);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--hover);
   --dv-inactivegroup-hiddenpanel-tab-background-color: transparent;
-  --dv-inactivegroup-hiddenpanel-tab-color: var(--text-tertiary);
-
   --dv-tab-divider-color: transparent;
-  --dv-separator-border: var(--separator);
-  --dv-paneview-header-border-color: var(--separator);
-  /* Invisible, dragged or not: the pane's hairline is the divider, and a
-     divider that lights up under the cursor is a web idiom. */
+  --dv-activegroup-visiblepanel-tab-color: var(--fg);
+  --dv-activegroup-hiddenpanel-tab-color: var(--fg-muted);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--fg-muted);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--fg-subtle);
+  --dv-separator-border: transparent;
+  --dv-paneview-header-border-color: var(--line);
   --dv-sash-color: transparent;
-  --dv-active-sash-color: transparent;
-  --dv-drag-over-background-color: rgb(10 108 245 / 0.16);
+  --dv-active-sash-color: var(--accent);
+  --dv-active-sash-transition-duration: 0.1s;
+  --dv-active-sash-transition-delay: 0.3s;
+  --dv-drag-over-background-color: var(--accent-soft);
   --dv-drag-over-border-color: var(--accent);
+  --dv-drag-over-border: none;
+  --dv-edge-dock-indicator-color: var(--accent);
   --dv-icon-hover-background-color: var(--hover);
-  --dv-scrollbar-background-color: transparent;
-  --dv-tabs-container-scrollbar-color: rgb(0 0 0 / 0.2);
-
-  --dv-border-radius: 0px;
-  --dv-tab-border-radius: 0px;
-  --dv-sash-border-radius: 0px;
-  --dv-dropdown-border-radius: 7px;
+  --dv-floating-box-shadow: var(--shadow-pop);
+  --dv-floating-border: 0.5px solid var(--line-strong);
+  --dv-floating-group-border: 0.5px solid var(--line-strong);
+  --dv-scrollbar-background-color: var(--fg-faint);
+  --dv-tabs-container-scrollbar-color: var(--fg-faint);
   --dv-overlay-z-index: 999;
-
-  color: var(--text);
-}
-
-/*
-  The strip.
-
-  Heavier than the sidebar's chrome on purpose: this is the band the document
-  hangs from, and the white of the active tab only reads as *raised* if what
-  surrounds it is a settled, even grey rather than a wash of whatever happens to
-  be on the desktop behind it. Still translucent, just less so.
-*/
-.dockview-theme-macos .dv-tabs-and-actions-container {
-  background-color: var(--chrome-strong);
-  backdrop-filter: saturate(180%) blur(20px);
-  box-shadow: inset 0 calc(-1 * var(--hairline)) 0 0 var(--separator);
-}
-
-/*
-  Tabs are full-bleed slabs, not pills: full strip height, square, touching, and
-  with no rule between them. A margin, a radius or a divider here is the single
-  thing that would make this read as a browser rather than as a macOS window —
-  the tone difference between the raised tab and the strip is the whole
-  separation, and it is enough.
-
-  Full height also has work to do: an opaque tab covers the strip's bottom
-  hairline, so the active tab and the document below it are one continuous
-  sheet with the strip cut around them.
-*/
-.dockview-theme-macos .dv-tabs-container {
-  height: 100%;
-  align-items: stretch;
-}
-
-.dockview-theme-macos .dv-tab {
-  height: 100%;
-  min-width: 132px;
-  max-width: 260px;
+  --dv-spacing-padding: 0px;
+  --dv-border-radius: var(--card-radius);
+  --dv-tab-font-size: 12.5px;
+  --dv-tab-margin-block: 5px;
+  --dv-tab-margin-inline: 2px;
+  --dv-tab-margin: var(--dv-tab-margin-block) var(--dv-tab-margin-inline);
+  --dv-tab-border-radius: 999px;
+  --dv-sash-border-radius: 4px;
+  --dv-dropdown-border-radius: 12px;
+  --dv-tab-close-icon-size: 9px;
+  box-sizing: border-box;
   padding: 0;
-  margin: 0;
-  border-radius: 0;
-  box-shadow: none;
-  transition: background-color 100ms ease-out;
+  color: var(--fg);
+  color-scheme: inherit;
+  background-color: transparent;
 }
 
-.dockview-theme-macos .dv-tab.dv-inactive-tab:hover {
+.dockview-theme-glass .dv-dockview {
+  padding: 0;
+}
+
+.dockview-theme-glass .dv-sash {
+  border-radius: var(--dv-sash-border-radius);
+  transition: background-color 120ms ease;
+}
+
+.dockview-theme-glass .dv-drop-target-anchor {
+  border-radius: calc(var(--dv-border-radius) / 4);
+}
+
+.dockview-theme-glass .dv-drop-target-anchor.dv-drop-target-content {
+  border-radius: var(--dv-border-radius);
+}
+
+.dockview-theme-glass .dv-tabs-overflow-container,
+.dockview-theme-glass .dv-tabs-overflow-dropdown-default {
+  border-radius: var(--dv-dropdown-border-radius);
+  height: unset !important;
+}
+
+.dockview-theme-glass .dv-groupview {
+  border-radius: var(--dv-border-radius);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+:root[data-glass] .dockview-theme-glass .dv-groupview {
+  box-shadow:
+    0 0 0 0.5px var(--glass-rim),
+    inset 0 0.5px 0 var(--glass-edge),
+    0 6px 20px rgb(0 0 0 / 0.06),
+    0 1px 3px rgb(0 0 0 / 0.05);
+}
+
+.dockview-theme-glass .dv-groupview .dv-tabs-and-actions-container {
+  padding: 0 calc(var(--dv-border-radius) / 2 - 2px);
+  border-top-left-radius: var(--dv-border-radius);
+  border-top-right-radius: var(--dv-border-radius);
+  box-shadow: inset 0 calc(-1 * var(--hairline)) 0 var(--line);
+}
+
+:root[data-glass] .dockview-theme-glass .dv-groupview .dv-tabs-and-actions-container {
+  box-shadow: none;
+}
+
+.dockview-theme-glass .dv-groupview .dv-content-container {
+  background-color: var(--content);
+  border-bottom-left-radius: var(--dv-border-radius);
+  border-bottom-right-radius: var(--dv-border-radius);
+}
+
+/*
+  Open documents are rendered once and kept (the editor area's renderer is
+  "always"), so a tab switch is a visibility flip rather than a fresh layout.
+  A document behind another tab is skipped entirely — no layout, no paint, no
+  animation — while the browser keeps its rendering state, so bringing it back
+  costs a frame rather than a rebuild. It also stays out of a window resize or
+  a pane toggle, which would otherwise lay out every open document at once.
+
+  The overlay sits outside the group's card, so it rounds its own lower corners
+  to match the card it is drawn over.
+*/
+.dockview-theme-glass .dv-render-overlay {
+  border-bottom-left-radius: var(--dv-border-radius);
+  border-bottom-right-radius: var(--dv-border-radius);
+  overflow: hidden;
+}
+
+.dockview-theme-glass .dv-render-overlay[style*='visibility: hidden'] {
+  content-visibility: hidden;
+}
+
+/*
+  A video's modes, kept built behind the one shown. `display: none` rather than
+  `content-visibility: hidden`: WebKit — the engine the desktop app runs on —
+  lays a revealed pane out again either way, so the cached rendering state
+  buys nothing there, and it cost an extra 40ms a switch for the `inert` it
+  needed beside it. Hidden this way the pane cannot be focused or hit, and its
+  scrollers keep their positions.
+*/
+.mode-pane[data-hidden] {
+  display: none;
+}
+
+/* Progress that only appears once a wait has gone on long enough to notice. */
+.pending-in {
+  animation:
+    fade-in 200ms ease-out 400ms both,
+    mark-spin 700ms linear infinite;
+}
+
+.dockview-theme-glass .dv-tab {
+  height: calc(var(--dv-tabs-and-actions-container-height) - 2 * var(--dv-tab-margin-block));
+  margin: var(--dv-tab-margin);
+  padding: 0 6px 0 9px;
+  border-radius: var(--dv-tab-border-radius);
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.dockview-theme-glass .dv-tab:hover {
   background-color: var(--hover);
 }
 
-.dockview-theme-macos .dv-void-container {
+.dockview-theme-glass .dv-tab .dv-svg {
+  height: var(--dv-tab-close-icon-size);
+  width: var(--dv-tab-close-icon-size);
+}
+
+:root[data-glass] .dockview-theme-glass .dv-groupview.dv-active-group .dv-tab.dv-active-tab {
+  background: var(--thumb-fill);
+  box-shadow: var(--thumb-shadow);
+}
+
+:root[data-glass] .dockview-theme-glass .dv-groupview.dv-inactive-group .dv-tab.dv-active-tab {
+  background: var(--selection);
+  box-shadow: inset 0 0.5px 0 var(--selection-edge);
+}
+
+.dockview-theme-glass .dv-void-container {
   cursor: default;
+}
+
+/* Leave room for the traffic lights when the sidebar is hidden. */
+.dockview-theme-glass [data-traffic-lights] .dv-tabs-and-actions-container {
+  padding-left: var(--dock-lights-inset);
+  transition: padding-left 180ms var(--ease-out);
+}
+
+/*
+  A chapter of the reader. Off screen, Chromium skips its layout and paint and
+  holds its place at the size it last had. WebKit — the desktop app — ignores
+  this and lays every chapter out, so the reader also stops drawing the bodies
+  of far-away chapters itself (ui/nearby); this is kept for the browser, where
+  it still saves the paint. Paint containment keeps the sticky header inside
+  its own chapter, which is where it sticks anyway.
+*/
+.chapter-section {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 520px;
 }

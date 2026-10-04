@@ -256,21 +256,21 @@ export function ThumbnailDialog({
   // Redrawn on every keystroke. It costs a few million pixel operations, which
   // at this size is a couple of frames -- and a headline that resizes as you
   // type is the entire reason to build this in the browser at all.
+  //
+  // At most once per frame, though, and always the latest state. A slider
+  // drag reports many values per frame, and drawing each of them in turn made
+  // the thumb trail the pointer by however many draws were queued behind it.
   useEffect(() => {
     if (!canvas || !resources.data || !ready) return
-    const cells: Cell[] = captions.map((caption, index) => ({
-      caption,
-      icon: icons.data?.[index] ?? null,
-    }))
-    setReport(
-      compose(canvas, {
-        headline,
-        cells,
-        style,
-        family: resources.data.family,
-        background: resources.data.background,
-      }),
-    )
+    const { family, background } = resources.data
+    const frame = requestAnimationFrame(() => {
+      const cells: Cell[] = captions.map((caption, index) => ({
+        caption,
+        icon: icons.data?.[index] ?? null,
+      }))
+      setReport(compose(canvas, { headline, cells, style, family, background }))
+    })
+    return () => cancelAnimationFrame(frame)
   }, [canvas, captions, headline, icons.data, ready, resources.data, style])
 
   const settle = (next: Video) => {
@@ -484,7 +484,7 @@ export function ThumbnailDialog({
               </button>
             ) : null}
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="scroll-edge min-h-0 flex-1 overflow-y-auto">
             <StyleControls
               style={style}
               fonts={fontSetting?.suggestions ?? []}

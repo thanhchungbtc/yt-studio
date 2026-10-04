@@ -1,4 +1,5 @@
 import { X } from 'lucide-react'
+import { useState, type KeyboardEvent, type PointerEvent } from 'react'
 
 import { cn } from '../../../core/utils'
 import { Menu, type MenuItem } from '../../ui/menu'
@@ -115,6 +116,60 @@ export function Mark({
     )
   }
 
+  return (
+    <ActionableMark cell={cell} className={className} menu={menu} label={label} tooltip={tooltip} />
+  )
+}
+
+/**
+ * The menu is mounted on first use, not on sight.
+ *
+ * A fifty-chapter table carries several hundred of these, and a Radix menu is a
+ * dozen components of providers, popper and presence each — mounted for every
+ * dot on screen, that was most of the cost of opening a video. Until it is
+ * pressed a dot is a plain button that opens the menu the way Radix would:
+ * on press for the pointer, on Enter, Space or ↓ for the keyboard. After that
+ * the menu stays mounted, so closing it still animates.
+ */
+function ActionableMark({
+  cell,
+  className,
+  menu,
+  label,
+  tooltip,
+}: {
+  cell: Cell
+  className?: string
+  menu: MenuItem[]
+  label: string
+  tooltip: string
+}) {
+  const [open, setOpen] = useState<boolean | null>(null)
+
+  const onPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
+    if (event.button !== 0 || event.ctrlKey) return
+    event.preventDefault()
+    setOpen(true)
+  }
+  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'ArrowDown') return
+    event.preventDefault()
+    setOpen(true)
+  }
+
+  const trigger = (
+    <button
+      type="button"
+      title={tooltip}
+      aria-label={`${label} — actions`}
+      aria-haspopup="menu"
+      {...(open === null ? { onPointerDown, onKeyDown } : {})}
+      className={cn('inline-flex cursor-default rounded-full', TARGET)}
+    >
+      <Shape cell={cell} />
+    </button>
+  )
+
   // The caller's className stays on the outer span in both branches, and the
   // target grows inside it. The column passes alignment through here (`pt-1`),
   // and letting that land on the same element as the target's own padding would
@@ -125,16 +180,13 @@ export function Mark({
       {/* `align="start"` so the card hangs from the dot's own edge. A twelve-pixel
           trigger centred under a 176-pixel menu says nothing about which of eighty
           slides it belongs to, and that is the one thing it has to be clear about. */}
-      <Menu items={menu} align="start">
-        <button
-          type="button"
-          title={tooltip}
-          aria-label={`${label} — actions`}
-          className={cn('inline-flex cursor-default rounded-full', TARGET)}
-        >
-          <Shape cell={cell} />
-        </button>
-      </Menu>
+      {open === null ? (
+        trigger
+      ) : (
+        <Menu items={menu} align="start" open={open} onOpenChange={setOpen}>
+          {trigger}
+        </Menu>
+      )}
     </span>
   )
 }

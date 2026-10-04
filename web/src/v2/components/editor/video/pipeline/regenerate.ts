@@ -2,7 +2,7 @@ import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-q
 import { Check, RefreshCw, RotateCcw } from 'lucide-react'
 import { useCallback } from 'react'
 
-import { api } from '../../../../core/api'
+import { api, qk } from '../../../../core/api'
 import type { Task } from '../../../../core/types'
 import type { MenuItem } from '../../../ui/menu'
 import { cellAction, STAGE_KINDS, type Cell, type PipelineStage, type StageId } from '../stages'
@@ -40,6 +40,32 @@ async function afterPlanSave(client: QueryClient): Promise<void> {
 }
 
 /**
+ * Draws the answer before the server gives it.
+ *
+ * A re-run is a round trip and then a frame on the stream before the dot would
+ * move, and a menu that closes on a dot that has not changed reads as a click
+ * that missed. So the dot goes to queued — or loses its stale ring — the moment
+ * the item is chosen, and the stream overwrites it with the real state as soon
+ * as the scheduler has one.
+ */
+function acknowledge(
+  client: QueryClient,
+  videoId: string,
+  taskIds: string[],
+  patch: Partial<Pick<Task, 'state' | 'stale'>>,
+): void {
+  const ids = new Set(taskIds)
+  client.setQueryData<Task[]>(qk.tasks(videoId), (prev) =>
+    prev?.map((task) => (ids.has(task.id) ? { ...task, ...patch } : task)),
+  )
+}
+
+/** A refused re-run puts back what is true rather than what was guessed. */
+function settleTasks(client: QueryClient, videoId: string): Promise<void> {
+  return client.invalidateQueries({ queryKey: qk.tasks(videoId) })
+}
+
+/**
  * The three things a dot can do, as one mutation and a menu builder.
  *
  * One hook per table rather than one per dot. A video is eighty cells and a
@@ -56,6 +82,14 @@ export function useCellMenu(videoId: string) {
   const client = useQueryClient()
 
   const run = useMutation({
+    onMutate: (job: Job) =>
+      acknowledge(
+        client,
+        videoId,
+        [job.taskId],
+        job.action === 'accept' ? { stale: false } : { state: 'ready' },
+      ),
+    onError: () => settleTasks(client, videoId),
     mutationFn: async (job: Job) => {
       await afterPlanSave(client)
       switch (job.action) {
@@ -160,6 +194,8 @@ export function useStageMenu(videoId: string, tasks: Task[]) {
   const client = useQueryClient()
 
   const run = useMutation({
+    onMutate: (taskIds: string[]) => acknowledge(client, videoId, taskIds, { state: 'ready' }),
+    onError: () => settleTasks(client, videoId),
     mutationFn: async (taskIds: string[]) => {
       await afterPlanSave(client)
       return api.rerunTasks(videoId, taskIds)

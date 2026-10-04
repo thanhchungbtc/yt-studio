@@ -130,7 +130,7 @@ export function Dialog({
           // Capped against the window as well as against its own width: a
           // dialog larger than the window it opens in is the one broken layout
           // a fixed size can still produce.
-          className="dialog surface-content fixed top-[46%] left-1/2 z-50 flex max-h-[86vh] max-w-[calc(100vw-40px)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[14px]"
+          className="dialog glass-pop glass-dense fixed top-[46%] left-1/2 z-50 flex max-h-[86vh] max-w-[calc(100vw-40px)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[20px] text-primary outline-none"
         >
           {children}
         </Radix.Content>
@@ -152,12 +152,12 @@ function Header({ title, description }: { title: string; description?: string })
     // a close button in it. Reserving it unconditionally costs nothing — the
     // text is left-aligned and short — and it means the button can be a part the
     // caller adds without the header having to be told it is coming.
-    <div className="shrink-0 pt-5 pr-14 pb-4 pl-6">
-      <Radix.Title className="text-[15px] leading-tight font-semibold text-primary">
+    <div className="shrink-0 pt-5 pr-14 pb-3.5 pl-6">
+      <Radix.Title className="text-[15px] leading-tight font-semibold tracking-[-0.005em] text-primary">
         {title}
       </Radix.Title>
       {description ? (
-        <Radix.Description className="mt-1 text-[12px] leading-snug text-secondary">
+        <Radix.Description className="mt-1 text-[12.5px] leading-snug text-secondary">
           {description}
         </Radix.Description>
       ) : null}
@@ -179,7 +179,7 @@ function Header({ title, description }: { title: string; description?: string })
  */
 function Body({ bare = false, children }: { bare?: boolean; children: ReactNode }) {
   return (
-    <div className={cn('min-h-0 flex-1', bare ? 'flex' : 'overflow-y-auto px-6 pb-5')}>
+    <div className={cn('min-h-0 flex-1', bare ? 'flex' : 'scroll-edge scroll-edge-bottom overflow-y-auto px-6 pb-5')}>
       {children}
     </div>
   )
@@ -194,7 +194,7 @@ function Body({ bare = false, children }: { bare?: boolean; children: ReactNode 
  * bar under a hairline announcing that it is empty.
  */
 function Footer({ children }: { children: ReactNode }) {
-  return <div className="hairline-t flex shrink-0 items-center gap-2 px-6 py-3.5">{children}</div>
+  return <div className="edge-line-t flex shrink-0 items-center gap-2 px-5 pt-3 pb-4">{children}</div>
 }
 
 /**
@@ -215,9 +215,9 @@ function Close() {
     <Radix.Close
       aria-label="Close"
       className={cn(
-        'absolute top-3.5 right-3.5 z-10 flex size-[22px] items-center justify-center',
-        'rounded-full text-secondary transition-colors',
-        'hover:bg-[var(--hover)] hover:text-primary',
+        'absolute top-3.5 right-3.5 z-10 flex size-6 items-center justify-center',
+        'rounded-full text-secondary transition-colors duration-100',
+        'hover:bg-hover hover:text-primary',
       )}
     >
       <X className="size-[15px]" strokeWidth={2} />

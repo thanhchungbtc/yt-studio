@@ -93,6 +93,7 @@ export function useLLMConnected(): boolean {
  * what a log does.
  */
 export function clearRuns(): void {
+  drop()
   useStore.setState({ runs: [] })
 }
 
@@ -104,33 +105,73 @@ export function clearRuns(): void {
  * which is what lets a console opened halfway through a generation be served by
  * the code that serves one that was open from the start.
  */
-function apply(frame: LLMFrame): void {
+function apply(runs: LLMRun[], frame: LLMFrame): LLMRun[] {
+  const index = runs.findIndex((r) => r.run === frame.run)
+  const previous = index === -1 ? undefined : runs[index]
+
+  const next: LLMRun = {
+    run: frame.run,
+    videoId: frame.videoId,
+    label: frame.label,
+    model: frame.model,
+    text: clamp((previous?.text ?? '') + (frame.text ?? '')),
+    done: frame.done ?? previous?.done ?? false,
+    error: frame.error ?? previous?.error,
+    truncated: frame.truncated ?? previous?.truncated ?? false,
+    startedAt: frame.startedAt,
+    ms: frame.ms ?? previous?.ms,
+  }
+
+  if (previous) {
+    runs[index] = next
+    return runs
+  }
+  // Appended, then trimmed from the front: the server sends them in the order
+  // they began, and that is the order they are read in.
+  runs.push(next)
+  return runs.length > MAX_RUNS ? runs.slice(-MAX_RUNS) : runs
+}
+
+/*
+  Frames are coalesced to one store write per painted frame.
+
+  A model streams a token at a time, and a write per token re-rendered the
+  console dozens of times between two paints — work nobody could ever see. The
+  queue is flushed on the next animation frame, or after a beat when the window
+  is hidden and animation frames stop, so a backgrounded console still keeps up.
+*/
+let queue: LLMFrame[] = []
+let scheduled = 0
+let fallback = 0
+
+function flush(): void {
+  cancelAnimationFrame(scheduled)
+  window.clearTimeout(fallback)
+  scheduled = 0
+  fallback = 0
+  const frames = queue
+  queue = []
+  if (frames.length === 0) return
   useStore.setState((state) => {
-    const index = state.runs.findIndex((r) => r.run === frame.run)
-    const previous = index === -1 ? undefined : state.runs[index]
-
-    const next: LLMRun = {
-      run: frame.run,
-      videoId: frame.videoId,
-      label: frame.label,
-      model: frame.model,
-      text: clamp((previous?.text ?? '') + (frame.text ?? '')),
-      done: frame.done ?? previous?.done ?? false,
-      error: frame.error ?? previous?.error,
-      truncated: frame.truncated ?? previous?.truncated ?? false,
-      startedAt: frame.startedAt,
-      ms: frame.ms ?? previous?.ms,
-    }
-
-    if (previous) {
-      const runs = state.runs.slice()
-      runs[index] = next
-      return { runs }
-    }
-    // Appended, then trimmed from the front: the server sends them in the order
-    // they began, and that is the order they are read in.
-    return { runs: [...state.runs, next].slice(-MAX_RUNS) }
+    let runs = state.runs.slice()
+    for (const frame of frames) runs = apply(runs, frame)
+    return { runs }
   })
+}
+
+function enqueue(frame: LLMFrame): void {
+  queue.push(frame)
+  if (scheduled || fallback) return
+  scheduled = requestAnimationFrame(flush)
+  fallback = window.setTimeout(flush, 100)
+}
+
+function drop(): void {
+  cancelAnimationFrame(scheduled)
+  window.clearTimeout(fallback)
+  scheduled = 0
+  fallback = 0
+  queue = []
 }
 
 /** Keeps the tail, which is the half being watched. */
@@ -151,7 +192,7 @@ export function useLLMStream(): void {
 
     const onFrame = (event: MessageEvent<string>) => {
       try {
-        apply(JSON.parse(event.data) as LLMFrame)
+        enqueue(JSON.parse(event.data) as LLMFrame)
       } catch {
         // A malformed frame is dropped, not thrown. The stream outlives any one
         // bad message.
@@ -163,13 +204,17 @@ export function useLLMStream(): void {
     // the backlog from the beginning — appending that onto runs already applied
     // would print the last few minutes twice. The browser fires this before it
     // delivers a byte of the body, so the reset always lands first.
-    source.onopen = () => useStore.setState({ runs: [], connected: true })
+    source.onopen = () => {
+      drop()
+      useStore.setState({ runs: [], connected: true })
+    }
     source.onerror = () => useStore.setState({ connected: false })
     source.addEventListener('llm', onFrame as EventListener)
 
     return () => {
       source.removeEventListener('llm', onFrame as EventListener)
       source.close()
+      drop()
       useStore.setState({ runs: [], connected: false })
     }
   }, [])

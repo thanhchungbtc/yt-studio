@@ -16,13 +16,9 @@ interface EditorShellProps {
 }
 
 /**
- * The frame every editor is built in: a translucent title strip over one opaque
- * document surface.
- *
- * The nesting matters and is the whole visual argument of the window. The strip
- * sits *outside* the opaque surface, so the material shows through it; the
- * document does not, so the thing being worked on is the one solid object on
- * screen.
+ * The frame every editor is built in: a title strip over the document, both on
+ * the group's card. The card is the surface; the strip and the document are
+ * two regions of it, not two layers.
  */
 export function EditorShell({
   title,
@@ -45,7 +41,11 @@ export function EditorShell({
         statusColor={statusColor}
         actions={actions}
       />
-      <div className="surface-content min-h-0 flex-1">{children}</div>
+      {/* No entrance animation. A tab's content is hidden and shown again as
+          tabs switch, which can restart a CSS animation on it — so a fade here
+          played on every tab switch, and made switching feel like loading. A
+          document comes forward the way a window does: at once. */}
+      <div className="min-h-0 flex-1">{children}</div>
     </div>
   )
 }

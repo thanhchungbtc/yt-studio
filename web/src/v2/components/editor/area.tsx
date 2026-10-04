@@ -1,15 +1,19 @@
 import {
   DockviewReact,
+  type DockviewApi,
   type DockviewReadyEvent,
   type DockviewTheme,
   type IDockviewPanelHeaderProps,
   type IDockviewPanelProps,
   type SerializedDockview,
 } from 'dockview-react'
-import { Clapperboard } from 'lucide-react'
+import { Clapperboard, Plus } from 'lucide-react'
 import { useCallback, useEffect, useRef, type FunctionComponent } from 'react'
 
 import { beginWindowDrag } from '../../core/desktop'
+import { useWorkbench } from '../../store/workbench'
+import { newVideo } from '../new-video'
+import { HeaderButton } from '../ui/header-button'
 import { ChannelEditor } from './channel'
 import { useDock, type DocPanelParams } from './dock'
 import { NewEditor } from './new'
@@ -36,13 +40,13 @@ const LAYOUT_KEY = 'yts.v2.layout.4'
 
 /**
  * The theme is a class name plus the handful of behaviours that are not CSS.
- * `gap: 0` because macOS butts its panes against each other and separates them
- * with a hairline; a gutter would read as a web layout.
+ * Every group is its own floating card, so the gap between two of them is the
+ * window's gap — the same eight pixels that separate every card in the window.
  */
-const macOSTheme: DockviewTheme = {
-  name: 'macos',
-  className: 'dockview-theme-macos',
-  gap: 0,
+const glassTheme: DockviewTheme = {
+  name: 'glass',
+  className: 'dockview-theme-glass',
+  gap: 8,
   dndPanelOverlay: 'group',
   dndTabIndicator: 'line',
 }
@@ -55,17 +59,56 @@ const components: Record<string, FunctionComponent<IDockviewPanelProps>> = {
 
 const tabComponent = EditorTab as FunctionComponent<IDockviewPanelHeaderProps>
 
-/** What fills the area when nothing is open. */
+/** What fills the area when nothing is open: an empty card, ready. */
 function Watermark() {
   return (
-    <div className="surface-content h-full">
+    <div className="glass-card h-full overflow-hidden rounded-[var(--card-radius)] bg-content">
       <Placeholder
         icon={Clapperboard}
         title="Ready when you are"
-        detail="Pick something from the sidebar to open it here."
+        detail="Pick something from the library to open it here, or start a new video."
+        shortcut="⌘N"
       />
     </div>
   )
+}
+
+/** The trailing edge of every tab strip: one glass pill of actions. */
+function HeaderActions() {
+  return (
+    <div className="flex h-full items-center pr-1">
+      <div className="glass-pill">
+        <HeaderButton
+          icon={Plus}
+          label="New Video"
+          shortcut="⌘N"
+          onClick={() => newVideo()}
+          className="size-6"
+        />
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Groups along the top edge double as the window's titlebar, and the top-left
+ * one makes room for the traffic lights when the library is hidden — there is
+ * nothing else up there for them to sit in.
+ */
+function markTitlebarGroups(api: DockviewApi) {
+  const rects = api.groups.map((group) => ({ group, rect: group.element.getBoundingClientRect() }))
+  if (rects.length === 0) return
+  const top = Math.min(...rects.map((entry) => entry.rect.top))
+  const along = rects.filter((entry) => Math.abs(entry.rect.top - top) < 2)
+  const leftmost = along.reduce<(typeof along)[number] | undefined>(
+    (best, entry) => (!best || entry.rect.left < best.rect.left ? entry : best),
+    undefined,
+  )
+  const inset = !useWorkbench.getState().primaryVisible
+  for (const { group } of rects) {
+    group.element.toggleAttribute('data-titlebar', along.some((entry) => entry.group === group))
+    group.element.toggleAttribute('data-traffic-lights', inset && leftmost?.group === group)
+  }
 }
 
 export function EditorArea() {
@@ -94,6 +137,29 @@ export function EditorArea() {
   )
 
   useEffect(() => () => setApi(null), [setApi])
+
+  // Re-marked after anything that can move a group's top-left corner: a split,
+  // a resize of the window, the library coming or going.
+  useEffect(() => {
+    if (!api) return
+    let frame = 0
+    const mark = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => markTitlebarGroups(api))
+    }
+    mark()
+    const relaid = api.onDidLayoutChange(mark)
+    const unsubscribe = useWorkbench.subscribe((state, previous) => {
+      if (state.primaryVisible !== previous.primaryVisible) mark()
+    })
+    window.addEventListener('resize', mark)
+    return () => {
+      cancelAnimationFrame(frame)
+      relaid.dispose()
+      unsubscribe()
+      window.removeEventListener('resize', mark)
+    }
+  }, [api])
 
   useEffect(() => {
     if (!api) return
@@ -180,10 +246,17 @@ export function EditorArea() {
         components={components}
         defaultTabComponent={tabComponent}
         watermarkComponent={Watermark}
+        rightHeaderActionsComponent={HeaderActions}
         onReady={onReady}
-        theme={macOSTheme}
+        theme={glassTheme}
         noPanelsOverlay="watermark"
         singleTabMode="default"
+        // Every open document stays laid out, and switching tabs flips its
+        // visibility. The default detaches a hidden tab's content and attaches
+        // it again on the way back, which costs a full layout of the document
+        // — a pipeline of three hundred tasks — inside the click, before the
+        // tab even looks pressed. Kept, the switch is a repaint.
+        defaultRenderer="always"
         disableFloatingGroups
         className="h-full w-full"
       />

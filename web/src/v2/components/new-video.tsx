@@ -3,6 +3,7 @@ import { useEffect, useId, useState } from 'react'
 import { create } from 'zustand'
 
 import { api, qk } from '../core/api'
+import { uuid } from '../core/utils'
 import { count } from '../core/format'
 import { openDoc } from './editor/dock'
 import { Button } from './ui/button'
@@ -67,7 +68,7 @@ export function NewVideoDialog() {
   // Minted per dialog session, so a double submit is a no-op rather than a
   // second video — including the resubmit of a request that timed out on the
   // way back after the server had already made one.
-  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID())
+  const [idempotencyKey, setIdempotencyKey] = useState(() => uuid())
 
   // Opening from a channel row should follow the operator there.
   useEffect(() => {
@@ -92,7 +93,7 @@ export function NewVideoDialog() {
       // with, and clearing them would make every second video a form to fill in
       // again.
       setBrief((current) => ({ ...current, title: '', topic: '' }))
-      setIdempotencyKey(crypto.randomUUID())
+      setIdempotencyKey(uuid())
       // Pinned, not previewed: a video you just created is one you meant to open.
       openDoc({ kind: 'video', ref: video.ref }, video.title || 'Untitled', {
         seed: owner?.slug,
