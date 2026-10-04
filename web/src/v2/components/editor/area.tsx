@@ -40,8 +40,6 @@ const LAYOUT_KEY = 'yts.v2.layout.4'
 
 /**
  * The theme is a class name plus the handful of behaviours that are not CSS.
- * Every group is its own floating card, so the gap between two of them is the
- * window's gap — the same eight pixels that separate every card in the window.
  */
 const glassTheme: DockviewTheme = {
   name: 'glass',
@@ -59,7 +57,6 @@ const components: Record<string, FunctionComponent<IDockviewPanelProps>> = {
 
 const tabComponent = EditorTab as FunctionComponent<IDockviewPanelHeaderProps>
 
-/** What fills the area when nothing is open: an empty card, ready. */
 function Watermark() {
   return (
     <div className="glass-card h-full overflow-hidden rounded-[var(--card-radius)] bg-content">
@@ -73,7 +70,6 @@ function Watermark() {
   )
 }
 
-/** The trailing edge of every tab strip: one glass pill of actions. */
 function HeaderActions() {
   return (
     <div className="flex h-full items-center pr-1">
@@ -90,11 +86,6 @@ function HeaderActions() {
   )
 }
 
-/**
- * Groups along the top edge double as the window's titlebar, and the top-left
- * one makes room for the traffic lights when the library is hidden — there is
- * nothing else up there for them to sit in.
- */
 function markTitlebarGroups(api: DockviewApi) {
   const rects = api.groups.map((group) => ({ group, rect: group.element.getBoundingClientRect() }))
   if (rects.length === 0) return
@@ -138,8 +129,6 @@ export function EditorArea() {
 
   useEffect(() => () => setApi(null), [setApi])
 
-  // Re-marked after anything that can move a group's top-left corner: a split,
-  // a resize of the window, the library coming or going.
   useEffect(() => {
     if (!api) return
     let frame = 0
@@ -251,11 +240,7 @@ export function EditorArea() {
         theme={glassTheme}
         noPanelsOverlay="watermark"
         singleTabMode="default"
-        // Every open document stays laid out, and switching tabs flips its
-        // visibility. The default detaches a hidden tab's content and attaches
-        // it again on the way back, which costs a full layout of the document
-        // — a pipeline of three hundred tasks — inside the click, before the
-        // tab even looks pressed. Kept, the switch is a repaint.
+        // The default detaches hidden tabs; re-attaching relays out the document.
         defaultRenderer="always"
         disableFloatingGroups
         className="h-full w-full"

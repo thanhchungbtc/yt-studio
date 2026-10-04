@@ -317,10 +317,7 @@ function Player({
       <div className="relative">
         <video
           ref={playerRef}
-          // The platform's controls, but not until they are wanted. WebKit
-          // builds them in script, and on this page that was most of what the
-          // first visit to Upload cost; the element itself is free, and it is
-          // the element the duration and the chapter rail depend on.
+          // WebKit builds native media controls in script; mount on demand.
           controls={live}
           preload="metadata"
           poster={poster ? `/assets/${poster}` : undefined}
@@ -347,8 +344,6 @@ function Player({
           <button
             type="button"
             aria-label="Play the cut"
-            // On the press: the controls appear and playback starts while the
-            // hand is still down.
             onPointerDown={(event) => {
               if (event.button !== 0) return
               setLive(true)

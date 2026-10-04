@@ -1,29 +1,4 @@
-/**
- * The appearance, which is the system's.
- *
- * macOS decides light or dark, and whether the window may be translucent,
- * animate or needs stronger edges — and the window follows, live. Nothing is
- * stored and there is nothing to toggle: a native window whose appearance
- * disagrees with the desktop it is sitting on is the one thing none of them do.
- *
- * Everything lands as attributes on <html>, which the stylesheet keys off:
- *
- *   data-theme     light | dark
- *   data-glass     Liquid Glass surfaces (off under Reduce Transparency)
- *   data-material  liquid | solid
- *   data-motion    spring | reduced
- *   data-contrast  Increase Contrast
- *   data-ready     set shortly after startup, so restored tabs do not animate in
- *
- * The web view's media queries are one source. The desktop binary is the
- * other: WebKit does not report Reduce Transparency, so the shell binds
- * `ytsAccessibility` and fires `yts-accessibility` whenever System Settings
- * changes. In a browser tab the binding is absent and the media queries alone
- * decide.
- *
- * Outside React on purpose: the attributes have to be on <html> before the
- * first component mounts, so nothing paints in the wrong material.
- */
+// WebKit doesn't report Reduce Transparency; the desktop shell does.
 
 interface Accessibility {
   reduceTransparency: boolean
@@ -57,7 +32,6 @@ function apply(): void {
 
   const theme = dark ? 'dark' : 'light'
   if (root.dataset.theme !== theme) root.dataset.theme = theme
-  // The class is kept for anything that still selects on it.
   root.classList.toggle('dark', dark)
   root.classList.toggle('light', !dark)
   root.dataset.material = solid ? 'solid' : 'liquid'
@@ -66,7 +40,6 @@ function apply(): void {
   root.toggleAttribute('data-contrast', contrast)
 }
 
-/** Asks the desktop shell, when there is one, and re-applies. */
 async function refreshNative(): Promise<void> {
   const ask = (window as unknown as AccessibilityBinding).ytsAccessibility
   if (!ask) return
@@ -78,12 +51,6 @@ async function refreshNative(): Promise<void> {
   apply()
 }
 
-/**
- * Soft scroll edges: marks `.scroll-edge` scrollers with data-edge-top /
- * data-edge-bottom while content lies beyond that edge, so the stylesheet can
- * fade it out under headers. One passive, capturing listener serves the whole
- * app, and marks are only written when they flip.
- */
 function mark(element: HTMLElement): void {
   const top = element.scrollTop > 1
   const bottom = element.scrollTop + element.clientHeight < element.scrollHeight - 1
@@ -98,10 +65,7 @@ function installScrollEdges(): () => void {
     const target = event.target
     if (target instanceof HTMLElement && target.classList.contains('scroll-edge')) mark(target)
   }
-  // Content can grow without scrolling: refresh when the pointer comes back.
-  // Only on arrival, not on every element crossed inside: reading a scroller's
-  // extent forces layout, and `pointerover` fires for each row the pointer
-  // passes over.
+  // Re-mark only on entering a scroller; reading its extent forces layout.
   let current: HTMLElement | null = null
   const onEnter = (event: Event) => {
     const target = event.target
@@ -120,9 +84,6 @@ function installScrollEdges(): () => void {
 
 /**
  * Applies the system appearance and keeps it applied.
- *
- * Returns the unsubscribe for completeness; nothing calls it, because the
- * listeners are meant to outlive everything else in the window.
  */
 export function followSystem(): () => void {
   apply()
@@ -133,12 +94,10 @@ export function followSystem(): () => void {
 
   const onNative = () => void refreshNative()
   window.addEventListener('yts-accessibility', onNative)
-  // Belt and braces: System Settings is usually in front while the switch is
-  // flipped, so coming back to the window is when it matters.
+  // Settings is usually in front while toggled; re-ask on return.
   window.addEventListener('focus', onNative)
 
   const offEdges = installScrollEdges()
-  // Overlays and restored tabs animate in only after startup.
   const ready = window.setTimeout(
     () => document.documentElement.toggleAttribute('data-ready', true),
     1200,

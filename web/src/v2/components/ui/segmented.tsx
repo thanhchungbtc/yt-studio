@@ -7,9 +7,7 @@ import { Tooltip } from './tooltip'
 export interface Segment<T extends string> {
   value: T
   label: string
-  /** With `iconOnly`, the label moves into a tooltip. */
   icon?: LucideIcon
-  /** The keystroke for this segment, shown in its tooltip. */
   shortcut?: string
 }
 

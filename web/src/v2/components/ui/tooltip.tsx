@@ -3,7 +3,6 @@ import type { ReactNode } from 'react'
 
 import { Kbd } from './kbd'
 
-/** Mounted once, at the root of the window. */
 export function TooltipProvider({ children }: { children: ReactNode }) {
   return (
     <Radix.Provider delayDuration={450} skipDelayDuration={200}>
@@ -14,20 +13,12 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
 
 interface TooltipProps {
   content: ReactNode
-  /** The keystroke that does the same thing, shown as key caps. */
   shortcut?: string
   side?: 'top' | 'bottom' | 'left' | 'right'
   disabled?: boolean
   children: ReactNode
 }
 
-/**
- * A small glass label that names a control, and the key that does the same.
- *
- * The keystroke is the point. A window that is keyboard-first has to teach its
- * keys somewhere, and the moment someone hovers a control is the moment they
- * are asking what it does.
- */
 export function Tooltip({ content, shortcut, side = 'bottom', disabled, children }: TooltipProps) {
   if (disabled || !content) return <>{children}</>
   return (

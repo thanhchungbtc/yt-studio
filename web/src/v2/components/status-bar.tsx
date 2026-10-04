@@ -10,18 +10,10 @@ import { DragRegion } from './ui/drag-region'
 import { Tooltip } from './ui/tooltip'
 
 /**
- * The status bar: the floor the cards stand on.
- *
- * No card of its own — it sits straight on the window's material, below the
- * last gap, so it reads as part of the window rather than as another pane.
- *
  * What lives here is ambient state — about the application, not about anything
  * you have open — which is why the pools are here and not in the video editor.
  * A pool is shared by every video at once; showing it beside one of them would
  * say it belonged to that one.
- *
- * The pane toggles on the trailing edge are the keystrokes made visible: each
- * one names its key in its tooltip, so the keyboard is learnable from here.
  */
 export function StatusBar() {
   const scheduler = useScheduler()
@@ -68,7 +60,6 @@ export function StatusBar() {
   )
 }
 
-/** A compact icon toggle: bright while its pane is showing. */
 function Toggle({
   icon: Icon,
   label,

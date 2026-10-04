@@ -6,7 +6,6 @@ import { Tooltip } from './tooltip'
 interface HeaderButtonProps {
   icon: LucideIcon
   label: string
-  /** Shown beside the label in the tooltip. */
   shortcut?: string
   active?: boolean
   onClick?: () => void

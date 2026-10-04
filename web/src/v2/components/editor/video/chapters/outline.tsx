@@ -4,20 +4,6 @@ import { count } from '../../../../core/format'
 import type { Chapter } from '../../../../core/types'
 import { cn } from '../../../../core/utils'
 
-/**
- * The table of contents, as the reader's leading column.
- *
- * It was a card floating in the margin once, sized to what it held. That suited
- * seven chapters and nothing past them: a fifty-chapter video turned the card
- * into a short window on a long list, sitting over a reader that had been
- * narrowed to make room for it — so the margin it lived in was the space the
- * text gave up, and the list still scrolled.
- *
- * A column claims the full height, which for a long video is exactly what the
- * list wants, and it gives the reader everything to its right without anything
- * overlapping anything. It is hidden on a window too narrow for both, where the
- * pinned chapter band alone says where you are.
- */
 export function ChapterOutline({
   chapters,
   activeId,
@@ -30,9 +16,6 @@ export function ChapterOutline({
 }) {
   const list = useRef<HTMLDivElement>(null)
 
-  // The bar follows the reader, and the list follows the bar: on a long video
-  // the active row would otherwise scroll out of the column it is reporting in.
-  // `nearest`, so a row already in view does not move at all.
   useEffect(() => {
     if (!activeId) return
     list.current
@@ -72,8 +55,6 @@ export function ChapterOutline({
               )}
               title={chapter.title}
             >
-              {/* Two pixels on the leading edge. A filled pill alone would say
-               *you chose this*; the bar is reporting where you are. */}
               {active ? (
                 <span
                   className="absolute top-[5px] bottom-[5px] left-0 w-[2px] rounded-r-full"

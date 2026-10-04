@@ -62,20 +62,12 @@ interface RowProps {
    * empty card.
    */
   menu?: MenuItem[]
-  /**
-   * The pointer arriving on the row and leaving it again, so the caller can
-   * fetch what a click would open while the hand is still on its way.
-   */
   onHover?: (hovering: boolean) => void
 }
 
 /**
  * One row of the source list, laid out the way a Messages conversation is: a
  * token, two lines of text, and the time on the trailing edge of the first.
- *
- * The selected row is a soft glass capsule inset from both edges rather than a
- * full-bleed band, concentric with the card it sits in. That inset is most of
- * why the list reads as macOS and not as a table.
  *
  * The state badge rides on the token rather than sitting in a column of its
  * own. A column of mostly-empty space is a column the eye still has to cross.
@@ -101,17 +93,12 @@ export function Row({
   const row = (
     <button
       type="button"
-      // Selects on the press, the way a Finder or Mail list does, rather than
-      // on the release a click waits for — the hand is still on its way down
-      // and the row is already the selected one and its document is opening.
-      // ⌃-click is the context menu on a Mac, and the right button never
-      // selects here.
+      // ⌃-click is the context menu on macOS.
       onPointerDown={(event) => {
         if (event.button !== 0 || event.ctrlKey) return
         onSelect(event)
       }}
-      // Return and Space still press the button; they arrive as a click with
-      // no pointer behind it, which is the only click left to act on.
+      // Keyboard activation only; pointer presses select on pointerdown.
       onClick={(event) => {
         if (event.detail === 0) onSelect(event)
       }}
@@ -125,8 +112,6 @@ export function Row({
         // `items-start`, not centred: the token tops with the title, so a row
         // whose second line wraps grows downwards instead of pushing the token
         // out of line with the name it belongs to.
-        // No colour transition: a selection that fades in reads as one that
-        // is still deciding. Lists on a Mac light up on the press, at once.
         'row-item flex w-full items-start gap-[9px] rounded-[var(--radius-inner)] px-[9px] py-[7px] text-left',
         selected && 'row-selected',
       )}

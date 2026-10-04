@@ -39,15 +39,6 @@ async function afterPlanSave(client: QueryClient): Promise<void> {
   }
 }
 
-/**
- * Draws the answer before the server gives it.
- *
- * A re-run is a round trip and then a frame on the stream before the dot would
- * move, and a menu that closes on a dot that has not changed reads as a click
- * that missed. So the dot goes to queued — or loses its stale ring — the moment
- * the item is chosen, and the stream overwrites it with the real state as soon
- * as the scheduler has one.
- */
 function acknowledge(
   client: QueryClient,
   videoId: string,
@@ -60,7 +51,6 @@ function acknowledge(
   )
 }
 
-/** A refused re-run puts back what is true rather than what was guessed. */
 function settleTasks(client: QueryClient, videoId: string): Promise<void> {
   return client.invalidateQueries({ queryKey: qk.tasks(videoId) })
 }

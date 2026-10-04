@@ -14,14 +14,12 @@ export interface MenuItem {
   onSelect: () => void
 }
 
-/** The glass card both kinds of menu wear; it grows out of its control. */
 export const MENU_CONTENT =
   'glass-pop animate-pop-in z-50 min-w-48 overflow-hidden rounded-[12px] p-1 text-[12.5px] outline-none'
 
 export const MENU_ITEM =
   'menu-item relative flex h-7 cursor-default items-center gap-2 rounded-[8px] px-2 outline-none select-none'
 
-/** One row's insides, shared by the pull-down and the contextual menu. */
 export function MenuRow({ item }: { item: MenuItem }) {
   const Icon = item.icon
   return (
@@ -44,7 +42,6 @@ interface MenuProps {
   /** The control the menu hangs from. */
   children: ReactNode
   align?: 'start' | 'end'
-  /** Controlled open state, for a menu mounted only once it is asked for. */
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }

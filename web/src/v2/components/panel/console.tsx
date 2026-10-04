@@ -312,13 +312,6 @@ function Highlight({ text, needle }: { text: string; needle: string }) {
   return <>{parts}</>
 }
 
-/**
- * One run: what it was, and what came out of it.
- *
- * Memoised, because the store hands back the same object for every run a frame
- * did not touch — so a token arriving on one run redraws that run alone rather
- * than every block in the log.
- */
 const Block = memo(function Block({
   run,
   needle,

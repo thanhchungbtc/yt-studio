@@ -1,6 +1,5 @@
 import { cn } from '../../core/utils'
 
-/** A shortcut written the macOS way — "⇧⌘N" — drawn as one quiet key cap. */
 export function Kbd({ keys, className }: { keys: string; className?: string }) {
   return (
     <kbd

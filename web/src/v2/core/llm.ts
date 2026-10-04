@@ -126,20 +126,11 @@ function apply(runs: LLMRun[], frame: LLMFrame): LLMRun[] {
     runs[index] = next
     return runs
   }
-  // Appended, then trimmed from the front: the server sends them in the order
-  // they began, and that is the order they are read in.
   runs.push(next)
   return runs.length > MAX_RUNS ? runs.slice(-MAX_RUNS) : runs
 }
 
-/*
-  Frames are coalesced to one store write per painted frame.
-
-  A model streams a token at a time, and a write per token re-rendered the
-  console dozens of times between two paints — work nobody could ever see. The
-  queue is flushed on the next animation frame, or after a beat when the window
-  is hidden and animation frames stop, so a backgrounded console still keeps up.
-*/
+// One store write per paint; the timeout covers hidden windows, where rAF stops.
 let queue: LLMFrame[] = []
 let scheduled = 0
 let fallback = 0

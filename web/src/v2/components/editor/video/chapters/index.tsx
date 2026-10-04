@@ -93,8 +93,6 @@ export function ChaptersView({ video, chapters, tasks }: ViewProps) {
 
   const scroller = useRef<HTMLDivElement>(null)
   const { root: nearbyRoot, watch } = useNearbyRoot()
-  // The reader's scroller is read directly (the jump, the scroll-spy) and is
-  // also the root the chapters measure their distance from.
   const setScroller = useCallback(
     (element: HTMLDivElement | null) => {
       scroller.current = element
@@ -164,9 +162,7 @@ export function ChaptersView({ video, chapters, tasks }: ViewProps) {
     const target = root?.querySelector<HTMLElement>(`[data-chapter="${id}"]`)
     if (!root || !target) return
     target.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    // Chapters off screen are not laid out until they come into view, so the
-    // distance to a far one is an estimate until the scroll gets there. Once it
-    // settles, the landing is checked and corrected without animation.
+    // Far chapters have estimated heights; correct the landing once it settles.
     const settle = () => {
       root.removeEventListener('scrollend', settle)
       window.clearTimeout(timer)
@@ -188,14 +184,10 @@ export function ChaptersView({ video, chapters, tasks }: ViewProps) {
   }
 
   return (
-    // `@container` so the outline can take itself away when the window is too
-    // narrow for a column of it beside the reader.
     <div className="@container flex min-h-0 flex-1">
       <ChapterOutline chapters={chapters} activeId={active} onJump={jump} />
       <div className="flex min-w-0 flex-1 flex-col">
         <FilterBar shown={shown} onToggle={(key) => setShown((s) => ({ ...s, [key]: !s[key] }))} />
-        {/* A container of its own, so a chapter lays its script and its media
-            side by side against the reader's width rather than the window's. */}
         <div ref={setScroller} className="@container/reader min-h-0 flex-1 overflow-y-auto">
           <NearbyProvider value={watch}>
             {chapters.map((chapter, index) => (
@@ -228,19 +220,8 @@ export function ChaptersView({ video, chapters, tasks }: ViewProps) {
   )
 }
 
-/**
- * The column everything in a chapter lines up in.
- *
- * It used to be a 40rem measure centred in the reader, which kept the script
- * readable and left two thirds of a wide window empty. The measure belongs to
- * the *script* and nothing else, so it is the script that carries it now: on a
- * wide reader a chapter is two columns, the script at a readable width and the
- * narration, slides and clip beside it, and this cap only stops the pair from
- * drifting apart on a very large display.
- */
 const COLUMN = 'mx-auto w-full max-w-[84rem]'
 
-/** The script's own measure, for when it has the chapter to itself. */
 const MEASURE = 'max-w-[52rem]'
 
 /**
@@ -319,19 +300,10 @@ const PANEL = {
   boxShadow: '0 0 0 0.5px var(--separator)',
 }
 
-/** How many chapters draw in full before the observer has said anything. */
 const EAGER = 4
 
-/** The stand-in height for a body that has never been drawn. */
 const ESTIMATE = 520
 
-/**
- * One chapter of the reader.
- *
- * Memoised: its chapter and its slide cells keep their identity until something
- * in this chapter moves, so a frame that lands a slide in chapter 12 redraws
- * chapter 12 rather than every script on the page.
- */
 const ChapterBlock = memo(function ChapterBlock({
   chapter,
   eager,
@@ -340,7 +312,6 @@ const ChapterBlock = memo(function ChapterBlock({
   onView,
 }: {
   chapter: Chapter
-  /** Drawn in full from the first frame: the chapters the reader opens on. */
   eager: boolean
   slides: Cell[]
   shown: Shown
@@ -353,11 +324,8 @@ const ChapterBlock = memo(function ChapterBlock({
     const measured = inner.current?.offsetHeight ?? 0
     if (measured > 0) height.current = measured
   })
-  // The height the body last drew at, held for the spacer that stands in for
-  // it while it is away, so the scroll does not jump when it comes back.
   const height = useRef<number | null>(null)
-  // A body that has been pressed or focused stays drawn: it may be playing its
-  // narration or holding an unsaved edit, and taking it away would end both.
+  // Stays drawn once touched: may be playing audio or holding an edit.
   const [engaged, setEngaged] = useState(false)
   const drawn = near || engaged
   // Held here rather than up in the reader: the button that opens it is in this
@@ -372,13 +340,9 @@ const ChapterBlock = memo(function ChapterBlock({
   const clip = shown.clip && !!chapter.clipAssetId
   const media = narration || pictures || clip
   const body = shown.script || media
-  // Two columns only when there is something for each of them; a script alone
-  // keeps its measure, and media alone takes the width a contact sheet wants.
   const split = shown.script && media
 
   return (
-    // `chapter-section` lets the browser skip laying out and painting the
-    // chapters that are off screen — a long video is mostly off screen.
     <section ref={section} data-chapter={chapter.id} className="chapter-section">
       {/*
         Sticky, and the only thing in this view that is. Eight chapters down a
@@ -595,22 +559,7 @@ function ScriptPart({ chapter }: { chapter: Chapter }) {
   )
 }
 
-/**
- * A chapter's narration: a stand-in until it is pressed, the platform player
- * after.
- *
- * The player is the platform's own — it knows how to seek, how to answer the
- * keyboard and where the system volume goes, and the asset handler serves
- * ranges, so scrubbing works. But WebKit builds every player's controls in
- * script, and a reader of eighty narrated chapters built eighty of them on the
- * click that opened it: measured, two seconds of a frozen window. So nothing is
- * built until someone asks to listen, and the press that asks is the one that
- * starts it — the stand-in is the same height, so nothing moves when it swaps.
- *
- * Fetched on the press and not before. Narration is served as WAV, ten
- * megabytes a minute, and a page of players that fetched on sight would pull
- * the better part of a hundred megabytes for a page nobody has played.
- */
+// WebKit builds native media controls in script; mount on demand.
 function Narration({ assetId, seconds }: { assetId: string; seconds: number }) {
   const [live, setLive] = useState(false)
   if (live) {
@@ -627,8 +576,6 @@ function Narration({ assetId, seconds }: { assetId: string; seconds: number }) {
   return (
     <button
       type="button"
-      // On the press, not the release, so the player is there and starting by
-      // the time the hand lifts.
       onPointerDown={(event) => {
         if (event.button === 0) setLive(true)
       }}
@@ -675,10 +622,6 @@ function Part({
   )
 }
 
-/**
- * 1344×768 is what the composer frames a slide at. The width is the grid's, so
- * the tiles grow with the column instead of leaving a ragged gap at its end.
- */
 const TILE = 'aspect-[1344/768] w-full rounded-[6px]'
 
 /**

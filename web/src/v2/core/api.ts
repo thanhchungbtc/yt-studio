@@ -451,14 +451,6 @@ export function assetUrl(id: string | undefined): string | undefined {
   return id ? `/assets/${id}` : undefined
 }
 
-/**
- * Fetches what opening a video will ask for, ahead of the click.
- *
- * The same three queries the editor runs, under the same keys, so the editor
- * finds them answered. `prefetchQuery` does nothing for a key that is still
- * fresh, so a pointer passing back and forth over a row costs one request each
- * and no more.
- */
 export function prefetchVideo(client: QueryClient, video: Pick<Video, 'id' | 'ref'>): void {
   void client.prefetchQuery({
     queryKey: qk.video(video.ref),

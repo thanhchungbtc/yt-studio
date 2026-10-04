@@ -2,14 +2,6 @@ import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 
 import { cn } from '../../core/utils'
 
-/**
- * The selection of a segmented control, gliding between options.
- *
- * Render it first inside the control (which must be `relative`); options carry
- * `data-thumb-key` and draw no background of their own. It measures within its
- * own parent, does not animate on first paint, and follows size changes —
- * which snap rather than glide, because a resize is not a choice.
- */
 export function SlidingThumb({ active, className }: { active: string | undefined; className?: string }) {
   const thumb = useRef<HTMLSpanElement>(null)
   const [box, setBox] = useState<{ x: number; y: number; w: number; h: number }>()
@@ -24,10 +16,7 @@ export function SlidingThumb({ active, className }: { active: string | undefined
       !root || key === undefined
         ? null
         : root.querySelector<HTMLElement>(`[data-thumb-key="${CSS.escape(key)}"]`)
-    // Read here, not in the updater. React runs an updater during its next
-    // render, and by then the click may have committed a whole document under
-    // this control — so a read there forces the style of all of it, inside the
-    // render, before the frame that would have computed it anyway.
+    // Read layout outside the updater; React runs it mid-render.
     const next = element
       ? {
           x: element.offsetLeft,

@@ -67,44 +67,15 @@ import { PLAN_SAVE, useCellMenu } from './regenerate'
  * changing is while looking at the grid that shows what they add up to.
  */
 
-/*
-  The columns, and how they are sized.
-
-  Every track except the chapter's is sized by what is in it — `auto` is the
-  widest of the heading and the cells under it — rather than by a guess in rems.
-  The guesses were the bug: a heading is a line of ten-pixel uppercase with a
-  tally after it, `NARRATION 317/317` is wider than `NARRATION 0/6`, and a fixed
-  track that fitted the second let the first run into its neighbour.
-
-  That only works because the head and the rows are laid out by *one* grid.
-  Each row is a subgrid spanning every column, so a track widened by the head
-  is widened for every row under it, and the alignment is the browser's job
-  rather than two templates agreeing to.
-
-  The chapter column takes every spare pixel, so the marks sit against the right
-  edge at any width. The prose inside it stops at 44rem while the column does
-  not: past about a hundred characters a line the eye loses its place coming
-  back.
-
-  The slide column is the one capped track, because its content can be twenty
-  marks wide. `fit-content` sizes it to the marks up to six of them, and past
-  that the row of marks wraps instead of the column growing.
-*/
+// Rows are subgrids of one grid, so `auto` tracks fit head and cells alike.
 function columnsFor(slidesPerChapter: number): string {
   const slots = Math.min(Math.max(slidesPerChapter, 1), 6)
-  // One mark and its gap each.
   const slides = `fit-content(${slots * 1.125}rem)`
   return `auto minmax(14rem, 1fr) auto auto auto ${slides} auto`
 }
 
-/** A row of the table: every column, laid on the table's own tracks. */
 const ROW = 'col-span-full grid grid-cols-subgrid px-4'
 
-/**
- * A stage cell, centred under its heading. The track is as wide as the heading,
- * and a mark at the left of `NARRATION 0/317` sits under the first letter of a
- * word rather than under the column.
- */
 const STAGE = 'justify-self-center pt-1'
 
 interface ChapterTableProps {
@@ -207,8 +178,6 @@ export function ChapterTable({
               <button
                 type="button"
                 onClick={() => setOpen(allOpen ? new Set() : new Set(chapters.map((c) => c.id)))}
-                // Sentence case and the accent, so it reads as the one thing in
-                // the band you can press rather than as a second heading.
                 className="text-[10.5px] font-medium tracking-normal normal-case text-[var(--accent)] hover:underline"
               >
                 {allOpen ? 'Collapse all' : 'Expand all'}
@@ -279,10 +248,8 @@ export function ChapterTable({
   )
 }
 
-/** Rows drawn from the first frame, before the observer has said anything. */
 const EAGER_ROWS = 12
 
-/** The stand-in height for a row that has never been drawn: two lines of brief. */
 const ROW_ESTIMATE = 88
 
 interface ChapterRowProps {
@@ -290,7 +257,6 @@ interface ChapterRowProps {
   stage: ChapterStages
   videoId: string
   first: boolean
-  /** Drawn from the first frame; see `EAGER_ROWS`. */
   eager: boolean
   editing: boolean
   open: boolean
@@ -298,13 +264,6 @@ interface ChapterRowProps {
   menuFor: (cell: Cell, noun: string) => MenuItem[]
 }
 
-/**
- * One chapter's row.
- *
- * Memoised, and every prop is either a value or stable: the chapter and its
- * stages keep their identity until something in *this* row moves, so a frame
- * that finishes a slide in chapter 12 redraws chapter 12 and nothing else.
- */
 const ChapterRow = memo(function ChapterRow({
   chapter,
   stage,
@@ -318,16 +277,12 @@ const ChapterRow = memo(function ChapterRow({
 }: ChapterRowProps) {
   const seconds = projectedSeconds(chapter.estimatedWords)
   const row = useRef<HTMLDivElement>(null)
-  // The height it last drew at, for the empty row that holds its place while it
-  // is far from the viewport; see ui/nearby. The row element itself stays, so
-  // the observer keeps watching it.
   const height = useRef<number | null>(null)
   const near = useNear(row, eager, () => {
     const measured = row.current?.offsetHeight ?? 0
     if (measured > 0) height.current = measured
   })
-  // Every row stays drawn while the plan is being edited: its fields hold
-  // drafts, and a row that scrolled away would lose what was typed in it.
+  // Stay drawn while editing, or a row scrolled away loses its drafts.
   if (!near && !editing) {
     return (
       <div

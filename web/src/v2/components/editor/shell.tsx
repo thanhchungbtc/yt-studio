@@ -15,11 +15,6 @@ interface EditorShellProps {
   children: ReactNode
 }
 
-/**
- * The frame every editor is built in: a title strip over the document, both on
- * the group's card. The card is the surface; the strip and the document are
- * two regions of it, not two layers.
- */
 export function EditorShell({
   title,
   seed,
@@ -41,10 +36,7 @@ export function EditorShell({
         statusColor={statusColor}
         actions={actions}
       />
-      {/* No entrance animation. A tab's content is hidden and shown again as
-          tabs switch, which can restart a CSS animation on it — so a fade here
-          played on every tab switch, and made switching feel like loading. A
-          document comes forward the way a window does: at once. */}
+      {/* No entrance animation: tab switches would replay it. */}
       <div className="min-h-0 flex-1">{children}</div>
     </div>
   )

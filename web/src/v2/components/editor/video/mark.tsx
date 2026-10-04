@@ -121,16 +121,7 @@ export function Mark({
   )
 }
 
-/**
- * The menu is mounted on first use, not on sight.
- *
- * A fifty-chapter table carries several hundred of these, and a Radix menu is a
- * dozen components of providers, popper and presence each — mounted for every
- * dot on screen, that was most of the cost of opening a video. Until it is
- * pressed a dot is a plain button that opens the menu the way Radix would:
- * on press for the pointer, on Enter, Space or ↓ for the keyboard. After that
- * the menu stays mounted, so closing it still animates.
- */
+/** Radix menu mounts on first press; hundreds mounted up front are too slow. */
 function ActionableMark({
   cell,
   className,

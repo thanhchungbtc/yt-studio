@@ -256,10 +256,7 @@ export function ThumbnailDialog({
   // Redrawn on every keystroke. It costs a few million pixel operations, which
   // at this size is a couple of frames -- and a headline that resizes as you
   // type is the entire reason to build this in the browser at all.
-  //
-  // At most once per frame, though, and always the latest state. A slider
-  // drag reports many values per frame, and drawing each of them in turn made
-  // the thumb trail the pointer by however many draws were queued behind it.
+  // Coalesced to one draw per frame so slider drags don't lag the pointer.
   useEffect(() => {
     if (!canvas || !resources.data || !ready) return
     const { family, background } = resources.data

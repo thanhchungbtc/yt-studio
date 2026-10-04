@@ -18,11 +18,6 @@ interface EditorTitleBarProps {
 
 /**
  * The strip a document wears above itself: what this is, and how it is doing.
- *
- * It sits on the card, above the document, and is separated from it by a
- * hairline in calm materials and by nothing at all with Liquid Glass — the
- * content scrolls away beneath it instead. It is chrome, which is also why it
- * is a drag region.
  */
 export function EditorTitleBar({
   title,

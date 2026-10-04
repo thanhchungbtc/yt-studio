@@ -20,28 +20,6 @@ import { SecondarySidebar } from './sidebar/secondary'
 import { StatusBar } from './status-bar'
 import { TooltipProvider } from './ui/tooltip'
 
-/**
- * Workbench V2: floating glass cards on the window's material.
- *
- *   ┌ library ┐┌──── documents (tabs, splits) ───┐┌ inspector ┐
- *   │ ● ● ●   ││ tabs                             ││           │
- *   │         ││ document                         ││           │
- *   └─────────┘└──────────────────────────────────┘└───────────┘
- *   ┌──────────────────── console (full width) ─────────────────┐
- *   └───────────────────────────────────────────────────────────┘
- *    status: pools · pane toggles · settings
- *
- * Every card is separated by the same gap, and every corner is concentric with
- * the window's. The gaps are the resize handles: grabbing the space between two
- * cards moves the split, and a grip appears there under the pointer.
- *
- * The traffic lights sit in the top-left card — the library when it is
- * showing, the first group of documents when it is not — which is why both
- * reserve room for them.
- *
- * The console spans the whole window rather than sitting under the editor
- * alone. It is about the session, not about whichever document is open.
- */
 export function WorkbenchV2() {
   useKeybindings()
   // Mounted here and nowhere else: one connection for the whole application,
@@ -78,10 +56,6 @@ export function WorkbenchV2() {
                 {secondaryVisible ? (
                   <>
                     <Gap />
-                    {/* Floored wider than the other panes: the inspector's rows
-                        put a mark, a name, a count and — at a gate — a button
-                        on one line, and the first thing a narrower pane loses
-                        is the name. */}
                     <Panel id="secondary" order={3} defaultSize={22} minSize={18} maxSize={40}>
                       <Card className="glass-sidebar">
                         <SecondarySidebar />
@@ -116,7 +90,6 @@ export function WorkbenchV2() {
   )
 }
 
-/** A floating glass card that hosts a pane. */
 function Card({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div
@@ -130,13 +103,6 @@ function Card({ children, className }: { children: ReactNode; className?: string
   )
 }
 
-/**
- * The gap between two cards, and the handle that moves the split.
- *
- * Nothing is drawn at rest — the gap itself is the separation. Under the
- * pointer, or while dragging, a short accent grip appears in the middle of it,
- * so the handle is discoverable without being a line across the window.
- */
 function Gap({ vertical = false }: { vertical?: boolean }) {
   return (
     <PanelResizeHandle

@@ -215,33 +215,20 @@ export function PrimarySidebar() {
     [groups, collapsed],
   )
 
-  /*
-    The latest of everything a row's handlers read, kept where the handlers can
-    reach it without being rebuilt.
-
-    The rows are memoised, and a handler that closed over `selected` would be a
-    new function on every selection change — so every row would redraw on every
-    click, which is the work memoising them was meant to save. The handlers are
-    made once and read the present through this instead.
-  */
+  // Read through a ref so memoised rows' handlers stay stable.
   const live = useRef({ selected, visible, anchor, all: videos.data ?? [], groups })
   live.current = { selected, visible, anchor, all: videos.data ?? [], groups }
 
-  // Fetches what a click would open once the pointer has rested on a row for a
-  // moment: long enough that sweeping down the list fetches nothing, short
-  // enough that it is done before the click lands.
   const hoverTimer = useRef(0)
   useEffect(() => () => window.clearTimeout(hoverTimer.current), [])
 
   const actions = useMemo<VideoRowActions>(() => {
-    /** ⌘-click: add this row to the selection, or take it out again. */
     const toggle = (ref: string) => {
       const { selected: current } = live.current
       select(current.includes(ref) ? current.filter((id) => id !== ref) : [...current, ref])
       setAnchor(ref)
     }
 
-    /** ⇧-click: everything from the anchor to here, inclusive, in drawn order. */
     const extend = (ref: string) => {
       const { anchor: from0, visible: rows } = live.current
       const from = from0 ? rows.indexOf(from0) : -1
@@ -258,10 +245,6 @@ export function PrimarySidebar() {
     const targets = (video: Video) => targetsFor(video, live.current.selected, live.current.all)
 
     return {
-      // A plain click is what it always was: select this row and show it. The
-      // modifiers only ever change the selection — neither opens anything,
-      // because a gesture for picking five things should not also open five
-      // documents.
       select: (video, channel, event) => {
         if (event.shiftKey) return extend(video.ref)
         if (event.metaKey) return toggle(video.ref)
@@ -274,9 +257,6 @@ export function PrimarySidebar() {
         })
       },
       open: (video) => pinPreview(docId({ kind: 'video', ref: video.ref })),
-      // Finder's rule, and the one that stops you losing the wrong thing:
-      // right-clicking inside the selection leaves it alone, right-clicking
-      // outside it collapses onto the row you pointed at.
       contextMenu: (video) => {
         if (live.current.selected.includes(video.ref)) return
         select([video.ref])
@@ -292,14 +272,7 @@ export function PrimarySidebar() {
     }
   }, [select, client])
 
-  /*
-    The selection follows the front document.
-
-    Switching tabs is choosing a different video, and a source list that still
-    highlights the one you left is a list that disagrees with the window. Only
-    when the front document is not already selected, so a selection built with
-    ⌘ survives bringing one of its own members forward.
-  */
+  // Keep a ⌘-built selection when one of its members comes forward.
   const activeDoc = useDock((s) => s.activeDoc)
   useEffect(() => {
     if (!activeDoc) return
@@ -319,11 +292,6 @@ export function PrimarySidebar() {
       ?.scrollIntoView({ block: 'nearest' })
   }, [activeDoc, scope, select])
 
-  /*
-    ↑ and ↓ walk the list the way they do in Mail: the selection moves and the
-    document comes up in the preview tab, so a library can be browsed from the
-    keyboard as fast as the eye can read it. ⇧ extends instead of moving.
-  */
   const onListKey = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
     if (event.metaKey || event.altKey || event.ctrlKey) return
@@ -332,7 +300,6 @@ export function PrimarySidebar() {
     if (rows.length === 0) return
     event.preventDefault()
     const step = event.key === 'ArrowDown' ? 1 : -1
-    // The moving end of the selection: the last row picked, or the anchor.
     const head = current[current.length - 1] ?? from
     const at = head ? rows.indexOf(head) : -1
     const index =
@@ -342,8 +309,7 @@ export function PrimarySidebar() {
     if (event.shiftKey && from) {
       const start = rows.indexOf(from)
       const [lo, hi] = start <= index ? [start, index] : [index, start]
-      // The anchor stays put; the far end is listed last so the next ⇧-arrow
-      // moves it.
+      // Far end last so the next ⇧-arrow moves it.
       const span = rows.slice(lo, hi + 1).filter((row) => row !== ref)
       select([...span, ref])
     } else {
@@ -363,7 +329,6 @@ export function PrimarySidebar() {
     document.querySelector<HTMLElement>(`[data-row-id="video:${CSS.escape(ref)}"]`)?.focus()
   }
 
-  // How many videos a menu on a selected row acts on; one for any other row.
   const selectedCount = useMemo(() => {
     const wanted = new Set(selected)
     return (videos.data ?? []).filter((video) => wanted.has(video.ref)).length
@@ -382,8 +347,6 @@ export function PrimarySidebar() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* The strip the traffic lights sit in, and the widest piece of chrome
-          in the window to pick it up by. */}
       <DragRegion className="flex h-[var(--strip-height)] shrink-0 items-center gap-2 px-2">
         <div className="w-[var(--traffic-lights-inset)] shrink-0" />
         <Segmented segments={SCOPES} value={scope} onChange={setScope} iconOnly />
@@ -558,7 +521,6 @@ function targetsFor(video: Video, selected: string[], all: Video[]): Video[] {
   return targets.length > 0 ? targets : [video]
 }
 
-/** What a video row can do, made once for the whole list; see `live`. */
 interface VideoRowActions {
   select: (video: Video, channel: Channel, event: MouseEvent<HTMLButtonElement>) => void
   open: (video: Video) => void
@@ -573,21 +535,10 @@ interface VideoRowProps {
   video: Video
   channel: Channel
   selected: boolean
-  /**
-   * How many videos this row's menu acts on. Only a number, so the row redraws
-   * when its own menu would read differently and not on every selection.
-   */
   targetCount: number
   actions: VideoRowActions
 }
 
-/**
- * One video in the source list.
- *
- * Memoised: a frame from the stream replaces one video's object and leaves the
- * rest alone, and a click changes `selected` for two rows — so either redraws
- * the rows that changed rather than the whole library.
- */
 const VideoRow = memo(function VideoRow({
   video,
   channel,
@@ -600,32 +551,15 @@ const VideoRow = memo(function VideoRow({
     <Row
       id={docId({ kind: 'video', ref: video.ref })}
       title={video.title || 'Untitled'}
-      // The ref leads, then the state at full strength.
-      //
-      // The state used to lead, on the grounds that it is the one part of this
-      // line anyone reads — but what it led was the channel slug, which every
-      // row in the group repeats and the group header already says. The ref is
-      // the row's identity, and two videos with the same title differ nowhere
-      // else on screen.
-      //
-      // First is also the only position where the figures line up. Behind a
-      // state word the refs would sit at whatever x "Draft" and "Needs approval"
-      // leave them at, which is no column at all and nothing for the eye to run
-      // down.
       subtitle={
         <>
           <span className="font-medium tabular-nums">{video.ref}</span>
           {' · '}
-          {/* Full strength, except when it is "Completed" — a finished row
-              whose loudest word tells you to ignore it is backwards. */}
           <span className={video.state === 'completed' ? undefined : 'row-state'}>
             {STATE_LABEL[video.state]}
           </span>
         </>
       }
-      // The date the order is built from. Showing "last touched" beside a list
-      // sorted by creation puts an older stamp above a newer one and reads as a
-      // bug.
       timestamp={listTimestamp(video.createdAt)}
       avatarName={channel.name}
       avatarSeed={channel.slug}
@@ -639,15 +573,11 @@ const VideoRow = memo(function VideoRow({
       onHover={(hovering) => actions.hover(video, hovering)}
       menu={[
         {
-          // The ellipsis is the promise: this opens a form rather than doing
-          // something. One video, always — the fields are per-video, and there
-          // is nothing a multi-row edit could prefill them with.
           label: 'Edit…',
           icon: Pencil,
           onSelect: () => actions.edit(video),
         },
         {
-          // No ellipsis: this asks nothing and does it now.
           label: duplicateLabel(targetCount),
           icon: Copy,
           shortcut: '⌘D',
@@ -657,8 +587,6 @@ const VideoRow = memo(function VideoRow({
           label: deleteLabel(targetCount),
           icon: Trash2,
           danger: true,
-          // The ellipsis is the promise: this opens a question rather than
-          // doing the thing.
           onSelect: () => actions.remove(video),
         },
       ]}
@@ -682,11 +610,6 @@ interface GroupHeaderProps {
   onToggle: () => void
 }
 
-/**
- * The channel heading: a quiet label over its videos, with a disclosure
- * chevron. It shares the rows' inset and none of their weight, so the two
- * levels never read as the same kind of thing.
- */
 function GroupHeader({ name, color, count, collapsed, onToggle }: GroupHeaderProps) {
   const Chevron = collapsed ? ChevronRight : ChevronDown
   return (

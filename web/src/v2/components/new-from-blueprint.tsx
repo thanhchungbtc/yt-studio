@@ -384,10 +384,6 @@ export function NewFromBlueprintDialog() {
   // wrong channel selected, and this is derived state, not a subscription.
   const selected = channel || from || channels.data?.[0]?.slug || ''
 
-  // Parsed behind the keystroke rather than in the same pass. The text field is
-  // what the hand is on, and a five-hundred-chapter outline is a parse and a
-  // preview to redraw — done inline, every character waited for both. The
-  // preview catches up a moment later, and is never shown half-made.
   const parsing = useDeferredValue(json)
   const parsed = useMemo(() => (parsing.trim() === '' ? null : parseOutline(parsing)), [parsing])
 

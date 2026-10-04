@@ -6,7 +6,6 @@ interface PlaceholderProps {
   icon: LucideIcon
   title: string
   detail: string
-  /** The key that gets you out of the empty state. */
   shortcut?: string
 }
 

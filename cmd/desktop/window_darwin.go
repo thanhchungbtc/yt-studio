@@ -19,20 +19,8 @@ static void ytsOnMain(dispatch_block_t block) {
 	}
 }
 
-// ytsMakeVibrant puts the window's material behind the web view and lets the
-// content run the full height of the window.
-//
-// On macOS 26 and later that material is Liquid Glass, an NSGlassEffectView;
-// before it, the sidebar NSVisualEffectView. The glass class is looked up by
-// name rather than linked, so the binary builds against any SDK and runs on
-// any release, and simply gets the older material where the newer one is
-// missing.
-//
-// The web view starts out as the window's contentView, so it is re-parented
-// rather than replaced: the material becomes the content, and the web view sits
-// inside it. Everything the page then draws with an alpha below one is
-// composited over the material by AppKit, which is the only way to get the
-// real thing — CSS backdrop-filter can only blur what is inside the page.
+// ytsMakeVibrant re-parents the web view into the window's material.
+// NSGlassEffectView is looked up by name so the binary builds against any SDK.
 //
 // The web view must also be told to stop painting its own opaque backdrop,
 // which is what `drawsBackground` does. It is not in WKWebView's public
@@ -52,10 +40,7 @@ static void ytsMakeVibrant(void *handle) {
 		window.titleVisibility = NSWindowTitleHidden;
 		window.styleMask |= NSWindowStyleMaskFullSizeContentView;
 
-		// An empty unified toolbar, for its geometry alone: it drops the
-		// traffic lights to the centre of the page's first 36pt strip, below
-		// an 8pt gap, and gives the window the larger corner the cards inside
-		// it are concentric with. It has no items and draws nothing.
+		// Empty toolbar, only for its traffic-light position and corner radius.
 		NSToolbar *toolbar = [[NSToolbar alloc] initWithIdentifier:@"yts.toolbar"];
 		window.toolbar = toolbar;
 		[toolbar release];
@@ -94,8 +79,6 @@ static void ytsMakeVibrant(void *handle) {
 			NSVisualEffectView *effect = [[NSVisualEffectView alloc] initWithFrame:bounds];
 			effect.material = NSVisualEffectMaterialSidebar;
 			effect.blendingMode = NSVisualEffectBlendingModeBehindWindow;
-			// Following the window means the material greys out when the app
-			// is in the background, exactly as every other macOS window does.
 			effect.state = NSVisualEffectStateFollowsWindowActiveState;
 			[window setContentView:effect];
 			web.frame = effect.bounds;
@@ -106,9 +89,7 @@ static void ytsMakeVibrant(void *handle) {
 		material.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
 		[material release];
 
-		// Reduce Transparency, Reduce Motion and Increase Contrast are not all
-		// visible to the page — WebKit reports no transparency preference — so
-		// the page asks through ytsAccessibility, and is told when they change.
+		// WebKit doesn't report Reduce Transparency; tell the page on change.
 		if ([web isKindOfClass:[WKWebView class]]) {
 			WKWebView *view = (WKWebView *)web;
 			[[[NSWorkspace sharedWorkspace] notificationCenter]
@@ -124,8 +105,7 @@ static void ytsMakeVibrant(void *handle) {
 	});
 }
 
-// ytsAccessibilityFlags reads the display accessibility settings: bit 0 is
-// Reduce Transparency, bit 1 Reduce Motion, bit 2 Increase Contrast.
+// Bits: 1 Reduce Transparency, 2 Reduce Motion, 4 Increase Contrast.
 static int ytsAccessibilityFlags(void) {
 	NSWorkspace *workspace = [NSWorkspace sharedWorkspace];
 	int flags = 0;
@@ -350,8 +330,6 @@ func dressWindow(w webview.WebView) {
 		C.ytsWindowZoom(handle)
 		return nil
 	})
-	// What System Settings says about transparency, motion and contrast. The
-	// page re-asks whenever the shell tells it they changed.
 	_ = w.Bind("ytsAccessibility", func() (map[string]bool, error) {
 		flags := C.ytsAccessibilityFlags()
 		return map[string]bool{
