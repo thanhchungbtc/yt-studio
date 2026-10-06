@@ -1,0 +1,89 @@
+package app
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/tbui/yt-studio/internal/domain/entity"
+	"github.com/tbui/yt-studio/internal/domain/provider"
+	"github.com/tbui/yt-studio/internal/domain/repository"
+)
+
+// NarrationOptions is how a chapter should sound. A use-case input rather than
+// the backend's own configuration, because a voice belongs to whoever the video
+// is for, not to the server that speaks it.
+type NarrationOptions struct {
+	Voice    string
+	Language string
+	Speed    float64
+}
+
+// SynthesizeNarration narrates exactly one chapter.
+//
+//nolint:revive // the parameter list is the dependency list
+func SynthesizeNarration(
+	ctx context.Context,
+	t entity.Task,
+	videos repository.VideoReader,
+	chapters repository.ChapterReader,
+	tts provider.TTS,
+	fields repository.ChapterFieldWriter,
+	assets repository.AssetWriter,
+	store provider.AssetStore,
+	notifier ChapterNotifier,
+	opts NarrationOptions,
+	now time.Time,
+) entity.TaskOutcome {
+	if t.ChapterID == nil {
+		return entity.Failed{Err: fmt.Errorf("%w: tts task has no chapter", ErrValidation), Retryable: false}
+	}
+	chapter, err := chapters.ChapterByID(ctx, *t.ChapterID)
+	if err != nil {
+		return classify(err)
+	}
+	if chapter.Script == "" {
+		return entity.Failed{
+			Err:       fmt.Errorf("%w: chapter %d has no script", ErrValidation, chapter.Ordinal),
+			Retryable: false,
+		}
+	}
+	video, err := videos.VideoByID(ctx, t.VideoID)
+	if err != nil {
+		return classify(err)
+	}
+	narration, err := tts.Speak(ctx, provider.SpeakRequest{
+		VideoID:      video.ID,
+		ChapterID:    chapter.ID,
+		Ordinal:      chapter.Ordinal,
+		Text:         chapter.Script,
+		ChapterTitle: chapter.Title,
+		Voice:        opts.Voice,
+		Language:     opts.Language,
+		Speed:        opts.Speed,
+	})
+	if err != nil {
+		return classify(fmt.Errorf("narrate chapter %d: %w", chapter.Ordinal, err))
+	}
+
+	if _, err := RecordAsset(ctx, assets, store, narration.AssetID, entity.AssetKindAudio,
+		video.ID, &chapter.ID, "tts.speak", now); err != nil {
+		return classify(err)
+	}
+	// The length lands with the audio, in one statement, because this is the
+	// only place either is known to be true. Everything downstream that needs to
+	// know how long a chapter actually runs reads it from here rather than
+	// projecting it from the script — which is the same number the blueprint
+	// budgeted with and routinely a third out from what the voice produced.
+	if err := fields.SetChapterAudio(ctx, chapter.ID, narration.AssetID, narration.Seconds); err != nil {
+		return classify(err)
+	}
+
+	chapter.AudioAssetID = &narration.AssetID
+	chapter.AudioDurationSeconds = narration.Seconds
+	chapter.UpdatedAt = now
+	if notifier != nil {
+		notifier.NotifyChapter(chapterDelta(chapter))
+	}
+	return entity.Success{Assets: []entity.AssetID{narration.AssetID}}
+}

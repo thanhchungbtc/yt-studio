@@ -1,6 +1,6 @@
 ---
 name: brainstorm
-description: Brainstorm the next video for a yt-studio channel. Reads past videos and their chapter titles from ~/.yt-studio, proposes concepts that do not repeat covered ground, and emits JSON ready to POST to /api/videos. Use when asked for video ideas, what to make next, or to plan a new video.
+description: Brainstorm the next video for a yt-studio channel. Reads past videos and their chapter titles from ~/.yt-studio, proposes concepts that do not repeat covered ground, and emits JSON ready to paste into the New Video dialog. Use when asked for video ideas, what to make next, or to plan a new video.
 ---
 
 # Brainstorm the next video
@@ -80,10 +80,5 @@ this and nothing else:
 the end matters: the blueprint call never sees past videos, so this is the only
 place cross-video dedupe can be stated.
 
-Write the JSON to a file and tell the operator both ways to use it:
-
-```sh
-curl -X POST localhost:8080/api/videos -H 'Content-Type: application/json' -d @idea.json
-```
-
-or paste the fields into the New Video dialog.
+Write the JSON to a file and tell the operator to copy it (`pbcopy < idea.json`)
+and paste it into the New Video dialog (⌘N), which fills in every field.

@@ -1,0 +1,40 @@
+# Wails project configuration. `make dev` runs `wails3 dev` with it.
+version: '3'
+
+info:
+  companyName: "tbui"
+  productName: "yt-studio"
+  productIdentifier: "com.tbui.yt-studio"
+  description: "Long-form slideshow videos, from topic to YouTube"
+  copyright: "(c) 2026, tbui"
+  version: "0.0.0"
+
+dev_mode:
+  root_path: .
+  log_level: warn
+  debounce: 1000
+  ignore:
+    dir:
+      - .git
+      - node_modules
+      - frontend
+      - bin
+      - var
+    file:
+      - .DS_Store
+      - .gitignore
+      - .gitkeep
+      - "*_test.go"
+    watched_extension:
+      - "*.go"
+      - "*.tmpl"
+      - "*.sql"
+    git_ignore: true
+  executes:
+    - cmd: wails3 build DEV=true
+      type: blocking
+    - cmd: wails3 task common:dev:frontend
+      type: background
+    - cmd: wails3 task run
+      type: primary
+      exit_policy: shutdown

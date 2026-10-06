@@ -1,0 +1,182 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useId, useState } from 'react'
+import { create } from 'zustand'
+
+import { api, qk } from '../core/api'
+import { count } from '../core/format'
+import { openDoc } from './editor/dock'
+import { Button } from './ui/button'
+import { Checkbox, Field, FieldDivider, INDENT, Select } from './ui/field'
+import { Dialog } from './ui/dialog'
+import { BLANK_BRIEF, BriefFields, briefReady, ideaFrom, requestFrom } from './video-brief'
+
+/**
+ * The new-video dialog.
+ *
+ * A dialog rather than a document, because creating a video is a question with
+ * an answer — you fill it in and it is over — where a document is a place you
+ * come back to. The video it produces is the document.
+ *
+ * The six fields in the middle are the brief, and they live in
+ * `video-brief.tsx` because the edit dialog asks for exactly the same six. What
+ * is left here is the three things only creating a video involves: the channel
+ * it belongs to, the size of the run it is about to start, and whether to start
+ * it.
+ *
+ * The store is here rather than in `store/workbench.ts` for the same reason
+ * `openDoc` lives beside the dock: whoever opens this — a menu, a keystroke, a
+ * channel row — should not have to hold a boolean for it, and an open dialog is
+ * not layout, so it has no business being persisted.
+ */
+
+interface NewVideoState {
+  open: boolean
+  /** The channel the request came from, if it came from one. */
+  channel: string | undefined
+  show: (channel?: string) => void
+  hide: () => void
+}
+
+const useNewVideo = create<NewVideoState>((set) => ({
+  open: false,
+  channel: undefined,
+  show: (channel) => set({ open: true, channel }),
+  hide: () => set({ open: false }),
+}))
+
+/** Opens the dialog. Bound to ⌘N and to the sidebar's create menu. */
+export function newVideo(channel?: string): void {
+  useNewVideo.getState().show(channel)
+}
+
+export function NewVideoDialog() {
+  // The dialog does not know about forms. This screen has both the form and the
+  // button that submits it, so the id that associates them across the two
+  // subtrees is minted here.
+  const formId = useId()
+  const open = useNewVideo((s) => s.open)
+  const from = useNewVideo((s) => s.channel)
+  const hide = useNewVideo((s) => s.hide)
+
+  const client = useQueryClient()
+  const channels = useQuery({ queryKey: qk.channels, queryFn: api.listChannels, enabled: open })
+
+  const [channel, setChannel] = useState('')
+  const [brief, setBrief] = useState(BLANK_BRIEF)
+  const [start, setStart] = useState(true)
+
+  // Opening from a channel row should follow the operator there.
+  useEffect(() => {
+    if (open && from) setChannel(from)
+  }, [open, from])
+
+  const submit = useMutation({
+    mutationFn: () =>
+      api.createVideo({
+        ...requestFrom(brief),
+        channel: channel || channels.data?.[0]?.slug || '',
+        start,
+      }),
+    onSuccess: (video) => {
+      void client.invalidateQueries({ queryKey: qk.videos })
+      const owner = (channels.data ?? []).find((c) => c.id === video.channelId)
+      hide()
+      // The prose only. The four numbers are what this operator sizes videos
+      // with, and clearing them would make every second video a form to fill in
+      // again.
+      setBrief((current) => ({ ...current, title: '', topic: '' }))
+      // Pinned, not previewed: a video you just created is one you meant to open.
+      openDoc({ kind: 'video', ref: video.ref }, video.title || 'Untitled', {
+        seed: owner?.slug,
+        initial: owner?.name,
+      })
+    },
+  })
+
+  const chapters = Number(brief.chapterCount) || 0
+  const slides = Number(brief.slidesPerChapter) || 0
+  const cells = Number(brief.thumbnailCells) || 0
+  // Mirrors scheduler.NodeCountFor: seven video-level tasks, four per chapter,
+  // one per slide, and one icon per thumbnail tile.
+  const tasks = 7 + 4 * chapters + chapters * slides + cells
+
+  const ready = briefReady(brief) && !submit.isPending
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) hide()
+      }}
+      width={640}
+    >
+      <Dialog.Header
+        title="New video"
+        description="The blueprint is written first, then paused for review. Paste an idea's JSON to fill it in."
+      />
+      <Dialog.Body>
+        <form
+          id={formId}
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (ready) submit.mutate()
+          }}
+          onPaste={(event) => {
+            const idea = ideaFrom(event.clipboardData.getData('text/plain'))
+            if (!idea) return
+            event.preventDefault()
+            setBrief((current) => ({ ...current, ...idea.brief }))
+            const owner = (channels.data ?? []).find(
+              (c) => c.slug === idea.channel || c.id === idea.channel,
+            )
+            if (owner) setChannel(owner.slug)
+            if (idea.start !== undefined) setStart(idea.start)
+          }}
+        >
+          <Field label="Channel" hint="Supplies the tone, the voice and the visual style.">
+            {(id) => (
+              <Select id={id} value={channel} onChange={(e) => setChannel(e.target.value)}>
+                {(channels.data ?? []).map((c) => (
+                  <option key={c.id} value={c.slug}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+
+          <BriefFields brief={brief} onChange={setBrief} />
+
+          <FieldDivider />
+
+          <div className={INDENT}>
+            <Checkbox checked={start} onChange={setStart}>
+              Start the pipeline immediately
+            </Checkbox>
+          </div>
+
+          {submit.error ? (
+            <p className={`${INDENT} pt-2 text-[12px] text-[var(--failed)]`}>
+              {(submit.error as Error).message}
+            </p>
+          ) : null}
+        </form>
+      </Dialog.Body>
+      <Dialog.Footer>
+        {/* What the run costs, beside the button that starts it. The length it
+            comes to is on the brief's own readout above, where the numbers it
+            is derived from are — printing it here as well would be the dialog
+            saying the same thing in two places. */}
+        <span className="mr-auto text-[11px] text-tertiary">
+          About <span className="font-medium tabular-nums">{count(tasks)}</span> tasks
+        </span>
+        <Button className="h-[26px] px-3.5" onClick={hide}>
+          Cancel
+        </Button>
+        <Button primary form={formId} type="submit" className="h-[26px] px-3.5" disabled={!ready}>
+          {submit.isPending ? 'Creating…' : start ? 'Create and Start' : 'Create'}
+        </Button>
+      </Dialog.Footer>
+    </Dialog>
+  )
+}

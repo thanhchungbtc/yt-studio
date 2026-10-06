@@ -1,0 +1,228 @@
+package sqlite
+
+import (
+	"context"
+	"fmt"
+	"strconv"
+	"time"
+
+	"github.com/tbui/yt-studio/internal/adapters/sqlite/sqlcgen"
+	"github.com/tbui/yt-studio/internal/domain/entity"
+	"github.com/tbui/yt-studio/internal/domain/repository"
+)
+
+var (
+	_ repository.ChapterReader = (*Store)(nil)
+	_ repository.ChapterWriter = (*Store)(nil)
+)
+
+// ChapterByID reads one chapter.
+func (s *Store) ChapterByID(ctx context.Context, id entity.ChapterID) (entity.Chapter, error) {
+	row, err := s.rq.GetChapterByID(ctx, string(id))
+	if err != nil {
+		return entity.Chapter{}, wrapNotFound(err, "chapter", string(id))
+	}
+	return chapterFromRow(row)
+}
+
+// ListChaptersByVideo reads a video's chapters in ordinal order.
+func (s *Store) ListChaptersByVideo(ctx context.Context, videoID entity.VideoID) ([]entity.Chapter, error) {
+	rows, err := s.rq.ListChaptersByVideo(ctx, string(videoID))
+	if err != nil {
+		return nil, fmt.Errorf("list chapters of %s: %w", videoID, err)
+	}
+	out := make([]entity.Chapter, 0, len(rows))
+	for _, r := range rows {
+		c, err := chapterFromRow(r)
+		if err != nil {
+			return nil, fmt.Errorf("decode chapter %s: %w", r.ID, err)
+		}
+		out = append(out, c)
+	}
+	return out, nil
+}
+
+// ReplaceChapters swaps a video's whole chapter set in one transaction. It is
+// the blueprint-approval path: an approved outline defines the chapters.
+func (s *Store) ReplaceChapters(ctx context.Context, videoID entity.VideoID, chapters []entity.Chapter) error {
+	params := make([]sqlcgen.UpsertChapterParams, 0, len(chapters))
+	for _, c := range chapters {
+		p, err := chapterParams(c)
+		if err != nil {
+			return err
+		}
+		params = append(params, p)
+	}
+	return s.doTx(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
+		if err := q.DeleteChaptersByVideo(ctx, string(videoID)); err != nil {
+			return fmt.Errorf("clear chapters of %s: %w", videoID, err)
+		}
+		for _, p := range params {
+			if err := q.UpsertChapter(ctx, p); err != nil {
+				return fmt.Errorf("insert chapter %s: %w", p.ID, err)
+			}
+		}
+		return nil
+	})
+}
+
+// UpdateChapter writes back one chapter, including an operator's script edit.
+func (s *Store) UpdateChapter(ctx context.Context, c entity.Chapter) error {
+	p, err := chapterParams(c)
+	if err != nil {
+		return err
+	}
+	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
+		return q.UpsertChapter(ctx, p)
+	})
+}
+
+func chapterParams(c entity.Chapter) (sqlcgen.UpsertChapterParams, error) {
+	prompts := c.SlidePrompts
+	if prompts == nil {
+		prompts = []string{}
+	}
+	slides := c.SlideAssetIDs
+	if slides == nil {
+		slides = []entity.AssetID{}
+	}
+	promptsJSON, err := encodeJSON(prompts)
+	if err != nil {
+		return sqlcgen.UpsertChapterParams{}, fmt.Errorf("encode slide prompts: %w", err)
+	}
+	slidesJSON, err := encodeJSON(slides)
+	if err != nil {
+		return sqlcgen.UpsertChapterParams{}, fmt.Errorf("encode image asset ids: %w", err)
+	}
+	return sqlcgen.UpsertChapterParams{
+		ID:                   string(c.ID),
+		VideoID:              string(c.VideoID),
+		Ordinal:              int64(c.Ordinal),
+		Title:                c.Title,
+		Summary:              c.Summary,
+		Script:               c.Script,
+		SlidePromptsJson:     promptsJSON,
+		AudioAssetID:         assetIDPtr(c.AudioAssetID),
+		SlideAssetIdsJson:    slidesJSON,
+		ClipAssetID:          assetIDPtr(c.ClipAssetID),
+		AudioDurationSeconds: c.AudioDurationSeconds,
+		EstimatedWords:       int64(c.EstimatedWords),
+		CreatedAt:            toUnix(c.CreatedAt),
+		UpdatedAt:            toUnix(c.UpdatedAt),
+	}, nil
+}
+
+var _ repository.ChapterFieldWriter = (*Store)(nil)
+
+// SetChapterPlan records an operator's edit to the blueprint's plan for one
+// chapter. The script, prompts and assets are left as they are: whether work
+// derived from the old plan is still worth keeping is not a question a write
+// can answer.
+func (s *Store) SetChapterPlan(ctx context.Context, id entity.ChapterID, title, summary string, estimatedWords int) error {
+	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
+		return q.SetChapterPlan(ctx, sqlcgen.SetChapterPlanParams{
+			Title:          title,
+			Summary:        summary,
+			EstimatedWords: int64(estimatedWords),
+			UpdatedAt:      toUnix(time.Now()),
+			ID:             string(id),
+		})
+	})
+}
+
+// SetChapterScript records a generated or operator-edited narration.
+func (s *Store) SetChapterScript(ctx context.Context, id entity.ChapterID, script string) error {
+	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
+		return q.SetChapterScript(ctx, sqlcgen.SetChapterScriptParams{
+			Script:    script,
+			UpdatedAt: toUnix(time.Now()),
+			ID:        string(id),
+		})
+	})
+}
+
+// SetChapterPrompts records the chapter's slice of the coalesced prompt batch.
+func (s *Store) SetChapterPrompts(ctx context.Context, id entity.ChapterID, prompts []string) error {
+	if prompts == nil {
+		prompts = []string{}
+	}
+	encoded, err := encodeJSON(prompts)
+	if err != nil {
+		return fmt.Errorf("encode slide prompts: %w", err)
+	}
+	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
+		return q.SetChapterPrompts(ctx, sqlcgen.SetChapterPromptsParams{
+			SlidePromptsJson: encoded,
+			UpdatedAt:        toUnix(time.Now()),
+			ID:               string(id),
+		})
+	})
+}
+
+// SetChapterPrompt replaces one prompt at its index, for an operator redrawing
+// a single slide. Indexed like SetChapterSlide so it cannot carry back a stale
+// copy of its siblings.
+func (s *Store) SetChapterPrompt(ctx context.Context, id entity.ChapterID, index int, prompt string) error {
+	if index < 0 {
+		return fmt.Errorf("%w: prompt index must not be negative", entity.ErrInvalidChapter)
+	}
+	path := "$[" + strconv.Itoa(index) + "]"
+	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
+		return q.SetChapterPrompt(ctx, sqlcgen.SetChapterPromptParams{
+			Path:      path,
+			Prompt:    prompt,
+			UpdatedAt: toUnix(time.Now()),
+			ID:        string(id),
+		})
+	})
+}
+
+// SetChapterAudio records the narration asset and how long it runs. One
+// statement for both, so the row cannot name a file and a length belonging to
+// different recordings.
+func (s *Store) SetChapterAudio(
+	ctx context.Context,
+	id entity.ChapterID,
+	assetID entity.AssetID,
+	durationSeconds float64,
+) error {
+	value := string(assetID)
+	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
+		return q.SetChapterAudio(ctx, sqlcgen.SetChapterAudioParams{
+			AudioAssetID:         &value,
+			AudioDurationSeconds: durationSeconds,
+			UpdatedAt:            toUnix(time.Now()),
+			ID:                   string(id),
+		})
+	})
+}
+
+// SetChapterSlide records one slide at its index. json_set makes this a single
+// atomic statement, so two concurrent slide tasks cannot lose each other's
+// write.
+func (s *Store) SetChapterSlide(ctx context.Context, id entity.ChapterID, index int, assetID entity.AssetID) error {
+	if index < 0 {
+		return fmt.Errorf("%w: slide index must not be negative", entity.ErrInvalidChapter)
+	}
+	path := "$[" + strconv.Itoa(index) + "]"
+	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
+		return q.SetChapterSlide(ctx, sqlcgen.SetChapterSlideParams{
+			Path:      path,
+			AssetID:   string(assetID),
+			UpdatedAt: toUnix(time.Now()),
+			ID:        string(id),
+		})
+	})
+}
+
+// SetChapterClip records the composed clip.
+func (s *Store) SetChapterClip(ctx context.Context, id entity.ChapterID, assetID entity.AssetID) error {
+	value := string(assetID)
+	return s.do(ctx, func(ctx context.Context, q *sqlcgen.Queries) error {
+		return q.SetChapterClip(ctx, sqlcgen.SetChapterClipParams{
+			ClipAssetID: &value,
+			UpdatedAt:   toUnix(time.Now()),
+			ID:          string(id),
+		})
+	})
+}
