@@ -185,6 +185,7 @@ export interface SettingDTO {
     "suggestions": SettingSuggestionDTO[] | null;
     "secret": boolean;
     "configured": boolean;
+    "default": string;
     "updatedAt": string;
 }
 

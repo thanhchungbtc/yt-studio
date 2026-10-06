@@ -507,6 +507,13 @@ interface VideoRowActions {
   menu: (video: Video, channel: Channel) => MenuEntry[]
 }
 
+const STATE_TONE: Partial<Record<VideoState, string>> = {
+  awaiting_approval: 'text-warning',
+  running: 'text-accent',
+  failed: 'text-danger',
+  blocked: 'text-danger',
+}
+
 function StateMark({ state }: { state: VideoState }) {
   switch (state) {
     case 'awaiting_approval':
@@ -535,6 +542,7 @@ const VideoRow = memo(function VideoRow({
   actions: VideoRowActions
 }) {
   const settled = video.state === 'completed' || video.state === 'cancelled'
+  const tone = STATE_TONE[video.state]
   return (
     <ContextMenu items={() => actions.menu(video, channel)}>
       <button
@@ -546,22 +554,34 @@ const VideoRow = memo(function VideoRow({
         onPointerEnter={() => actions.hover(video, true)}
         onPointerLeave={() => actions.hover(video, false)}
         aria-current={selected ? 'page' : undefined}
-        title={`${video.ref} · ${stateLabel(video.state)}`}
         className={cn(
-          'mx-1.5 flex h-7 w-[calc(100%-12px)] items-center gap-2 rounded-[var(--radius-inner)] px-2 text-left text-sm transition-colors duration-100',
-          selected
-            ? 'row-selected text-fg'
-            : settled
-              ? 'text-fg-subtle hover:bg-hover hover:text-fg'
-              : 'text-fg-muted hover:bg-hover hover:text-fg',
+          'group/row mx-1.5 flex h-11 w-[calc(100%-12px)] items-center gap-2.5 rounded-[var(--radius-inner)] px-2 text-left transition-[background-color,opacity] duration-100',
+          selected ? 'row-selected' : 'hover:bg-hover',
+          settled && !selected && 'opacity-50 hover:opacity-100',
         )}
       >
-        <span className="flex size-3.5 shrink-0 items-center justify-center">
+        <span className="flex size-3.5 shrink-0 items-center justify-center self-start pt-[9px]">
           <StateMark state={video.state} />
         </span>
-        <span className="min-w-0 flex-1 truncate">{video.title || 'Untitled'}</span>
-        <span className="shrink-0 text-2xs text-fg-faint tabular-nums">
-          {listTimestamp(video.createdAt)}
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span
+              className={cn(
+                'min-w-0 flex-1 truncate text-sm',
+                selected ? 'font-medium text-fg' : 'text-fg',
+              )}
+            >
+              {video.title || 'Untitled'}
+            </span>
+            <span className="shrink-0 text-2xs text-fg-faint tabular-nums">
+              {listTimestamp(video.createdAt)}
+            </span>
+          </span>
+          <span className="flex min-w-0 items-center gap-1.5 text-xs text-fg-subtle">
+            <span className="shrink-0 font-medium text-fg-muted tabular-nums">{video.ref}</span>
+            <span className="text-fg-faint">·</span>
+            <span className={cn('truncate', tone)}>{stateLabel(video.state)}</span>
+          </span>
         </span>
       </button>
     </ContextMenu>
