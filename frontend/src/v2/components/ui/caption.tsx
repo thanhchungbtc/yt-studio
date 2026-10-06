@@ -15,10 +15,7 @@ import { cn } from '../../core/utils'
 export function Caption({ children, className }: { children: string; className?: string }) {
   return (
     <span
-      className={cn(
-        'text-[10px] font-semibold tracking-[0.07em] text-tertiary uppercase',
-        className,
-      )}
+      className={cn('text-2xs font-semibold tracking-[0.07em] text-fg-subtle uppercase', className)}
     >
       {children}
     </span>

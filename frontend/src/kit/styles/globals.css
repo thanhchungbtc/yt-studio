@@ -1,0 +1,1577 @@
+@import "tailwindcss";
+@import "dockview-react/dist/styles/dockview.css";
+@import "./dockview-glass.css";
+
+/*
+ * Design tokens.
+ *
+ * The window itself is native Liquid Glass (NSGlassEffectView), composited by
+ * the OS. The UI is mostly translucent tints over that material, so it looks
+ * like glass without paying for CSS blur. `backdrop-filter` is reserved for
+ * small, short-lived overlays (menus, popovers, palette) where it's cheap.
+ */
+:root {
+  color-scheme: light;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
+    "Hiragino Sans", sans-serif;
+  --font-mono:
+    "SF Mono", ui-monospace, Menlo, Monaco, "Cascadia Mono", monospace;
+
+  --accent: #c9643f;
+  --accent-strong: #b5552f;
+  --accent-soft: rgb(201 100 63 / 0.13);
+  /* Solid fills (primary buttons) are deep enough for white text (~4:1). */
+  --accent-fill: #c8603d;
+  --accent-fill-hover: #b3522f;
+  --accent-fg: #ffffff;
+  /* Highlighted rows in menus, palette and suggestions: a soft tint that
+     keeps normal text readable instead of white-on-accent. */
+  --row-highlight: rgb(201 100 63 / 0.14);
+  --focus: rgb(0 122 255 / 0.55);
+
+  --fg: rgb(0 0 0 / 0.9);
+  --fg-muted: rgb(0 0 0 / 0.64);
+  --fg-subtle: rgb(0 0 0 / 0.47);
+  --fg-faint: rgb(0 0 0 / 0.3);
+
+  --window: rgb(216 216 222 / 0.72);
+  --sidebar: rgb(246 246 248 / 0.34);
+  --content: rgb(255 255 255 / 0.9);
+  --content-solid: #fbfbfc;
+  --elevated: rgb(250 250 252 / 0.98);
+  --well: rgb(0 0 0 / 0.045);
+  --hover: rgb(0 0 0 / 0.055);
+  --active: rgb(0 0 0 / 0.09);
+  --selected: rgb(0 0 0 / 0.085);
+  --line: rgb(0 0 0 / 0.1);
+  --line-strong: rgb(0 0 0 / 0.17);
+  --highlight: rgb(255 255 255 / 0.7);
+
+  --success: #1f9d55;
+  --done: #8250df;
+  /* Palette for project colors and labels (see lib/palette.ts). */
+  --c-gray: #8b8d98;
+  --c-gray-fg: #60646c;
+  --git-modified: #9a6700;
+  --git-added: #1a7f37;
+  --git-deleted: #cf222e;
+  --git-renamed: #0969da;
+  --git-conflicted: #8250df;
+  --c-red: #e5484d;
+  --c-red-fg: #ce2c31;
+  --c-orange: #f76b15;
+  --c-orange-fg: #cc4e00;
+  --c-amber: #e2a336;
+  --c-amber-fg: #ab6400;
+  --c-green: #30a46c;
+  --c-green-fg: #218358;
+  --c-teal: #12a594;
+  --c-teal-fg: #008573;
+  --c-blue: #0090ff;
+  --c-blue-fg: #0d74ce;
+  --folder: #3a9df2;
+  --folder-glyph: #fff;
+  --c-indigo: #3e63dd;
+  --c-indigo-fg: #3a5bc7;
+  --c-purple: #8e4ec6;
+  --c-purple-fg: #8145b5;
+  --c-pink: #d6409f;
+  --c-pink-fg: #c2298a;
+  --warning: #b7791f;
+  --danger: #d93a3a;
+  --danger-fill: #d93a3a;
+  --info: #2f6fdb;
+  --diff-add: rgb(31 157 85 / 0.12);
+  --diff-add-strong: rgb(31 157 85 / 0.28);
+  --diff-del: rgb(217 58 58 / 0.1);
+  --diff-del-strong: rgb(217 58 58 / 0.26);
+
+  --shadow-pop:
+    0 12px 40px rgb(0 0 0 / 0.14), 0 2px 8px rgb(0 0 0 / 0.08),
+    0 0 0 0.5px rgb(0 0 0 / 0.12);
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.08), 0 0 0 0.5px rgb(0 0 0 / 0.12);
+  --radius: 10px;
+  /* Layout: floating cards separated by even gaps. The window's traffic
+     lights sit ~26pt from the top and end ~80pt from the left edge, so the
+     first card row is 36px tall below an 8px gap (centre at 26pt). */
+  --gap: 8px;
+  /* Concentric corners (Liquid Glass): everything inside the window derives
+     from its corner, each inner radius = outer radius − the gap between. */
+  --radius-window: 24px;
+  --card-radius: calc(var(--radius-window) - var(--gap));
+  --radius-inner: calc(var(--card-radius) - 6px);
+  --strip-height: 36px;
+  --traffic-lights-inset: 72px; /* inside the top-left card */
+  --dock-lights-inset: 78px; /* dock header when the sidebar is hidden */
+  --sidebar-card: rgb(249 249 251 / 0.74);
+
+  /* Motion: short, never in the way. The spring settles with a hint of
+     overshoot (Liquid Glass only; calm materials use the plain curve). */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: linear(
+    0,
+    0.007,
+    0.028 2.4%,
+    0.112 5.1%,
+    0.25 8.1%,
+    0.616 15.6%,
+    0.778 20.3%,
+    0.881 24.9%,
+    0.952 30.1%,
+    0.993 35.6%,
+    1.012 41.7%,
+    1.016 47.6%,
+    1.011 55.3%,
+    1.002 70.2%,
+    1
+  );
+
+  /* Glass surfaces: calm by default (Translucent and Solid materials). */
+  --glass-fill: var(--elevated);
+  --glass-sheen: transparent;
+  --glass-blur: blur(28px) saturate(1.7);
+  --glass-edge: var(--highlight);
+  --glass-rim: var(--line-strong);
+  --glass-shadow: var(--shadow-pop);
+  --pill-fill: var(--well);
+  --thumb-fill: var(--content);
+  --thumb-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 0 0 0.5px var(--line-strong);
+  --selection: var(--active);
+  --selection-edge: transparent;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --accent: #e08565;
+  --accent-strong: #eb9575;
+  --accent-soft: rgb(224 133 101 / 0.16);
+  --accent-fill: #c96a48;
+  --accent-fill-hover: #d47553;
+  --row-highlight: rgb(224 133 101 / 0.2);
+  --focus: rgb(10 132 255 / 0.6);
+
+  --fg: rgb(255 255 255 / 0.93);
+  --fg-muted: rgb(255 255 255 / 0.68);
+  --fg-subtle: rgb(255 255 255 / 0.5);
+  --fg-faint: rgb(255 255 255 / 0.3);
+
+  --window: rgb(8 8 10 / 0.68);
+  --sidebar: rgb(28 28 32 / 0.32);
+  --content: rgb(31 31 36 / 0.92);
+  --content-solid: #1e1e23;
+  --elevated: rgb(38 38 44 / 0.98);
+  --well: rgb(255 255 255 / 0.055);
+  --hover: rgb(255 255 255 / 0.075);
+  --active: rgb(255 255 255 / 0.12);
+  --selected: rgb(255 255 255 / 0.11);
+  --line: rgb(255 255 255 / 0.1);
+  --line-strong: rgb(255 255 255 / 0.17);
+  --highlight: rgb(255 255 255 / 0.07);
+
+  --success: #3fcf7f;
+  --done: #a78bfa;
+  --c-gray: #9b9ba5;
+  --c-gray-fg: #b4b4bf;
+  --git-modified: #d29922;
+  --git-added: #3fb950;
+  --git-deleted: #f85149;
+  --git-renamed: #58a6ff;
+  --git-conflicted: #a371f7;
+  --c-red: #ff6369;
+  --c-red-fg: #ff9592;
+  --c-orange: #ff801f;
+  --c-orange-fg: #ffa057;
+  --c-amber: #ffc53d;
+  --c-amber-fg: #ffca16;
+  --c-green: #3dd68c;
+  --c-green-fg: #4cd99a;
+  --c-teal: #0bd8b6;
+  --c-teal-fg: #3ee0c4;
+  --c-blue: #3b9eff;
+  --c-blue-fg: #70b8ff;
+  --folder: #4aa6f5;
+  --folder-glyph: rgb(255 255 255 / 0.92);
+  --c-indigo: #6e88f0;
+  --c-indigo-fg: #9eb1ff;
+  --c-purple: #a76bdb;
+  --c-purple-fg: #d19dff;
+  --c-pink: #e54fa9;
+  --c-pink-fg: #ff8dcc;
+  --warning: #f0b44c;
+  --danger: #ff6b6b;
+  --danger-fill: #d93a3a;
+  --info: #6aa7ff;
+  --diff-add: rgb(63 207 127 / 0.1);
+  --diff-add-strong: rgb(63 207 127 / 0.26);
+  --diff-del: rgb(255 107 107 / 0.1);
+  --diff-del-strong: rgb(255 107 107 / 0.26);
+
+  --shadow-pop:
+    0 16px 48px rgb(0 0 0 / 0.5), 0 2px 10px rgb(0 0 0 / 0.35),
+    0 0 0 0.5px rgb(255 255 255 / 0.1);
+  --shadow-card:
+    0 1px 3px rgb(0 0 0 / 0.35), 0 0 0 0.5px rgb(255 255 255 / 0.1);
+  --sidebar-card: rgb(52 52 60 / 0.56);
+}
+
+/* Liquid Glass material: translucent, luminous surfaces with a bright top
+   edge, a hairline rim and soft layered shadows. */
+:root[data-glass] {
+  --glass-fill: rgb(250 250 252 / 0.74);
+  --glass-sheen: rgb(255 255 255 / 0.32);
+  --glass-blur: blur(26px) saturate(1.9) brightness(1.05);
+  --glass-edge: rgb(255 255 255 / 0.9);
+  --glass-rim: rgb(0 0 0 / 0.09);
+  --glass-shadow:
+    0 0 0 0.5px var(--glass-rim), 0 10px 32px rgb(0 0 0 / 0.13),
+    0 2px 8px rgb(0 0 0 / 0.07);
+  --pill-fill: rgb(255 255 255 / 0.62);
+  --thumb-fill: rgb(255 255 255 / 0.94);
+  --thumb-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.08), inset 0 0.5px 0 rgb(255 255 255 / 1),
+    0 1px 3px rgb(0 0 0 / 0.1), 0 2px 8px rgb(0 0 0 / 0.04);
+  --selection: rgb(0 0 0 / 0.075);
+  --selection-edge: rgb(255 255 255 / 0.55);
+  --sidebar-card: rgb(249 249 251 / 0.6);
+}
+:root[data-glass][data-theme="dark"] {
+  --glass-fill: rgb(48 48 54 / 0.68);
+  --glass-sheen: rgb(255 255 255 / 0.07);
+  --glass-blur: blur(26px) saturate(1.7) brightness(0.96);
+  --glass-edge: rgb(255 255 255 / 0.17);
+  --glass-rim: rgb(255 255 255 / 0.09);
+  --glass-shadow:
+    0 0 0 0.5px var(--glass-rim), 0 14px 40px rgb(0 0 0 / 0.45),
+    0 2px 10px rgb(0 0 0 / 0.3);
+  --pill-fill: rgb(255 255 255 / 0.07);
+  --thumb-fill: rgb(255 255 255 / 0.17);
+  --thumb-shadow:
+    0 0 0 0.5px rgb(255 255 255 / 0.1), inset 0 0.5px 0 rgb(255 255 255 / 0.22),
+    0 1px 3px rgb(0 0 0 / 0.35);
+  --selection: rgb(255 255 255 / 0.1);
+  --selection-edge: rgb(255 255 255 / 0.1);
+  --sidebar-card: rgb(52 52 60 / 0.46);
+}
+/* Large, text-dense surfaces (palette, dialogs, composer) stay firmer. */
+:root[data-glass] .glass-dense {
+  --glass-fill: rgb(250 250 252 / 0.88);
+}
+:root[data-glass][data-theme="dark"] .glass-dense {
+  --glass-fill: rgb(42 42 48 / 0.86);
+}
+/* Increase Contrast (macOS): stronger lines and edges, firmer surfaces. */
+:root[data-contrast] {
+  --line: rgb(0 0 0 / 0.24);
+  --line-strong: rgb(0 0 0 / 0.42);
+  --fg-muted: rgb(0 0 0 / 0.76);
+  --fg-subtle: rgb(0 0 0 / 0.62);
+  --glass-rim: rgb(0 0 0 / 0.38);
+  --glass-fill: rgb(252 252 254 / 0.95);
+  --selection: rgb(0 0 0 / 0.14);
+}
+:root[data-contrast][data-theme="dark"] {
+  --line: rgb(255 255 255 / 0.26);
+  --line-strong: rgb(255 255 255 / 0.44);
+  --fg-muted: rgb(255 255 255 / 0.8);
+  --fg-subtle: rgb(255 255 255 / 0.66);
+  --glass-rim: rgb(255 255 255 / 0.4);
+  --glass-fill: rgb(40 40 46 / 0.96);
+  --selection: rgb(255 255 255 / 0.18);
+}
+
+/* Solid material (or reduced transparency): opaque surfaces everywhere. */
+:root[data-material="solid"] {
+  --window: #e7e7eb;
+  --sidebar: #e7e7eb;
+  --sidebar-card: #f4f4f6;
+  --content: #ffffff;
+  --elevated: #fbfbfc;
+}
+:root[data-material="solid"][data-theme="dark"] {
+  --window: #111114;
+  --sidebar: #111114;
+  --sidebar-card: #26262c;
+  --content: #1e1e23;
+  --elevated: #2a2a30;
+}
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-fill: var(--accent-fill);
+  --color-accent-fill-hover: var(--accent-fill-hover);
+  --color-row-highlight: var(--row-highlight);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-fg-faint: var(--fg-faint);
+  --color-window: var(--window);
+  --color-sidebar: var(--sidebar);
+  --color-content: var(--content);
+  --color-elevated: var(--elevated);
+  --color-well: var(--well);
+  --color-hover: var(--hover);
+  --color-active: var(--active);
+  --color-selected: var(--selected);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-success: var(--success);
+  --color-done: var(--done);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-danger-fill: var(--danger-fill);
+  --color-info: var(--info);
+  --shadow-pop: var(--shadow-pop);
+  --shadow-card: var(--shadow-card);
+  --text-2xs: 10.5px;
+  --text-xs: 11.5px;
+  --text-sm: 12.5px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --animate-fade-in: fade-in 140ms ease-out;
+  --animate-pop-in: pop-in 150ms cubic-bezier(0.2, 0.9, 0.3, 1.1);
+  --animate-slide-up: slide-up 180ms cubic-bezier(0.2, 0.9, 0.3, 1);
+  --animate-shimmer: shimmer 1.6s linear infinite;
+  --animate-reveal: reveal 2s ease-out;
+}
+
+@keyframes reveal {
+  0%,
+  35% {
+    background-color: var(--accent-soft);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+@keyframes prompt-flash {
+  0%,
+  40% {
+    box-shadow:
+      0 0 0 2px var(--accent),
+      var(--shadow-card);
+  }
+  100% {
+    box-shadow:
+      0 0 0 2px transparent,
+      var(--shadow-card);
+  }
+}
+.prompt-flash {
+  animation: prompt-flash 1.6s var(--ease-out);
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes glass-in {
+  from {
+    opacity: 0;
+    transform: scale(0.93);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pop-out {
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes tab-out {
+  to {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+@keyframes tab-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pulse-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.85);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+  html {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    /* font-weight: 500; */
+    line-height: 1.5;
+    color: var(--fg);
+    /* macOS's own font smoothing, as native apps (and VS Code) render text.
+       "antialiased" turns it off and makes text look thin and light. */
+    -webkit-font-smoothing: auto;
+    text-rendering: optimizeLegibility;
+    -webkit-user-select: none;
+    user-select: none;
+    cursor: default;
+  }
+  body {
+    background: var(--window);
+  }
+  :root[data-material="solid"] body {
+    background: var(--window);
+  }
+  ::selection {
+    background: var(--accent-soft);
+  }
+  /* Text people read or copy is selectable; chrome is not. */
+  .selectable,
+  input,
+  textarea,
+  [contenteditable] {
+    -webkit-user-select: text;
+    user-select: text;
+    cursor: auto;
+  }
+  button {
+    cursor: default;
+  }
+  .dragging-project,
+  .dragging-project * {
+    cursor: grabbing !important;
+  }
+  /* The list still scrolls (wheel, trackpad), but rows don't light up underneath. */
+  .dragging-project [data-project-group] {
+    pointer-events: none;
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 1px;
+    border-radius: 6px;
+  }
+  code,
+  kbd,
+  pre,
+  samp {
+    font-family: var(--font-mono);
+  }
+  /* Slim, native-feeling scrollbars. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--fg-faint);
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--fg-subtle);
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
+@layer components {
+  /* Small overlays are the only place CSS blur is used. */
+  /* Menus, popovers, dialogs, the palette, the composer: they grow out of
+     the control that opened them (Radix supplies the origin). */
+  .glass-pop {
+    background-color: var(--glass-fill);
+    background-image: linear-gradient(
+      to bottom,
+      var(--glass-sheen),
+      transparent 46%
+    );
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    box-shadow:
+      var(--glass-shadow),
+      inset 0 0.5px 0 var(--glass-edge);
+    transform-origin: var(--radix-popper-transform-origin, 50% 0);
+  }
+  /* A floating group of toolbar buttons (Liquid Glass capsule). */
+  .glass-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    padding: 2px;
+    border-radius: 999px;
+    background: var(--pill-fill);
+  }
+  :root[data-glass] .glass-pill {
+    box-shadow:
+      0 0 0 0.5px var(--glass-rim),
+      inset 0 0.5px 0 var(--glass-edge),
+      0 1px 3px rgb(0 0 0 / 0.05);
+    backdrop-filter: blur(12px) saturate(1.6);
+    -webkit-backdrop-filter: blur(12px) saturate(1.6);
+  }
+  /* The selected segment of a segmented control (it slides; see Thumb). */
+  .glass-thumb {
+    background: var(--thumb-fill);
+    box-shadow: var(--thumb-shadow);
+  }
+  /* Selected rows in lists and trees: a soft capsule. */
+  .row-selected {
+    background: var(--selection);
+    box-shadow: inset 0 0.5px 0 var(--selection-edge);
+  }
+  /* A header's bottom edge: a hairline in calm materials; with Liquid Glass
+     the content below fades softly instead (.scroll-edge). */
+  .edge-line {
+    box-shadow: inset 0 -0.5px 0 var(--line);
+  }
+  :root[data-glass] .edge-line {
+    box-shadow: none;
+  }
+  :root[data-material="solid"] .glass-pop {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .hairline {
+    box-shadow: inset 0 0 0 0.5px var(--line-strong);
+  }
+  /* Floating card on the window's glass: soft shadow + top highlight. */
+  .glass-card {
+    box-shadow:
+      var(--shadow-card),
+      inset 0 0.5px 0 var(--highlight);
+  }
+  .glass-sidebar {
+    background: var(--sidebar-card);
+  }
+  /* Liquid Glass panels: a hairline rim, a bright top edge, a soft lift;
+     sidebars catch a faint sheen from above. */
+  :root[data-glass] .glass-card {
+    box-shadow:
+      0 0 0 0.5px var(--glass-rim),
+      inset 0 0.5px 0 var(--glass-edge),
+      0 6px 20px rgb(0 0 0 / 0.06),
+      0 1px 3px rgb(0 0 0 / 0.05);
+  }
+  :root[data-glass] .glass-sidebar {
+    background-image: linear-gradient(
+      to bottom,
+      var(--glass-sheen),
+      transparent 120px
+    );
+  }
+  .drag-region {
+    --wails-draggable: drag;
+  }
+  .no-drag {
+    --wails-draggable: no-drag;
+  }
+  .shimmer-text {
+    background: linear-gradient(
+      90deg,
+      var(--fg-subtle) 0%,
+      var(--fg) 50%,
+      var(--fg-subtle) 100%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: var(--animate-shimmer);
+  }
+}
+
+/* Soft scroll edges (Liquid Glass): content fades out as it scrolls under
+   a header (or a floating composer) instead of meeting a divider line.
+   Scrollers opt in with .scroll-edge; lib/scrollEdges.ts marks which edges
+   have content beyond them. */
+:root[data-glass] .scroll-edge[data-edge-top] {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--edge-size, 22px)
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--edge-size, 22px)
+  );
+}
+:root[data-glass] .scroll-edge.scroll-edge-bottom[data-edge-bottom] {
+  -webkit-mask-image: linear-gradient(
+    to top,
+    transparent 0,
+    #000 var(--edge-size, 22px)
+  );
+  mask-image: linear-gradient(
+    to top,
+    transparent 0,
+    #000 var(--edge-size, 22px)
+  );
+}
+:root[data-glass]
+  .scroll-edge.scroll-edge-bottom[data-edge-top][data-edge-bottom] {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--edge-size, 22px),
+    #000 calc(100% - var(--edge-size, 22px)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--edge-size, 22px),
+    #000 calc(100% - var(--edge-size, 22px)),
+    transparent 100%
+  );
+}
+
+/* Closing overlays fade out quickly (every material). */
+.animate-pop-in[data-state="closed"] {
+  animation: pop-out 110ms ease-in both;
+}
+.animate-fade-in[data-state="closed"] {
+  animation: fade-out 110ms ease-in both;
+}
+
+/* Spring motion: Liquid Glass only. */
+:root[data-motion="spring"] .animate-pop-in:not([data-state="closed"]) {
+  animation: glass-in 200ms var(--ease-spring) both;
+}
+:root[data-motion="spring"] .view-enter {
+  animation: rise-in 160ms var(--ease-out) both;
+}
+:root[data-motion="spring"] .row-enter {
+  animation: rise-in 160ms var(--ease-out) both;
+}
+:root[data-motion="spring"][data-ready] .dockview-theme-glass .dv-tab {
+  animation: tab-in 180ms var(--ease-spring) both;
+}
+:root[data-motion="spring"] .dockview-theme-glass .dv-tab[data-closing] {
+  animation: tab-out 120ms ease-in both;
+  pointer-events: none;
+}
+
+/* Reduce Motion (macOS or the web view): no movement at all. */
+:root[data-motion="reduced"] *,
+:root[data-motion="reduced"] *::before,
+:root[data-motion="reduced"] *::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/* ---- Dockview: glass workbench theme ---------------------------------- */
+.dockview-theme-glass {
+  --dv-group-view-background-color: transparent;
+  --dv-tabs-and-actions-container-background-color: var(--content);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--active);
+  --dv-activegroup-hiddenpanel-tab-background-color: transparent;
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--hover);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: transparent;
+  --dv-tab-divider-color: transparent;
+  --dv-activegroup-visiblepanel-tab-color: var(--fg);
+  --dv-activegroup-hiddenpanel-tab-color: var(--fg-muted);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--fg-muted);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--fg-subtle);
+  --dv-separator-border: transparent;
+  --dv-paneview-header-border-color: var(--line);
+  --dv-active-sash-color: var(--accent);
+  --dv-drag-over-background-color: var(--accent-soft);
+  --dv-drag-over-border-color: var(--accent);
+  --dv-icon-hover-background-color: var(--hover);
+  --dv-floating-box-shadow: var(--shadow-pop);
+  --dv-floating-border: 0.5px solid var(--line-strong);
+  --dv-floating-group-border: 0.5px solid var(--line-strong);
+  --dv-scrollbar-background-color: var(--fg-faint);
+  --dv-spacing-padding: 0px;
+  --dv-border-radius: var(--card-radius);
+  --dv-tab-font-size: 12px;
+  --dv-tabs-and-actions-container-height: var(--strip-height);
+  --dv-tab-margin-block: 5px;
+  --dv-tab-margin-inline: 2px;
+  --dv-tab-border-radius: 999px;
+  --dv-tab-close-icon-size: 9px;
+  --dv-context-menu-background-color: var(--content-solid);
+  --dv-context-menu-color: var(--fg);
+  color-scheme: inherit;
+  background-color: transparent;
+}
+.dockview-theme-glass .dv-groupview {
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+:root[data-glass] .dockview-theme-glass .dv-groupview {
+  box-shadow:
+    0 0 0 0.5px var(--glass-rim),
+    inset 0 0.5px 0 var(--glass-edge),
+    0 6px 20px rgb(0 0 0 / 0.06),
+    0 1px 3px rgb(0 0 0 / 0.05);
+}
+.dockview-theme-glass .dv-groupview .dv-content-container {
+  background-color: var(--content);
+}
+.dockview-theme-glass .dv-groupview .dv-tabs-and-actions-container {
+  border-bottom: 0.5px solid var(--line);
+}
+:root[data-glass]
+  .dockview-theme-glass
+  .dv-groupview
+  .dv-tabs-and-actions-container {
+  border-bottom-color: transparent;
+}
+:root[data-glass]
+  .dockview-theme-glass
+  .dv-groupview.dv-active-group
+  .dv-tab.dv-active-tab {
+  background: var(--thumb-fill);
+  box-shadow: var(--thumb-shadow);
+}
+:root[data-glass]
+  .dockview-theme-glass
+  .dv-groupview.dv-inactive-group
+  .dv-tab.dv-active-tab {
+  background: var(--selection);
+  box-shadow: inset 0 0.5px 0 var(--selection-edge);
+}
+.dockview-theme-glass .dv-tab {
+  padding: 0 8px 0 10px;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+.dockview-theme-glass .dv-tab:hover {
+  background-color: var(--hover);
+}
+.dockview-theme-glass .dv-sash {
+  transition: background-color 120ms ease;
+}
+/* Groups along the top edge double as the window's title bar. */
+.dockview-theme-glass [data-titlebar] .dv-tabs-and-actions-container {
+  --wails-draggable: drag;
+}
+.dockview-theme-glass [data-titlebar] .dv-tab,
+.dockview-theme-glass [data-titlebar] .dv-tabs-and-actions-container button {
+  --wails-draggable: no-drag;
+}
+/* Leave room for the traffic lights when the sidebar is hidden. */
+.dockview-theme-glass [data-traffic-lights] .dv-tabs-and-actions-container {
+  padding-left: var(--dock-lights-inset);
+  transition: padding-left 180ms ease;
+}
+
+/* ---- Markdown typography ----------------------------------------------- */
+.markdown {
+  font-size: 13.5px;
+  line-height: 1.62;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+.markdown > * > :first-child {
+  margin-top: 0;
+}
+.markdown p {
+  margin: 0.55em 0;
+}
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  margin: 1.1em 0 0.45em;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+}
+.markdown h1 {
+  font-size: 1.35em;
+}
+.markdown h2 {
+  font-size: 1.2em;
+}
+.markdown h3 {
+  font-size: 1.07em;
+}
+.markdown h4 {
+  font-size: 1em;
+  color: var(--fg-muted);
+}
+.markdown ul,
+.markdown ol {
+  margin: 0.5em 0;
+  padding-left: 1.45em;
+}
+.markdown ul {
+  list-style: disc;
+}
+.markdown ol {
+  list-style: decimal;
+}
+.markdown li {
+  margin: 0.2em 0;
+}
+.markdown li::marker {
+  color: var(--fg-subtle);
+}
+.markdown li > p {
+  margin: 0.2em 0;
+}
+.markdown ul.contains-task-list {
+  list-style: none;
+  padding-left: 0.3em;
+}
+.markdown blockquote {
+  margin: 0.7em 0;
+  padding: 0.1em 0 0.1em 0.9em;
+  border-left: 2.5px solid var(--line-strong);
+  color: var(--fg-muted);
+}
+.markdown hr {
+  margin: 1.2em 0;
+  border: 0;
+  border-top: 0.5px solid var(--line-strong);
+}
+.markdown strong {
+  font-weight: 650;
+}
+.markdown img {
+  max-width: 100%;
+  border-radius: 8px;
+}
+.markdown h5,
+.markdown h6 {
+  margin: 1em 0 0.4em;
+  font-size: 0.93em;
+  font-weight: 650;
+  color: var(--fg-muted);
+}
+.markdown kbd {
+  display: inline-block;
+  min-width: 1.5em;
+  padding: 0.05em 0.42em;
+  border-radius: 5px;
+  background: var(--content-solid);
+  box-shadow:
+    inset 0 0 0 0.5px var(--line-strong),
+    inset 0 -1.5px 0 var(--line-strong);
+  font: 500 0.82em/1.5 var(--font-sans);
+  text-align: center;
+  color: var(--fg);
+}
+.markdown kbd + kbd {
+  margin-left: 0.2em;
+}
+.markdown mark {
+  border-radius: 3px;
+  padding: 0 0.15em;
+  background: color-mix(in srgb, var(--c-amber) 32%, transparent);
+  color: inherit;
+}
+.markdown sup,
+.markdown sub {
+  line-height: 0;
+}
+.markdown .md-swatch {
+  display: inline-block;
+  width: 0.8em;
+  height: 0.8em;
+  margin-right: 0.35em;
+  border-radius: 3px;
+  vertical-align: -0.06em;
+  box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.25);
+}
+.markdown .md-task:not(:disabled) {
+  cursor: pointer;
+}
+
+/* Something just jumped to: outlined for a moment. */
+.md-flash {
+  animation: md-flash 1.4s var(--ease-out);
+  border-radius: 6px;
+}
+@keyframes md-flash {
+  0%,
+  35% {
+    box-shadow: 0 0 0 3px var(--accent-soft);
+    background: var(--accent-soft);
+  }
+  100% {
+    box-shadow: 0 0 0 3px transparent;
+    background: transparent;
+  }
+}
+
+/* Headings in a document: a link mark on hover. */
+.markdown .md-heading {
+  scroll-margin-top: 16px;
+}
+.markdown .md-anchor {
+  display: inline-flex;
+  margin-left: 0.35em;
+  vertical-align: middle;
+  color: var(--fg-faint);
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.markdown .md-heading:hover .md-anchor,
+.markdown .md-anchor:focus-visible {
+  opacity: 1;
+}
+.markdown .md-anchor:hover {
+  color: var(--accent);
+}
+
+/* Callouts (GitHub alerts). */
+.markdown .md-callout {
+  --c: var(--info);
+  margin: 0.8em 0;
+  padding: 0.5em 0.9em 0.55em;
+  border-left: 3px solid var(--c);
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--c) 8%, transparent);
+}
+.markdown .md-callout[data-callout="tip"] {
+  --c: var(--success);
+}
+.markdown .md-callout[data-callout="important"] {
+  --c: var(--done);
+}
+.markdown .md-callout[data-callout="warning"] {
+  --c: var(--warning);
+}
+.markdown .md-callout[data-callout="caution"] {
+  --c: var(--danger);
+}
+.markdown .md-callout-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  margin-bottom: 0.15em;
+  font-weight: 600;
+  color: var(--c);
+}
+.markdown .md-callout > :nth-child(2) {
+  margin-top: 0.2em;
+}
+.markdown .md-callout > :last-child {
+  margin-bottom: 0;
+}
+
+/* Collapsible sections. */
+.markdown .md-details {
+  margin: 0.6em 0;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 0.5px var(--line-strong);
+}
+.markdown .md-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0.35em 0.7em;
+  border-radius: 8px;
+  font-weight: 550;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+.markdown .md-summary::-webkit-details-marker {
+  display: none;
+}
+.markdown .md-summary:hover {
+  background: var(--hover);
+}
+.markdown .md-summary-chevron {
+  color: var(--fg-subtle);
+  transition: transform 150ms var(--ease-out);
+}
+.markdown .md-details[open] > .md-summary .md-summary-chevron {
+  transform: rotate(90deg);
+}
+.markdown .md-details > :not(summary) {
+  margin-left: 0.9em;
+  margin-right: 0.9em;
+}
+.markdown .md-details > :last-child:not(summary) {
+  margin-bottom: 0.7em;
+}
+
+/* Footnotes. */
+.markdown .md-fn-ref {
+  padding: 0 0.12em;
+  font-size: 0.78em;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+.markdown .md-fn-ref::before {
+  content: "[";
+  color: var(--fg-faint);
+}
+.markdown .md-fn-ref::after {
+  content: "]";
+  color: var(--fg-faint);
+}
+.markdown .md-fn-back {
+  margin-left: 0.3em;
+  color: var(--fg-subtle);
+  text-decoration: none;
+}
+.markdown .md-fn-back:hover {
+  color: var(--accent);
+}
+.markdown .md-footnotes {
+  margin-top: 1.4em;
+  padding-top: 0.5em;
+  border-top: 0.5px solid var(--line-strong);
+  font-size: 0.9em;
+  color: var(--fg-muted);
+}
+
+/* Math. */
+.markdown .md-math .katex {
+  font-size: 1.08em;
+}
+.markdown .md-math-block {
+  margin: 0.7em 0;
+}
+.markdown .md-math-block .katex-display {
+  margin: 0;
+  padding: 0.3em 0;
+}
+.markdown .md-math-pending {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  color: var(--fg-muted);
+}
+.markdown .md-math-streaming {
+  opacity: 0.7;
+}
+
+/* Diagrams. */
+.md-diagram svg {
+  display: block;
+}
+.md-diagram .md-diagram-link {
+  fill: var(--accent) !important;
+  text-decoration: underline;
+}
+.md-diagram-hit:hover,
+.md-diagram-hit:focus-visible {
+  background: var(--accent-soft);
+  outline: none;
+}
+.md-canvas {
+  background-image: radial-gradient(var(--line) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Code blocks: a long one collapsed fades out at its end (streaming: at its start). */
+.md-code-collapsed {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
+}
+.md-code-tail {
+  mask-image: linear-gradient(to top, #000 calc(100% - 40px), transparent);
+}
+
+/* Tables. */
+.markdown .md-table th {
+  background-color: var(--content-solid);
+  background-image: linear-gradient(var(--well), var(--well));
+  transform: translateY(var(--md-head-y, 0));
+  position: relative;
+  z-index: 1;
+}
+.markdown .md-table[data-stuck] th {
+  box-shadow: 0 1px 0 var(--line-strong), 0 4px 10px -6px rgb(0 0 0 / 0.25);
+}
+.markdown .md-table th.cursor-pointer:hover {
+  background-image: linear-gradient(var(--hover), var(--hover)), linear-gradient(var(--well), var(--well));
+}
+.markdown .md-table td {
+  font-variant-numeric: tabular-nums;
+}
+.markdown .md-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.markdown .md-table tbody tr:hover td {
+  background: var(--hover);
+}
+.markdown .md-table .md-sort-hint {
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.markdown .md-table th:hover .md-sort-hint,
+.markdown .md-table th:focus-visible .md-sort-hint {
+  opacity: 1;
+}
+.markdown .md-table th:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.md-col-resize {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  bottom: 0;
+  z-index: 2;
+  width: 8px;
+  cursor: col-resize;
+}
+.md-col-resize::after {
+  content: "";
+  position: absolute;
+  top: 20%;
+  bottom: 20%;
+  left: 3.5px;
+  width: 1px;
+  border-radius: 1px;
+  background: var(--line-strong);
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.md-table th:hover .md-col-resize::after {
+  opacity: 1;
+}
+.md-col-resize:hover::after,
+.md-col-resize[data-active]::after {
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  background: var(--accent);
+  opacity: 1;
+}
+.md-col-resizing,
+.md-col-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+.md-table-scroll[data-more-right] {
+  mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+}
+.md-table-scroll[data-more-left] {
+  mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent);
+}
+.md-table-scroll[data-more-left][data-more-right] {
+  mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
+}
+
+/* ---- Shiki (dual-theme via CSS variables) ------------------------------ */
+.shiki-host pre.shiki {
+  background: transparent !important;
+  margin: 0;
+  font-family: var(--font-mono);
+}
+.shiki-host .shiki,
+.shiki-host .shiki span {
+  color: var(--shiki-light);
+}
+:root[data-theme="dark"] .shiki-host .shiki,
+:root[data-theme="dark"] .shiki-host .shiki span {
+  color: var(--shiki-dark);
+}
+.code-line-numbers .shiki-host code {
+  counter-reset: line var(--start-line, 0);
+}
+.code-line-numbers .shiki-host .line::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  width: 2.8em;
+  margin-right: 1em;
+  text-align: right;
+  color: var(--fg-faint);
+}
+
+/*
+ * Toasts, themed like the other popovers. Sonner injects unlayered CSS at
+ * runtime, so these stay unlayered and out-specify its theme selectors.
+ */
+:root [data-sonner-toaster][data-sonner-theme] {
+  --normal-bg: var(--elevated);
+  --normal-border: transparent;
+  --normal-text: var(--fg);
+  --border-radius: 12px;
+  font-family: inherit;
+}
+:root [data-sonner-toaster] [data-sonner-toast][data-styled="true"] {
+  padding: 12px 14px;
+  font-size: 13px;
+  box-shadow:
+    var(--shadow-pop),
+    inset 0 1px 0 var(--highlight);
+  backdrop-filter: blur(28px) saturate(1.7);
+  -webkit-backdrop-filter: blur(28px) saturate(1.7);
+}
+:root
+  [data-sonner-toaster]
+  [data-sonner-toast][data-styled="true"]
+  [data-description] {
+  color: var(--fg-muted);
+}
+:root
+  [data-sonner-toaster]
+  [data-sonner-toast][data-styled="true"]
+  [data-button] {
+  height: 24px;
+  border-radius: 6px;
+  padding: 0 10px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  transition: background-color 0.15s;
+}
+:root
+  [data-sonner-toaster]
+  [data-sonner-toast][data-styled="true"]
+  [data-button]:hover {
+  background: var(--row-highlight);
+}
+:root
+  [data-sonner-toaster]
+  [data-sonner-toast][data-styled="true"]
+  [data-button]:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus);
+}
+
+/* Code editor (editor/, CodeMirror). Syntax colors are GitHub's, like the
+   rest of the app's code; selection follows the accent. */
+:root {
+  --hl-fg: #1f2328;
+  --hl-comment: #6e7781;
+  --hl-keyword: #cf222e;
+  --hl-string: #0a3069;
+  --hl-constant: #0550ae;
+  --hl-function: #8250df;
+  --hl-entity: #953800;
+  --hl-tag: #116329;
+  --hl-invalid: #82071e;
+  --editor-active-line: rgb(0 0 0 / 0.028);
+  --editor-selection: color-mix(in srgb, var(--accent) 22%, transparent);
+  --editor-selection-inactive: rgb(0 0 0 / 0.07);
+  --editor-occurrence: rgb(0 0 0 / 0.055);
+  --editor-find: rgb(255 200 0 / 0.38);
+  --editor-find-current: rgb(255 150 0 / 0.55);
+  --editor-bracket: rgb(0 0 0 / 0.06);
+  --editor-bracket-line: rgb(0 0 0 / 0.2);
+  --editor-whitespace: rgb(0 0 0 / 0.28);
+}
+:root[data-theme="dark"] {
+  --hl-fg: #e6edf3;
+  --hl-comment: #8b949e;
+  --hl-keyword: #ff7b72;
+  --hl-string: #a5d6ff;
+  --hl-constant: #79c0ff;
+  --hl-function: #d2a8ff;
+  --hl-entity: #ffa657;
+  --hl-tag: #7ee787;
+  --hl-invalid: #ffa198;
+  --editor-active-line: rgb(255 255 255 / 0.035);
+  --editor-selection: color-mix(in srgb, var(--accent) 30%, transparent);
+  --editor-selection-inactive: rgb(255 255 255 / 0.09);
+  --editor-occurrence: rgb(255 255 255 / 0.08);
+  --editor-find: rgb(255 200 0 / 0.24);
+  --editor-find-current: rgb(255 150 0 / 0.5);
+  --editor-bracket: rgb(255 255 255 / 0.08);
+  --editor-bracket-line: rgb(255 255 255 / 0.28);
+  --editor-whitespace: rgb(255 255 255 / 0.3);
+}
+.code-editor .cm-content {
+  -webkit-user-select: text;
+  user-select: text;
+}
+/* The find bar sits under the file header, on the editor's surface. */
+.code-editor .cm-find {
+  background: var(--elevated);
+  box-shadow: inset 0 -0.5px 0 var(--line);
+}
+/* Fold chevrons appear when the pointer is over the gutter. */
+.code-editor .cm-fold-chevron {
+  display: flex;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.code-editor .cm-fold-chevron[data-open] svg {
+  transform: rotate(90deg);
+}
+.code-editor .cm-gutters:hover .cm-fold-chevron,
+.code-editor .cm-fold-chevron:not([data-open]) {
+  opacity: 1;
+}
+@keyframes suggest-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+:root[data-motion="reduced"] .cm-suggest {
+  animation: none !important;
+}
+@keyframes cm-flash {
+  0%,
+  45% {
+    background: var(--accent-soft);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+/* Side-by-side diffs: one scroller for both sides, the revert arrows between them. */
+.code-editor .cm-mergeView {
+  height: 100%;
+  overflow-y: auto;
+  background: var(--elevated);
+}
+.code-editor .cm-mergeView .cm-editor {
+  height: auto;
+  min-height: 100%;
+}
+.code-editor .cm-mergeViewEditors {
+  min-height: 100%;
+}
+.code-editor .cm-mergeViewEditor:first-child {
+  box-shadow: inset -0.5px 0 0 var(--line);
+}
+.code-editor .cm-merge-revert {
+  width: 22px;
+  box-shadow: inset -0.5px 0 0 var(--line);
+}
+.code-editor .cm-merge-revert .cm-revert {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: 6px;
+  color: var(--fg-subtle);
+  transition:
+    color 100ms,
+    background-color 100ms;
+}
+.code-editor .cm-merge-revert .cm-revert:hover {
+  color: var(--accent);
+  background: var(--hover);
+}
+
+/* The commit message box while Claude writes in it: a soft, breathing glow. */
+.scm-writing {
+  animation: scm-writing 1.6s ease-in-out infinite;
+}
+@keyframes scm-writing {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1.5px color-mix(in srgb, var(--accent) 70%, transparent),
+      0 0 12px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+}
+:root[data-motion="reduced"] .scm-writing {
+  animation: none;
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/* The editor preview in Settings sizes to its sample. */
+.editor-preview .cm-editor {
+  height: auto;
+  max-height: 440px;
+}
+
+/* A macOS-style slider: thin track filled with the accent up to the thumb. */
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 18px;
+  background: transparent;
+}
+.slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--accent-fill) var(--fill, 50%),
+    var(--active) var(--fill, 50%)
+  );
+}
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  margin-top: -6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.18),
+    0 1px 3px rgb(0 0 0 / 0.25);
+}
+.slider:focus-visible {
+  outline: none;
+}
+.slider:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 2px var(--focus),
+    0 1px 3px rgb(0 0 0 / 0.25);
+}
+
+/* Settings: while searching, groups and sections without a matching row go away. */
+.settings-searching .settings-group:not(:has([data-setting-row])),
+.settings-searching .settings-section:not(:has([data-setting-row])) {
+  display: none;
+}
+
+/* File and folder icons (fileIcons/). Material icons with a light variant
+   swap with the theme; folders are macOS blue with a lighter back panel. */
+.file-icon .fi-dark {
+  display: none;
+}
+:root[data-theme="dark"] .file-icon .fi-dark {
+  display: inline;
+}
+:root[data-theme="dark"] .file-icon .fi-light {
+  display: none;
+}
+.folder-icon {
+  color: var(--folder);
+}
+.folder-icon .folder-back {
+  fill: currentColor;
+  opacity: 0.55;
+}
+.folder-icon .folder-front {
+  fill: currentColor;
+}
+.folder-icon .folder-glyph {
+  fill: none;
+  stroke: var(--folder-glyph);
+  color: var(--folder-glyph);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Behind images with transparency (file viewer). */
+.checkerboard {
+  background-color: var(--content);
+  background-image: conic-gradient(
+    var(--well) 25%,
+    transparent 0 50%,
+    var(--well) 0 75%,
+    transparent 0
+  );
+  background-size: 16px 16px;
+}
+
+/* Segmented selection glides between options (components/ui/SlidingThumb). */
+:root[data-motion="spring"] .sliding-thumb[data-moving] {
+  transition:
+    transform 200ms var(--ease-spring),
+    width 200ms var(--ease-spring);
+}
+:root[data-motion="calm"] .sliding-thumb[data-moving] {
+  transition:
+    transform 160ms var(--ease-out),
+    width 160ms var(--ease-out);
+}
+
+/* Native terminals draw under the page, so it must stay transparent above them. */
+:root[data-native-terminals] body {
+  background: transparent;
+}
+.dockview-theme-glass .dv-groupview .dv-content-container:has([data-terminal-host]) {
+  background-color: transparent;
+}
+[data-card][data-native-view] {
+  background: transparent !important;
+}
+[data-card][data-native-view] [data-view-strip] {
+  background: var(--content);
+}
+/* Files from Finder hovering a terminal (the page draws over it). */
+[data-terminal-host].file-drop-target-active {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}

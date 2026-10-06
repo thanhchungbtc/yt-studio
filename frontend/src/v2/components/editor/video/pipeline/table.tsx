@@ -149,7 +149,7 @@ export function ChapterTable({
 
   if (chapters.length === 0) {
     return (
-      <p className="px-4 py-6 text-[12px] text-tertiary">
+      <p className="px-4 py-6 text-sm text-fg-subtle">
         No chapters yet — the blueprint writes them.
       </p>
     )
@@ -166,7 +166,7 @@ export function ChapterTable({
           role="row"
           className={cn(
             ROW,
-            'surface-band hairline-b sticky top-0 z-10 items-center py-1.5 text-[10px] font-semibold tracking-[0.06em] whitespace-nowrap text-tertiary uppercase',
+            'surface-band hairline-b sticky top-0 z-10 items-center py-1.5 text-2xs font-semibold tracking-[0.06em] whitespace-nowrap text-fg-subtle uppercase',
           )}
         >
           <span className="text-right">#</span>
@@ -178,7 +178,7 @@ export function ChapterTable({
               <button
                 type="button"
                 onClick={() => setOpen(allOpen ? new Set() : new Set(chapters.map((c) => c.id)))}
-                className="text-[10.5px] font-medium tracking-normal normal-case text-[var(--accent)] hover:underline"
+                className="text-2xs font-medium tracking-normal normal-case text-[var(--accent)] hover:underline"
               >
                 {allOpen ? 'Collapse all' : 'Expand all'}
               </button>
@@ -199,7 +199,7 @@ export function ChapterTable({
           target somewhere in eighty rows is a message nobody finds. There is one
           of these at a time because there is one press at a time. */}
         {error ? (
-          <p className="hairline-b col-span-full px-4 py-1.5 text-[11px] text-[var(--failed)]">
+          <p className="hairline-b col-span-full px-4 py-1.5 text-xs text-[var(--failed)]">
             {error.message}
           </p>
         ) : null}
@@ -208,7 +208,7 @@ export function ChapterTable({
           the button that did it: the totals in the band above still count the
           whole video, and without this line the two read as a contradiction. */}
         {filtered ? (
-          <div className="hairline-b col-span-full flex items-center gap-3 px-4 py-1.5 text-[11px] text-tertiary">
+          <div className="hairline-b col-span-full flex items-center gap-3 px-4 py-1.5 text-xs text-fg-subtle">
             <span>
               Showing <span className="tabular-nums">{count(chapters.length)}</span> of{' '}
               <span className="tabular-nums">{count(filtered.of)}</span> chapters
@@ -216,7 +216,7 @@ export function ChapterTable({
             <button
               type="button"
               onClick={filtered.onClear}
-              className="ml-auto transition-colors hover:text-primary"
+              className="ml-auto transition-colors hover:text-fg"
             >
               Show all
             </button>
@@ -310,7 +310,7 @@ const ChapterRow = memo(function ChapterRow({
         !first && 'hairline-t',
       )}
     >
-      <span className="min-w-[1.25rem] pt-px text-right text-[12px] tabular-nums text-tertiary">
+      <span className="min-w-[1.25rem] pt-px text-right text-sm tabular-nums text-fg-subtle">
         {chapter.ordinal}
       </span>
 
@@ -322,25 +322,23 @@ const ChapterRow = memo(function ChapterRow({
             the marks can sit at the right edge without the brief
             running to a line nobody can track back from. */}
           <div className="min-w-0 max-w-[44rem]">
-            <div className="text-[13px] leading-snug text-primary">
-              {chapter.title || 'Untitled'}
-            </div>
+            <div className="text-base leading-snug text-fg">{chapter.title || 'Untitled'}</div>
             {chapter.summary ? (
               <Clamped
                 text={chapter.summary}
                 open={open}
                 onToggle={() => onToggle(chapter.id)}
                 label={`Chapter ${chapter.ordinal} brief`}
-                className="mt-1 text-[12px] leading-snug text-secondary"
+                className="mt-1 text-sm leading-snug text-fg-muted"
               />
             ) : null}
           </div>
 
-          <div className="pt-px text-right text-[12px] whitespace-nowrap tabular-nums text-secondary">
+          <div className="pt-px text-right text-sm whitespace-nowrap tabular-nums text-fg-muted">
             {chapter.estimatedWords > 0 ? (
               <>
                 ~{count(chapter.estimatedWords)}w
-                <span className="block text-[11px] text-tertiary">~{duration(seconds)}</span>
+                <span className="block text-xs text-fg-subtle">~{duration(seconds)}</span>
               </>
             ) : null}
           </div>
@@ -511,7 +509,7 @@ function PlanFields({ chapter, videoId }: { chapter: Chapter; videoId: string })
           style={{ fontSize: 12, lineHeight: 1.375 }}
         />
         {save.error ? (
-          <p className="mt-1 text-[11px] leading-snug text-[var(--failed)]">
+          <p className="mt-1 text-xs leading-snug text-[var(--failed)]">
             {(save.error as Error).message}
           </p>
         ) : null}
@@ -530,7 +528,7 @@ function PlanFields({ chapter, videoId }: { chapter: Chapter; videoId: string })
             aria-label={`Chapter ${chapter.ordinal} word budget`}
             className="control w-[58px] text-right tabular-nums"
           />
-          <span className="text-[11px] text-tertiary">w</span>
+          <span className="text-xs text-fg-subtle">w</span>
         </div>
         {/* Projected from the draft rather than from what is saved: a budget is
             rebalanced against the runtime it buys, and a figure that only caught
@@ -539,7 +537,7 @@ function PlanFields({ chapter, videoId }: { chapter: Chapter; videoId: string })
             Sized and aligned to the field above it, so the runtime sits under
             the number it comes from rather than under the left edge of a column
             the number is not against. */}
-        <span className="mt-1 block w-[58px] text-right text-[11px] tabular-nums text-tertiary">
+        <span className="mt-1 block w-[58px] text-right text-xs tabular-nums text-fg-subtle">
           {budget > 0 ? `~${duration(projectedSeconds(budget))}` : '—'}
         </span>
       </div>

@@ -29,10 +29,10 @@ export function ChapterOutline({
       className="hairline-r hidden w-[220px] shrink-0 flex-col @[54rem]:flex"
     >
       <div className="flex shrink-0 items-baseline gap-2 px-4 pt-2.5 pb-1.5">
-        <span className="text-[10px] font-semibold tracking-[0.07em] text-tertiary uppercase">
+        <span className="text-2xs font-semibold tracking-[0.07em] text-fg-subtle uppercase">
           Chapters
         </span>
-        <span className="ml-auto text-[11px] tabular-nums text-tertiary">
+        <span className="ml-auto text-xs tabular-nums text-fg-subtle">
           {count(chapters.length)}
         </span>
       </div>
@@ -48,10 +48,10 @@ export function ChapterOutline({
               onClick={() => onJump(chapter.id)}
               className={cn(
                 'relative flex w-full items-baseline gap-2 rounded-[6px] py-[4px] pr-2 pl-2.5 text-left',
-                'text-[12px] transition-colors',
+                'text-sm transition-colors',
                 active
-                  ? 'bg-[var(--hover)] text-primary'
-                  : 'text-secondary hover:bg-[var(--hover)] hover:text-primary',
+                  ? 'bg-[var(--hover)] text-fg'
+                  : 'text-fg-muted hover:bg-[var(--hover)] hover:text-fg',
               )}
               title={chapter.title}
             >
@@ -61,7 +61,7 @@ export function ChapterOutline({
                   style={{ backgroundColor: 'var(--accent)' }}
                 />
               ) : null}
-              <span className="w-[1.5rem] shrink-0 text-right tabular-nums text-tertiary">
+              <span className="w-[1.5rem] shrink-0 text-right tabular-nums text-fg-subtle">
                 {chapter.ordinal}
               </span>
               <span className="min-w-0 flex-1 truncate">{chapter.title || 'Untitled'}</span>

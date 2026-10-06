@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { Check, RefreshCw, RotateCcw } from 'lucide-react'
 import { useCallback } from 'react'
 
@@ -79,7 +80,10 @@ export function useCellMenu(videoId: string) {
         [job.taskId],
         job.action === 'accept' ? { stale: false } : { state: 'ready' },
       ),
-    onError: () => settleTasks(client, videoId),
+    onError: (error) => {
+      settleTasks(client, videoId)
+      toast.error("Couldn't regenerate", { description: error.message })
+    },
     mutationFn: async (job: Job) => {
       await afterPlanSave(client)
       switch (job.action) {
@@ -185,7 +189,10 @@ export function useStageMenu(videoId: string, tasks: Task[]) {
 
   const run = useMutation({
     onMutate: (taskIds: string[]) => acknowledge(client, videoId, taskIds, { state: 'ready' }),
-    onError: () => settleTasks(client, videoId),
+    onError: (error) => {
+      settleTasks(client, videoId)
+      toast.error("Couldn't regenerate", { description: error.message })
+    },
     mutationFn: async (taskIds: string[]) => {
       await afterPlanSave(client)
       return api.rerunTasks(videoId, taskIds)

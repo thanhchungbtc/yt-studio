@@ -1,14 +1,19 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import {
-  ChevronDown,
   ChevronRight,
   Clapperboard,
   ClipboardPaste,
   Copy,
+  FolderOpen,
   Pencil,
+  Play,
+  Plus,
+  Search,
+  Square,
   SquarePen,
   Trash2,
   Tv,
+  type LucideIcon,
 } from 'lucide-react'
 import {
   memo,
@@ -18,87 +23,132 @@ import {
   useState,
   type KeyboardEvent,
   type MouseEvent,
-  type ReactNode,
 } from 'react'
+import { toast } from 'sonner'
+
+import { executeCommand } from '@/kit/commands/registry'
+import { cn } from '@/kit/lib/cn'
+import { IconButton } from '@/kit/ui/Button'
+import { ContextMenu, DropdownMenu, type MenuEntry } from '@/kit/ui/Menu'
+import { EmptyState, Spinner, TextInput } from '@/kit/ui/misc'
+import { SlidingThumb } from '@/kit/ui/SlidingThumb'
+import { Tooltip } from '@/kit/ui/Tooltip'
+import { confirm } from '@/kit/workbench/confirm'
 
 import { api, prefetchVideo, qk } from '../../core/api'
-import { listTimestamp } from '../../core/format'
+import { listTimestamp, stateLabel } from '../../core/format'
 import type { Channel, Video, VideoState } from '../../core/types'
 import { useWorkbench, type SidebarScope } from '../../store/workbench'
 import { duplicateLabel, duplicateVideos } from '../duplicate-video'
 import { editVideo } from '../edit-video'
-import { openDoc, pinPreview, docId, useDock } from '../editor/dock'
+import { docId, openDoc, pinPreview, useDock } from '../editor/dock'
 import { newFromBlueprint } from '../new-from-blueprint'
 import { newVideo } from '../new-video'
-import { avatarColor } from '../ui/avatar'
-import { Button } from '../ui/button'
-import { Dialog } from '../ui/dialog'
-import { DragRegion } from '../ui/drag-region'
-import { Menu } from '../ui/menu'
-import { Segmented, type Segment } from '../ui/segmented'
-import { Row } from './row'
+import { Avatar, avatarColor } from '../ui/avatar'
 
-/**
- * The primary sidebar: the source list.
- *
- * It is one list with two scopes rather than two lists, because a channel and
- * its videos are the same journey at different depths — and because a segmented
- * control is how macOS says "same list, different slice", where a second
- * sidebar section would say "different thing entirely".
- *
- * Videos are grouped under their channel and each group collapses, which is
- * what makes a long library navigable without a tree: two levels, no more.
- *
- * There is no search field and there are no pane toggles. Both were controls
- * standing in for a keystroke — ⌘1, ⌘2, ⌘3 — and a sidebar that spends its
- * first fifty pixels on chrome has fifty fewer for the library.
- */
-
-const SCOPES: readonly Segment<SidebarScope>[] = [
-  { value: 'videos', label: 'Videos', icon: Clapperboard },
-  { value: 'channels', label: 'Channels', icon: Tv },
+const SCOPES: Array<{ value: SidebarScope; title: string; icon: LucideIcon; command: string }> = [
+  { value: 'videos', title: 'Videos', icon: Clapperboard, command: 'workbench.showVideos' },
+  { value: 'channels', title: 'Channels', icon: Tv, command: 'workbench.showChannels' },
 ]
-
-/**
- * The mark a state earns on the token, if any.
- *
- * Three states earn one and four do not, and that ratio is the whole point. A
- * dot on every row is not a signal — a finished library used to carry a green
- * one on all of them — so the settled states stay bare and the marked ones mean
- * *this wants you* or *this is moving*.
- *
- * The rhythm carries as much as the hue: waiting beats, working orbits. Read
- * with the colour thrown away, the two are still different marks.
- */
-function stateMark(
-  state: VideoState,
-): { tone: 'accent' | 'running' | 'failed'; motion: 'working' | 'attention' } | undefined {
-  switch (state) {
-    case 'awaiting_approval':
-      return { tone: 'accent', motion: 'attention' }
-    case 'running':
-      return { tone: 'running', motion: 'working' }
-    case 'failed':
-    case 'blocked':
-      return { tone: 'failed', motion: 'attention' }
-    default:
-      return undefined
-  }
-}
-
-const STATE_LABEL: Record<VideoState, string> = {
-  draft: 'Draft',
-  running: 'Running',
-  awaiting_approval: 'Needs approval',
-  blocked: 'Blocked',
-  completed: 'Completed',
-  failed: 'Failed',
-  cancelled: 'Cancelled',
-}
 
 interface Group {
   channel: Channel
   videos: Video[]
+}
+
+const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
+const failed = (what: string) => (error: unknown) =>
+  toast.error(what, { description: message(error) })
+
+const titleOf = (video: Video) => video.title || video.ref
+
+async function removeVideos(
+  targets: Video[],
+  client: QueryClient,
+  deselect: (gone: string[]) => void,
+) {
+  const one = targets.length === 1
+  const ok = await confirm({
+    title: one ? `Delete “${titleOf(targets[0]!)}”?` : `Delete ${targets.length} videos?`,
+    message:
+      'Their chapters, their tasks and every file nothing else is using go with them. This cannot be undone.',
+    confirmLabel: 'Delete',
+    danger: true,
+  })
+  if (!ok) return
+  const settled = await Promise.allSettled(targets.map((v) => api.deleteVideo(v.ref)))
+  const gone = targets.filter((_, i) => settled[i]!.status === 'fulfilled').map((v) => v.ref)
+  const dock = useDock.getState().api
+  for (const ref of gone) dock?.getPanel(docId({ kind: 'video', ref }))?.api.close()
+  deselect(gone)
+  void client.invalidateQueries({ queryKey: qk.videos })
+  const rejected = settled.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+  if (rejected.length) {
+    failed(`${rejected.length} of ${targets.length} couldn't be deleted`)(rejected[0]!.reason)
+  } else {
+    toast.success(one ? `Deleted “${titleOf(targets[0]!)}”` : `Deleted ${targets.length} videos`)
+  }
+}
+
+function videoMenu(
+  video: Video,
+  channel: Channel,
+  many: Video[],
+  remove: (targets: Video[]) => void,
+): MenuEntry[] {
+  const startable = ['draft', 'failed', 'cancelled', 'blocked'].includes(video.state)
+  const stoppable = video.state === 'running' || video.state === 'awaiting_approval'
+  const entries: MenuEntry[] = [
+    {
+      label: 'Open',
+      icon: FolderOpen,
+      onSelect: () =>
+        openDoc({ kind: 'video', ref: video.ref }, video.title || 'Untitled', {
+          seed: channel.slug,
+          initial: channel.name,
+        }),
+    },
+  ]
+  if (startable) {
+    entries.push({
+      label: video.state === 'draft' ? 'Start' : 'Resume',
+      icon: Play,
+      onSelect: () =>
+        void api
+          .startVideo(video.ref)
+          .then(() => toast(`Started “${titleOf(video)}”`))
+          .catch(failed("Couldn't start the video")),
+    })
+  }
+  if (stoppable) {
+    entries.push({
+      label: 'Cancel Run',
+      icon: Square,
+      onSelect: () =>
+        void api
+          .cancelVideo(video.ref)
+          .then(() => toast(`Cancelled “${titleOf(video)}”`))
+          .catch(failed("Couldn't cancel the video")),
+    })
+  }
+  entries.push(
+    { type: 'separator' },
+    { label: 'Edit Brief…', icon: Pencil, onSelect: () => editVideo(video) },
+    {
+      label: duplicateLabel(many.length),
+      icon: Copy,
+      shortcut: '$mod+d',
+      onSelect: () => duplicateVideos(many),
+    },
+    { type: 'separator' },
+    {
+      label: many.length > 1 ? `Delete ${many.length} Videos…` : 'Delete…',
+      icon: Trash2,
+      danger: true,
+      onSelect: () => remove(many),
+    },
+  )
+  return entries
 }
 
 export function PrimarySidebar() {
@@ -108,114 +158,57 @@ export function PrimarySidebar() {
   const select = useWorkbench((s) => s.select)
 
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
-  // Where a ⇧-click measures from. Deliberately not in the store: it is the
-  // shape of a gesture in progress, and nobody should find one waiting for them
-  // after a relaunch.
   const [anchor, setAnchor] = useState<string | null>(null)
-  // The videos the confirmation is about, and the only reason there is a
-  // confirmation: deleting one unlinks files, and nothing puts them back.
-  const [pending, setPending] = useState<Video[] | null>(null)
-  const [partial, setPartial] = useState<string | null>(null)
+  const [filter, setFilter] = useState('')
 
   const client = useQueryClient()
-  const remove = useMutation({
-    // One request each: the server deletes by key and has no bulk verb. Settled
-    // rather than all, because five deletions are five chances to fail and the
-    // four that worked should still be gone.
-    mutationFn: async (refs: string[]) => {
-      const settled = await Promise.allSettled(refs.map((ref) => api.deleteVideo(ref)))
-      const gone: string[] = []
-      const failed: PromiseRejectedResult[] = []
-      settled.forEach((result, index) => {
-        const ref = refs[index]
-        if (ref === undefined) return
-        if (result.status === 'fulfilled') gone.push(ref)
-        else failed.push(result)
-      })
-      return { gone, failed }
-    },
-    onSuccess: ({ gone, failed }) => {
-      // A tab is a view of a row. With the row gone the document cannot load,
-      // so the tab goes with it rather than being left to fail.
-      const dock = useDock.getState().api
-      for (const ref of gone) dock?.getPanel(docId({ kind: 'video', ref }))?.api.close()
-      select(selected.filter((id) => !gone.includes(id)))
-      // Nothing on the stream announces a deletion — the deltas are about work
-      // happening, not about rows disappearing — so the list is asked again.
-      void client.invalidateQueries({ queryKey: qk.videos })
-
-      // A partial failure keeps the sheet up and says so. Reporting success
-      // because most of it worked is how you lose track of what is still there.
-      if (failed.length === 0) {
-        setPending(null)
-        setPartial(null)
-        return
-      }
-      const first = failed[0]?.reason
-      const reason = first instanceof Error ? first.message : 'it was refused'
-      setPartial(
-        `${failed.length} of ${gone.length + failed.length} could not be deleted — ${reason}`,
-      )
-    },
-  })
-
   const channels = useQuery({ queryKey: qk.channels, queryFn: api.listChannels })
   const videos = useQuery({ queryKey: qk.videos, queryFn: api.listVideos })
 
+  const needle = filter.trim().toLowerCase()
   const groups = useMemo<Group[]>(() => {
     const byId = new Map((channels.data ?? []).map((channel) => [channel.id, channel]))
     const collected = new Map<string, Group>()
-
     for (const video of videos.data ?? []) {
       const channel = byId.get(video.channelId)
       if (!channel) continue
+      if (
+        needle &&
+        !`${video.title} ${video.ref} ${channel.name} ${stateLabel(video.state)}`
+          .toLowerCase()
+          .includes(needle)
+      )
+        continue
       const group = collected.get(channel.id) ?? { channel, videos: [] }
       group.videos.push(video)
       collected.set(channel.id, group)
     }
-
-    /*
-      Newest first, at both levels, and by *creation* rather than by activity.
-
-      Sorting by `updatedAt` is the obvious thing and it makes the list unusable
-      while the pipeline runs: every task delta advances the video's timestamp,
-      so rows overtake each other under the pointer and whole channel sections
-      swap places between one frame and the next. You cannot click a row that
-      moves while you reach for it.
-
-      A creation date never changes, so the order is fixed the moment a video
-      exists and the list is somewhere you can learn your way around. What each
-      video is *doing* is what the mark on its token is for.
-    */
+    // By creation, not activity: rows must not move while the pipeline runs.
     for (const group of collected.values()) {
       group.videos.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     }
     return [...collected.values()].sort((a, b) =>
       (b.videos[0]?.createdAt ?? '').localeCompare(a.videos[0]?.createdAt ?? ''),
     )
-  }, [channels.data, videos.data])
+  }, [channels.data, videos.data, needle])
 
   const sortedChannels = useMemo(
-    () => [...(channels.data ?? [])].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    [channels.data],
+    () =>
+      [...(channels.data ?? [])]
+        .filter((c) => !needle || `${c.name} ${c.slug}`.toLowerCase().includes(needle))
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+    [channels.data, needle],
   )
 
-  /*
-    Every video row on screen, in the order it is drawn.
-
-    ⇧-click means "everything between here and the anchor", and *between* is a
-    fact about the rendered list rather than about the data: the groups are
-    ordered, and a collapsed one contributes nothing to reach across.
-  */
+  const isCollapsed = (id: string) => collapsed.has(id) && !needle
   const visible = useMemo(
     () =>
       groups.flatMap((group) =>
-        collapsed.has(group.channel.id) ? [] : group.videos.map((video) => video.ref),
+        collapsed.has(group.channel.id) && !needle ? [] : group.videos.map((video) => video.ref),
       ),
-    [groups, collapsed],
+    [groups, collapsed, needle],
   )
 
-  // Read through a ref so memoised rows' handlers stay stable.
   const live = useRef({ selected, visible, anchor, all: videos.data ?? [], groups })
   live.current = { selected, visible, anchor, all: videos.data ?? [], groups }
 
@@ -228,7 +221,6 @@ export function PrimarySidebar() {
       select(current.includes(ref) ? current.filter((id) => id !== ref) : [...current, ref])
       setAnchor(ref)
     }
-
     const extend = (ref: string) => {
       const { anchor: from0, visible: rows } = live.current
       const from = from0 ? rows.indexOf(from0) : -1
@@ -241,9 +233,10 @@ export function PrimarySidebar() {
       const [start, end] = from <= to ? [from, to] : [to, from]
       select(rows.slice(start, end + 1))
     }
-
-    const targets = (video: Video) => targetsFor(video, live.current.selected, live.current.all)
-
+    const remove = (targets: Video[]) =>
+      void removeVideos(targets, client, (gone) =>
+        select(live.current.selected.filter((id) => !gone.includes(id))),
+      )
     return {
       select: (video, channel, event) => {
         if (event.shiftKey) return extend(video.ref)
@@ -266,13 +259,16 @@ export function PrimarySidebar() {
         window.clearTimeout(hoverTimer.current)
         if (hovering) hoverTimer.current = window.setTimeout(() => prefetchVideo(client, video), 90)
       },
-      edit: (video) => editVideo(video),
-      duplicate: (video) => duplicateVideos(targets(video)),
-      remove: (video) => setPending(targets(video)),
+      menu: (video, channel) =>
+        videoMenu(
+          video,
+          channel,
+          targetsFor(video, live.current.selected, live.current.all),
+          remove,
+        ),
     }
   }, [select, client])
 
-  // Keep a ⌘-built selection when one of its members comes forward.
   const activeDoc = useDock((s) => s.activeDoc)
   useEffect(() => {
     if (!activeDoc) return
@@ -294,8 +290,7 @@ export function PrimarySidebar() {
 
   const onListKey = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
-    if (event.metaKey || event.altKey || event.ctrlKey) return
-    if (scope !== 'videos') return
+    if (event.metaKey || event.altKey || event.ctrlKey || scope !== 'videos') return
     const { visible: rows, selected: current, anchor: from, groups: all } = live.current
     if (rows.length === 0) return
     event.preventDefault()
@@ -309,9 +304,7 @@ export function PrimarySidebar() {
     if (event.shiftKey && from) {
       const start = rows.indexOf(from)
       const [lo, hi] = start <= index ? [start, index] : [index, start]
-      // Far end last so the next ⇧-arrow moves it.
-      const span = rows.slice(lo, hi + 1).filter((row) => row !== ref)
-      select([...span, ref])
+      select([...rows.slice(lo, hi + 1).filter((row) => row !== ref), ref])
     } else {
       select([ref])
       setAnchor(ref)
@@ -329,11 +322,7 @@ export function PrimarySidebar() {
     document.querySelector<HTMLElement>(`[data-row-id="video:${CSS.escape(ref)}"]`)?.focus()
   }
 
-  const selectedCount = useMemo(() => {
-    const wanted = new Set(selected)
-    return (videos.data ?? []).filter((video) => wanted.has(video.ref)).length
-  }, [selected, videos.data])
-
+  const selectedSet = useMemo(() => new Set(selected), [selected])
   const toggleGroup = (id: string) =>
     setCollapsed((previous) => {
       const next = new Set(previous)
@@ -344,70 +333,128 @@ export function PrimarySidebar() {
   const loading = channels.isLoading || videos.isLoading
   const failure = channels.error ?? videos.error
   const empty = scope === 'videos' ? groups.length === 0 : sortedChannels.length === 0
+  const channelFor = () => (scope === 'channels' ? selected[0] : undefined)
+  const create: MenuEntry[] = [
+    {
+      label: 'New Video…',
+      icon: SquarePen,
+      shortcut: '$mod+n',
+      onSelect: () => newVideo(channelFor()),
+    },
+    {
+      label: 'New Video from Blueprint…',
+      icon: ClipboardPaste,
+      shortcut: '$mod+Alt+n',
+      onSelect: () => newFromBlueprint(channelFor()),
+    },
+    { type: 'separator' },
+    {
+      label: 'New Channel…',
+      icon: Tv,
+      shortcut: '$mod+Shift+n',
+      onSelect: () => void executeCommand('channel.new'),
+    },
+  ]
 
   return (
-    <div className="flex h-full flex-col">
-      <DragRegion className="flex h-[var(--strip-height)] shrink-0 items-center gap-2 px-2">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="drag-region flex h-[var(--strip-height)] shrink-0 items-center gap-2 px-2">
         <div className="w-[var(--traffic-lights-inset)] shrink-0" />
-        <Segmented segments={SCOPES} value={scope} onChange={setScope} iconOnly />
-        <div className="flex-1" />
-        <div className="glass-pill">
-          <Menu
-            items={[
-              {
-                label: 'New Video',
-                icon: SquarePen,
-                shortcut: '⌘N',
-                onSelect: () => newVideo(scope === 'channels' ? selected[0] : undefined),
-              },
-              {
-                label: 'New from Blueprint',
-                icon: ClipboardPaste,
-                shortcut: '⌥⌘N',
-                onSelect: () => newFromBlueprint(scope === 'channels' ? selected[0] : undefined),
-              },
-              {
-                label: 'New Channel',
-                icon: Tv,
-                shortcut: '⇧⌘N',
-                onSelect: () => openDoc({ kind: 'new', of: 'channel' }, 'New Channel'),
-              },
-            ]}
-          >
-            <button
-              type="button"
-              aria-label="Create"
-              title="Create"
-              className="inline-flex size-6 shrink-0 items-center justify-center rounded-full text-secondary transition-colors duration-100 hover:bg-hover hover:text-primary data-[state=open]:bg-active data-[state=open]:text-primary"
-            >
-              <SquarePen className="size-3.5" strokeWidth={1.9} />
-            </button>
-          </Menu>
+        <div
+          role="tablist"
+          aria-label="Library"
+          className="no-drag relative flex items-center gap-0.5 rounded-full bg-well p-0.5"
+        >
+          <SlidingThumb active={scope} />
+          {SCOPES.map((s) => (
+            <Tooltip key={s.value} content={s.title} command={s.command}>
+              <button
+                role="tab"
+                aria-label={s.title}
+                aria-selected={scope === s.value}
+                data-thumb-key={s.value}
+                onClick={() => setScope(s.value)}
+                className={cn(
+                  'relative flex h-6 min-w-8 items-center justify-center rounded-full px-2 transition-colors duration-150',
+                  scope === s.value ? 'text-fg' : 'text-fg-subtle hover:text-fg',
+                )}
+              >
+                <s.icon className="size-[15px]" strokeWidth={1.8} />
+              </button>
+            </Tooltip>
+          ))}
         </div>
-      </DragRegion>
+        <div className="flex-1" />
+        <div className="no-drag glass-pill">
+          <DropdownMenu
+            align="end"
+            items={create}
+            trigger={
+              <button
+                aria-label="Create"
+                className="inline-flex size-6 shrink-0 items-center justify-center rounded-full text-fg-muted transition-colors duration-100 hover:bg-hover hover:text-fg data-[state=open]:bg-active data-[state=open]:text-fg"
+              >
+                <SquarePen className="size-3.5" strokeWidth={1.9} />
+              </button>
+            }
+          />
+        </div>
+      </div>
+
+      <div className="px-2 pt-0.5 pb-1.5">
+        <TextInput
+          value={filter}
+          onChange={setFilter}
+          placeholder={scope === 'videos' ? 'Filter videos' : 'Filter channels'}
+          icon={Search}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setFilter('')
+          }}
+        />
+      </div>
 
       <div
         key={scope}
         onKeyDown={onListKey}
-        className="view-enter scroll-edge min-h-0 flex-1 overflow-x-hidden overflow-y-auto pt-1 pb-3"
+        className="view-enter scroll-edge min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-3"
       >
-        {loading ? <Notice>Loading…</Notice> : null}
-        {failure ? <Notice>{failure.message}</Notice> : null}
-        {!loading && !failure && empty ? <Notice>Nothing here yet.</Notice> : null}
+        {loading && (
+          <div className="flex justify-center py-8 text-fg-subtle">
+            <Spinner />
+          </div>
+        )}
+        {failure && <EmptyState title="Couldn't load the library">{failure.message}</EmptyState>}
+        {!loading && !failure && empty && (
+          <EmptyState
+            icon={needle ? Search : scope === 'videos' ? Clapperboard : Tv}
+            title={
+              needle
+                ? `Nothing matches “${filter.trim()}”`
+                : scope === 'videos'
+                  ? 'No videos yet'
+                  : 'No channels yet'
+            }
+            action={
+              needle ? undefined : (
+                <button
+                  onClick={() =>
+                    scope === 'videos' ? newVideo() : void executeCommand('channel.new')
+                  }
+                  className="text-xs font-medium text-accent hover:underline"
+                >
+                  {scope === 'videos' ? 'New Video…' : 'New Channel…'}
+                </button>
+              )
+            }
+          />
+        )}
 
-        {scope === 'channels' ? (
-          <div className="px-1.5">
-            {sortedChannels.map((channel) => (
-              <Row
+        {scope === 'channels'
+          ? sortedChannels.map((channel) => (
+              <ChannelRow
                 key={channel.id}
-                id={docId({ kind: 'channel', slug: channel.slug })}
-                title={channel.name}
-                subtitle={channel.description || channel.slug}
-                timestamp={listTimestamp(channel.updatedAt)}
-                avatarName={channel.name}
-                avatarSeed={channel.slug}
-                tone={channel.credentials === 'valid' ? undefined : 'failed'}
-                selected={selected.includes(channel.slug)}
+                channel={channel}
+                selected={selectedSet.has(channel.slug)}
                 onSelect={() => {
                   select([channel.slug])
                   openDoc({ kind: 'channel', slug: channel.slug }, channel.name, {
@@ -416,104 +463,35 @@ export function PrimarySidebar() {
                     initial: channel.name,
                   })
                 }}
-                onOpen={() => pinPreview(docId({ kind: 'channel', slug: channel.slug }))}
               />
-            ))}
-          </div>
-        ) : (
-          groups.map((group) => {
-            const isCollapsed = collapsed.has(group.channel.id)
-            return (
-              <section key={group.channel.id}>
-                <GroupHeader
-                  name={group.channel.name}
-                  color={avatarColor(group.channel.slug)}
-                  count={group.videos.length}
-                  collapsed={isCollapsed}
-                  onToggle={() => toggleGroup(group.channel.id)}
-                />
-                {isCollapsed ? null : (
-                  <div className="px-1.5 pb-1">
-                    {group.videos.map((video) => {
-                      const isSelected = selected.includes(video.ref)
-                      return (
-                        <VideoRow
-                          key={video.id}
-                          video={video}
-                          channel={group.channel}
-                          selected={isSelected}
-                          targetCount={isSelected ? Math.max(selectedCount, 1) : 1}
-                          actions={actions}
-                        />
-                      )
-                    })}
-                  </div>
-                )}
-              </section>
-            )
-          })
-        )}
+            ))
+          : groups.map((group) => {
+              const closed = isCollapsed(group.channel.id)
+              return (
+                <div key={group.channel.id} className="mb-1">
+                  <GroupHeader
+                    group={group}
+                    collapsed={closed}
+                    onToggle={() => toggleGroup(group.channel.id)}
+                  />
+                  {!closed &&
+                    group.videos.map((video) => (
+                      <VideoRow
+                        key={video.id}
+                        video={video}
+                        channel={group.channel}
+                        selected={selectedSet.has(video.ref)}
+                        actions={actions}
+                      />
+                    ))}
+                </div>
+              )
+            })}
       </div>
-
-      {pending ? (
-        <Dialog
-          open
-          onOpenChange={(next) => {
-            if (!next) {
-              setPending(null)
-              setPartial(null)
-            }
-          }}
-          width={400}
-        >
-          <Dialog.Header
-            title={
-              pending.length > 1
-                ? `Delete ${pending.length} videos?`
-                : `Delete “${pending[0]?.title || pending[0]?.ref}”?`
-            }
-            description="Their chapters, their tasks and every file nothing else is using go with them. This cannot be undone."
-          />
-          {(partial ?? remove.error) ? (
-            <Dialog.Body>
-              <p className="text-[12px] text-[var(--failed)]">
-                {partial ?? (remove.error as Error).message}
-              </p>
-            </Dialog.Body>
-          ) : null}
-          {/* Cancel is the default and therefore last, which is the macOS order
-              and the right one when the other button cannot be undone. */}
-          <Dialog.Footer>
-            <span className="mr-auto" />
-            <Button
-              onClick={() => remove.mutate(pending.map((video) => video.ref))}
-              disabled={remove.isPending}
-            >
-              {remove.isPending ? 'Deleting…' : 'Delete'}
-            </Button>
-            <Button
-              primary
-              onClick={() => {
-                setPending(null)
-                setPartial(null)
-              }}
-            >
-              Cancel
-            </Button>
-          </Dialog.Footer>
-        </Dialog>
-      ) : null}
     </div>
   )
 }
 
-/**
- * What a delete on this row would take.
- *
- * The selection when the row is part of it, and just the row when it is not —
- * the same rule the right-click applies, restated here because the menu's label
- * and the menu's action must never disagree about what they mean.
- */
 function targetsFor(video: Video, selected: string[], all: Video[]): Video[] {
   if (!selected.includes(video.ref)) return [video]
   const wanted = new Set(selected)
@@ -526,108 +504,179 @@ interface VideoRowActions {
   open: (video: Video) => void
   contextMenu: (video: Video) => void
   hover: (video: Video, hovering: boolean) => void
-  edit: (video: Video) => void
-  duplicate: (video: Video) => void
-  remove: (video: Video) => void
+  menu: (video: Video, channel: Channel) => MenuEntry[]
 }
 
-interface VideoRowProps {
-  video: Video
-  channel: Channel
-  selected: boolean
-  targetCount: number
-  actions: VideoRowActions
+function StateMark({ state }: { state: VideoState }) {
+  switch (state) {
+    case 'awaiting_approval':
+      return <span className="size-2 animate-pulse rounded-full bg-warning" />
+    case 'running':
+      return <Spinner className="size-3 text-accent" />
+    case 'failed':
+    case 'blocked':
+      return <span className="size-2 rounded-full bg-danger" />
+    case 'completed':
+      return <span className="size-1.5 rounded-full bg-done" />
+    default:
+      return <span className="size-1.5 rounded-full bg-fg-faint/60" />
+  }
 }
 
 const VideoRow = memo(function VideoRow({
   video,
   channel,
   selected,
-  targetCount,
   actions,
-}: VideoRowProps) {
-  const mark = stateMark(video.state)
+}: {
+  video: Video
+  channel: Channel
+  selected: boolean
+  actions: VideoRowActions
+}) {
+  const settled = video.state === 'completed' || video.state === 'cancelled'
   return (
-    <Row
-      id={docId({ kind: 'video', ref: video.ref })}
-      title={video.title || 'Untitled'}
-      subtitle={
-        <>
-          <span className="font-medium tabular-nums">{video.ref}</span>
-          {' · '}
-          <span className={video.state === 'completed' ? undefined : 'row-state'}>
-            {STATE_LABEL[video.state]}
-          </span>
-        </>
-      }
-      timestamp={listTimestamp(video.createdAt)}
-      avatarName={channel.name}
-      avatarSeed={channel.slug}
-      tone={mark?.tone}
-      motion={mark?.motion}
-      finished={video.state === 'completed'}
-      selected={selected}
-      onSelect={(event) => actions.select(video, channel, event)}
-      onOpen={() => actions.open(video)}
-      onContextMenu={() => actions.contextMenu(video)}
-      onHover={(hovering) => actions.hover(video, hovering)}
-      menu={[
-        {
-          label: 'Edit…',
-          icon: Pencil,
-          onSelect: () => actions.edit(video),
-        },
-        {
-          label: duplicateLabel(targetCount),
-          icon: Copy,
-          shortcut: '⌘D',
-          onSelect: () => actions.duplicate(video),
-        },
-        {
-          label: deleteLabel(targetCount),
-          icon: Trash2,
-          danger: true,
-          onSelect: () => actions.remove(video),
-        },
-      ]}
-    />
+    <ContextMenu items={() => actions.menu(video, channel)}>
+      <button
+        type="button"
+        data-row-id={docId({ kind: 'video', ref: video.ref })}
+        onClick={(event) => actions.select(video, channel, event)}
+        onDoubleClick={() => actions.open(video)}
+        onContextMenu={() => actions.contextMenu(video)}
+        onPointerEnter={() => actions.hover(video, true)}
+        onPointerLeave={() => actions.hover(video, false)}
+        aria-current={selected ? 'page' : undefined}
+        title={`${video.ref} · ${stateLabel(video.state)}`}
+        className={cn(
+          'mx-1.5 flex h-7 w-[calc(100%-12px)] items-center gap-2 rounded-[var(--radius-inner)] px-2 text-left text-sm transition-colors duration-100',
+          selected
+            ? 'row-selected text-fg'
+            : settled
+              ? 'text-fg-subtle hover:bg-hover hover:text-fg'
+              : 'text-fg-muted hover:bg-hover hover:text-fg',
+        )}
+      >
+        <span className="flex size-3.5 shrink-0 items-center justify-center">
+          <StateMark state={video.state} />
+        </span>
+        <span className="min-w-0 flex-1 truncate">{video.title || 'Untitled'}</span>
+        <span className="shrink-0 text-2xs text-fg-faint tabular-nums">
+          {listTimestamp(video.createdAt)}
+        </span>
+      </button>
+    </ContextMenu>
   )
 })
 
-function deleteLabel(count: number): string {
-  return count > 1 ? `Delete ${count} Videos…` : 'Delete…'
-}
-
-function Notice({ children }: { children: ReactNode }) {
-  return <p className="px-4 py-3 text-[12px] text-tertiary">{children}</p>
-}
-
-interface GroupHeaderProps {
-  name: string
-  color: string
-  count: number
+function GroupHeader({
+  group,
+  collapsed,
+  onToggle,
+}: {
+  group: Group
   collapsed: boolean
   onToggle: () => void
+}) {
+  const { channel, videos } = group
+  const items: MenuEntry[] = [
+    { label: 'New Video…', icon: SquarePen, onSelect: () => newVideo(channel.slug) },
+    {
+      label: 'New Video from Blueprint…',
+      icon: ClipboardPaste,
+      onSelect: () => newFromBlueprint(channel.slug),
+    },
+    { type: 'separator' },
+    {
+      label: 'Open Channel',
+      icon: Tv,
+      onSelect: () =>
+        openDoc({ kind: 'channel', slug: channel.slug }, channel.name, {
+          seed: channel.slug,
+          initial: channel.name,
+        }),
+    },
+  ]
+  return (
+    <ContextMenu items={items}>
+      <div className="group/proj mt-1 flex h-7 items-center gap-1 pr-2 pl-2.5">
+        <button
+          onClick={onToggle}
+          aria-expanded={!collapsed}
+          className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+        >
+          <ChevronRight
+            className={cn(
+              'size-3 shrink-0 text-fg-subtle transition-transform duration-150',
+              !collapsed && 'rotate-90',
+            )}
+            strokeWidth={2.4}
+          />
+          <span
+            className="size-2 shrink-0 rounded-full"
+            style={{ backgroundColor: avatarColor(channel.slug) }}
+          />
+          <span className="min-w-0 truncate text-xs font-semibold text-fg-muted">
+            {channel.name}
+          </span>
+          {collapsed && (
+            <span className="shrink-0 text-2xs font-medium text-fg-faint tabular-nums">
+              {videos.length}
+            </span>
+          )}
+        </button>
+        <IconButton
+          icon={Plus}
+          label={`New video in ${channel.name}`}
+          size="xs"
+          className="opacity-0 group-hover/proj:opacity-100 focus-visible:opacity-100"
+          onClick={() => newVideo(channel.slug)}
+        />
+      </div>
+    </ContextMenu>
+  )
 }
 
-function GroupHeader({ name, color, count, collapsed, onToggle }: GroupHeaderProps) {
-  const Chevron = collapsed ? ChevronRight : ChevronDown
+function ChannelRow({
+  channel,
+  selected,
+  onSelect,
+}: {
+  channel: Channel
+  selected: boolean
+  onSelect: () => void
+}) {
+  const items: MenuEntry[] = [
+    { label: 'New Video…', icon: SquarePen, onSelect: () => newVideo(channel.slug) },
+    {
+      label: 'New Video from Blueprint…',
+      icon: ClipboardPaste,
+      onSelect: () => newFromBlueprint(channel.slug),
+    },
+  ]
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-expanded={!collapsed}
-      className="group/head mx-1.5 mt-1 flex h-7 w-[calc(100%-12px)] items-center gap-1.5 rounded-[var(--radius-inner)] px-2 text-left transition-colors duration-100 hover:bg-hover"
-    >
-      <Chevron
-        className="size-3 shrink-0 text-tertiary transition-transform duration-150"
-        strokeWidth={2.4}
-      />
-      <span className="size-[7px] shrink-0 rounded-full" style={{ backgroundColor: color }} />
-      <span className="min-w-0 flex-1 truncate text-[11.5px] font-semibold text-secondary">
-        {name}
-      </span>
-      <span className="shrink-0 text-[10.5px] font-medium text-tertiary tabular-nums">{count}</span>
-    </button>
+    <ContextMenu items={items}>
+      <button
+        type="button"
+        data-row-id={docId({ kind: 'channel', slug: channel.slug })}
+        onClick={onSelect}
+        onDoubleClick={() => pinPreview(docId({ kind: 'channel', slug: channel.slug }))}
+        aria-current={selected ? 'page' : undefined}
+        className={cn(
+          'mx-1.5 flex h-8 w-[calc(100%-12px)] items-center gap-2 rounded-[var(--radius-inner)] px-2 text-left text-sm transition-colors duration-100',
+          selected ? 'row-selected text-fg' : 'text-fg-muted hover:bg-hover hover:text-fg',
+        )}
+      >
+        <Avatar name={channel.name} seed={channel.slug} className="size-5 text-[9px]" />
+        <span className="min-w-0 flex-1 truncate">{channel.name}</span>
+        {channel.credentials !== 'valid' && (
+          <Tooltip content="Not connected to YouTube">
+            <span className="size-1.5 shrink-0 rounded-full bg-warning" />
+          </Tooltip>
+        )}
+        <span className="shrink-0 text-2xs text-fg-faint tabular-nums">
+          {listTimestamp(channel.updatedAt)}
+        </span>
+      </button>
+    </ContextMenu>
   )
 }

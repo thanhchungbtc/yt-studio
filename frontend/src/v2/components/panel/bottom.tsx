@@ -1,3 +1,5 @@
+import { SquareTerminal } from 'lucide-react'
+
 import { useLLMStream } from '../../core/llm'
 import { PaneHeader } from '../ui/pane-header'
 import { Console } from './console'
@@ -21,7 +23,12 @@ export function BottomPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      <PaneHeader title="Console" shortcut="⌘2" />
+      <PaneHeader
+        title="Console"
+        icon={SquareTerminal}
+        command="workbench.togglePanel"
+        side="top"
+      />
       <div className="min-h-0 flex-1">
         <Console />
       </div>

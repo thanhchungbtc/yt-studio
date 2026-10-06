@@ -6,10 +6,15 @@ import (
 )
 
 // Platform implements services.Emitter and services.Desktop.
-type Platform struct{ app *application.App }
+type Platform struct {
+	app      *application.App
+	lookPath string
+}
 
-// New creates a Platform bound to app.
-func New(app *application.App) *Platform { return &Platform{app: app} }
+// New creates a Platform bound to app, saving the window look to lookPath.
+func New(app *application.App, lookPath string) *Platform {
+	return &Platform{app: app, lookPath: lookPath}
+}
 
 // Emit publishes an event to every window.
 func (p *Platform) Emit(name string, data any) { p.app.Event.Emit(name, data) }

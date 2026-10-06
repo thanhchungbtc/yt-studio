@@ -42,7 +42,7 @@ function Knob({
 }) {
   return (
     <label className="flex items-center gap-2 py-[3px]">
-      <span className="w-[86px] shrink-0 truncate text-[11px] text-secondary" title={label}>
+      <span className="w-[86px] shrink-0 truncate text-xs text-fg-muted" title={label}>
         {label}
       </span>
       <input
@@ -53,7 +53,7 @@ function Knob({
         onChange={(event) => onChange(Number(event.target.value))}
         className="thumb-slider min-w-0 flex-1"
       />
-      <span className="w-[38px] shrink-0 text-right text-[11px] tabular-nums text-tertiary">
+      <span className="w-[38px] shrink-0 text-right text-xs tabular-nums text-fg-subtle">
         {value}
       </span>
     </label>
@@ -78,7 +78,7 @@ function Swatch({
 }) {
   return (
     <label className="flex items-center gap-2 py-[3px]">
-      <span className="w-[86px] shrink-0 truncate text-[11px] text-secondary">{label}</span>
+      <span className="w-[86px] shrink-0 truncate text-xs text-fg-muted">{label}</span>
       <input
         type="color"
         value={value}
@@ -86,7 +86,7 @@ function Swatch({
         className="h-[20px] min-w-0 flex-1 cursor-pointer rounded-[4px] border-0 bg-transparent p-0"
         style={{ boxShadow: '0 0 0 0.5px var(--separator-strong)' }}
       />
-      <span className="w-[38px] shrink-0 text-right font-mono text-[10px] text-tertiary">
+      <span className="w-[38px] shrink-0 text-right font-mono text-2xs text-fg-subtle">
         {value.replace('#', '')}
       </span>
     </label>
@@ -115,16 +115,16 @@ function Words({
 }) {
   return (
     <label className="block py-[3px]">
-      <span className="mb-1 block text-[11px] text-secondary">{label}</span>
+      <span className="mb-1 block text-xs text-fg-muted">{label}</span>
       <textarea
         value={value}
         onChange={(event) => onChange(event.target.value)}
         rows={2}
         spellCheck={false}
-        className="w-full resize-y rounded-[4px] bg-transparent px-1.5 py-1 font-mono text-[10px] leading-[1.4] text-secondary"
+        className="w-full resize-y rounded-[4px] bg-transparent px-1.5 py-1 font-mono text-2xs leading-[1.4] text-fg-muted"
         style={{ boxShadow: '0 0 0 0.5px var(--separator-strong)' }}
       />
-      <span className="mt-1 block text-[10px] leading-[1.3] text-tertiary">{hint}</span>
+      <span className="mt-1 block text-2xs leading-[1.3] text-fg-subtle">{hint}</span>
     </label>
   )
 }

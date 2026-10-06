@@ -35,7 +35,7 @@ export function BlueprintPopover({ assetId }: { assetId: string }) {
       trigger={
         <button
           type="button"
-          className="-mx-1.5 flex shrink-0 items-center gap-1 rounded-[5px] px-1.5 py-0.5 text-[12px] text-secondary transition-colors hover:bg-[var(--hover)] hover:text-primary data-[state=open]:bg-[var(--hover)] data-[state=open]:text-primary"
+          className="-mx-1.5 flex shrink-0 items-center gap-1 rounded-[5px] px-1.5 py-0.5 text-sm text-fg-muted transition-colors hover:bg-[var(--hover)] hover:text-fg data-[state=open]:bg-[var(--hover)] data-[state=open]:text-fg"
         >
           Blueprint
           <ChevronDown className="size-3 opacity-60" strokeWidth={2.5} />
@@ -62,7 +62,7 @@ function Body({ assetId }: { assetId: string }) {
 
   return (
     <>
-      <div className="hairline-b flex items-center gap-2 px-3 py-1.5 text-[11px] text-tertiary">
+      <div className="hairline-b flex items-center gap-2 px-3 py-1.5 text-xs text-fg-subtle">
         <span className="font-semibold tracking-[0.05em] uppercase">Blueprint</span>
         <span className="min-w-0 flex-1 truncate font-mono">{assetId.slice(0, 12)}</span>
         {/* Given the bytes rather than the query, so it cannot offer to copy a
@@ -72,9 +72,9 @@ function Body({ assetId }: { assetId: string }) {
       </div>
       <div className="max-h-[380px] overflow-auto px-3 py-2.5">
         {asset.error ? (
-          <p className="text-[12px] text-[var(--failed)]">{(asset.error as Error).message}</p>
+          <p className="text-sm text-[var(--failed)]">{(asset.error as Error).message}</p>
         ) : (
-          <pre className="font-mono text-[11.5px] leading-relaxed whitespace-pre text-primary">
+          <pre className="font-mono text-xs leading-relaxed whitespace-pre text-fg">
             {asset.data ?? ''}
           </pre>
         )}
@@ -117,7 +117,7 @@ function CopyButton({ text }: { text: string | undefined }) {
       className={cn(
         '-mr-1 flex size-[22px] shrink-0 items-center justify-center rounded-[6px]',
         'transition-colors disabled:pointer-events-none disabled:opacity-40',
-        copied ? 'text-[var(--done)]' : 'text-tertiary hover:bg-[var(--hover)] hover:text-primary',
+        copied ? 'text-[var(--done)]' : 'text-fg-subtle hover:bg-[var(--hover)] hover:text-fg',
       )}
     >
       {copied ? (

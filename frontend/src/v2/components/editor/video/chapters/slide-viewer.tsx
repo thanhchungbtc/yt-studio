@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Check, Copy, Info, LoaderCircle, Pencil } from 'lucide-react'
+import { Check, Copy, Info, Pencil } from 'lucide-react'
 import { useState, type KeyboardEvent } from 'react'
+import { Spinner } from '@/kit/ui/misc'
 
 import { api, qk } from '../../../../core/api'
 import type { Chapter } from '../../../../core/types'
@@ -97,7 +98,7 @@ export function SlideViewer({
             'rounded-full transition-colors',
             showPrompt
               ? 'bg-[var(--accent)] text-white'
-              : 'text-secondary hover:bg-[var(--hover)] hover:text-primary',
+              : 'text-fg-muted hover:bg-[var(--hover)] hover:text-fg',
           )}
         >
           <Info className="size-[15px]" strokeWidth={2} />
@@ -296,12 +297,12 @@ function PromptPanel({
               // picture that pays for them, so it pays only while it has to.
               className={cn(
                 'field-on-glass min-h-[9rem] min-w-0 flex-1 resize-none rounded-[7px] px-2 py-1.5',
-                'font-mono text-[12px] leading-[1.55] text-white',
+                'font-mono text-sm leading-[1.55] text-white',
                 'disabled:opacity-50',
               )}
             />
           ) : (
-            <pre className="max-h-[4.4rem] min-w-0 flex-1 overflow-y-auto font-mono text-[12px] leading-[1.55] whitespace-pre-wrap text-white/90 select-text">
+            <pre className="max-h-[4.4rem] min-w-0 flex-1 overflow-y-auto font-mono text-sm leading-[1.55] whitespace-pre-wrap text-white/90 select-text">
               {text}
             </pre>
           )}
@@ -326,7 +327,7 @@ function PromptPanel({
         {editing ? (
           <div className="mt-2 flex items-center justify-end gap-2">
             {generate.error ? (
-              <p className="mr-auto text-[11px] leading-snug text-[var(--failed)]">
+              <p className="mr-auto text-xs leading-snug text-[var(--failed)]">
                 {(generate.error as Error).message}
               </p>
             ) : null}
@@ -336,7 +337,7 @@ function PromptPanel({
             <Button primary onClick={submit} disabled={empty || unchanged || busy}>
               {busy ? (
                 <span className="flex items-center gap-1.5">
-                  <LoaderCircle className="size-[13px] animate-spin" strokeWidth={2.5} />
+                  <Spinner className="size-[13px]" />
                   Drawing
                 </span>
               ) : (
@@ -349,8 +350,8 @@ function PromptPanel({
         {/* While a redraw is running with the panel closed for editing, the
             button is gone and this is the only thing saying so. */}
         {drawing && !editing ? (
-          <p className="mt-2 flex items-center gap-1.5 text-[11px] text-white/70">
-            <LoaderCircle className="size-[12px] animate-spin" strokeWidth={2.5} />
+          <p className="mt-2 flex items-center gap-1.5 text-xs text-white/70">
+            <Spinner className="size-[12px]" />
             Drawing this slide again…
           </p>
         ) : null}
@@ -361,7 +362,7 @@ function PromptPanel({
           // happened is one whose panel would otherwise state, with no hedging
           // at all, the text of a picture that does not exist.
           <p
-            className="mt-2 text-[11px] leading-snug"
+            className="mt-2 text-xs leading-snug"
             style={{ color: 'color-mix(in srgb, var(--running) 82%, white)' }}
           >
             The prompts were rewritten after this slide was drawn — it may not be what produced this

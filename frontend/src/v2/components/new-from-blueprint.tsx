@@ -55,7 +55,7 @@ const THIN_CHAPTER_WORDS = 80
 /** The editor's metrics, shared by the text and the gutter beside it so the
  *  numbers cannot drift a pixel off the lines they count. */
 const LINE_HEIGHT = 18
-const EDITOR_TEXT = 'font-mono text-[11px] leading-[18px]'
+const EDITOR_TEXT = 'font-mono text-xs leading-[18px]'
 
 const PLACEHOLDER = `{
   "title": "Why Voyager Went Silent",
@@ -529,7 +529,7 @@ export function NewFromBlueprintDialog() {
               video rather than to either side of it. */}
           <div className="hairline-t flex shrink-0 items-center gap-5 px-5 py-2.5">
             <label className="flex min-w-0 flex-1 items-center gap-2">
-              <span className="shrink-0 text-[11px] text-secondary">Channel</span>
+              <span className="shrink-0 text-xs text-fg-muted">Channel</span>
               <Select
                 value={selected}
                 onChange={(e) => setChannel(e.target.value)}
@@ -554,7 +554,7 @@ export function NewFromBlueprintDialog() {
         </form>
       </Dialog.Body>
       <Dialog.Footer>
-        <span className="mr-auto truncate text-[11px] text-tertiary">
+        <span className="mr-auto truncate text-xs text-fg-subtle">
           {submit.error ? (
             <span style={{ color: 'var(--failed)' }}>{(submit.error as Error).message}</span>
           ) : outline ? (
@@ -632,12 +632,12 @@ function JsonPane({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="hairline-b flex h-[30px] shrink-0 items-center gap-2 px-3">
-        <span className="text-[11px] font-medium text-secondary">Blueprint JSON</span>
+        <span className="text-xs font-medium text-fg-muted">Blueprint JSON</span>
         <button
           type="button"
           disabled={!canFormat}
           onClick={onFormat}
-          className="ml-auto rounded-[5px] px-1.5 py-0.5 text-[11px] text-secondary transition-colors hover:bg-[var(--hover)] hover:text-primary disabled:pointer-events-none disabled:opacity-35"
+          className="ml-auto rounded-[5px] px-1.5 py-0.5 text-xs text-fg-muted transition-colors hover:bg-[var(--hover)] hover:text-fg disabled:pointer-events-none disabled:opacity-35"
         >
           Format
         </button>
@@ -647,7 +647,7 @@ function JsonPane({
         <pre
           ref={gutter}
           aria-hidden
-          className={`w-[46px] shrink-0 overflow-hidden py-2.5 pr-2 text-right text-tertiary ${EDITOR_TEXT}`}
+          className={`w-[46px] shrink-0 overflow-hidden py-2.5 pr-2 text-right text-fg-subtle ${EDITOR_TEXT}`}
         >
           {numbers}
         </pre>
@@ -671,7 +671,7 @@ function JsonPane({
                 : false,
             )
           }
-          className={`min-w-0 flex-1 resize-none bg-transparent py-2.5 pr-3 text-primary caret-[var(--accent)] outline-none placeholder:text-[var(--text-tertiary)] ${EDITOR_TEXT}`}
+          className={`min-w-0 flex-1 resize-none bg-transparent py-2.5 pr-3 text-fg caret-[var(--accent)] outline-none placeholder:text-[var(--text-tertiary)] ${EDITOR_TEXT}`}
         />
       </div>
 
@@ -680,7 +680,7 @@ function JsonPane({
           type="button"
           onClick={() => error.offset != null && onJump(error.offset)}
           disabled={error.offset == null}
-          className="hairline-t flex shrink-0 items-start gap-2 px-3 py-2 text-left text-[11px] leading-snug disabled:cursor-default"
+          className="hairline-t flex shrink-0 items-start gap-2 px-3 py-2 text-left text-xs leading-snug disabled:cursor-default"
           style={{ backgroundColor: 'var(--failed-wash)', color: 'var(--failed)' }}
         >
           <span aria-hidden className="shrink-0 pt-px font-medium">
@@ -719,7 +719,7 @@ function OutlinePane({
   if (outline === null) {
     return (
       <div className="flex h-full items-center justify-center px-10 text-center">
-        <p className="max-w-[240px] text-[12px] leading-relaxed text-tertiary">
+        <p className="max-w-[240px] text-sm leading-relaxed text-fg-subtle">
           Your outline appears here, and updates as you type.
         </p>
       </div>
@@ -732,15 +732,15 @@ function OutlinePane({
       style={stale ? { opacity: 0.4 } : undefined}
     >
       <div className="hairline-b shrink-0 px-5 pt-4 pb-3">
-        <h2 className="text-[15px] leading-tight font-semibold text-primary">
-          {outline.title || <span className="text-tertiary">Untitled</span>}
+        <h2 className="text-md leading-tight font-semibold text-fg">
+          {outline.title || <span className="text-fg-subtle">Untitled</span>}
         </h2>
         {outline.summary ? (
-          <p className="mt-1.5 line-clamp-3 text-[11.5px] leading-relaxed text-secondary">
+          <p className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-fg-muted">
             {outline.summary}
           </p>
         ) : null}
-        <p className="mt-2.5 text-[11px] text-tertiary">
+        <p className="mt-2.5 text-xs text-fg-subtle">
           <span className="tabular-nums">{count(outline.chapters.length)}</span> chapters
           {outline.scripted > 0 ? (
             <>
@@ -786,7 +786,7 @@ function OutlinePane({
 
 function Note({ tone, mark, text }: { tone: string; mark: string; text: string }) {
   return (
-    <p className="flex items-start gap-1.5 text-[11px] leading-snug" style={{ color: tone }}>
+    <p className="flex items-start gap-1.5 text-xs leading-snug" style={{ color: tone }}>
       <span aria-hidden className="shrink-0">
         {mark}
       </span>
@@ -870,19 +870,19 @@ function ChapterRow({
         aria-expanded={open}
         className="flex w-full gap-2.5 rounded-md px-2 py-[7px] text-left transition-colors hover:bg-[var(--hover)]"
       >
-        <span className="w-[22px] shrink-0 pt-[1px] text-right text-[11px] text-tertiary tabular-nums">
+        <span className="w-[22px] shrink-0 pt-[1px] text-right text-xs text-fg-subtle tabular-nums">
           {chapter.order}
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
-            <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-primary">
+            <span className="min-w-0 flex-1 truncate text-sm font-medium text-fg">
               {chapter.title}
             </span>
             {scripted ? (
               <span
                 aria-label="has a script"
                 title="A script was pasted for this chapter"
-                className="shrink-0 text-[11px]"
+                className="shrink-0 text-xs"
                 style={{ color: 'var(--done)' }}
               >
                 ✎
@@ -890,10 +890,10 @@ function ChapterRow({
             ) : null}
             {chapter.role ? <Chip>{chapter.role.replace(/_/g, ' ')}</Chip> : null}
             {chapter.tone ? (
-              <span className="shrink-0 text-[10.5px] text-tertiary">{chapter.tone}</span>
+              <span className="shrink-0 text-2xs text-fg-subtle">{chapter.tone}</span>
             ) : null}
             <span
-              className="w-[46px] shrink-0 text-right text-[11px] tabular-nums"
+              className="w-[46px] shrink-0 text-right text-xs tabular-nums"
               style={{
                 color:
                   chapter.words > 0 && chapter.words < THIN_CHAPTER_WORDS
@@ -905,7 +905,7 @@ function ChapterRow({
             </span>
             <span
               aria-hidden
-              className="w-[10px] shrink-0 text-[10px] text-tertiary transition-transform"
+              className="w-[10px] shrink-0 text-2xs text-fg-subtle transition-transform"
               style={{ transform: open ? 'rotate(90deg)' : undefined }}
             >
               ›
@@ -916,7 +916,7 @@ function ChapterRow({
               ever appeared, which reads as a typo rather than as a quote. */}
           {!open ? (
             <p
-              className="mt-[3px] truncate text-[11px] text-tertiary"
+              className="mt-[3px] truncate text-xs text-fg-subtle"
               style={scripted ? { fontStyle: 'italic' } : undefined}
             >
               {scripted ? chapter.script : chapter.concept}
@@ -928,17 +928,17 @@ function ChapterRow({
       {open ? (
         <div className="mb-1 pr-2 pl-[34px]">
           {chapter.concept ? (
-            <p className="text-[11px] leading-relaxed text-tertiary">{chapter.concept}</p>
+            <p className="text-xs leading-relaxed text-fg-subtle">{chapter.concept}</p>
           ) : null}
           {scripted ? (
             <>
               <blockquote
-                className="mt-2 rounded-[6px] border-l-2 py-1.5 pr-2 pl-2.5 text-[11.5px] leading-relaxed whitespace-pre-wrap text-secondary"
+                className="mt-2 rounded-[6px] border-l-2 py-1.5 pr-2 pl-2.5 text-xs leading-relaxed whitespace-pre-wrap text-fg-muted"
                 style={{ backgroundColor: 'var(--band)', borderColor: 'var(--accent-wash-strong)' }}
               >
                 {chapter.script}
               </blockquote>
-              <p className="mt-1 text-[10.5px] text-tertiary">
+              <p className="mt-1 text-2xs text-fg-subtle">
                 <span className="tabular-nums">{count(chapter.scriptWords)}</span> words written
                 {chapter.words > 0 ? (
                   <>
@@ -952,7 +952,7 @@ function ChapterRow({
             // Only when some other chapter has one. An ordinary blueprint has no
             // scripts anywhere and is not missing anything, so saying so against
             // every chapter of it would be thirty warnings about nothing.
-            <p className="mt-2 text-[11px]" style={{ color: 'var(--running)' }}>
+            <p className="mt-2 text-xs" style={{ color: 'var(--running)' }}>
               No script — the model will write this chapter.
             </p>
           ) : null}
@@ -965,7 +965,7 @@ function ChapterRow({
 function Chip({ children }: { children: React.ReactNode }) {
   return (
     <span
-      className="shrink-0 rounded-[4px] px-1.5 py-[1px] text-[10px] font-medium text-secondary"
+      className="shrink-0 rounded-[4px] px-1.5 py-[1px] text-2xs font-medium text-fg-muted"
       style={{ backgroundColor: 'var(--band)' }}
     >
       {children}
@@ -999,7 +999,7 @@ function Stepper({
   const bad = !within(value, { min, max })
   return (
     <label htmlFor={id} className="flex shrink-0 items-center gap-2">
-      <span className="text-[11px] text-secondary">{label}</span>
+      <span className="text-xs text-fg-muted">{label}</span>
       <Input
         id={id}
         type="number"
@@ -1010,7 +1010,7 @@ function Stepper({
         className="w-[52px] text-right tabular-nums"
         style={bad ? { color: 'var(--failed)' } : undefined}
       />
-      <span className="text-[11px] text-tertiary">{unit}</span>
+      <span className="text-xs text-fg-subtle">{unit}</span>
     </label>
   )
 }

@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { create } from 'zustand'
+import { toast } from 'sonner'
 
 import { api, qk } from '../core/api'
 import type { Channel, Video } from '../core/types'
@@ -112,6 +113,7 @@ export function DuplicateVideoHost() {
         // about work happening — so the list is asked again.
         void client.invalidateQueries({ queryKey: qk.videos })
         useWorkbench.getState().select(made.map((video) => video.ref))
+        if (made.length > 1) toast.success(`Duplicated ${made.length} videos`)
       }
 
       // One copy is a thing you want to look at; six is a batch, and opening

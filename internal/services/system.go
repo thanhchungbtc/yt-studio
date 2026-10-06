@@ -10,6 +10,7 @@ import (
 type Desktop interface {
 	OpenURL(url string) error
 	RevealInFinder(path string) error
+	SetLook(theme, material string) error
 }
 
 // AccessibilityEvent is emitted when macOS display accessibility changes.
@@ -54,6 +55,12 @@ func (s *SystemService) OpenURL(link string) error {
 		return app.Invalid("url", "must be a web link")
 	}
 	return s.desktop.OpenURL(u.String())
+}
+
+// SetLook applies the theme to the window now; the material applies at the
+// next launch.
+func (s *SystemService) SetLook(theme, material string) error {
+	return s.desktop.SetLook(theme, material)
 }
 
 // Reveal shows a file or folder in Finder.

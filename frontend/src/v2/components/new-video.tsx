@@ -156,7 +156,7 @@ export function NewVideoDialog() {
           </div>
 
           {submit.error ? (
-            <p className={`${INDENT} pt-2 text-[12px] text-[var(--failed)]`}>
+            <p className={`${INDENT} pt-2 text-sm text-[var(--failed)]`}>
               {(submit.error as Error).message}
             </p>
           ) : null}
@@ -167,7 +167,7 @@ export function NewVideoDialog() {
             comes to is on the brief's own readout above, where the numbers it
             is derived from are — printing it here as well would be the dialog
             saying the same thing in two places. */}
-        <span className="mr-auto text-[11px] text-tertiary">
+        <span className="mr-auto text-xs text-fg-subtle">
           About <span className="font-medium tabular-nums">{count(tasks)}</span> tasks
         </span>
         <Button className="h-[26px] px-3.5" onClick={hide}>

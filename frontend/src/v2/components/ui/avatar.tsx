@@ -33,7 +33,7 @@ export function Avatar({ name, seed, icon: Icon, className }: AvatarProps) {
     <div
       className={cn(
         'flex size-8 shrink-0 items-center justify-center rounded-full',
-        'text-[13px] font-semibold text-white',
+        'text-base font-semibold text-white',
         className,
       )}
       style={{ backgroundColor: avatarColor(seed ?? name) }}

@@ -98,7 +98,7 @@ func run() error {
 		OnShutdown:   shutdown,
 		Logger:       logger,
 	})
-	platform := desktop.New(app)
+	platform := desktop.New(app, dir.Look())
 
 	b := &services.Backend{
 		Store:                 backend.Store,
@@ -135,6 +135,7 @@ func run() error {
 
 	app.Menu.Set(appMenu())
 	winOpts := mainWindowOptions()
+	desktop.ApplyLook(desktop.ReadLook(dir.Look()), &winOpts)
 	desktop.ApplySavedBounds(dir.Window(), &winOpts)
 	win := app.Window.NewWithOptions(winOpts)
 	desktop.RememberBounds(dir.Window(), win)

@@ -61,6 +61,9 @@ func (d Dir) Blueprints() string { return d.path("tmp", "blueprints") }
 // Window is where the window's bounds are remembered.
 func (d Dir) Window() string { return d.path("window.json") }
 
+// Look is where the window's theme and material are remembered.
+func (d Dir) Look() string { return d.path("look.json") }
+
 // Ensure creates the directories nothing else creates; home is 0700 (it holds API keys).
 func (d Dir) Ensure() error {
 	for _, dir := range []struct {

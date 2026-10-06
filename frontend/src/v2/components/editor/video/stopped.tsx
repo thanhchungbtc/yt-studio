@@ -402,9 +402,9 @@ export function StoppedStrip({ video, tasks }: { video: Video; tasks: Task[] }) 
           strokeWidth={2}
           style={{ color: face.iconColor }}
         />
-        <span className="shrink-0 text-[13px] font-semibold text-primary">{face.title}</span>
+        <span className="shrink-0 text-base font-semibold text-fg">{face.title}</span>
         <span
-          className="min-w-0 flex-1 truncate text-[12px] text-secondary"
+          className="min-w-0 flex-1 truncate text-sm text-fg-muted"
           title={face.full ?? face.detail}
         >
           {face.detail}
@@ -435,7 +435,7 @@ export function StoppedStrip({ video, tasks }: { video: Video; tasks: Task[] }) 
       ) : null}
 
       {failure ? (
-        <p className="mt-1.5 pl-[22px] text-[12px] text-[var(--failed)]">
+        <p className="mt-1.5 pl-[22px] text-sm text-[var(--failed)]">
           {(failure as Error).message}
         </p>
       ) : null}
@@ -451,10 +451,10 @@ export function StoppedStrip({ video, tasks }: { video: Video; tasks: Task[] }) 
         channel={video.channelId}
         open={authorizing}
         onOpenChange={setAuthorizing}
-        onAuthorized={() =>
-          resumption.current === 'resume' ? start.mutate() : approve.mutate()
+        onAuthorized={() => (resumption.current === 'resume' ? start.mutate() : approve.mutate())}
+        confirmLabel={
+          resumption.current === 'resume' ? 'Authorize and resume' : 'Authorize and publish'
         }
-        confirmLabel={resumption.current === 'resume' ? 'Authorize and resume' : 'Authorize and publish'}
       />
     </div>
   )

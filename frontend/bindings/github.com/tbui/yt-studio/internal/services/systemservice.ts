@@ -41,3 +41,11 @@ export function OpenURL(link: string): $CancellablePromise<void> {
 export function Reveal(path: string): $CancellablePromise<void> {
     return $Call.ByID(3350187811, path);
 }
+
+/**
+ * SetLook applies the theme to the window now; the material applies at the
+ * next launch.
+ */
+export function SetLook(theme: string, material: string): $CancellablePromise<void> {
+    return $Call.ByID(1055874749, theme, material);
+}

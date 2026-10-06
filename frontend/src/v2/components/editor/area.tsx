@@ -12,11 +12,13 @@ import { useCallback, useEffect, useRef, type FunctionComponent } from 'react'
 
 import { useWorkbench } from '../../store/workbench'
 import { newVideo } from '../new-video'
-import { HeaderButton } from '../ui/header-button'
+import { IconButton } from '@/kit/ui/Button'
 import { ChannelEditor } from './channel'
 import { useDock, type DocPanelParams } from './dock'
 import { NewEditor } from './new'
 import { Placeholder } from './placeholder'
+import { KeybindingsPanel } from '../keybindings'
+import { SettingsPanel } from '../settings'
 import { EditorTab } from './tab'
 import { VideoEditor } from './video'
 
@@ -52,6 +54,8 @@ const components: Record<string, FunctionComponent<IDockviewPanelProps>> = {
   video: VideoEditor as FunctionComponent<IDockviewPanelProps>,
   channel: ChannelEditor as FunctionComponent<IDockviewPanelProps>,
   new: NewEditor as FunctionComponent<IDockviewPanelProps>,
+  settings: SettingsPanel as FunctionComponent<IDockviewPanelProps>,
+  keybindings: KeybindingsPanel as FunctionComponent<IDockviewPanelProps>,
 }
 
 const tabComponent = EditorTab as FunctionComponent<IDockviewPanelHeaderProps>
@@ -63,7 +67,7 @@ function Watermark() {
         icon={Clapperboard}
         title="Ready when you are"
         detail="Pick something from the library to open it here, or start a new video."
-        shortcut="⌘N"
+        command="video.new"
       />
     </div>
   )
@@ -73,12 +77,12 @@ function HeaderActions() {
   return (
     <div className="flex h-full items-center pr-1">
       <div className="glass-pill">
-        <HeaderButton
+        <IconButton
           icon={Plus}
           label="New Video"
-          shortcut="⌘N"
+          command="video.new"
+          size="xs"
           onClick={() => newVideo()}
-          className="size-6"
         />
       </div>
     </div>

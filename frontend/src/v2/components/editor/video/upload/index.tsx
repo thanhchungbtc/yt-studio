@@ -1,4 +1,4 @@
-import { Youtube } from 'lucide-react'
+import { MonitorPlay } from 'lucide-react'
 import { useRef, useState } from 'react'
 
 import { Placeholder } from '../../placeholder'
@@ -86,7 +86,7 @@ export function UploadView({ video, chapters, tasks }: ViewProps) {
       ) : (
         <div className="min-h-0 flex-1">
           <Placeholder
-            icon={Youtube}
+            icon={MonitorPlay}
             title="Nothing to publish yet"
             detail="The cut, the listing and the thumbnail are the last three things the pipeline makes."
           />

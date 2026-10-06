@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { LoaderCircle, Pencil } from 'lucide-react'
+import { Pencil } from 'lucide-react'
 import { useState, type KeyboardEvent } from 'react'
+import { Spinner } from '@/kit/ui/misc'
 
 import { api, qk } from '../../core/api'
 import type { Video } from '../../core/types'
@@ -101,7 +102,7 @@ export function IconViewer({
             {assetId ? (
               <img src={`/assets/${assetId}`} alt="" className="size-full object-contain" />
             ) : (
-              <span className="text-[12px] text-tertiary">Not drawn yet.</span>
+              <span className="text-sm text-fg-subtle">Not drawn yet.</span>
             )}
           </div>
 
@@ -115,20 +116,20 @@ export function IconViewer({
               aria-label="Icon prompt"
               className={cn(
                 'min-h-[8rem] w-full resize-none rounded-[7px] px-2 py-1.5',
-                'font-mono text-[12px] leading-[1.55]',
+                'font-mono text-sm leading-[1.55]',
                 'disabled:opacity-50',
               )}
               style={{ boxShadow: '0 0 0 0.5px var(--separator-strong)' }}
             />
           ) : (
-            <pre className="max-h-[8rem] overflow-y-auto font-mono text-[12px] leading-[1.55] whitespace-pre-wrap text-secondary select-text">
+            <pre className="max-h-[8rem] overflow-y-auto font-mono text-sm leading-[1.55] whitespace-pre-wrap text-fg-muted select-text">
               {text || 'No prompt yet.'}
             </pre>
           )}
 
           <div className="flex items-center justify-end gap-2">
             {generate.error ? (
-              <p className="mr-auto text-[11px] leading-snug text-[var(--failed)]">
+              <p className="mr-auto text-xs leading-snug text-[var(--failed)]">
                 {generate.error.message}
               </p>
             ) : null}
@@ -140,7 +141,7 @@ export function IconViewer({
                 <Button primary onClick={submit} disabled={empty || unchanged || busy}>
                   {busy ? (
                     <span className="flex items-center gap-1.5">
-                      <LoaderCircle className="size-[13px] animate-spin" strokeWidth={2.5} />
+                      <Spinner className="size-[13px]" />
                       Drawing
                     </span>
                   ) : (

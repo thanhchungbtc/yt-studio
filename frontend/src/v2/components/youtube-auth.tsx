@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, Copy, ExternalLink, LoaderCircle } from 'lucide-react'
+import { Check, Copy, ExternalLink } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
+import { Spinner } from '@/kit/ui/misc'
 
 import { api, qk } from '../core/api'
 import { openExternal } from '../core/desktop'
@@ -111,6 +113,7 @@ export function YouTubeAuthDialog({
       // The channel's credentials field moved with it, and the sidebar reads it.
       void client.invalidateQueries({ queryKey: qk.channels })
       if (result.authorized) {
+        toast.success('Connected to YouTube')
         onOpenChange(false)
         onAuthorized()
       }
@@ -174,7 +177,11 @@ export function YouTubeAuthDialog({
         {auth.error ? <Problem>{(auth.error as Error).message}</Problem> : null}
 
         {auth.data && !auth.data.clientPresent ? (
-          <NoClient path={auth.data.clientPath} onRecheck={() => void auth.refetch()} busy={auth.isFetching} />
+          <NoClient
+            path={auth.data.clientPath}
+            onRecheck={() => void auth.refetch()}
+            busy={auth.isFetching}
+          />
         ) : null}
 
         {auth.data?.clientPresent && !auth.data.authorized ? (
@@ -187,7 +194,7 @@ export function YouTubeAuthDialog({
             ) : null}
 
             <Step n={1} title="Open Google and sign in">
-              <p className="text-[12px] leading-relaxed text-secondary">
+              <p className="text-sm leading-relaxed text-fg-muted">
                 Sign in with the account that owns {name}. Grant the upload permission it asks for.
               </p>
               {url.isPending ? (
@@ -196,17 +203,27 @@ export function YouTubeAuthDialog({
                 <Problem>{(url.error as Error).message}</Problem>
               ) : (
                 <>
-                  <div className="flex items-center gap-2 rounded-[7px] px-2.5 py-1.5" style={{ backgroundColor: 'var(--content)', boxShadow: '0 0 0 0.5px var(--separator-strong)' }}>
-                    <code className="min-w-0 flex-1 truncate font-mono text-[10px] text-tertiary">
+                  <div
+                    className="flex items-center gap-2 rounded-[7px] px-2.5 py-1.5"
+                    style={{
+                      backgroundColor: 'var(--content)',
+                      boxShadow: '0 0 0 0.5px var(--separator-strong)',
+                    }}
+                  >
+                    <code className="min-w-0 flex-1 truncate font-mono text-2xs text-fg-subtle">
                       {url.data}
                     </code>
                     <button
                       type="button"
                       onClick={copy}
                       aria-label="Copy the consent URL"
-                      className="shrink-0 rounded-[4px] p-1 text-secondary transition-colors hover:bg-[var(--hover)] hover:text-primary"
+                      className="shrink-0 rounded-[4px] p-1 text-fg-muted transition-colors hover:bg-[var(--hover)] hover:text-fg"
                     >
-                      {copied ? <Check className="size-3" strokeWidth={2.5} /> : <Copy className="size-3" strokeWidth={2} />}
+                      {copied ? (
+                        <Check className="size-3" strokeWidth={2.5} />
+                      ) : (
+                        <Copy className="size-3" strokeWidth={2} />
+                      )}
                     </button>
                   </div>
                   <Button primary onClick={openConsent}>
@@ -214,7 +231,7 @@ export function YouTubeAuthDialog({
                     Open Google sign-in
                   </Button>
                   {openFailed ? (
-                    <p className="text-[11px] leading-relaxed text-[var(--failed)]">
+                    <p className="text-xs leading-relaxed text-[var(--failed)]">
                       This machine would not open a browser. Copy the URL above and paste it into
                       one yourself — the rest of this works the same.
                     </p>
@@ -224,11 +241,11 @@ export function YouTubeAuthDialog({
             </Step>
 
             <Step n={2} title="Paste the address you land on">
-              <p className="text-[12px] leading-relaxed text-secondary">
+              <p className="text-sm leading-relaxed text-fg-muted">
                 Google sends the browser to a page that will not load, starting{' '}
-                <code className="font-mono text-[11px] text-primary">http://localhost/?code=</code>.
-                That failure is expected — nothing of this app is listening there. Copy the whole
-                address out of the bar and paste it below.
+                <code className="font-mono text-xs text-fg">http://localhost/?code=</code>. That
+                failure is expected — nothing of this app is listening there. Copy the whole address
+                out of the bar and paste it below.
               </p>
               <Input
                 data-autofocus={visited ? '' : undefined}
@@ -239,11 +256,11 @@ export function YouTubeAuthDialog({
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' && code) authorize.mutate()
                 }}
-                className="font-mono text-[11px]"
+                className="font-mono text-xs"
               />
               {code && code !== pasted.trim() ? (
-                <p className="text-[11px] text-tertiary">
-                  Code found: <code className="font-mono text-primary">{code}</code>
+                <p className="text-xs text-fg-subtle">
+                  Code found: <code className="font-mono text-fg">{code}</code>
                 </p>
               ) : null}
             </Step>
@@ -255,11 +272,15 @@ export function YouTubeAuthDialog({
 
       {auth.data?.clientPresent && !auth.data.authorized ? (
         <Dialog.Footer>
-          <span className="min-w-0 flex-1 truncate text-[11px] text-tertiary">
+          <span className="min-w-0 flex-1 truncate text-xs text-fg-subtle">
             The grant is stored on this machine and is not asked for again.
           </span>
           <Button onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button primary disabled={!code || authorize.isPending} onClick={() => authorize.mutate()}>
+          <Button
+            primary
+            disabled={!code || authorize.isPending}
+            onClick={() => authorize.mutate()}
+          >
             {authorize.isPending ? 'Authorizing…' : confirmLabel}
           </Button>
         </Dialog.Footer>
@@ -273,13 +294,13 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
   return (
     <div className="flex gap-3">
       <span
-        className="mt-px flex size-[18px] shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white"
+        className="mt-px flex size-[18px] shrink-0 items-center justify-center rounded-full text-2xs font-semibold text-white"
         style={{ backgroundColor: 'var(--accent)' }}
       >
         {n}
       </span>
       <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
-        <h3 className="text-[13px] font-semibold text-primary">{title}</h3>
+        <h3 className="text-base font-semibold text-fg">{title}</h3>
         {children}
       </div>
     </div>
@@ -291,14 +312,22 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
  * authorized and is why it gets its own panel: the remedy is a file, and the
  * only useful thing this screen can do is say exactly where it goes.
  */
-function NoClient({ path, onRecheck, busy }: { path?: string; onRecheck: () => void; busy: boolean }) {
+function NoClient({
+  path,
+  onRecheck,
+  busy,
+}: {
+  path?: string
+  onRecheck: () => void
+  busy: boolean
+}) {
   return (
     <div className="flex flex-col gap-4">
       <Note>
-        This channel has no OAuth client yet. Google issues one per project, and it is the file
-        that lets this app ask for permission at all.
+        This channel has no OAuth client yet. Google issues one per project, and it is the file that
+        lets this app ask for permission at all.
       </Note>
-      <ol className="flex list-none flex-col gap-1.5 pl-0 text-[12px] leading-relaxed text-secondary">
+      <ol className="flex list-none flex-col gap-1.5 pl-0 text-sm leading-relaxed text-fg-muted">
         {[
           'In the Google Cloud console, enable the YouTube Data API v3 for your project.',
           'Under APIs & Services → Credentials, create an OAuth 2.0 Client ID.',
@@ -313,8 +342,11 @@ function NoClient({ path, onRecheck, busy }: { path?: string; onRecheck: () => v
       </ol>
       {path ? (
         <code
-          className="block rounded-[7px] px-2.5 py-1.5 font-mono text-[11px] break-all text-primary"
-          style={{ backgroundColor: 'var(--content)', boxShadow: '0 0 0 0.5px var(--separator-strong)' }}
+          className="block rounded-[7px] px-2.5 py-1.5 font-mono text-xs break-all text-fg"
+          style={{
+            backgroundColor: 'var(--content)',
+            boxShadow: '0 0 0 0.5px var(--separator-strong)',
+          }}
         >
           {path}
         </code>
@@ -330,8 +362,8 @@ function NoClient({ path, onRecheck, busy }: { path?: string; onRecheck: () => v
 
 function Waiting({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-2 py-6 text-[12px] text-secondary">
-      <LoaderCircle className="size-3.5 animate-spin" strokeWidth={2} style={{ color: 'var(--running)' }} />
+    <div className="flex items-center gap-2 py-6 text-sm text-fg-muted">
+      <Spinner className="size-3.5 text-running" />
       {children}
     </div>
   )
@@ -340,7 +372,7 @@ function Waiting({ children }: { children: React.ReactNode }) {
 function Note({ children }: { children: React.ReactNode }) {
   return (
     <p
-      className="rounded-[7px] px-3 py-2.5 text-[12px] leading-relaxed text-secondary"
+      className="rounded-[7px] px-3 py-2.5 text-sm leading-relaxed text-fg-muted"
       style={{ backgroundColor: 'var(--accent-wash)' }}
     >
       {children}
@@ -349,5 +381,5 @@ function Note({ children }: { children: React.ReactNode }) {
 }
 
 function Problem({ children }: { children: React.ReactNode }) {
-  return <p className="text-[12px] leading-relaxed text-[var(--failed)]">{children}</p>
+  return <p className="text-sm leading-relaxed text-[var(--failed)]">{children}</p>
 }

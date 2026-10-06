@@ -19,7 +19,7 @@ import { cn } from '../../core/utils'
  * instead of scanning for which caption goes with which box — which is exactly
  * what labels stacked above controls make you do once there are more than three.
  */
-const LABEL = 'w-[92px] shrink-0 text-right text-[12px] text-secondary'
+const LABEL = 'w-[92px] shrink-0 text-right text-sm text-fg-muted'
 /** Everything below a control lines up with the control, not with the label. */
 export const INDENT = 'pl-[104px]'
 
@@ -40,7 +40,7 @@ export function Field({
       </label>
       <div className="min-w-0 flex-1">
         {children(id)}
-        {hint ? <p className="mt-1 text-[11px] leading-snug text-tertiary">{hint}</p> : null}
+        {hint ? <p className="mt-1 text-xs leading-snug text-fg-subtle">{hint}</p> : null}
       </div>
     </div>
   )
@@ -106,7 +106,7 @@ export function RangeField({
           value={position}
           onChange={(event) => onChange(event.target.value)}
           className="slider min-w-0 flex-1"
-          style={{ '--slider-fill': `${fill}%` } as CSSProperties}
+          style={{ '--fill': `${fill}%` } as CSSProperties}
         />
         <input
           id={id}
@@ -117,7 +117,7 @@ export function RangeField({
           onChange={(event) => onChange(event.target.value)}
           className="control w-[58px] shrink-0 text-right tabular-nums"
         />
-        <span className="w-[92px] shrink-0 truncate text-[11px] text-tertiary">{unit}</span>
+        <span className="w-[92px] shrink-0 truncate text-xs text-fg-subtle">{unit}</span>
       </div>
       {children ? <div className={cn(INDENT, 'pt-1.5')}>{children}</div> : null}
     </div>
@@ -150,7 +150,7 @@ export function Select({ className, children, ...props }: SelectProps) {
       </select>
       <span
         aria-hidden
-        className="pointer-events-none absolute top-1/2 right-[5px] flex size-[17px] -translate-y-1/2 items-center justify-center rounded-full text-secondary"
+        className="pointer-events-none absolute top-1/2 right-[5px] flex size-[17px] -translate-y-1/2 items-center justify-center rounded-full text-fg-muted"
       >
         <ChevronsUpDown className="size-3" strokeWidth={2.2} />
       </span>
@@ -169,7 +169,7 @@ export function Checkbox({
   children: ReactNode
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2 text-[12px] text-primary">
+    <label className="flex cursor-pointer items-center gap-2 text-sm text-fg">
       <input
         type="checkbox"
         checked={checked}

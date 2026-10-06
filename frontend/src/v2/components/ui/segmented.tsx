@@ -1,14 +1,14 @@
 import type { LucideIcon } from 'lucide-react'
 
-import { cn } from '../../core/utils'
-import { SlidingThumb } from './sliding-thumb'
-import { Tooltip } from './tooltip'
+import { cn } from '@/kit/lib/cn'
+import { SlidingThumb } from '@/kit/ui/SlidingThumb'
+import { Tooltip } from '@/kit/ui/Tooltip'
 
 export interface Segment<T extends string> {
   value: T
   label: string
   icon?: LucideIcon
-  shortcut?: string
+  command?: string
 }
 
 interface SegmentedProps<T extends string> {
@@ -41,7 +41,7 @@ export function Segmented<T extends string>({
   return (
     <div
       role="radiogroup"
-      className={cn('relative inline-flex items-center rounded-full bg-[var(--well)] p-0.5', className)}
+      className={cn('relative inline-flex items-center rounded-full bg-well p-0.5', className)}
       onKeyDown={(event) => {
         if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
           event.preventDefault()
@@ -68,17 +68,17 @@ export function Segmented<T extends string>({
             onClick={() => onChange(segment.value)}
             className={cn(
               'relative flex h-6 flex-1 items-center justify-center gap-1.5 rounded-full',
-              'text-[12px] font-medium whitespace-nowrap transition-colors duration-150',
+              'text-xs font-medium whitespace-nowrap transition-colors duration-150',
               iconOnly ? 'min-w-7 px-1.5' : 'px-2.5',
-              selected ? 'text-primary' : 'text-tertiary hover:text-primary',
+              selected ? 'text-fg' : 'text-fg-subtle hover:text-fg',
             )}
           >
             {Icon ? <Icon className="size-[15px] shrink-0" strokeWidth={1.8} /> : null}
             {iconOnly ? null : <span className="truncate">{segment.label}</span>}
           </button>
         )
-        return iconOnly || segment.shortcut ? (
-          <Tooltip key={segment.value} content={segment.label} shortcut={segment.shortcut}>
+        return iconOnly || segment.command ? (
+          <Tooltip key={segment.value} content={segment.label} command={segment.command}>
             {button}
           </Tooltip>
         ) : (

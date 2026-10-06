@@ -118,7 +118,7 @@ function Fields({ video }: { video: Video }) {
                 tags: metadata?.tags.join(', ') ?? '',
               })
             }
-            className="ml-auto text-[11px] text-[var(--accent)] hover:underline"
+            className="ml-auto text-xs text-[var(--accent)] hover:underline"
           >
             Edit
           </button>
@@ -156,7 +156,7 @@ function Fields({ video }: { video: Video }) {
         an API neither of them owns.
       */}
       {save.error ? (
-        <p className="text-[11px] leading-snug text-[var(--failed)]">{save.error.message}</p>
+        <p className="text-xs leading-snug text-[var(--failed)]">{save.error.message}</p>
       ) : null}
 
       {/*
@@ -168,7 +168,7 @@ function Fields({ video }: { video: Video }) {
         <Input
           value={draft.title}
           onChange={(event) => edit({ title: event.target.value })}
-          className="font-mono text-[12px]"
+          className="font-mono text-sm"
         />
       </Editable>
       <Editable label="Description">
@@ -176,14 +176,14 @@ function Fields({ video }: { video: Video }) {
           value={draft.description}
           onChange={(event) => edit({ description: event.target.value })}
           rows={12}
-          className="font-mono text-[12px] leading-[1.6]"
+          className="font-mono text-sm leading-[1.6]"
         />
       </Editable>
       <Editable label="Tags" hint="Separated by commas.">
         <Input
           value={draft.tags}
           onChange={(event) => edit({ tags: event.target.value })}
-          className="font-mono text-[12px]"
+          className="font-mono text-sm"
         />
       </Editable>
     </div>
@@ -217,14 +217,14 @@ function Push({ video }: { video: Video }) {
         type="button"
         onClick={() => push.mutate()}
         disabled={push.isPending}
-        className="text-[11px] text-[var(--accent)] hover:underline disabled:opacity-50"
+        className="text-xs text-[var(--accent)] hover:underline disabled:opacity-50"
       >
         {push.isPending ? 'Sending…' : 'Push to YouTube'}
       </button>
       {push.isError && (
-        <span className="text-[11px] leading-snug text-[var(--failed)]">{push.error.message}</span>
+        <span className="text-xs leading-snug text-[var(--failed)]">{push.error.message}</span>
       )}
-      {push.isSuccess && <span className="text-[11px] text-tertiary">Sent</span>}
+      {push.isSuccess && <span className="text-xs text-fg-subtle">Sent</span>}
     </div>
   )
 }
@@ -251,11 +251,11 @@ function Field({ label, children }: { label: string; children: string | undefine
     <div className="flex flex-col gap-1.5">
       <Caption>{label}</Caption>
       {children ? (
-        <pre className="font-mono text-[12px] leading-[1.6] whitespace-pre-wrap text-primary">
+        <pre className="font-mono text-sm leading-[1.6] whitespace-pre-wrap text-fg">
           {children}
         </pre>
       ) : (
-        <span className="text-[12px] text-tertiary">—</span>
+        <span className="text-sm text-fg-subtle">—</span>
       )}
     </div>
   )
@@ -282,7 +282,7 @@ function Editable({
     <div className="flex flex-col gap-1.5">
       <Caption>{label}</Caption>
       {children}
-      {hint ? <p className="text-[11px] text-tertiary">{hint}</p> : null}
+      {hint ? <p className="text-xs text-fg-subtle">{hint}</p> : null}
     </div>
   )
 }
@@ -379,7 +379,7 @@ function Player({
       className={`${frame} flex items-center justify-center border border-dashed`}
       style={{ borderColor: 'var(--separator-strong)' }}
     >
-      <span className="text-[12px] text-tertiary">The cut has not been rendered yet.</span>
+      <span className="text-sm text-fg-subtle">The cut has not been rendered yet.</span>
     </div>
   )
 }
@@ -415,16 +415,16 @@ function PublishThumbnail({ video }: { video: Video }) {
   return (
     <span className="flex items-baseline gap-2">
       {push.isError && (
-        <span className="text-[11px] leading-snug text-[var(--failed)]">{push.error.message}</span>
+        <span className="text-xs leading-snug text-[var(--failed)]">{push.error.message}</span>
       )}
       {push.isSuccess && (
-        <span className="text-[11px] text-tertiary">Sent — takes a few minutes to appear</span>
+        <span className="text-xs text-fg-subtle">Sent — takes a few minutes to appear</span>
       )}
       <button
         type="button"
         onClick={() => push.mutate()}
         disabled={push.isPending}
-        className="text-[11px] text-[var(--accent)] hover:underline disabled:opacity-50"
+        className="text-xs text-[var(--accent)] hover:underline disabled:opacity-50"
       >
         {push.isPending ? 'Publishing…' : 'Publish'}
       </button>
@@ -440,13 +440,13 @@ function Thumbnail({ video, onBuild }: { video: Video; onBuild: () => void }) {
     <div className="flex flex-col gap-1.5">
       <div className="flex items-baseline gap-2">
         <Caption>Thumbnail</Caption>
-        {size ? <span className="text-[11px] tabular-nums text-tertiary">{size}</span> : null}
+        {size ? <span className="text-xs tabular-nums text-fg-subtle">{size}</span> : null}
         <div className="ml-auto flex items-baseline gap-3">
           <PublishThumbnail video={video} />
           <button
             type="button"
             onClick={onBuild}
-            className="text-[11px] text-[var(--accent)] hover:underline"
+            className="text-xs text-[var(--accent)] hover:underline"
           >
             {id ? 'Edit' : 'Build one'}
           </button>
@@ -468,7 +468,7 @@ function Thumbnail({ video, onBuild }: { video: Video; onBuild: () => void }) {
           className="flex aspect-video w-full items-center justify-center rounded-[10px] border border-dashed"
           style={{ borderColor: 'var(--separator-strong)' }}
         >
-          <span className="text-[12px] text-tertiary">No thumbnail yet.</span>
+          <span className="text-sm text-fg-subtle">No thumbnail yet.</span>
         </div>
       )}
     </div>

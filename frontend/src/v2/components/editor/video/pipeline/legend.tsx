@@ -21,7 +21,7 @@ export function Legend() {
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-1 px-4 py-2">
       {LEGEND.map(({ cell, label }) => (
-        <span key={label} className="flex items-center gap-1.5 text-[11px] text-tertiary">
+        <span key={label} className="flex items-center gap-1.5 text-xs text-fg-subtle">
           <Mark cell={cell} />
           {label}
         </span>

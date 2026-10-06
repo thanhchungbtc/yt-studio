@@ -51,7 +51,7 @@ export function Clamped({
         onClick={onToggle}
         aria-expanded={open}
         aria-label={label}
-        className="mt-0.5 text-[11px] text-tertiary transition-colors hover:text-secondary"
+        className="mt-0.5 text-xs text-fg-subtle transition-colors hover:text-fg-muted"
       >
         {open ? 'Less' : 'More'}
       </button>

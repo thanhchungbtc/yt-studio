@@ -88,18 +88,16 @@ function VideoPipeline({ videoRef }: { videoRef: string }) {
           for it. The ref carries that on its own — it is the one label that is
           different for two videos of the same name — and the title follows it
           for the times you know the video by its name and not its number. */}
-      <div className="flex items-baseline gap-1.5 px-3 pt-0.5 pb-2 text-[11px]">
-        <span className="shrink-0 font-medium tabular-nums text-secondary">{data.ref}</span>
-        <span className="min-w-0 truncate text-tertiary">{data.title || 'Untitled'}</span>
+      <div className="flex items-baseline gap-1.5 px-3 pt-0.5 pb-2 text-xs">
+        <span className="shrink-0 font-medium tabular-nums text-fg-muted">{data.ref}</span>
+        <span className="min-w-0 truncate text-fg-subtle">{data.title || 'Untitled'}</span>
       </div>
 
       {/* Above the rows rather than beside the dot that caused it: the menu has
           closed by the time this exists, and the pane is too narrow to hang a
           message off a twelve-pixel target. One at a time, as there is one
           press at a time. */}
-      {error ? (
-        <p className="px-3 pb-1.5 text-[11px] text-[var(--failed)]">{error.message}</p>
-      ) : null}
+      {error ? <p className="px-3 pb-1.5 text-xs text-[var(--failed)]">{error.message}</p> : null}
 
       {stages.map((stage) => (
         <StageRow key={stage.id} stage={stage} menu={menuOf(stage)} />
@@ -153,7 +151,7 @@ function StageRow({ stage, menu }: { stage: PipelineStage; menu: MenuItem[] }) {
   const trailing = ((): ReactNode => {
     if (gate) {
       return (
-        <span className="shrink-0 text-[11px] font-medium" style={{ color: 'var(--accent)' }}>
+        <span className="shrink-0 text-xs font-medium" style={{ color: 'var(--accent)' }}>
           Needs approval
         </span>
       )
@@ -166,7 +164,7 @@ function StageRow({ stage, menu }: { stage: PipelineStage; menu: MenuItem[] }) {
   return (
     <div className="flex h-[27px] items-center gap-2.5 px-3">
       <Mark cell={stage.cell} menu={menu} />
-      <span className="min-w-0 flex-1 truncate text-[12px] text-primary">{stage.label}</span>
+      <span className="min-w-0 flex-1 truncate text-sm text-fg">{stage.label}</span>
       {trailing}
     </div>
   )
@@ -174,7 +172,7 @@ function StageRow({ stage, menu }: { stage: PipelineStage; menu: MenuItem[] }) {
 
 /** The figure on the trailing edge: tabular, so it does not jitter as it counts. */
 function Figure({ children }: { children: ReactNode }) {
-  return <span className="shrink-0 text-[11px] tabular-nums text-tertiary">{children}</span>
+  return <span className="shrink-0 text-xs tabular-nums text-fg-subtle">{children}</span>
 }
 
 /**
@@ -187,7 +185,7 @@ function Figure({ children }: { children: ReactNode }) {
 function Note({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center px-6">
-      <p className="text-center text-[12px] text-tertiary">{children}</p>
+      <p className="text-center text-sm text-fg-subtle">{children}</p>
     </div>
   )
 }
@@ -229,7 +227,7 @@ function RepublishDialog({ video, onClose }: { video: Video; onClose: () => void
         description="This sends a new video to YouTube. The one already there is not replaced."
       />
       <Dialog.Body>
-        <p className="text-[12px] leading-relaxed text-secondary">
+        <p className="text-sm leading-relaxed text-fg-muted">
           {video.ref} is published. YouTube cannot replace a video&rsquo;s file, so uploading again
           adds a second video and leaves the first one up — still public, still at its own address.
           This app will stop tracking it, so copy the link now if you mean to take it down.
@@ -238,7 +236,7 @@ function RepublishDialog({ video, onClose }: { video: Video; onClose: () => void
           className="mt-3 flex items-center gap-2 rounded-[7px] px-2.5 py-2"
           style={{ backgroundColor: 'var(--band)' }}
         >
-          <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-primary">
+          <span className="min-w-0 flex-1 truncate font-mono text-xs text-fg">
             {url || 'No URL was recorded'}
           </span>
           {url ? (
@@ -252,7 +250,7 @@ function RepublishDialog({ video, onClose }: { video: Video; onClose: () => void
                   setTimeout(() => setCopied(false), 1400)
                 })
               }}
-              className="flex size-[22px] shrink-0 items-center justify-center rounded-[6px] text-tertiary transition-colors hover:bg-[var(--hover)] hover:text-primary"
+              className="flex size-[22px] shrink-0 items-center justify-center rounded-[6px] text-fg-subtle transition-colors hover:bg-[var(--hover)] hover:text-fg"
               style={copied ? { color: 'var(--done)' } : undefined}
             >
               {copied ? (
@@ -264,7 +262,7 @@ function RepublishDialog({ video, onClose }: { video: Video; onClose: () => void
           ) : null}
         </div>
         {republish.error ? (
-          <p className="mt-2 text-[12px]" style={{ color: 'var(--failed)' }}>
+          <p className="mt-2 text-sm" style={{ color: 'var(--failed)' }}>
             {(republish.error as Error).message}
           </p>
         ) : null}

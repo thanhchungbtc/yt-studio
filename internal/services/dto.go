@@ -7,6 +7,7 @@ package services
 import (
 	"encoding/json"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/tbui/yt-studio/internal/domain/entity"
@@ -331,6 +332,7 @@ type SettingDTO struct {
 	Suggestions []SettingSuggestionDTO `json:"suggestions"`
 	Secret      bool                   `json:"secret"`
 	Configured  bool                   `json:"configured"`
+	Default     string                 `json:"default"`
 	UpdatedAt   time.Time              `json:"updatedAt"`
 }
 
@@ -339,6 +341,16 @@ type SettingSuggestionDTO struct {
 	Value string `json:"value"`
 	Label string `json:"label"`
 }
+
+var settingDefaults = sync.OnceValue(func() map[entity.SettingKey]string {
+	out := make(map[entity.SettingKey]string)
+	for _, d := range entity.DefaultSettings() {
+		if !d.Secret {
+			out[d.Key] = d.Value
+		}
+	}
+	return out
+})
 
 func settingFrom(s entity.Setting) SettingDTO {
 	options := s.Options
@@ -370,6 +382,7 @@ func settingFrom(s entity.Setting) SettingDTO {
 		Suggestions: suggestions,
 		Secret:      s.Secret,
 		Configured:  configured,
+		Default:     settingDefaults()[s.Key],
 		UpdatedAt:   s.UpdatedAt,
 	}
 }

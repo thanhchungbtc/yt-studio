@@ -1,98 +1,89 @@
 import { Events } from '@wailsio/runtime'
+import { create } from 'zustand'
 
-import { Accessibility as nativeAccessibility } from '@bindings/services/systemservice'
+import { Accessibility, SetLook } from '@bindings/services/systemservice'
+import { installScrollEdges } from '@/kit/lib/scrollEdges'
+import { getPref, setPref, usePrefs } from '@/prefs'
 
-// WebKit doesn't report Reduce Transparency; the app does.
-
-interface Accessibility {
+interface A11y {
   reduceTransparency: boolean
   reduceMotion: boolean
   increaseContrast: boolean
 }
 
-const QUERIES = {
-  dark: '(prefers-color-scheme: dark)',
-  reduceTransparency: '(prefers-reduced-transparency: reduce)',
-  reduceMotion: '(prefers-reduced-motion: reduce)',
-  increaseContrast: '(prefers-contrast: more)',
-} as const
+const media = (q: string) => typeof matchMedia === 'function' && matchMedia(q).matches
+const darkQuery = matchMedia('(prefers-color-scheme: dark)')
 
-let native: Partial<Accessibility> = {}
+// macOS's settings win; the web view's media queries are the fallback.
+const useA11y = create<A11y>(() => ({
+  reduceTransparency: media('(prefers-reduced-transparency: reduce)'),
+  reduceMotion: media('(prefers-reduced-motion: reduce)'),
+  increaseContrast: media('(prefers-contrast: more)'),
+}))
 
-function matches(query: string): boolean {
-  return typeof matchMedia === 'function' && matchMedia(query).matches
+function setA11y(o: Partial<A11y>) {
+  useA11y.setState({
+    reduceTransparency: !!o.reduceTransparency || media('(prefers-reduced-transparency: reduce)'),
+    reduceMotion: !!o.reduceMotion || media('(prefers-reduced-motion: reduce)'),
+    increaseContrast: !!o.increaseContrast || media('(prefers-contrast: more)'),
+  })
+}
+
+export type ResolvedTheme = 'light' | 'dark'
+
+/** The theme in effect, for components that need it (the toaster). */
+export const useResolvedTheme = create<{ theme: ResolvedTheme }>(() => ({ theme: 'light' }))
+
+function resolvedTheme(): ResolvedTheme {
+  const theme = getPref('theme')
+  if (theme !== 'system') return theme
+  return darkQuery.matches ? 'dark' : 'light'
+}
+
+/** Flips between light and dark, starting from what is shown. */
+export function toggleTheme(): void {
+  setPref('theme', resolvedTheme() === 'dark' ? 'light' : 'dark')
 }
 
 function apply(): void {
   const root = document.documentElement
-  const dark = matches(QUERIES.dark)
-  const solid = !!native.reduceTransparency || matches(QUERIES.reduceTransparency)
-  const still = !!native.reduceMotion || matches(QUERIES.reduceMotion)
-  const contrast = !!native.increaseContrast || matches(QUERIES.increaseContrast)
-
-  const theme = dark ? 'dark' : 'light'
+  const { reduceTransparency, reduceMotion, increaseContrast } = useA11y.getState()
+  const { material, fontSize } = usePrefs.getState()
+  const theme = resolvedTheme()
   if (root.dataset.theme !== theme) root.dataset.theme = theme
-  root.classList.toggle('dark', dark)
-  root.classList.toggle('light', !dark)
-  root.dataset.material = solid ? 'solid' : 'liquid'
-  root.toggleAttribute('data-glass', !solid)
-  root.dataset.motion = still ? 'reduced' : 'spring'
-  root.toggleAttribute('data-contrast', contrast)
+  if (useResolvedTheme.getState().theme !== theme) useResolvedTheme.setState({ theme })
+  root.classList.toggle('dark', theme === 'dark')
+  root.classList.toggle('light', theme !== 'dark')
+  const glass = material === 'liquidGlass' && !reduceTransparency
+  root.dataset.material = reduceTransparency
+    ? 'solid'
+    : material === 'liquidGlass'
+      ? 'liquid'
+      : material
+  root.toggleAttribute('data-glass', glass)
+  root.dataset.motion = reduceMotion ? 'reduced' : glass ? 'spring' : 'calm'
+  root.toggleAttribute('data-contrast', increaseContrast)
+  ;(root.style as CSSStyleDeclaration & { zoom: string }).zoom = String(fontSize / 13)
 }
 
-async function refreshNative(): Promise<void> {
-  try {
-    native = await nativeAccessibility()
-  } catch {
-    native = {}
-  }
-  apply()
-}
-
-function mark(element: HTMLElement): void {
-  const top = element.scrollTop > 1
-  const bottom = element.scrollTop + element.clientHeight < element.scrollHeight - 1
-  if (element.hasAttribute('data-edge-top') !== top) element.toggleAttribute('data-edge-top', top)
-  if (element.hasAttribute('data-edge-bottom') !== bottom) {
-    element.toggleAttribute('data-edge-bottom', bottom)
-  }
-}
-
-function installScrollEdges(): () => void {
-  const onScroll = (event: Event) => {
-    const target = event.target
-    if (target instanceof HTMLElement && target.classList.contains('scroll-edge')) mark(target)
-  }
-  // Re-mark only on entering a scroller; reading its extent forces layout.
-  let current: HTMLElement | null = null
-  const onEnter = (event: Event) => {
-    const target = event.target
-    const element = target instanceof Element ? target.closest<HTMLElement>('.scroll-edge') : null
-    if (element === current) return
-    current = element
-    if (element) mark(element)
-  }
-  document.addEventListener('scroll', onScroll, { capture: true, passive: true })
-  document.addEventListener('pointerover', onEnter, { passive: true })
-  return () => {
-    document.removeEventListener('scroll', onScroll, { capture: true })
-    document.removeEventListener('pointerover', onEnter)
-  }
-}
-
-/**
- * Applies the system appearance and keeps it applied.
- */
+/** Applies the appearance and keeps it applied. */
 export function followSystem(): () => void {
   apply()
-  void refreshNative()
+  void Accessibility()
+    .then(setA11y)
+    .catch(() => undefined)
+  const offA11y = Events.On('system:accessibility', (e) => setA11y(e.data as A11y))
+  const offA11yStore = useA11y.subscribe(apply)
+  darkQuery.addEventListener('change', apply)
 
-  const lists = Object.values(QUERIES).map((query) => matchMedia(query))
-  for (const list of lists) list.addEventListener('change', apply)
-
-  const offNative = Events.On('system:accessibility', (event) => {
-    native = event.data as Accessibility
+  let look = ''
+  const offPrefs = usePrefs.subscribe((s) => {
     apply()
+    const next = `${s.theme}|${s.material}`
+    if (next !== look) {
+      look = next
+      void SetLook(s.theme, s.material).catch(() => undefined)
+    }
   })
 
   const offEdges = installScrollEdges()
@@ -102,8 +93,10 @@ export function followSystem(): () => void {
   )
 
   return () => {
-    for (const list of lists) list.removeEventListener('change', apply)
-    offNative()
+    offA11y()
+    offA11yStore()
+    offPrefs()
+    darkQuery.removeEventListener('change', apply)
     offEdges()
     window.clearTimeout(ready)
   }

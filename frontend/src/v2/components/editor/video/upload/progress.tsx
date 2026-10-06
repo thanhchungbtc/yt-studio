@@ -1,4 +1,4 @@
-import { LoaderCircle } from 'lucide-react'
+import { Spinner } from '@/kit/ui/misc'
 
 import { openExternal } from '../../../../core/desktop'
 import { listTimestamp } from '../../../../core/format'
@@ -25,14 +25,10 @@ export function UploadStatus({ video, tasks }: { video: Video; tasks: Task[] }) 
   if (task?.state === 'running') {
     return (
       <div className="hairline-b flex shrink-0 items-center gap-3 px-4 py-2">
-        <LoaderCircle
-          className="size-3.5 shrink-0 animate-spin"
-          strokeWidth={2}
-          style={{ color: 'var(--running)' }}
-        />
-        <span className="shrink-0 text-[12px] text-secondary">Uploading</span>
+        <Spinner className="size-3.5 shrink-0 text-running" />
+        <span className="shrink-0 text-sm text-fg-muted">Uploading</span>
         <Bar percent={task.percent} />
-        <span className="w-9 shrink-0 text-right text-[12px] tabular-nums text-tertiary">
+        <span className="w-9 shrink-0 text-right text-sm tabular-nums text-fg-subtle">
           {task.percent === undefined ? '—' : `${task.percent}%`}
         </span>
       </div>
@@ -50,7 +46,7 @@ export function UploadStatus({ video, tasks }: { video: Video; tasks: Task[] }) 
         className="size-2 shrink-0 rounded-full"
         style={{ backgroundColor: record.dryRun ? 'var(--text-tertiary)' : 'var(--done)' }}
       />
-      <span className="shrink-0 text-[12px] font-semibold text-primary">
+      <span className="shrink-0 text-sm font-semibold text-fg">
         {record.dryRun ? 'Dry run' : 'Published'}
       </span>
       {/*
@@ -60,7 +56,7 @@ export function UploadStatus({ video, tasks }: { video: Video; tasks: Task[] }) 
         one claim this screen must never make. Only a real publish gets a link.
       */}
       {record.dryRun ? (
-        <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-tertiary">
+        <span className="min-w-0 flex-1 truncate font-mono text-xs text-fg-subtle">
           {record.url} · nothing was sent to YouTube
         </span>
       ) : (
@@ -76,12 +72,12 @@ export function UploadStatus({ video, tasks }: { video: Video; tasks: Task[] }) 
             event.preventDefault()
             void openExternal(record.url)
           }}
-          className="min-w-0 flex-1 truncate text-[12px] text-[var(--accent)] hover:underline"
+          className="min-w-0 flex-1 truncate text-sm text-[var(--accent)] hover:underline"
         >
           {record.url}
         </a>
       )}
-      <span className="shrink-0 text-[12px] text-tertiary">{listTimestamp(record.uploadedAt)}</span>
+      <span className="shrink-0 text-sm text-fg-subtle">{listTimestamp(record.uploadedAt)}</span>
     </div>
   )
 }

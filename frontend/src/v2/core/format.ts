@@ -1,3 +1,5 @@
+import type { VideoState } from './types'
+
 /** Formatting, in the register macOS list views use. */
 
 const time = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
@@ -43,4 +45,19 @@ const grouped = new Intl.NumberFormat()
 /** Thousands separated, because word counts get long enough to misread. */
 export function count(value: number): string {
   return grouped.format(value)
+}
+
+const STATE_LABEL: Record<VideoState, string> = {
+  draft: 'Draft',
+  running: 'Running',
+  awaiting_approval: 'Needs approval',
+  blocked: 'Blocked',
+  completed: 'Completed',
+  failed: 'Failed',
+  cancelled: 'Cancelled',
+}
+
+/** What a video's state is called on screen. */
+export function stateLabel(state: VideoState): string {
+  return STATE_LABEL[state]
 }

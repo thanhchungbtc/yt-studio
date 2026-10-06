@@ -176,7 +176,7 @@ export function ChaptersView({ video, chapters, tasks }: ViewProps) {
   if (chapters.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center px-8">
-        <p className="text-[13px] text-tertiary">
+        <p className="text-base text-fg-subtle">
           Nothing to read yet. The blueprint writes the chapters first.
         </p>
       </div>
@@ -259,7 +259,7 @@ function FilterBar({ shown, onToggle }: { shown: Shown; onToggle: (key: keyof Sh
     <div className="hairline-b shrink-0">
       <div className="px-6 py-2">
         <div className={cn(COLUMN, 'flex items-center gap-1.5')}>
-          <span className="mr-1 text-[10px] font-semibold tracking-[0.07em] text-tertiary uppercase">
+          <span className="mr-1 text-2xs font-semibold tracking-[0.07em] text-fg-subtle uppercase">
             Show
           </span>
           {SECTIONS.map((section) => {
@@ -271,8 +271,8 @@ function FilterBar({ shown, onToggle }: { shown: Shown; onToggle: (key: keyof Sh
                 aria-pressed={on}
                 onClick={() => onToggle(section.key)}
                 className={cn(
-                  'rounded-[5px] px-2 py-[3px] text-[11px] transition-colors',
-                  on ? 'font-medium' : 'text-tertiary hover:bg-[var(--hover)] hover:text-secondary',
+                  'rounded-[5px] px-2 py-[3px] text-xs transition-colors',
+                  on ? 'font-medium' : 'text-fg-subtle hover:bg-[var(--hover)] hover:text-fg-muted',
                 )}
                 style={
                   on ? { backgroundColor: 'var(--accent-wash)', color: 'var(--accent)' } : undefined
@@ -291,8 +291,8 @@ function FilterBar({ shown, onToggle }: { shown: Shown; onToggle: (key: keyof Sh
 const SCRIPT = [
   'max-h-[24rem] overflow-y-auto',
   'rounded-[7px] px-3.5 py-3',
-  'font-mono text-[12px] leading-[1.65] whitespace-pre-wrap',
-  'text-primary',
+  'font-mono text-sm leading-[1.65] whitespace-pre-wrap',
+  'text-fg',
 ].join(' ')
 
 const PANEL = {
@@ -354,11 +354,11 @@ const ChapterBlock = memo(function ChapterBlock({
             underneath it, so the ordinal sits over the first word rather than
             somewhere off to the left of everything. */}
         <div className={cn(COLUMN, 'flex items-baseline gap-3')}>
-          <span className="shrink-0 text-[11px] tabular-nums text-tertiary">{chapter.ordinal}</span>
-          <span className="min-w-0 flex-1 truncate text-[11px] font-semibold tracking-[0.05em] text-secondary uppercase">
+          <span className="shrink-0 text-xs tabular-nums text-fg-subtle">{chapter.ordinal}</span>
+          <span className="min-w-0 flex-1 truncate text-xs font-semibold tracking-[0.05em] text-fg-muted uppercase">
             {chapter.title}
           </span>
-          <span className="shrink-0 text-[11px] tabular-nums text-tertiary">
+          <span className="shrink-0 text-xs tabular-nums text-fg-subtle">
             {words > 0
               ? `${count(words)} words · ${duration(chapterSeconds(chapter))}`
               : 'not written yet'}
@@ -490,7 +490,7 @@ function ScriptPart({ chapter }: { chapter: Chapter }) {
       <Part
         label="Script"
         action={
-          <Button className="h-[22px] px-2.5 text-[11px]" onClick={() => setDraft(chapter.script)}>
+          <Button className="h-[22px] px-2.5 text-xs" onClick={() => setDraft(chapter.script)}>
             Edit
           </Button>
         }
@@ -500,7 +500,7 @@ function ScriptPart({ chapter }: { chapter: Chapter }) {
             {chapter.script}
           </pre>
         ) : (
-          <p className="text-[12px] text-tertiary">
+          <p className="text-sm text-fg-subtle">
             The script for this chapter has not been written yet.
           </p>
         )}
@@ -519,7 +519,7 @@ function ScriptPart({ chapter }: { chapter: Chapter }) {
       action={
         <>
           <Button
-            className="h-[22px] px-2.5 text-[11px]"
+            className="h-[22px] px-2.5 text-xs"
             onClick={() => {
               save.reset()
               setDraft(null)
@@ -530,7 +530,7 @@ function ScriptPart({ chapter }: { chapter: Chapter }) {
           </Button>
           <Button
             primary
-            className="h-[22px] px-2.5 text-[11px]"
+            className="h-[22px] px-2.5 text-xs"
             onClick={() => save.mutate(trimmed)}
             disabled={!ready}
           >
@@ -551,7 +551,7 @@ function ScriptPart({ chapter }: { chapter: Chapter }) {
         style={{ ...PANEL, boxShadow: '0 0 0 1px var(--accent)' }}
       />
       {save.error ? (
-        <p className="text-[12px]" style={{ color: 'var(--failed)' }}>
+        <p className="text-sm" style={{ color: 'var(--failed)' }}>
           {(save.error as Error).message}
         </p>
       ) : null}
@@ -587,11 +587,9 @@ function Narration({ assetId, seconds }: { assetId: string; seconds: number }) {
       <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-white transition-transform duration-100 group-hover/play:scale-105">
         <Play className="ml-px size-3 fill-current" strokeWidth={0} />
       </span>
-      <span className="text-[12px] font-medium text-secondary group-hover/play:text-primary">
-        Play
-      </span>
+      <span className="text-sm font-medium text-fg-muted group-hover/play:text-fg">Play</span>
       {seconds > 0 ? (
-        <span className="ml-auto pr-3 text-[11.5px] tabular-nums text-tertiary">
+        <span className="ml-auto pr-3 text-xs tabular-nums text-fg-subtle">
           {duration(seconds)}
         </span>
       ) : null}
@@ -612,7 +610,7 @@ function Part({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex min-h-[20px] items-center gap-3">
-        <span className="text-[10px] font-semibold tracking-[0.07em] text-tertiary uppercase">
+        <span className="text-2xs font-semibold tracking-[0.07em] text-fg-subtle uppercase">
           {label}
         </span>
         {action ? <div className="ml-auto flex items-center gap-1.5">{action}</div> : null}
@@ -672,7 +670,7 @@ function Slide({
       style={{ borderColor: 'var(--separator-strong)' }}
     >
       {cell.state === 'waiting' ? (
-        <span className="text-[11px] tabular-nums text-tertiary">{slot + 1}</span>
+        <span className="text-xs tabular-nums text-fg-subtle">{slot + 1}</span>
       ) : (
         <Mark cell={cell} />
       )}

@@ -1,18 +1,3 @@
-import {
-  AppWindow,
-  AudioLines,
-  Brain,
-  Clapperboard,
-  Gauge,
-  Image,
-  PenLine,
-  Plug,
-  RotateCcw,
-  ShieldCheck,
-  SquareStack,
-  type LucideIcon,
-} from 'lucide-react'
-
 /**
  * What the settings screen calls things.
  *
@@ -25,20 +10,6 @@ import {
  * the derivation stays as the fallback, so a key added on the server appears
  * with an ugly name rather than not appearing at all.
  */
-
-export const GROUPS: Record<string, { title: string; icon: LucideIcon }> = {
-  providers: { title: 'Providers', icon: Plug },
-  models: { title: 'Models', icon: Brain },
-  pools: { title: 'Concurrency', icon: Gauge },
-  writing: { title: 'Writing', icon: PenLine },
-  narration: { title: 'Narration', icon: AudioLines },
-  slides: { title: 'Slides', icon: Image },
-  thumbnail: { title: 'Thumbnail', icon: SquareStack },
-  video: { title: 'Video', icon: Clapperboard },
-  gates: { title: 'Approvals', icon: ShieldCheck },
-  retries: { title: 'Retries', icon: RotateCcw },
-  server: { title: 'App', icon: AppWindow },
-}
 
 const LABELS: Record<string, string> = {
   'pool.llm.limit': 'Language model',

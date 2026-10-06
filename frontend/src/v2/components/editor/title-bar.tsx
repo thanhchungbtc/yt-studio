@@ -32,11 +32,11 @@ export function EditorTitleBar({
     <DragRegion className="edge-line relative z-[1] flex h-[48px] shrink-0 items-center gap-2.5 px-4">
       <Avatar name={initial ?? title} seed={seed ?? title} icon={icon} className="size-7" />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] leading-tight font-semibold tracking-[-0.005em] text-primary">
+        <div className="truncate text-base leading-tight font-semibold tracking-[-0.005em] text-fg">
           {title}
         </div>
         {status ? (
-          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-secondary">
+          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-fg-muted">
             <span
               className="size-1.5 shrink-0 rounded-full"
               style={{ backgroundColor: statusColor ?? 'var(--accent)' }}

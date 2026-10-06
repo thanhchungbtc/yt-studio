@@ -21,6 +21,8 @@ export type Doc =
   | { kind: 'video'; ref: string }
   | { kind: 'channel'; slug: string }
   | { kind: 'new'; of: 'channel' }
+  | { kind: 'settings' }
+  | { kind: 'keybindings' }
 
 /** Stable per document, so opening the same thing twice reuses one tab. */
 export function docId(doc: Doc): string {
@@ -29,6 +31,10 @@ export function docId(doc: Doc): string {
       return `channel:${doc.slug}`
     case 'new':
       return `new:${doc.of}`
+    case 'settings':
+      return 'settings'
+    case 'keybindings':
+      return 'keybindings'
     default:
       return `${doc.kind}:${doc.ref}`
   }
@@ -118,6 +124,16 @@ export function openDoc(doc: Doc, title: string, options: OpenOptions = {}): voi
 export function pinPreview(id: string): void {
   const { previewId, setPreviewId } = useDock.getState()
   if (previewId === id) setPreviewId(null)
+}
+
+/** Activates the tab `delta` places after the active one, wrapping. */
+export function cycleTab(delta: number): void {
+  const api = useDock.getState().api
+  const group = api?.activeGroup
+  if (!group || group.panels.length < 2) return
+  const at = group.panels.findIndex((panel) => panel.id === group.activePanel?.id)
+  const next = group.panels[(at + delta + group.panels.length) % group.panels.length]
+  next?.api.setActive()
 }
 
 /** Closes the active tab. ⌘W. */

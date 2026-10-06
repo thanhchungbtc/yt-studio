@@ -1,12 +1,22 @@
-import 'dockview-react/dist/styles/dockview.css'
 import '../styles.css'
 
+import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, type ReactNode } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
+import { Toaster } from 'sonner'
 
+import { setContextKey } from '@/kit/commands/context'
+import { installKeybindings } from '@/kit/commands/keybindings'
+import { effectiveKeybindings } from '@/kit/commands/useKeybindings'
+import { MenuAtHost } from '@/kit/ui/Menu'
+import { TooltipProvider } from '@/kit/ui/Tooltip'
+import { ConfirmHost } from '@/kit/workbench/confirm'
+import { QuickInputHost } from '@/kit/workbench/QuickInput'
+
+import { registerWorkbenchCommands } from '../core/commands'
 import { useEventStream } from '../core/events'
+import { useResolvedTheme } from '../core/theme'
 import { connectUpdates } from '../core/update'
-import { useKeybindings } from '../core/keys'
 import { cn } from '../core/utils'
 import { useWorkbench } from '../store/workbench'
 import { EditorArea } from './editor/area'
@@ -14,15 +24,42 @@ import { DuplicateVideoHost } from './duplicate-video'
 import { EditVideoDialog } from './edit-video'
 import { NewFromBlueprintDialog } from './new-from-blueprint'
 import { NewVideoDialog } from './new-video'
-import { SettingsDialog } from './settings'
+import { CommandPalette } from './palette'
 import { BottomPanel } from './panel/bottom'
 import { PrimarySidebar } from './sidebar/primary'
 import { SecondarySidebar } from './sidebar/secondary'
 import { StatusBar } from './status-bar'
-import { TooltipProvider } from './ui/tooltip'
+
+/** Commands, the key dispatcher and the context keys they read. */
+function useCommands() {
+  const client = useQueryClient()
+  useEffect(() => {
+    const offCommands = registerWorkbenchCommands(client)
+    const offKeys = installKeybindings(effectiveKeybindings, () => {
+      // Menus, popovers and dialogs own Escape while they are open.
+      const overlay =
+        useWorkbench.getState().palette.open ||
+        !!document.querySelector(
+          "[data-radix-popper-content-wrapper], [role='dialog'][data-state='open'], [role='menu']",
+        )
+      setContextKey('overlayOpen', overlay)
+    })
+    const onFocus = (e: FocusEvent) => {
+      const t = e.target as HTMLElement | null
+      setContextKey('inputFocus', !!t?.closest('input, textarea, [contenteditable]'))
+    }
+    window.addEventListener('focusin', onFocus)
+    return () => {
+      offCommands()
+      offKeys()
+      window.removeEventListener('focusin', onFocus)
+    }
+  }, [client])
+}
 
 export function WorkbenchV2() {
-  useKeybindings()
+  useCommands()
+  const theme = useResolvedTheme((s) => s.theme)
   // Mounted here and nowhere else: one connection for the whole application,
   // and this is the one component guaranteed to outlive every document that
   // depends on it.
@@ -86,7 +123,11 @@ export function WorkbenchV2() {
         <NewFromBlueprintDialog />
         <DuplicateVideoHost />
         <EditVideoDialog />
-        <SettingsDialog />
+        <CommandPalette />
+        <ConfirmHost />
+        <QuickInputHost />
+        <MenuAtHost />
+        <Toaster theme={theme} position="top-center" offset={52} />
       </div>
     </TooltipProvider>
   )

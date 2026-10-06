@@ -124,9 +124,7 @@ export function ChapterList({
       <Caption className="px-2">Chapters</Caption>
 
       {rows.length === 0 ? (
-        <p className="mt-2 px-2 text-[12px] text-tertiary">
-          The blueprint writes the chapters first.
-        </p>
+        <p className="mt-2 px-2 text-sm text-fg-subtle">The blueprint writes the chapters first.</p>
       ) : (
         <div className="mt-1.5 flex flex-col">
           {rows.map((row) => (
@@ -183,16 +181,16 @@ function ChapterRow({
     >
       <span
         className={cn(
-          'w-[13px] shrink-0 text-right text-[11px] tabular-nums',
-          selected ? 'text-accent' : 'text-tertiary',
+          'w-[13px] shrink-0 text-right text-xs tabular-nums',
+          selected ? 'text-accent' : 'text-fg-subtle',
         )}
       >
         {row.ordinal}
       </span>
       <span
         className={cn(
-          'min-w-0 flex-1 truncate text-[12px]',
-          selected ? 'font-medium text-primary' : 'text-secondary group-hover:text-primary',
+          'min-w-0 flex-1 truncate text-sm',
+          selected ? 'font-medium text-fg' : 'text-fg-muted group-hover:text-fg',
         )}
       >
         {row.title}
@@ -200,8 +198,8 @@ function ChapterRow({
       {timed ? (
         <span
           className={cn(
-            'shrink-0 text-[11px] tabular-nums',
-            selected ? 'text-secondary' : 'text-tertiary',
+            'shrink-0 text-xs tabular-nums',
+            selected ? 'text-fg-muted' : 'text-fg-subtle',
           )}
         >
           {offset(row.start)}

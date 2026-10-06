@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
+import { toast } from 'sonner'
 
 import { api, qk } from '../../core/api'
 import type { Video } from '../../core/types'
@@ -77,7 +78,7 @@ function Emphasis({
             key={`${word}-${i}`}
             type="button"
             onClick={() => write(dim.map((d, at) => (at === i ? !d : d)))}
-            className="rounded-[4px] px-1.5 py-0.5 text-[11px] leading-[1.4] transition-opacity hover:opacity-70"
+            className="rounded-[4px] px-1.5 py-0.5 text-xs leading-[1.4] transition-opacity hover:opacity-70"
             style={{
               color: dim[i] ? colors.headlineMinorColor : colors.headlineColor,
               boxShadow: '0 0 0 0.5px var(--separator-strong)',
@@ -294,6 +295,7 @@ export function ThumbnailDialog({
     onSuccess: (next) => {
       settle(next)
       onOpenChange(false)
+      toast.success('Thumbnail published')
     },
     // On both paths, because the two calls are not one transaction: an override
     // that stored and a design that did not leaves the cache describing neither
@@ -308,6 +310,7 @@ export function ThumbnailDialog({
     onSuccess: (next) => {
       settle(next)
       onOpenChange(false)
+      toast('Thumbnail reverted to the generated one')
     },
   })
 
@@ -358,7 +361,7 @@ export function ThumbnailDialog({
               ran out of room. Fixed width, so the field beside it does not
               resize as the number changes.
             */}
-            <span className="w-[86px] shrink-0 text-right text-[11px] tabular-nums text-tertiary">
+            <span className="w-[86px] shrink-0 text-right text-xs tabular-nums text-fg-subtle">
               {report && report.headlineSize > 0 ? fittedAs(report) : ''}
             </span>
           </div>
@@ -401,7 +404,7 @@ export function ThumbnailDialog({
                   shortening one caption appears to do nothing, when what it
                   actually did was let every caption grow.
                 */}
-                <span className="text-[11px] tabular-nums text-tertiary">
+                <span className="text-xs tabular-nums text-fg-subtle">
                   {report && report.captionSize > 0 ? `all at ${report.captionSize}px` : ''}
                 </span>
               </div>
@@ -475,7 +478,7 @@ export function ThumbnailDialog({
               <button
                 type="button"
                 onClick={() => setStyle(configured)}
-                className="ml-auto text-[11px] text-[var(--accent)] hover:underline"
+                className="ml-auto text-xs text-[var(--accent)] hover:underline"
               >
                 Reset
               </button>
@@ -499,7 +502,7 @@ export function ThumbnailDialog({
       */}
       {failure ? (
         <p
-          className="hairline-t shrink-0 px-6 py-2 text-[12px] text-[var(--failed)]"
+          className="hairline-t shrink-0 px-6 py-2 text-sm text-[var(--failed)]"
           style={{ backgroundColor: 'var(--failed-wash)' }}
         >
           {(failure as Error).message}

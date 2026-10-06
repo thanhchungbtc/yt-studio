@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useState } from 'react'
 import { create } from 'zustand'
+import { toast } from 'sonner'
 
 import { api, qk } from '../core/api'
 import type { Video } from '../core/types'
@@ -70,6 +71,7 @@ export function EditVideoDialog() {
       // rather than refetched; the list is asked again because nothing on the
       // event stream announces an edit.
       client.setQueryData(qk.video(saved.ref), saved)
+      toast.success('Brief saved')
       void client.invalidateQueries({ queryKey: qk.videos })
       hide()
     },
@@ -100,7 +102,7 @@ export function EditVideoDialog() {
           <BriefFields brief={brief} onChange={setBrief} />
 
           {save.error ? (
-            <p className={`${INDENT} pt-3 text-[12px] text-[var(--failed)]`}>
+            <p className={`${INDENT} pt-3 text-sm text-[var(--failed)]`}>
               {(save.error as Error).message}
             </p>
           ) : null}
@@ -110,7 +112,7 @@ export function EditVideoDialog() {
         {/* Which video this is. The title is in the field being edited — and may
             be being changed — so the ref is the only label here that still says
             what is about to be written. */}
-        <span className="mr-auto text-[11px] tabular-nums text-tertiary">{video?.ref}</span>
+        <span className="mr-auto text-xs tabular-nums text-fg-subtle">{video?.ref}</span>
         <Button className="h-[26px] px-3.5" onClick={hide}>
           Cancel
         </Button>

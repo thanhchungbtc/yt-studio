@@ -1,4 +1,4 @@
-import * as Radix from '@radix-ui/react-popover'
+import { Popover as Radix } from 'radix-ui'
 import type { ReactNode } from 'react'
 
 interface PopoverProps {

@@ -261,7 +261,7 @@ function GridPreview({ cells }: { cells: number }) {
           </div>
         ))}
       </div>
-      <span className="text-[11px] text-tertiary">
+      <span className="text-xs text-fg-subtle">
         {rows === 1 ? 'one row' : `${rows} rows`} of {cols}
       </span>
     </div>
@@ -377,7 +377,7 @@ export function BriefFields({
       </RangeField>
 
       {budget ? (
-        <p className={`${INDENT} pt-3 text-[11px] text-secondary`}>
+        <p className={`${INDENT} pt-3 text-xs text-fg-muted`}>
           <span className="tabular-nums">≈ {budget.runtime}</span> of narration ·{' '}
           <span className="tabular-nums">{count(budget.wordsPerChapter)}</span> words a chapter
           {thin ? <span style={{ color: 'var(--running)' }}> · thin for a chapter</span> : null}

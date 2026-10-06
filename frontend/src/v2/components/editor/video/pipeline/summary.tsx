@@ -76,7 +76,7 @@ export function SummaryLine({
     <div className="hairline-b shrink-0 px-4 py-2">
       <div className="flex items-center gap-2">
         <span
-          className="min-w-0 flex-1 truncate text-[12px] text-secondary"
+          className="min-w-0 flex-1 truncate text-sm text-fg-muted"
           title={shapeOf(video, totals)}
         >
           {shapeOf(video, totals)}
@@ -106,7 +106,7 @@ export function SummaryLine({
                 ? 'Showing only the chapters with stale artifacts'
                 : 'Show only the chapters with stale artifacts'
             }
-            className="flex shrink-0 items-center gap-1.5 rounded-[5px] px-2 py-[3px] text-[11px] transition-colors"
+            className="flex shrink-0 items-center gap-1.5 rounded-[5px] px-2 py-[3px] text-xs transition-colors"
             style={
               onlyStale
                 ? { backgroundColor: 'var(--running)', color: '#fff' }
@@ -133,7 +133,7 @@ export function SummaryLine({
           open={topicOpen}
           onToggle={() => setTopicOpen((on) => !on)}
           label="Video topic"
-          className="mt-1 text-[12px] leading-snug text-tertiary"
+          className="mt-1 text-sm leading-snug text-fg-subtle"
         />
       ) : null}
     </div>

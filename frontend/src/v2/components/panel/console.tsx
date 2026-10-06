@@ -135,7 +135,7 @@ function Toolbar({
       <div className="relative flex min-w-0 flex-1 items-center">
         <Search
           aria-hidden
-          className="pointer-events-none absolute left-1.5 size-[11px] text-tertiary"
+          className="pointer-events-none absolute left-1.5 size-[11px] text-fg-subtle"
           strokeWidth={2}
         />
         <input
@@ -148,13 +148,13 @@ function Toolbar({
           }}
           placeholder="Find"
           spellCheck={false}
-          className="control h-[19px] w-full min-w-0 py-0 pr-1.5 pl-[22px] text-[11px]"
+          className="control h-[19px] w-full min-w-0 py-0 pr-1.5 pl-[22px] text-xs"
         />
       </div>
 
       {matches ? (
         <>
-          <span className="shrink-0 text-[10.5px] tabular-nums text-tertiary">
+          <span className="shrink-0 text-2xs tabular-nums text-fg-subtle">
             {matches.of === 0 ? 'none' : `${matches.at}/${matches.of}`}
           </span>
           <Step label="Previous match" disabled={matches.of === 0} onClick={() => onStep(-1)}>
@@ -167,7 +167,7 @@ function Toolbar({
             type="button"
             aria-label="Clear the search"
             onClick={() => onQuery('')}
-            className="flex size-[19px] shrink-0 items-center justify-center rounded-[5px] text-tertiary transition-colors hover:bg-[var(--hover)] hover:text-primary"
+            className="flex size-[19px] shrink-0 items-center justify-center rounded-[5px] text-fg-subtle transition-colors hover:bg-[var(--hover)] hover:text-fg"
           >
             <X className="size-[11px]" strokeWidth={2.2} />
           </button>
@@ -185,8 +185,8 @@ function Toolbar({
             aria-pressed={filter === entry.value}
             onClick={() => onFilter(entry.value)}
             className={cn(
-              'rounded-[4px] px-1.5 py-[1px] text-[10.5px] transition-colors',
-              filter === entry.value ? 'text-primary' : 'text-tertiary hover:text-secondary',
+              'rounded-[4px] px-1.5 py-[1px] text-2xs transition-colors',
+              filter === entry.value ? 'text-fg' : 'text-fg-subtle hover:text-fg-muted',
             )}
             style={
               filter === entry.value
@@ -205,7 +205,7 @@ function Toolbar({
         title="Clear the console"
         disabled={!clearable}
         onClick={onClear}
-        className="flex size-[19px] shrink-0 items-center justify-center rounded-[5px] text-tertiary transition-colors hover:bg-[var(--hover)] hover:text-primary disabled:pointer-events-none disabled:opacity-35"
+        className="flex size-[19px] shrink-0 items-center justify-center rounded-[5px] text-fg-subtle transition-colors hover:bg-[var(--hover)] hover:text-fg disabled:pointer-events-none disabled:opacity-35"
       >
         <Trash2 className="size-[12px]" strokeWidth={1.9} />
       </button>
@@ -230,7 +230,7 @@ function Step({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="flex size-[19px] shrink-0 items-center justify-center rounded-[5px] text-[13px] text-tertiary transition-colors hover:bg-[var(--hover)] hover:text-primary disabled:pointer-events-none disabled:opacity-35"
+      className="flex size-[19px] shrink-0 items-center justify-center rounded-[5px] text-base text-fg-subtle transition-colors hover:bg-[var(--hover)] hover:text-fg disabled:pointer-events-none disabled:opacity-35"
     >
       {children}
     </button>
@@ -239,7 +239,7 @@ function Step({
 
 function Empty({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-full items-center justify-center px-3 text-[11px] text-tertiary">
+    <div className="flex h-full items-center justify-center px-3 text-xs text-fg-subtle">
       {children}
     </div>
   )
@@ -333,8 +333,8 @@ const Block = memo(function Block({
       className={cn('pt-2', current && 'rounded-[5px] px-1.5')}
       style={current ? { backgroundColor: 'var(--accent-wash)' } : undefined}
     >
-      <div className="flex items-baseline gap-2 text-[11px] text-tertiary">
-        <span className="font-semibold text-secondary">
+      <div className="flex items-baseline gap-2 text-xs text-fg-subtle">
+        <span className="font-semibold text-fg-muted">
           <Highlight text={run.label} needle={needle} />
         </span>
         <span className="min-w-0 truncate">
@@ -345,7 +345,7 @@ const Block = memo(function Block({
         </span>
       </div>
       {run.truncated ? (
-        <div className="pt-0.5 text-[11px] text-tertiary italic">
+        <div className="pt-0.5 text-xs text-fg-subtle italic">
           earlier output dropped to bound the log
         </div>
       ) : null}
@@ -353,7 +353,7 @@ const Block = memo(function Block({
           horizontal scrollbar on a log is a way of hiding text. `break-all`
           because what wraps here is frequently JSON, which has no spaces to
           wrap at. */}
-      <pre className="font-mono text-[11px] leading-[1.45] break-all whitespace-pre-wrap text-secondary">
+      <pre className="font-mono text-xs leading-[1.45] break-all whitespace-pre-wrap text-fg-muted">
         <Highlight text={run.text} needle={needle} />
         {run.done ? null : <Caret />}
       </pre>
@@ -363,7 +363,7 @@ const Block = memo(function Block({
           which is how a stack of ffmpeg complaints becomes one unreadable
           sentence. */}
       {run.error ? (
-        <div className="pt-0.5 font-mono text-[11px] break-all whitespace-pre-wrap text-[color:var(--failed)]">
+        <div className="pt-0.5 font-mono text-xs break-all whitespace-pre-wrap text-[color:var(--failed)]">
           <Highlight text={run.error} needle={needle} />
         </div>
       ) : null}

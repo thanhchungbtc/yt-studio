@@ -1,0 +1,1 @@
+Copied from ai-messenger (frontend/src: styles, components/ui, lib, commands, workbench). Keep in sync by re-copying; yt-specific: commands/keybindings.ts defaults, commands/useKeybindings.ts prefs import.

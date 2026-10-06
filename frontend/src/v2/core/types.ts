@@ -240,6 +240,8 @@ export interface Setting {
   /** Never echoed back by the server; `configured` is how you know it is set. */
   secret: boolean
   configured: boolean
+  /** The value it starts with; empty for a secret. */
+  default: string
 }
 
 /* ------------------------------------------------------------------ events */

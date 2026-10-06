@@ -17,7 +17,10 @@ import { persist } from 'zustand/middleware'
 /** What the primary sidebar is listing. */
 export type SidebarScope = 'videos' | 'channels'
 
+export type PaletteMode = 'commands' | 'videos'
+
 interface WorkbenchState {
+  palette: { open: boolean; mode: PaletteMode }
   primaryVisible: boolean
   secondaryVisible: boolean
   bottomVisible: boolean
@@ -31,6 +34,8 @@ interface WorkbenchState {
    */
   selected: string[]
 
+  openPalette: (mode?: PaletteMode) => void
+  closePalette: () => void
   togglePrimary: () => void
   toggleSecondary: () => void
   toggleBottom: () => void
@@ -41,12 +46,15 @@ interface WorkbenchState {
 export const useWorkbench = create<WorkbenchState>()(
   persist(
     (set) => ({
+      palette: { open: false, mode: 'commands' },
       primaryVisible: true,
       secondaryVisible: false,
       bottomVisible: false,
       scope: 'videos',
       selected: [],
 
+      openPalette: (mode = 'commands') => set({ palette: { open: true, mode } }),
+      closePalette: () => set((s) => ({ palette: { ...s.palette, open: false } })),
       togglePrimary: () => set((s) => ({ primaryVisible: !s.primaryVisible })),
       toggleSecondary: () => set((s) => ({ secondaryVisible: !s.secondaryVisible })),
       toggleBottom: () => set((s) => ({ bottomVisible: !s.bottomVisible })),
@@ -55,6 +63,7 @@ export const useWorkbench = create<WorkbenchState>()(
     }),
     {
       name: 'yts.v2.workbench',
+      partialize: ({ palette: _palette, ...rest }) => rest,
       /*
         Bumped when `selected` went from one value to a list.
 

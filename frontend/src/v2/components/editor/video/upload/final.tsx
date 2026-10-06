@@ -48,7 +48,7 @@ export function FinalStrip({
 
   return (
     <div className="hairline-b flex shrink-0 items-center gap-5 px-4 py-2">
-      <span className="shrink-0 text-[10px] font-semibold tracking-[0.06em] text-tertiary uppercase">
+      <span className="shrink-0 text-2xs font-semibold tracking-[0.06em] text-fg-subtle uppercase">
         Final
       </span>
       <Stage cell={cut} label="Cut" />
@@ -63,13 +63,13 @@ function Stage({ cell, label, onOpen }: { cell: Cell; label: string; onOpen?: ()
   const content = (
     <>
       <Mark cell={cell} />
-      <span className="text-[12px] whitespace-nowrap">{label}</span>
+      <span className="text-sm whitespace-nowrap">{label}</span>
       {onOpen ? <ArrowUpRight className="size-3 opacity-60" strokeWidth={2} /> : null}
     </>
   )
 
   if (!onOpen) {
-    return <span className="flex items-center gap-1.5 text-secondary">{content}</span>
+    return <span className="flex items-center gap-1.5 text-fg-muted">{content}</span>
   }
   return (
     <button
@@ -77,7 +77,7 @@ function Stage({ cell, label, onOpen }: { cell: Cell; label: string; onOpen?: ()
       onClick={onOpen}
       className={cn(
         'flex items-center gap-1.5 rounded-[5px] px-1.5 py-0.5 -mx-1.5',
-        'text-secondary transition-colors hover:bg-[var(--hover)] hover:text-primary',
+        'text-fg-muted transition-colors hover:bg-[var(--hover)] hover:text-fg',
       )}
     >
       {content}

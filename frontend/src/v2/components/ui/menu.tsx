@@ -1,83 +1,71 @@
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import type { LucideIcon } from 'lucide-react'
+import { DropdownMenu as Radix } from 'radix-ui'
 import type { ReactNode } from 'react'
 
-export interface MenuItem {
-  label: string
-  icon?: LucideIcon
-  shortcut?: string
-  /**
-   * Destroys something, and says so in red — the only reason a menu row is
-   * ever a colour other than the text colour.
-   */
-  danger?: boolean
-  onSelect: () => void
-}
+import { cn } from '@/kit/lib/cn'
+import { keepFocusIfMoved } from '@/kit/lib/focus'
+import { Kbd } from '@/kit/ui/Kbd'
+import type { MenuEntry } from '@/kit/ui/Menu'
 
-export const MENU_CONTENT =
-  'glass-pop animate-pop-in z-50 min-w-48 overflow-hidden rounded-[12px] p-1 text-[12.5px] outline-none'
+export type MenuItem = MenuEntry
 
-export const MENU_ITEM =
-  'menu-item relative flex h-7 cursor-default items-center gap-2 rounded-[8px] px-2 outline-none select-none'
+const CONTENT =
+  'glass-pop z-50 min-w-48 animate-pop-in overflow-hidden rounded-[12px] p-1 text-sm text-fg outline-none'
+const ITEM =
+  'relative flex h-7 cursor-default items-center gap-2 rounded-[8px] px-2 text-fg outline-none select-none data-[disabled]:opacity-40 data-[highlighted]:bg-row-highlight'
 
-export function MenuRow({ item }: { item: MenuItem }) {
-  const Icon = item.icon
-  return (
-    <>
-      {Icon ? (
-        <Icon className="size-3.5 shrink-0 opacity-80" strokeWidth={1.9} />
-      ) : (
-        <span className="size-3.5 shrink-0" />
-      )}
-      <span className="flex-1 truncate whitespace-nowrap">{item.label}</span>
-      {item.shortcut ? (
-        <span className="menu-shortcut shrink-0 tabular-nums">{item.shortcut}</span>
-      ) : null}
-    </>
-  )
-}
-
-interface MenuProps {
+/** The kit's pull-down, controllable so a caller can mount it on first use. */
+export function Menu({
+  items,
+  children,
+  align = 'end',
+  open,
+  onOpenChange,
+}: {
   items: MenuItem[]
-  /** The control the menu hangs from. */
   children: ReactNode
   align?: 'start' | 'end'
   open?: boolean
   onOpenChange?: (open: boolean) => void
-}
-
-/**
- * A pull-down menu.
- *
- * Radix for the behaviour that is tedious and easy to get subtly wrong — focus
- * return, escape, typeahead, click-outside — and the glass card for the look.
- */
-export function Menu({ items, children, align = 'end', open, onOpenChange }: MenuProps) {
+}) {
   return (
-    <DropdownMenu.Root
-      {...(open !== undefined ? { open } : {})}
-      {...(onOpenChange ? { onOpenChange } : {})}
-    >
-      <DropdownMenu.Trigger asChild>{children}</DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content
+    <Radix.Root open={open} onOpenChange={onOpenChange}>
+      <Radix.Trigger asChild>{children}</Radix.Trigger>
+      <Radix.Portal>
+        <Radix.Content
           align={align}
           sideOffset={5}
           collisionPadding={8}
-          className={MENU_CONTENT}
+          className={CONTENT}
+          onCloseAutoFocus={keepFocusIfMoved}
         >
-          {items.map((item) => (
-            <DropdownMenu.Item
-              key={item.label}
-              onSelect={item.onSelect}
-              data-danger={item.danger ? '' : undefined}
-              className={MENU_ITEM}
-            >
-              <MenuRow item={item} />
-            </DropdownMenu.Item>
-          ))}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+          {items.map((e, i) => {
+            if (e.type === 'separator')
+              return <Radix.Separator key={i} className="mx-1 my-1 h-px bg-line" />
+            if (e.type === 'label' || e.type === 'submenu') return null
+            const Icon = e.icon
+            return (
+              <Radix.Item
+                key={i}
+                disabled={e.disabled}
+                onSelect={e.onSelect}
+                className={cn(
+                  ITEM,
+                  e.danger &&
+                    'text-danger data-[highlighted]:bg-[color-mix(in_srgb,var(--danger)_12%,transparent)]',
+                )}
+              >
+                {Icon ? (
+                  <Icon className="size-3.5 shrink-0 opacity-80" />
+                ) : (
+                  <span className="size-3.5 shrink-0" />
+                )}
+                <span className="flex-1 truncate">{e.label}</span>
+                {e.shortcut && <Kbd keys={e.shortcut} className="opacity-70" />}
+              </Radix.Item>
+            )
+          })}
+        </Radix.Content>
+      </Radix.Portal>
+    </Radix.Root>
   )
 }
