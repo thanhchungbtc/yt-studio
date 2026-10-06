@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import {
+  CircleCheck,
   ChevronRight,
   Clapperboard,
   ClipboardPaste,
@@ -55,6 +56,13 @@ interface Group {
   channel: Channel
   videos: Video[]
 }
+
+interface Entry {
+  video: Video
+  channel: Channel
+}
+
+const isDone = (state: VideoState) => state === 'completed' || state === 'cancelled'
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 const failed = (what: string) => (error: unknown) =>
@@ -156,6 +164,8 @@ export function PrimarySidebar() {
   const setScope = useWorkbench((s) => s.setScope)
   const selected = useWorkbench((s) => s.selected)
   const select = useWorkbench((s) => s.select)
+  const completedOpen = useWorkbench((s) => s.completedOpen)
+  const setCompletedOpen = useWorkbench((s) => s.setCompletedOpen)
 
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const [anchor, setAnchor] = useState<string | null>(null)
@@ -166,9 +176,10 @@ export function PrimarySidebar() {
   const videos = useQuery({ queryKey: qk.videos, queryFn: api.listVideos })
 
   const needle = filter.trim().toLowerCase()
-  const groups = useMemo<Group[]>(() => {
+  const { groups, done } = useMemo(() => {
     const byId = new Map((channels.data ?? []).map((channel) => [channel.id, channel]))
     const collected = new Map<string, Group>()
+    const finished: Entry[] = []
     for (const video of videos.data ?? []) {
       const channel = byId.get(video.channelId)
       if (!channel) continue
@@ -179,6 +190,10 @@ export function PrimarySidebar() {
           .includes(needle)
       )
         continue
+      if (isDone(video.state)) {
+        finished.push({ video, channel })
+        continue
+      }
       const group = collected.get(channel.id) ?? { channel, videos: [] }
       group.videos.push(video)
       collected.set(channel.id, group)
@@ -187,10 +202,15 @@ export function PrimarySidebar() {
     for (const group of collected.values()) {
       group.videos.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     }
-    return [...collected.values()].sort((a, b) =>
-      (b.videos[0]?.createdAt ?? '').localeCompare(a.videos[0]?.createdAt ?? ''),
-    )
+    finished.sort((a, b) => b.video.createdAt.localeCompare(a.video.createdAt))
+    return {
+      groups: [...collected.values()].sort((a, b) =>
+        (b.videos[0]?.createdAt ?? '').localeCompare(a.videos[0]?.createdAt ?? ''),
+      ),
+      done: finished,
+    }
   }, [channels.data, videos.data, needle])
+  const showDone = done.length > 0 && (completedOpen || needle !== '')
 
   const sortedChannels = useMemo(
     () =>
@@ -202,15 +222,24 @@ export function PrimarySidebar() {
 
   const isCollapsed = (id: string) => collapsed.has(id) && !needle
   const visible = useMemo(
-    () =>
-      groups.flatMap((group) =>
+    () => [
+      ...groups.flatMap((group) =>
         collapsed.has(group.channel.id) && !needle ? [] : group.videos.map((video) => video.ref),
       ),
-    [groups, collapsed, needle],
+      ...(showDone ? done.map((entry) => entry.video.ref) : []),
+    ],
+    [groups, done, showDone, collapsed, needle],
   )
+  const byRef = useMemo(() => {
+    const map = new Map<string, Entry>(done.map((entry) => [entry.video.ref, entry]))
+    for (const group of groups) {
+      for (const video of group.videos) map.set(video.ref, { video, channel: group.channel })
+    }
+    return map
+  }, [groups, done])
 
-  const live = useRef({ selected, visible, anchor, all: videos.data ?? [], groups })
-  live.current = { selected, visible, anchor, all: videos.data ?? [], groups }
+  const live = useRef({ selected, visible, anchor, all: videos.data ?? [], byRef })
+  live.current = { selected, visible, anchor, all: videos.data ?? [], byRef }
 
   const hoverTimer = useRef(0)
   useEffect(() => () => window.clearTimeout(hoverTimer.current), [])
@@ -291,7 +320,7 @@ export function PrimarySidebar() {
   const onListKey = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
     if (event.metaKey || event.altKey || event.ctrlKey || scope !== 'videos') return
-    const { visible: rows, selected: current, anchor: from, groups: all } = live.current
+    const { visible: rows, selected: current, anchor: from, byRef: lookup } = live.current
     if (rows.length === 0) return
     event.preventDefault()
     const step = event.key === 'ArrowDown' ? 1 : -1
@@ -308,15 +337,13 @@ export function PrimarySidebar() {
     } else {
       select([ref])
       setAnchor(ref)
-      for (const group of all) {
-        const video = group.videos.find((row) => row.ref === ref)
-        if (!video) continue
-        openDoc({ kind: 'video', ref }, video.title || 'Untitled', {
+      const entry = lookup.get(ref)
+      if (entry) {
+        openDoc({ kind: 'video', ref }, entry.video.title || 'Untitled', {
           preview: true,
-          seed: group.channel.slug,
-          initial: group.channel.name,
+          seed: entry.channel.slug,
+          initial: entry.channel.name,
         })
-        break
       }
     }
     document.querySelector<HTMLElement>(`[data-row-id="video:${CSS.escape(ref)}"]`)?.focus()
@@ -332,7 +359,8 @@ export function PrimarySidebar() {
 
   const loading = channels.isLoading || videos.isLoading
   const failure = channels.error ?? videos.error
-  const empty = scope === 'videos' ? groups.length === 0 : sortedChannels.length === 0
+  const empty =
+    scope === 'videos' ? groups.length === 0 && done.length === 0 : sortedChannels.length === 0
   const channelFor = () => (scope === 'channels' ? selected[0] : undefined)
   const create: MenuEntry[] = [
     {
@@ -487,6 +515,40 @@ export function PrimarySidebar() {
                 </div>
               )
             })}
+        {scope === 'videos' && done.length > 0 && (
+          <div className="mt-2 border-t border-line pt-1.5">
+            <button
+              onClick={() => setCompletedOpen(!completedOpen)}
+              aria-expanded={showDone}
+              className="flex h-7 w-full items-center gap-1.5 pr-3 pl-2.5 text-left text-xs font-semibold text-fg-subtle transition-colors hover:text-fg"
+            >
+              <ChevronRight
+                className={cn(
+                  'size-3 shrink-0 transition-transform duration-150',
+                  showDone && 'rotate-90',
+                )}
+                strokeWidth={2.4}
+              />
+              <CircleCheck className="size-3.5 shrink-0" strokeWidth={2} />
+              <span className="flex-1">Completed</span>
+              <span className="text-2xs font-medium tabular-nums">{done.length}</span>
+            </button>
+            {showDone && (
+              <div className="view-enter">
+                {done.map(({ video, channel }) => (
+                  <VideoRow
+                    key={video.id}
+                    video={video}
+                    channel={channel}
+                    selected={selectedSet.has(video.ref)}
+                    actions={actions}
+                    archived
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -535,13 +597,15 @@ const VideoRow = memo(function VideoRow({
   channel,
   selected,
   actions,
+  archived = false,
 }: {
   video: Video
   channel: Channel
   selected: boolean
   actions: VideoRowActions
+  archived?: boolean
 }) {
-  const settled = video.state === 'completed' || video.state === 'cancelled'
+  const settled = isDone(video.state)
   const tone = STATE_TONE[video.state]
   return (
     <ContextMenu items={() => actions.menu(video, channel)}>
@@ -580,7 +644,20 @@ const VideoRow = memo(function VideoRow({
           <span className="flex min-w-0 items-center gap-1.5 text-xs text-fg-subtle">
             <span className="shrink-0 font-medium text-fg-muted tabular-nums">{video.ref}</span>
             <span className="text-fg-faint">·</span>
-            <span className={cn('truncate', tone)}>{stateLabel(video.state)}</span>
+            {archived ? (
+              <>
+                <span
+                  className="size-1.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: avatarColor(channel.slug) }}
+                />
+                <span className="truncate">{channel.name}</span>
+                {video.state === 'cancelled' && (
+                  <span className="shrink-0 text-fg-faint">· Cancelled</span>
+                )}
+              </>
+            ) : (
+              <span className={cn('truncate', tone)}>{stateLabel(video.state)}</span>
+            )}
           </span>
         </span>
       </button>

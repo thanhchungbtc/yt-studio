@@ -33,6 +33,8 @@ interface WorkbenchState {
    * the whole set or the first of it.
    */
   selected: string[]
+  /** Whether the library's Completed section is expanded. */
+  completedOpen: boolean
 
   openPalette: (mode?: PaletteMode) => void
   closePalette: () => void
@@ -41,6 +43,7 @@ interface WorkbenchState {
   toggleBottom: () => void
   setScope: (scope: SidebarScope) => void
   select: (ids: string[]) => void
+  setCompletedOpen: (open: boolean) => void
 }
 
 export const useWorkbench = create<WorkbenchState>()(
@@ -52,6 +55,7 @@ export const useWorkbench = create<WorkbenchState>()(
       bottomVisible: false,
       scope: 'videos',
       selected: [],
+      completedOpen: false,
 
       openPalette: (mode = 'commands') => set({ palette: { open: true, mode } }),
       closePalette: () => set((s) => ({ palette: { ...s.palette, open: false } })),
@@ -60,6 +64,7 @@ export const useWorkbench = create<WorkbenchState>()(
       toggleBottom: () => set((s) => ({ bottomVisible: !s.bottomVisible })),
       setScope: (scope) => set({ scope }),
       select: (selected) => set({ selected }),
+      setCompletedOpen: (completedOpen) => set({ completedOpen }),
     }),
     {
       name: 'yts.v2.workbench',
