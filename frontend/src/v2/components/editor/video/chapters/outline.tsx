@@ -18,9 +18,14 @@ export function ChapterOutline({
 
   useEffect(() => {
     if (!activeId) return
-    list.current
-      ?.querySelector<HTMLElement>(`[data-outline="${activeId}"]`)
-      ?.scrollIntoView({ block: 'nearest' })
+    const box = list.current
+    const item = box?.querySelector<HTMLElement>(`[data-outline="${activeId}"]`)
+    if (!box || !item) return
+    const top = item.offsetTop
+    const bottom = top + item.offsetHeight
+    if (top < box.scrollTop) box.scrollTop = top - 4
+    else if (bottom > box.scrollTop + box.clientHeight)
+      box.scrollTop = bottom - box.clientHeight + 4
   }, [activeId])
 
   return (
@@ -36,7 +41,7 @@ export function ChapterOutline({
           {count(chapters.length)}
         </span>
       </div>
-      <div ref={list} className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+      <div ref={list} className="relative min-h-0 flex-1 overflow-y-auto px-2 pb-2">
         {chapters.map((chapter) => {
           const active = chapter.id === activeId
           return (

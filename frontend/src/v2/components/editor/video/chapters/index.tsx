@@ -1,6 +1,15 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Play } from 'lucide-react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 
 import { api, qk } from '../../../../core/api'
 import { count, duration } from '../../../../core/format'
@@ -13,6 +22,7 @@ import { chapterSeconds, useChapterStages, wordsIn, type Cell } from '../stages'
 import type { ViewProps } from '../view'
 import { ClipViewer } from './clip-viewer'
 import { ChapterOutline } from './outline'
+import { useGlide, useScrollAnchor } from './reader'
 import { SlideViewer } from './slide-viewer'
 
 /**
@@ -122,20 +132,33 @@ export function ChaptersView({ video, chapters, tasks }: ViewProps) {
     const sections = root.querySelectorAll<HTMLElement>('[data-chapter]')
     if (sections.length === 0) return
 
+    let pending: string | null = null
+    let frame = 0
     const observer = new IntersectionObserver(
       (entries) => {
         if (jumping.current) return
         for (const entry of entries) {
           if (!entry.isIntersecting) continue
-          const id = entry.target.getAttribute('data-chapter')
-          if (id) setActive(id)
+          pending = entry.target.getAttribute('data-chapter')
+        }
+        if (pending && !frame) {
+          frame = requestAnimationFrame(() => {
+            frame = 0
+            if (pending && !jumping.current) setActive(pending)
+          })
         }
       },
       { root, rootMargin: '-38px 0px -85% 0px', threshold: 0 },
     )
     for (const section of sections) observer.observe(section)
-    return () => observer.disconnect()
+    return () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
   }, [chapters])
+
+  useScrollAnchor(scroller, chapters)
+  const glide = useGlide(scroller)
 
   /*
     The open slide, resolved from the current chapters and tasks rather than
@@ -160,22 +183,13 @@ export function ChaptersView({ video, chapters, tasks }: ViewProps) {
   }, [viewing, chapters, stages])
 
   const jump = (id: string) => {
-    const root = scroller.current
-    const target = root?.querySelector<HTMLElement>(`[data-chapter="${id}"]`)
-    if (!root || !target) return
+    const target = scroller.current?.querySelector<HTMLElement>(`[data-chapter="${id}"]`)
+    if (!target) return
     jumping.current = id
     setActive(id)
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    // Far chapters have estimated heights; correct the landing once it settles.
-    const settle = () => {
-      root.removeEventListener('scrollend', settle)
-      window.clearTimeout(timer)
-      jumping.current = null
-      const off = target.getBoundingClientRect().top - root.getBoundingClientRect().top
-      if (Math.abs(off) > 2) target.scrollIntoView({ block: 'start' })
-    }
-    root.addEventListener('scrollend', settle)
-    const timer = window.setTimeout(settle, 900)
+    glide(target, () => {
+      if (jumping.current === id) jumping.current = null
+    })
   }
 
   if (chapters.length === 0) {
@@ -193,7 +207,10 @@ export function ChaptersView({ video, chapters, tasks }: ViewProps) {
       <ChapterOutline chapters={chapters} activeId={active} onJump={jump} />
       <div className="flex min-w-0 flex-1 flex-col">
         <FilterBar shown={shown} onToggle={(key) => setShown((s) => ({ ...s, [key]: !s[key] }))} />
-        <div ref={setScroller} className="@container/reader min-h-0 flex-1 overflow-y-auto">
+        <div
+          ref={setScroller}
+          className="@container/reader relative min-h-0 flex-1 overflow-y-auto"
+        >
           <NearbyProvider value={watch}>
             {chapters.map((chapter, index) => (
               <ChapterBlock
@@ -294,7 +311,6 @@ function FilterBar({ shown, onToggle }: { shown: Shown; onToggle: (key: keyof Sh
 }
 
 const SCRIPT = [
-  'max-h-[24rem] overflow-y-auto',
   'rounded-[7px] px-3.5 py-3',
   'font-mono text-sm leading-[1.65] whitespace-pre-wrap',
   'text-fg',
@@ -501,9 +517,7 @@ function ScriptPart({ chapter }: { chapter: Chapter }) {
         }
       >
         {chapter.script ? (
-          <pre className={SCRIPT} style={PANEL}>
-            {chapter.script}
-          </pre>
+          <ScriptText text={chapter.script} />
         ) : (
           <p className="text-sm text-fg-subtle">
             The script for this chapter has not been written yet.
@@ -552,7 +566,7 @@ function ScriptPart({ chapter }: { chapter: Chapter }) {
         autoFocus
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
-        className={cn(SCRIPT, 'max-h-none min-h-[24rem] w-full resize-y outline-none')}
+        className={cn(SCRIPT, 'min-h-[24rem] w-full resize-y outline-none')}
         style={{ ...PANEL, boxShadow: '0 0 0 1px var(--accent)' }}
       />
       {save.error ? (
@@ -561,6 +575,68 @@ function ScriptPart({ chapter }: { chapter: Chapter }) {
         </p>
       ) : null}
     </Part>
+  )
+}
+
+/** The script clamped to a panel, with More / Less rather than a scroller inside the page. */
+function ScriptText({ text }: { text: string }) {
+  const panel = useRef<HTMLPreElement>(null)
+  const [open, setOpen] = useState(false)
+  const [long, setLong] = useState(false)
+  const collapsed = useRef(false)
+
+  useLayoutEffect(() => {
+    const element = panel.current
+    if (!element || open) return
+    const check = () => setLong(element.scrollHeight > element.clientHeight + 1)
+    check()
+    const resize = new ResizeObserver(check)
+    resize.observe(element)
+    return () => resize.disconnect()
+  }, [open, text])
+
+  // Collapsing a script read past its top brings its chapter back into view.
+  useLayoutEffect(() => {
+    if (!collapsed.current) return
+    collapsed.current = false
+    const section = panel.current?.closest<HTMLElement>('[data-chapter]')
+    const reader = section?.offsetParent
+    if (section && reader instanceof HTMLElement && section.offsetTop < reader.scrollTop) {
+      reader.scrollTop = section.offsetTop
+    }
+  }, [open])
+
+  return (
+    <div className="flex flex-col items-start gap-1.5">
+      <div className="relative w-full">
+        <pre
+          ref={panel}
+          className={cn(SCRIPT, !open && 'max-h-[24rem] overflow-hidden')}
+          style={PANEL}
+        >
+          {text}
+        </pre>
+        {long && !open ? (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-16 rounded-b-[7px]"
+            style={{ background: 'linear-gradient(to bottom, transparent, var(--band))' }}
+          />
+        ) : null}
+      </div>
+      {long ? (
+        <button
+          type="button"
+          onClick={() => {
+            collapsed.current = open
+            setOpen(!open)
+          }}
+          className="text-xs font-medium text-fg-subtle transition-colors hover:text-fg"
+        >
+          {open ? 'Less' : 'More'}
+        </button>
+      ) : null}
+    </div>
   )
 }
 
