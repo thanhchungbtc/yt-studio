@@ -302,6 +302,7 @@ export function CommitInput({
   mono,
   secret,
   numeric,
+  unit,
   className,
 }: {
   value: string
@@ -311,6 +312,7 @@ export function CommitInput({
   mono?: boolean
   secret?: boolean
   numeric?: boolean
+  unit?: string
   className?: string
 }) {
   const [draft, setDraft] = useState(value)
@@ -346,6 +348,7 @@ export function CommitInput({
           numeric && 'text-right tabular-nums',
         )}
       />
+      {unit ? <span className="ml-1 shrink-0 text-xs text-fg-subtle">{unit}</span> : null}
     </label>
   )
 }

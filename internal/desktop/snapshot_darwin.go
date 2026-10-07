@@ -129,6 +129,7 @@ import (
 //	wait 1500          sleep (ms)
 //	js <code>          run JavaScript in the page
 //	shot <name>        save <dir>/<name>.png of the window
+//	size <w> <h>       resize the window
 //	focus              bring the app and window to the front
 //	click <x> <y>      click at a point of the page (CSS px)
 //	key <code> <mods> <chars>  press a key (macOS key code, NSEvent modifier flags)
@@ -166,6 +167,10 @@ func MaybeRunSnapshots(app *application.App, win *application.WebviewWindow) {
 				time.Sleep(time.Duration(ms) * time.Millisecond)
 			case "js":
 				win.ExecJS(arg)
+			case "size":
+				var w, h int
+				fmt.Sscan(arg, &w, &h)
+				application.InvokeSync(func() { win.SetSize(w, h) })
 			case "click":
 				var x, y float64
 				fmt.Sscan(arg, &x, &y)

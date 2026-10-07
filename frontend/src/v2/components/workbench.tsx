@@ -72,7 +72,7 @@ export function WorkbenchV2() {
 
   return (
     <TooltipProvider>
-      <div className="flex h-full flex-col overflow-hidden">
+      <div className="flex h-full flex-col overflow-clip">
         <div className="min-h-0 flex-1 px-[var(--gap)] pt-[var(--gap)]">
           <PanelGroup direction="vertical" autoSaveId="yts.v2.rows" className="h-full">
             <Panel id="upper" order={1} minSize={30}>
@@ -137,7 +137,7 @@ function Card({ children, className }: { children: ReactNode; className?: string
   return (
     <div
       className={cn(
-        'glass-card view-enter h-full min-h-0 overflow-hidden rounded-[var(--card-radius)]',
+        'glass-card view-enter h-full min-h-0 overflow-clip rounded-[var(--card-radius)]',
         className,
       )}
     >

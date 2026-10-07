@@ -62,7 +62,7 @@ const tabComponent = EditorTab as FunctionComponent<IDockviewPanelHeaderProps>
 
 function Watermark() {
   return (
-    <div className="glass-card h-full overflow-hidden rounded-[var(--card-radius)] bg-content">
+    <div className="glass-card h-full overflow-clip rounded-[var(--card-radius)] bg-content">
       <Placeholder
         icon={Clapperboard}
         title="Ready when you are"
@@ -204,6 +204,75 @@ export function EditorArea() {
     }
     element.addEventListener('dragstart', onDragStart, true)
     return () => element.removeEventListener('dragstart', onDragStart, true)
+  }, [])
+
+  // Dockview can keep a tab's layer at an intermediate size when a resize lands mid-switch.
+  useEffect(() => {
+    const element = container.current
+    if (!element) return
+    let frame = 0
+    const relayout = new ResizeObserver(() => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() =>
+        useDock.getState().api?.layout(element.clientWidth, element.clientHeight, true),
+      )
+    })
+    relayout.observe(element)
+    return () => {
+      cancelAnimationFrame(frame)
+      relayout.disconnect()
+    }
+  }, [])
+
+  // Fade a tab strip's clipped end so a cut-off tab reads as "more", not broken.
+  useEffect(() => {
+    const element = container.current
+    if (!element) return
+    const mark = (strip: HTMLElement) => {
+      const start = strip.scrollLeft > 1
+      const end = strip.scrollLeft + strip.clientWidth < strip.scrollWidth - 1
+      if (strip.hasAttribute('data-fade-start') !== start)
+        strip.toggleAttribute('data-fade-start', start)
+      if (strip.hasAttribute('data-fade-end') !== end) strip.toggleAttribute('data-fade-end', end)
+    }
+    let frame = 0
+    const markAll = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() =>
+        element.querySelectorAll<HTMLElement>('.dv-tabs-container').forEach(mark),
+      )
+    }
+    const onScroll = (event: Event) => {
+      if (
+        event.target instanceof HTMLElement &&
+        event.target.classList.contains('dv-tabs-container')
+      ) {
+        mark(event.target)
+      }
+    }
+    const resize = new ResizeObserver(markAll)
+    resize.observe(element)
+    const touchesTabs = (record: MutationRecord) => {
+      const target = record.target instanceof Element ? record.target : record.target.parentElement
+      if (target?.closest('.dv-tabs-and-actions-container')) return true
+      return [...record.addedNodes].some(
+        (node) =>
+          node instanceof Element &&
+          (node.matches('.dv-tabs-container') || node.querySelector('.dv-tabs-container') !== null),
+      )
+    }
+    const mutation = new MutationObserver((records) => {
+      if (records.some(touchesTabs)) markAll()
+    })
+    mutation.observe(element, { childList: true, subtree: true, characterData: true })
+    element.addEventListener('scroll', onScroll, { capture: true, passive: true })
+    markAll()
+    return () => {
+      cancelAnimationFrame(frame)
+      resize.disconnect()
+      mutation.disconnect()
+      element.removeEventListener('scroll', onScroll, { capture: true })
+    }
   }, [])
 
   return (

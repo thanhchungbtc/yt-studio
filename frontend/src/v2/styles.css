@@ -275,6 +275,33 @@
 
 /* ---- Dockview extras ----------------------------------------------------- */
 
+/* A clipped tab strip fades at the cut instead of slicing a tab mid-word. */
+.dockview-theme-glass .dv-tabs-container[data-fade-end] {
+  mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+}
+.dockview-theme-glass .dv-tabs-container[data-fade-start] {
+  mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent);
+}
+.dockview-theme-glass .dv-tabs-container[data-fade-start][data-fade-end] {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 32px,
+    #000 calc(100% - 32px),
+    transparent
+  );
+}
+
+/* Layout boxes never scroll: scrollIntoView or focus inside a hidden tab must not shift them. */
+[data-panel-group],
+[data-panel],
+.dockview-theme-glass .dv-split-view-container,
+.dockview-theme-glass .dv-groupview,
+.dockview-theme-glass .dv-content-container,
+.dockview-theme-glass .dv-render-overlay {
+  overflow: clip !important;
+}
+
 .dockview-theme-glass .dv-render-overlay {
   border-bottom-left-radius: var(--card-radius);
   border-bottom-right-radius: var(--card-radius);

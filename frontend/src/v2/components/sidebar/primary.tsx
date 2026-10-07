@@ -571,7 +571,7 @@ interface VideoRowActions {
 
 const STATE_TONE: Partial<Record<VideoState, string>> = {
   awaiting_approval: 'text-warning',
-  running: 'text-accent',
+  running: 'text-running',
   failed: 'text-danger',
   blocked: 'text-danger',
 }
@@ -581,7 +581,7 @@ function StateMark({ state }: { state: VideoState }) {
     case 'awaiting_approval':
       return <span className="size-2 animate-pulse rounded-full bg-warning" />
     case 'running':
-      return <Spinner className="size-3 text-accent" />
+      return <Spinner className="size-3 text-running" />
     case 'failed':
     case 'blocked':
       return <span className="size-2 rounded-full bg-danger" />
@@ -630,6 +630,7 @@ const VideoRow = memo(function VideoRow({
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="flex min-w-0 items-baseline gap-2">
             <span
+              title={video.title || undefined}
               className={cn(
                 'min-w-0 flex-1 truncate text-sm',
                 selected ? 'font-medium text-fg' : 'text-fg',
@@ -650,10 +651,9 @@ const VideoRow = memo(function VideoRow({
                   className="size-1.5 shrink-0 rounded-full"
                   style={{ backgroundColor: avatarColor(channel.slug) }}
                 />
-                <span className="truncate">{channel.name}</span>
-                {video.state === 'cancelled' && (
-                  <span className="shrink-0 text-fg-faint">· Cancelled</span>
-                )}
+                <span className="truncate">
+                  {video.state === 'cancelled' ? 'Cancelled' : channel.name}
+                </span>
               </>
             ) : (
               <span className={cn('truncate', tone)}>{stateLabel(video.state)}</span>

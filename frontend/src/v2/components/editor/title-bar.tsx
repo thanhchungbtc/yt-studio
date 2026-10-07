@@ -37,10 +37,12 @@ export function EditorTitleBar({
         </div>
         {status ? (
           <div className="mt-0.5 flex items-center gap-1.5 text-xs text-fg-muted">
-            <span
-              className="size-1.5 shrink-0 rounded-full"
-              style={{ backgroundColor: statusColor ?? 'var(--accent)' }}
-            />
+            {statusColor ? (
+              <span
+                className="size-1.5 shrink-0 rounded-full"
+                style={{ backgroundColor: statusColor }}
+              />
+            ) : null}
             <span className="truncate">{status}</span>
           </div>
         ) : null}

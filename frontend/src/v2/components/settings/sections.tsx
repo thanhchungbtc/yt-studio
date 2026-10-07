@@ -16,7 +16,7 @@ import { checkForUpdates, useUpdate } from '../../core/update'
 import { openDoc } from '../editor/dock'
 import { CommitInput, Group, Row, Section, Select, Stepper } from './controls'
 import { isModified, prefModified, useChangedPrefs, useSaveSetting } from './data'
-import { backendsOf, INHERITS, labelFor } from './meta'
+import { backendsOf, CHOICES, INHERITS, labelFor, unitFor } from './meta'
 
 function usePrefRow(key: PrefKey) {
   const value = usePref(key)
@@ -226,13 +226,14 @@ function SettingControl({
       />
     )
   }
-  if (row.options.length > 0) {
+  const choices = row.options.length > 0 ? row.options : CHOICES[row.key]
+  if (choices) {
     return (
       <Select
         label={label}
         value={row.value}
         onChange={onChange}
-        options={row.options.map((o) => ({ value: o, label: o }))}
+        options={choices.map((o) => ({ value: o, label: o }))}
       />
     )
   }
@@ -265,7 +266,14 @@ function SettingControl({
   }
   if (row.type === 'int' || row.type === 'float') {
     return (
-      <CommitInput label={label} numeric value={row.value} onCommit={onChange} className="w-28" />
+      <CommitInput
+        label={label}
+        numeric
+        unit={unitFor(row.key)}
+        value={row.value}
+        onCommit={onChange}
+        className="w-28"
+      />
     )
   }
   return (

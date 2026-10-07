@@ -101,6 +101,7 @@ export function ChaptersView({ video, chapters, tasks }: ViewProps) {
     [nearbyRoot],
   )
   const [active, setActive] = useState<string | null>(null)
+  const jumping = useRef<string | null>(null)
 
   /*
     Which chapter is in view, for the bar in the outline.
@@ -123,6 +124,7 @@ export function ChaptersView({ video, chapters, tasks }: ViewProps) {
 
     const observer = new IntersectionObserver(
       (entries) => {
+        if (jumping.current) return
         for (const entry of entries) {
           if (!entry.isIntersecting) continue
           const id = entry.target.getAttribute('data-chapter')
@@ -161,11 +163,14 @@ export function ChaptersView({ video, chapters, tasks }: ViewProps) {
     const root = scroller.current
     const target = root?.querySelector<HTMLElement>(`[data-chapter="${id}"]`)
     if (!root || !target) return
+    jumping.current = id
+    setActive(id)
     target.scrollIntoView({ behavior: 'smooth', block: 'start' })
     // Far chapters have estimated heights; correct the landing once it settles.
     const settle = () => {
       root.removeEventListener('scrollend', settle)
       window.clearTimeout(timer)
+      jumping.current = null
       const off = target.getBoundingClientRect().top - root.getBoundingClientRect().top
       if (Math.abs(off) > 2) target.scrollIntoView({ block: 'start' })
     }

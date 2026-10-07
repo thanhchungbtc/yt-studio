@@ -62,6 +62,11 @@ export function EditorTab({ api, params }: IDockviewPanelHeaderProps<DocPanelPar
     <ContextMenu items={menu}>
       <div
         data-tab-id={api.id}
+        title={
+          doc?.kind === 'video'
+            ? `${doc.ref} · ${params.title ?? api.title}`
+            : (params.title ?? api.title)
+        }
         className={cn(
           'group/tab flex h-full w-full max-w-60 min-w-0 items-center gap-1.5',
           active ? 'text-fg' : 'text-fg-muted',

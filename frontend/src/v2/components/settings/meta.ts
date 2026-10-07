@@ -119,3 +119,15 @@ export const INHERITS: Record<string, string> = {
   'ninerouter.model.metadata': 'ninerouter.model',
   'ninerouter.model.thumbnail_plan': 'ninerouter.model',
 }
+
+/** Fixed choices the backend validates but does not list. */
+export const CHOICES: Record<string, string[]> = {
+  'log.level': ['debug', 'info', 'warn', 'error'],
+}
+
+/** The unit a numeric setting is measured in, from its key. */
+export function unitFor(key: string): string | undefined {
+  if (key.endsWith('_ms')) return 'ms'
+  if (key.endsWith('_percent')) return '%'
+  return undefined
+}

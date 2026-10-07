@@ -58,13 +58,13 @@ const MODES: readonly ModeEntry[] = [
 ]
 
 const STATUS: Record<VideoState, { label: string; color: string }> = {
-  draft: { label: 'Draft', color: 'var(--text-tertiary)' },
+  draft: { label: 'Draft', color: 'var(--fg-faint)' },
   running: { label: 'Running', color: 'var(--running)' },
-  awaiting_approval: { label: 'Needs approval', color: 'var(--accent)' },
-  blocked: { label: 'Blocked', color: 'var(--failed)' },
+  awaiting_approval: { label: 'Needs approval', color: 'var(--warning)' },
+  blocked: { label: 'Blocked', color: 'var(--danger)' },
   completed: { label: 'Completed', color: 'var(--done)' },
-  failed: { label: 'Failed', color: 'var(--failed)' },
-  cancelled: { label: 'Cancelled', color: 'var(--text-tertiary)' },
+  failed: { label: 'Failed', color: 'var(--danger)' },
+  cancelled: { label: 'Cancelled', color: 'var(--fg-faint)' },
 }
 
 export function VideoEditor({ params }: IDockviewPanelProps<DocPanelParams>) {
