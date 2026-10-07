@@ -1,0 +1,94 @@
+{
+  "name": "tinykeys",
+  "version": "4.0.1",
+  "description": "A tiny (~1KB) & modern library for keybindings.",
+  "author": "Jamie Kyle <me@thejameskyle.com>",
+  "license": "MIT",
+  "repository": "jamiebuilds/tinykeys",
+  "type": "module",
+  "sideEffects": false,
+  "source": "src/tinykeys.ts",
+  "main": "dist/tinykeys.cjs",
+  "module": "dist/tinykeys.mjs",
+  "unpkg": "dist/tinykeys.umd.js",
+  "types": "dist/tinykeys.d.mts",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/tinykeys.d.mts",
+        "default": "./dist/tinykeys.mjs"
+      },
+      "require": {
+        "types": "./dist/tinykeys.d.cts",
+        "default": "./dist/tinykeys.cjs"
+      }
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "keywords": [
+    "key",
+    "keys",
+    "bindings",
+    "hot",
+    "hotkeys",
+    "a11y",
+    "accessibility",
+    "keyboard",
+    "navigation",
+    "event",
+    "handler",
+    "react",
+    "vue",
+    "angular",
+    "ember",
+    "mousetrap",
+    "shortcuts"
+  ],
+  "scripts": {
+    "format": "prettier --write .",
+    "check": "npm run -s check:types && npm run -s lint && npm run -s check:format",
+    "check:types": "tsc --noEmit",
+    "check:lint": "eslint .",
+    "check:format": "prettier --check .",
+    "build": "tsdown",
+    "build:example": "vite build ./example --base ./",
+    "test": "vitest",
+    "start": "vite example --base ./",
+    "precommit": "lint-staged",
+    "prepublishOnly": "npm run -s build"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/core": "^0.18.2",
+    "@eslint/js": "^10.0.1",
+    "@types/canvas-confetti": "^1.9.0",
+    "@vitest/browser-playwright": "^4.1.6",
+    "canvas-confetti": "^1.9.4",
+    "eslint": "^10.4.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.5",
+    "prettier": "^3.8.3",
+    "prettier-plugin-tailwindcss": "^0.8.0",
+    "publint": "^0.3.21",
+    "tsdown": "^0.22.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.4",
+    "vite": "^8.0.13",
+    "vitest": "^4.1.6"
+  },
+  "overrides": {
+    "@arethetypeswrong/core": {
+      "fflate": "0.8.2"
+    }
+  },
+  "lint-staged": {
+    "*": [
+      "prettier --write",
+      "git add"
+    ]
+  }
+}
