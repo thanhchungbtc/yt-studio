@@ -22,7 +22,6 @@ instant to respond.
 - 60fps or better on every interaction, 
 - Keyboard-first: shortcuts, focus order and focus rings survive the redesign.
 - Accessible contrast; honours Reduce Transparency and Reduce Motion.
-- Degrades cleanly in a plain browser tab (no native material behind the page).
 - `npm run lint` and `npm run build` pass. No new runtime errors.
 
 ## Non-goals

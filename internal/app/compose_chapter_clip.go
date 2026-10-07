@@ -1,0 +1,89 @@
+package app
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/tbui/yt-studio/internal/domain/entity"
+	"github.com/tbui/yt-studio/internal/domain/provider"
+	"github.com/tbui/yt-studio/internal/domain/repository"
+)
+
+// ComposeChapterClip joins one chapter's narration and slides into a clip,
+// where the DAG's two independent branches meet.
+//
+//nolint:revive // the parameter list is the dependency list
+func ComposeChapterClip(
+	ctx context.Context,
+	t entity.Task,
+	videos repository.VideoReader,
+	chapters repository.ChapterReader,
+	composer provider.VideoComposer,
+	fields repository.ChapterFieldWriter,
+	assets repository.AssetWriter,
+	store provider.AssetStore,
+	notifier ChapterNotifier,
+	now time.Time,
+) entity.TaskOutcome {
+	if t.ChapterID == nil {
+		return entity.Failed{Err: fmt.Errorf("%w: clip task has no chapter", ErrValidation), Retryable: false}
+	}
+	chapter, err := chapters.ChapterByID(ctx, *t.ChapterID)
+	if err != nil {
+		return classify(err)
+	}
+	if chapter.AudioAssetID == nil || *chapter.AudioAssetID == "" {
+		return entity.Failed{
+			Err:       fmt.Errorf("%w: chapter %d has no narration", ErrValidation, chapter.Ordinal),
+			Retryable: true,
+		}
+	}
+	slides := make([]entity.AssetID, 0, len(chapter.SlideAssetIDs))
+	for _, id := range chapter.SlideAssetIDs {
+		if id != "" {
+			slides = append(slides, id)
+		}
+	}
+	if len(slides) == 0 {
+		return entity.Failed{
+			Err:       fmt.Errorf("%w: chapter %d has no slides", ErrValidation, chapter.Ordinal),
+			Retryable: true,
+		}
+	}
+
+	// A composer may burn both titles into the frame, so they travel with the
+	// request rather than being fetched behind the port.
+	video, err := videos.VideoByID(ctx, chapter.VideoID)
+	if err != nil {
+		return classify(err)
+	}
+
+	assetID, err := composer.Clip(ctx, provider.ClipRequest{
+		VideoID:       chapter.VideoID,
+		ChapterID:     chapter.ID,
+		Ordinal:       chapter.Ordinal,
+		ChapterTitle:  chapter.Title,
+		VideoTitle:    video.Title,
+		AudioAssetID:  *chapter.AudioAssetID,
+		SlideAssetIDs: slides,
+	})
+	if err != nil {
+		return classify(fmt.Errorf("compose clip for chapter %d: %w", chapter.Ordinal, err))
+	}
+
+	if _, err := RecordAsset(ctx, assets, store, assetID, entity.AssetKindClip,
+		chapter.VideoID, &chapter.ID, "compose.clip", now); err != nil {
+		return classify(err)
+	}
+	if err := fields.SetChapterClip(ctx, chapter.ID, assetID); err != nil {
+		return classify(err)
+	}
+
+	chapter.ClipAssetID = &assetID
+	chapter.UpdatedAt = now
+	if notifier != nil {
+		notifier.NotifyChapter(chapterDelta(chapter))
+	}
+	return entity.Success{Assets: []entity.AssetID{assetID}}
+}

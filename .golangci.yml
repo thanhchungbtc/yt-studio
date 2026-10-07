@@ -90,16 +90,18 @@ linters:
           files:
             - '**/domain/**'
           deny:
-            - pkg: github.com/tbui/yt-studio/adapters
+            - pkg: github.com/tbui/yt-studio/internal/adapters
               desc: the domain must not depend on an adapter
-            - pkg: github.com/tbui/yt-studio/delivery
-              desc: the domain must not depend on delivery
-            - pkg: github.com/tbui/yt-studio/app
+            - pkg: github.com/tbui/yt-studio/internal/services
+              desc: the domain must not depend on the services the UI calls
+            - pkg: github.com/wailsapp/wails
+              desc: the domain must not know about the desktop runtime
+            - pkg: github.com/tbui/yt-studio/internal/app
               desc: the domain must not depend on the application layer
             - pkg: database/sql
               desc: persistence belongs behind a repository port
             - pkg: net/http
-              desc: transport belongs in delivery
+              desc: transport belongs in services
 
         # Use cases talk to ports, never to a concrete adapter.
         app:
@@ -107,21 +109,25 @@ linters:
           files:
             - '**/app/**'
           deny:
-            - pkg: github.com/tbui/yt-studio/adapters
+            - pkg: github.com/tbui/yt-studio/internal/adapters
               desc: a use case must depend on a port, not on an adapter
-            - pkg: github.com/tbui/yt-studio/delivery
-              desc: a use case must not depend on delivery
+            - pkg: github.com/tbui/yt-studio/internal/services
+              desc: a use case must not depend on the services the UI calls
+            - pkg: github.com/wailsapp/wails
+              desc: a use case must not know about the desktop runtime
             - pkg: database/sql
               desc: persistence belongs behind a repository port
 
-        # Delivery is thin: it calls app/ and maps the result.
-        delivery:
+        # Services are thin: they call app/ and map the result.
+        services:
           list-mode: lax
           files:
-            - '**/delivery/**'
+            - '**/internal/services/**'
           deny:
-            - pkg: github.com/tbui/yt-studio/adapters/sqlite
-              desc: delivery must not reach past the ports into the database adapter
+            - pkg: github.com/tbui/yt-studio/internal/adapters
+              desc: services must not reach past the ports into an adapter
+            - pkg: github.com/wailsapp/wails/v3/pkg/application
+              desc: services stay testable without Wails; internal/desktop adapts it
 
         # Rejected dependencies.
         everywhere:
@@ -134,17 +140,21 @@ linters:
             - pkg: entgo.io/ent
               desc: no ORM; sqlc gives typed results from SQL we can read
             - pkg: github.com/mattn/go-sqlite3
-              desc: cgo-free is the precondition for a static cross-compiled binary
+              desc: modernc.org/sqlite is the driver; one is enough
 
   exclusions:
     generated: lax
     paths:
       # A JavaScript dependency that happens to ship Go source is not ours to
       # style, and npm decides when it appears.
-      - web/node_modules
+      - frontend/node_modules
     rules:
       # Generated code is not ours to style.
-      - path: adapters/sqlite/sqlcgen/
+      # cgo's import "C" reads as a duplicate import, and its types as
+      # combinable parameters.
+      - path: _darwin\.go
+        linters: [gocritic]
+      - path: internal/adapters/sqlite/sqlcgen/
         linters: [revive, gocritic, unused, staticcheck, errcheck, prealloc, makezero]
       # Tests may take shortcuts that production code may not. bodyclose and
       # depguard in particular: the integration harness closes bodies inside a

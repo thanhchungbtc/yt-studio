@@ -1,0 +1,168 @@
+/* Structural rules adapted from dockview's spaced theme (MIT). Colors come from
+   the app's design tokens in globals.css. */
+.dockview-theme-glass {
+  --dv-paneview-active-outline-color: dodgerblue;
+  --dv-tabs-and-actions-container-font-size: 13px;
+  --dv-tabs-and-actions-container-height: 35px;
+  --dv-drag-over-background-color: rgba(83, 89, 93, 0.5);
+  --dv-drag-over-border-color: transparent;
+  --dv-edge-dock-indicator-color: rgba(56, 139, 253, 0.9);
+  --dv-tabs-container-scrollbar-color: #888;
+  --dv-icon-hover-background-color: rgba(90, 93, 94, 0.31);
+  --dv-floating-box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.25);
+  --dv-floating-border: 1px solid rgba(255, 255, 255, 0.1);
+  --dv-overlay-z-index: 999;
+  --dv-tab-font-size: inherit;
+  --dv-border-radius: 0px;
+  --dv-tab-margin: 0;
+  --dv-sash-color: transparent;
+  --dv-active-sash-color: transparent;
+  --dv-active-sash-transition-duration: 0.1s;
+  --dv-active-sash-transition-delay: 0.5s;
+  --dv-spacing-padding: 0px;
+  --dv-tab-border-radius: 0px;
+  --dv-sash-border-radius: 0px;
+  --dv-dropdown-border-radius: 0px;
+  --dv-tab-close-icon-size: inherit;
+  --dv-floating-group-border: none;
+  --dv-drag-over-border: none;
+  --dv-floating-group-dragging-opacity: 0.5;
+  --dv-floating-titlebar-height: 22px;
+  --dv-floating-titlebar-background-color: var(
+      --dv-tabs-and-actions-container-background-color
+  );
+  --dv-floating-titlebar-border-bottom: var(--dv-floating-border);
+  --dv-tab-group-color-grey: #5f6368;
+  --dv-tab-group-color-blue: #1a73e8;
+  --dv-tab-group-color-red: #d93025;
+  --dv-tab-group-color-yellow: #f9ab00;
+  --dv-tab-group-color-green: #188038;
+  --dv-tab-group-color-pink: #d01884;
+  --dv-tab-group-color-purple: #a142f4;
+  --dv-tab-group-color-cyan: #007b83;
+  --dv-tab-group-color-orange: #e8710a;
+  --dv-tab-group-chip-padding: 4px 8px;
+  --dv-tab-group-chip-border-radius: 6px;
+  --dv-tab-group-chip-font-size: 11px;
+  --dv-tab-group-line-height: 2px;
+  --dv-tab-group-line-opacity: 0.6;
+  --dv-spacing-padding: 10px;
+  --dv-tab-font-size: 12px;
+  --dv-border-radius: 12px;
+  --dv-tab-margin-block: 0.5rem;
+  --dv-tab-margin-inline: 0.25rem;
+  --dv-tab-margin: var(--dv-tab-margin-block) var(--dv-tab-margin-inline);
+  --dv-tabs-and-actions-container-height: 44px;
+  --dv-tab-border-radius: 8px;
+  --dv-sash-border-radius: 4px;
+  --dv-dropdown-border-radius: 8px;
+  --dv-tab-close-icon-size: 8px;
+  --dv-floating-group-border: 2px solid var(--dv-group-view-background-color);
+  --dv-floating-titlebar-background-color: var(
+      --dv-group-view-background-color
+  );
+  --dv-floating-titlebar-border-bottom: none;
+  box-sizing: border-box;
+  padding: var(--dv-spacing-padding);
+  background-color: var(--dv-group-view-background-color);
+}
+.dockview-theme-glass .dv-dockview {
+  padding: 0;
+}
+.dockview-theme-glass .dv-resize-container:has(> .dv-groupview) {
+  border-radius: 8px;
+}
+.dockview-theme-glass .dv-sash {
+  border-radius: var(--dv-sash-border-radius);
+}
+.dockview-theme-glass .dv-drop-target-anchor {
+  border-radius: calc(var(--dv-border-radius) / 4);
+}
+.dockview-theme-glass .dv-drop-target-anchor.dv-drop-target-content {
+  border-radius: var(--dv-border-radius);
+}
+.dockview-theme-glass .dv-resize-container {
+  border-radius: var(--dv-border-radius) !important;
+  border: none;
+}
+.dockview-theme-glass .dv-resize-container .dv-groupview {
+  border: var(--dv-floating-group-border);
+}
+.dockview-theme-glass .dv-resize-container > .dv-grid-view {
+  box-sizing: border-box;
+  padding: var(--dv-spacing-padding);
+}
+.dockview-theme-glass .dv-resize-container-with-titlebar > .dv-grid-view {
+  padding-top: 0;
+}
+.dockview-theme-glass .dv-resize-container-with-titlebar > .dv-floating-titlebar {
+  border-top-left-radius: var(--dv-border-radius);
+  border-top-right-radius: var(--dv-border-radius);
+}
+.dockview-theme-glass .dv-tabs-overflow-container,
+.dockview-theme-glass .dv-tabs-overflow-dropdown-default {
+  border-radius: var(--dv-dropdown-border-radius);
+  height: unset !important;
+}
+.dockview-theme-glass .dv-render-overlay {
+  border-bottom-left-radius: var(--dv-border-radius);
+  border-bottom-right-radius: var(--dv-border-radius);
+}
+.dockview-theme-glass .dv-tab {
+  border-radius: var(--dv-tab-border-radius);
+}
+.dockview-theme-glass .dv-tab .dv-svg {
+  height: var(--dv-tab-close-icon-size);
+  width: var(--dv-tab-close-icon-size);
+}
+.dockview-theme-glass .dv-tabs-container--wrap:not(.dv-tabs-container-vertical) .dv-tab {
+  height: calc(var(--dv-tabs-and-actions-container-height) - 2 * var(--dv-tab-margin-block));
+}
+.dockview-theme-glass .dv-tabs-container-vertical .dv-tab {
+  margin: var(--dv-tab-margin-inline) var(--dv-tab-margin-block);
+}
+.dockview-theme-glass .dv-tabs-container--wrap.dv-tabs-container-vertical .dv-tab {
+  width: calc(var(--dv-tabs-and-actions-container-height) - 2 * var(--dv-tab-margin-block));
+}
+.dockview-theme-glass .dv-groupview {
+  border-radius: var(--dv-border-radius);
+}
+.dockview-theme-glass .dv-groupview .dv-tabs-and-actions-container {
+  padding: 0px calc(var(--dv-border-radius) / 2);
+  border-top-left-radius: var(--dv-border-radius);
+  border-top-right-radius: var(--dv-border-radius);
+}
+.dockview-theme-glass .dv-groupview .dv-tabs-and-actions-container.dv-groupview-header-vertical {
+  padding: calc(var(--dv-border-radius) / 2) 0;
+}
+.dockview-theme-glass .dv-groupview .dv-content-container {
+  background-color: var(--dv-tabs-and-actions-container-background-color);
+  border-bottom-left-radius: var(--dv-border-radius);
+  border-bottom-right-radius: var(--dv-border-radius);
+}
+.dockview-theme-glass .dv-groupview.dv-edge-tool-window .dv-edge-peek-header {
+  border-top-left-radius: var(--dv-border-radius);
+  border-top-right-radius: var(--dv-border-radius);
+}
+.dockview-theme-glass .dv-groupview.dv-edge-tool-window .dv-content-container {
+  border-radius: 0;
+}
+.dockview-theme-glass .dv-groupview.dv-edge-tool-window .dv-tabs-and-actions-container {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-bottom-left-radius: var(--dv-border-radius);
+  border-bottom-right-radius: var(--dv-border-radius);
+}
+.dockview-theme-glass .dv-edge-peek {
+  border-bottom-left-radius: var(--dv-border-radius);
+  border-bottom-right-radius: var(--dv-border-radius);
+}
+.dockview-theme-glass .dv-edge-peek-clip {
+  border-bottom-left-radius: var(--dv-border-radius);
+  border-bottom-right-radius: var(--dv-border-radius);
+}
+.dockview-theme-glass .dv-edge-peek-header {
+  border-top-left-radius: var(--dv-border-radius);
+  border-top-right-radius: var(--dv-border-radius);
+}

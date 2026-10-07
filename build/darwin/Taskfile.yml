@@ -1,0 +1,70 @@
+version: '3'
+
+includes:
+  common: ../Taskfile.yml
+
+tasks:
+  build:
+    summary: Builds the application binary
+    deps:
+      - task: common:go:mod:tidy
+      - task: common:build:frontend
+        vars:
+          BUILD_FLAGS:
+            ref: .BUILD_FLAGS
+          DEV:
+            ref: .DEV
+    cmds:
+      - go build {{.BUILD_FLAGS}} -o "{{.OUTPUT}}"
+    vars:
+      # private_mac_apis makes the WKWebView transparent so the window's
+      # Liquid Glass material shows through the UI.
+      TAGS: 'private_mac_apis{{if ne .DEV "true"}},production{{end}}{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}}'
+      BUILD_FLAGS: '-tags {{.TAGS}} -buildvcs=false {{if eq .DEV "true"}}-gcflags=all="-l"{{else}}-trimpath -ldflags="-w -s{{if .VERSION}} -X main.version={{.VERSION}}{{end}}"{{end}}'
+      OUTPUT: '{{.OUTPUT | default (printf "%s/%s" .BIN_DIR .APP_NAME)}}'
+    env:
+      GOOS: darwin
+      CGO_ENABLED: 1
+      GOARCH: '{{.ARCH | default ARCH}}'
+      CGO_CFLAGS: "-mmacosx-version-min=13.0"
+      CGO_LDFLAGS: "-mmacosx-version-min=13.0"
+      MACOSX_DEPLOYMENT_TARGET: "13.0"
+
+  package:
+    summary: Packages the application into an .app bundle
+    deps:
+      - task: build
+    cmds:
+      - task: create:app:bundle
+
+  create:app:bundle:
+    summary: Creates the .app bundle
+    vars:
+      APP: '{{.BIN_DIR}}/{{.APP_NAME}}.app'
+    cmds:
+      # From scratch, so nothing from an earlier build lingers in a release.
+      - rm -rf "{{.APP}}"
+      - mkdir -p "{{.APP}}/Contents/MacOS" "{{.APP}}/Contents/Resources"
+      - cp build/darwin/icons.icns "{{.APP}}/Contents/Resources"
+      - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.APP}}/Contents/MacOS"
+      - cp build/darwin/Info.plist "{{.APP}}/Contents"
+      - |
+        # Releases (make release) stamp their version.
+        if [ -n "{{.VERSION}}" ]; then
+          plutil -replace CFBundleShortVersionString -string "{{.VERSION}}" "{{.APP}}/Contents/Info.plist"
+          plutil -replace CFBundleVersion -string "{{.VERSION}}" "{{.APP}}/Contents/Info.plist"
+          plutil -replace YTStudioUpdates -bool YES "{{.APP}}/Contents/Info.plist"
+        fi
+      - codesign --force --deep --sign - "{{.APP}}"
+
+  run:
+    summary: Runs the development build as a .app, so macOS treats it as one
+    vars:
+      APP: '{{.BIN_DIR}}/{{.APP_NAME}}.dev.app'
+    cmds:
+      - mkdir -p "{{.APP}}/Contents/MacOS" "{{.APP}}/Contents/Resources"
+      - cp build/darwin/icons.icns "{{.APP}}/Contents/Resources"
+      - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.APP}}/Contents/MacOS"
+      - cp build/darwin/Info.dev.plist "{{.APP}}/Contents/Info.plist"
+      - codesign --force --deep --sign - "{{.APP}}"
+      - '"{{.APP}}/Contents/MacOS/{{.APP_NAME}}"'

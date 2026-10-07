@@ -1,0 +1,332 @@
+@import '../kit/styles/globals.css';
+
+/* ---- yt-studio tokens (on top of the kit's) ------------------------------ */
+
+:root {
+  --window-solid: #e4e4e9;
+  --running: #f0a020;
+  /* One device pixel; the retina override halves it. */
+  --hairline: 1px;
+  --text: var(--fg);
+  --text-secondary: var(--fg-muted);
+  --text-tertiary: var(--fg-subtle);
+  --separator: var(--line);
+  --separator-strong: var(--line-strong);
+  --raised: var(--content-solid);
+  --idle-selection: var(--active);
+  --band: var(--well);
+  --accent-text: var(--accent-fg);
+  --accent-wash: var(--accent-soft);
+  --accent-wash-strong: color-mix(in srgb, var(--accent) 34%, transparent);
+  --failed: var(--danger);
+  --failed-wash: color-mix(in srgb, var(--danger) 9%, transparent);
+  --menu: var(--glass-fill);
+}
+:root[data-theme='dark'] {
+  --window-solid: #121215;
+}
+:root[data-material='solid'] {
+  --window-solid: #e7e7eb;
+}
+:root[data-material='solid'][data-theme='dark'] {
+  --window-solid: #111114;
+}
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 2dppx) {
+  :root {
+    --hairline: 0.5px;
+  }
+}
+@theme inline {
+  --color-running: var(--running);
+}
+@layer base {
+  pre,
+  code {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  body {
+    overscroll-behavior: none;
+  }
+}
+@layer components {
+  .edge-line-t {
+    box-shadow: inset 0 var(--hairline) 0 var(--line);
+  }
+  :root[data-glass] .edge-line-t {
+    box-shadow: none;
+  }
+}
+
+/* ---- Surfaces and lines -------------------------------------------------- */
+
+@utility surface-chrome {
+  background-color: transparent;
+}
+
+@utility surface-content {
+  background-color: var(--content);
+}
+
+@utility surface-band {
+  background-color: color-mix(in srgb, var(--content-solid) 94%, var(--fg) 6%);
+}
+
+@utility surface-menu {
+  background-color: var(--glass-fill);
+  background-image: linear-gradient(to bottom, var(--glass-sheen), transparent 46%);
+  backdrop-filter: blur(26px) saturate(1.8);
+  -webkit-backdrop-filter: blur(26px) saturate(1.8);
+  box-shadow:
+    var(--glass-shadow),
+    inset 0 0.5px 0 var(--glass-edge);
+}
+
+/* Dark in both themes on purpose: it floats over arbitrary images. */
+@utility surface-overlay {
+  background-color: rgb(28 28 30 / 0.66);
+  backdrop-filter: saturate(180%) blur(26px);
+  -webkit-backdrop-filter: saturate(180%) blur(26px);
+  box-shadow:
+    0 0 0 0.5px rgb(255 255 255 / 0.14),
+    inset 0 0.5px 0 rgb(255 255 255 / 0.18),
+    0 10px 32px -8px rgb(0 0 0 / 0.55);
+}
+
+@utility field-on-glass {
+  background-color: rgb(0 0 0 / 0.32);
+  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.2);
+}
+
+.field-on-glass:focus {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.24),
+    0 0 0 2px var(--focus);
+}
+
+/* A filled box snaps to the device pixel grid better than a shadow. */
+@utility seam-v {
+  width: var(--hairline);
+  background-color: var(--line);
+}
+
+@utility seam-h {
+  height: var(--hairline);
+  background-color: var(--line);
+}
+
+@utility hairline-r {
+  box-shadow: inset calc(-1 * var(--hairline)) 0 0 0 var(--line);
+}
+
+@utility hairline-l {
+  box-shadow: inset var(--hairline) 0 0 0 var(--line);
+}
+
+@utility hairline-b {
+  box-shadow: inset 0 calc(-1 * var(--hairline)) 0 0 var(--line);
+}
+
+@utility hairline-t {
+  box-shadow: inset 0 var(--hairline) 0 0 var(--line);
+}
+
+/* ---- Marks --------------------------------------------------------------- */
+
+@keyframes mark-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.mark-spinner {
+  border-width: 2px;
+  border-style: solid;
+  border-color: var(--running);
+  border-right-color: transparent;
+  animation: mark-spin 700ms linear infinite;
+}
+
+:root[data-motion='reduced'] .mark-spinner {
+  animation: none;
+}
+
+.thumb-slider {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 16px;
+  background: transparent;
+}
+
+.thumb-slider::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 999px;
+  background: var(--active);
+}
+
+.thumb-slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.18),
+    0 1px 2px rgb(0 0 0 / 0.22);
+}
+
+.thumb-slider:focus-visible {
+  outline: none;
+}
+
+.thumb-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 2px var(--focus),
+    0 1px 2px rgb(0 0 0 / 0.22);
+}
+
+@layer components {
+  /* Ring lives here: a ring utility over an inline box-shadow silently loses. */
+  .control {
+    border-radius: 8px;
+    background-color: var(--well);
+    padding: 4px 9px;
+    font-size: 12.5px;
+    color: var(--fg);
+    outline: none;
+    box-shadow: inset 0 0 0 0.5px var(--line-strong);
+    transition:
+      box-shadow 120ms var(--ease-out),
+      background-color 120ms var(--ease-out);
+  }
+
+  .control:hover:not(:focus) {
+    background-color: color-mix(in srgb, var(--well) 60%, var(--hover));
+  }
+
+  .control::placeholder {
+    color: var(--fg-faint);
+  }
+
+  .control:focus {
+    background-color: var(--content-solid);
+    box-shadow:
+      inset 0 0 0 0.5px var(--line-strong),
+      0 0 0 2px var(--focus);
+  }
+
+  .control:disabled {
+    opacity: 0.5;
+  }
+
+  .control::-webkit-outer-spin-button,
+  .control::-webkit-inner-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+}
+
+/* ---- Overlays ------------------------------------------------------------ */
+
+/* Never translate: it would compose with Tailwind's translate and snap. */
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.dialog {
+  transform-origin: 50% 40%;
+  animation: dialog-in 180ms var(--ease-out) both;
+}
+
+:root[data-motion='spring'] .dialog:not([data-state='closed']) {
+  animation: glass-in 220ms var(--ease-spring) both;
+}
+
+.dialog[data-state='closed'] {
+  animation: pop-out 120ms ease-in both;
+}
+
+.scrim {
+  background-color: rgb(0 0 0 / 0.2);
+  animation: fade-in 160ms ease-out both;
+}
+
+:root[data-theme='dark'] .scrim {
+  background-color: rgb(0 0 0 / 0.35);
+}
+
+.scrim[data-state='closed'] {
+  animation: fade-out 110ms ease-in both;
+}
+
+.popover {
+  transform-origin: var(--radix-popover-content-transform-origin);
+}
+
+/* ---- Dockview extras ----------------------------------------------------- */
+
+/* A clipped tab strip fades at the cut instead of slicing a tab mid-word. */
+.dockview-theme-glass .dv-tabs-container[data-fade-end] {
+  mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+}
+.dockview-theme-glass .dv-tabs-container[data-fade-start] {
+  mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent);
+}
+.dockview-theme-glass .dv-tabs-container[data-fade-start][data-fade-end] {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 32px,
+    #000 calc(100% - 32px),
+    transparent
+  );
+}
+
+/* Layout boxes never scroll: scrollIntoView or focus inside a hidden tab must not shift them. */
+[data-panel-group],
+[data-panel],
+.dockview-theme-glass .dv-split-view-container,
+.dockview-theme-glass .dv-groupview,
+.dockview-theme-glass .dv-content-container,
+.dockview-theme-glass .dv-render-overlay {
+  overflow: clip !important;
+}
+
+.dockview-theme-glass .dv-render-overlay {
+  border-bottom-left-radius: var(--card-radius);
+  border-bottom-right-radius: var(--card-radius);
+  overflow: hidden;
+}
+.dockview-theme-glass .dv-render-overlay[style*='visibility: hidden'] {
+  content-visibility: hidden;
+}
+/* Not content-visibility: WebKit relayouts anyway and it cost ~40ms a switch. */
+.mode-pane[data-hidden] {
+  display: none;
+}
+.pending-in {
+  animation:
+    fade-in 200ms ease-out 400ms both,
+    mark-spin 700ms linear infinite;
+}
+/* Helps Chromium only; WebKit ignores it (hence ui/nearby). */
+.chapter-section {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 520px;
+}
+.dockview-theme-glass .dv-void-container {
+  --wails-draggable: drag;
+}
+.drag-region :is(button, a, input, textarea, select, [role='button'], [data-no-drag]) {
+  --wails-draggable: no-drag;
+}
