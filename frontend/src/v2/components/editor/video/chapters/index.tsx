@@ -578,64 +578,44 @@ function ScriptPart({ chapter }: { chapter: Chapter }) {
   )
 }
 
-/** The script clamped to a panel, with More / Less rather than a scroller inside the page. */
+/** The script in a panel of capped height that scrolls within itself. */
 function ScriptText({ text }: { text: string }) {
   const panel = useRef<HTMLPreElement>(null)
-  const [open, setOpen] = useState(false)
-  const [long, setLong] = useState(false)
-  const collapsed = useRef(false)
+  const [more, setMore] = useState(false)
+
+  const check = useCallback(() => {
+    const element = panel.current
+    if (!element) return
+    setMore(element.scrollTop + element.clientHeight < element.scrollHeight - 1)
+  }, [])
 
   useLayoutEffect(() => {
     const element = panel.current
-    if (!element || open) return
-    const check = () => setLong(element.scrollHeight > element.clientHeight + 1)
+    if (!element) return
     check()
     const resize = new ResizeObserver(check)
     resize.observe(element)
     return () => resize.disconnect()
-  }, [open, text])
-
-  // Collapsing a script read past its top brings its chapter back into view.
-  useLayoutEffect(() => {
-    if (!collapsed.current) return
-    collapsed.current = false
-    const section = panel.current?.closest<HTMLElement>('[data-chapter]')
-    const reader = section?.offsetParent
-    if (section && reader instanceof HTMLElement && section.offsetTop < reader.scrollTop) {
-      reader.scrollTop = section.offsetTop
-    }
-  }, [open])
+  }, [check, text])
 
   return (
-    <div className="flex flex-col items-start gap-1.5">
-      <div className="relative w-full">
-        <pre
-          ref={panel}
-          className={cn(SCRIPT, !open && 'max-h-[24rem] overflow-hidden')}
-          style={PANEL}
-        >
-          {text}
-        </pre>
-        {long && !open ? (
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 bottom-0 h-16 rounded-b-[7px]"
-            style={{ background: 'linear-gradient(to bottom, transparent, var(--band))' }}
-          />
-        ) : null}
-      </div>
-      {long ? (
-        <button
-          type="button"
-          onClick={() => {
-            collapsed.current = open
-            setOpen(!open)
-          }}
-          className="text-xs font-medium text-fg-subtle transition-colors hover:text-fg"
-        >
-          {open ? 'Less' : 'More'}
-        </button>
-      ) : null}
+    <div className="relative w-full">
+      <pre
+        ref={panel}
+        onScroll={check}
+        className={cn(SCRIPT, 'max-h-[24rem] overflow-y-auto')}
+        style={PANEL}
+      >
+        {text}
+      </pre>
+      <div
+        aria-hidden
+        className={cn(
+          'pointer-events-none absolute inset-x-0 bottom-0 h-16 rounded-b-[7px] transition-opacity duration-200',
+          more ? 'opacity-100' : 'opacity-0',
+        )}
+        style={{ background: 'linear-gradient(to bottom, transparent, var(--band))' }}
+      />
     </div>
   )
 }
