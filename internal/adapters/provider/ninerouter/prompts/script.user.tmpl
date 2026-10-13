@@ -21,3 +21,24 @@ Target word count: about {{ .TargetWords }} words
 Brief:
 {{ .Chapter.Summary }}
 
+{{- if eq .Chapter.Ordinal 1 }}
+
+## Opening
+
+This is the first chapter, so it opens the whole video. Begin with an opening of about two hundred words, counted within the target, that follows this shape.
+1. A cold open built on a concrete, relatable moment or a strange true fact. Never start with a greeting.
+2. The central question of the video, stated simply.
+3. A gentle roadmap naming two or three specific things we will explore, without revealing the answers.
+4. A calm settling-in moment that ends with the channel name.
+Then flow naturally into the chapter content.
+
+Example of the shape, for structure and tone only. Do not reuse its sentences, its opening words, or its topic.
+
+"When you were seven years old, one summer lasted forever. The days stretched out like warm taffy. You had time to get bored, to build a fort, to forget about the fort, and to build another one. Then, somewhere along the way, summers started slipping by like a long weekend. A whole year now passes in the time it used to take to wait for your birthday.
+
+Ask anyone over forty, and they will nod slowly. But the clocks have not changed. A minute is still sixty seconds. So where did all that time go?
+
+Tonight, we are going to follow that question gently, one step at a time. We will meet a scientist who lived in a cave for two months without a clock. We will step inside the brain and find the tiny moments it chooses to keep, and the ones it quietly lets go. And by the end, we will find a few surprising ways to make time stretch out again.
+
+So get comfortable. Let your shoulders drop. There is no rush tonight. This is Sleepy Mind Lab, and we have all the time in the world."
+{{- end }}
