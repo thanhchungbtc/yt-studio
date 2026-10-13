@@ -25,9 +25,9 @@ const (
 //nolint:lll // one field, one line: each tag is this field's line in the prompt
 type metadataDoc struct {
 	Title       string `json:"title" doc:"ends with the exact words 'To Fall Asleep To'"`
-	Description string `json:"description" doc:"one paragraph of 150 to 300 words"`
+	Description string `json:"description" doc:"one paragraph of 120 to 250 words that opens on the hook"`
 	Tags        string `json:"tags" doc:"10 to 15 keywords as a single comma-separated string"`
-	Thumbnail   string `json:"thumbnail_text" doc:"a 2 to 10 word ALL-CAPS hook, letters and spaces"`
+	Thumbnail   string `json:"thumbnail_text" doc:"a 2 to 5 word ALL-CAPS hook with one *asterisk-wrapped* setup span, optionally ending in ? or !"`
 }
 
 // metadataPrompt is what the templates render against.
@@ -36,7 +36,7 @@ type metadataPrompt struct {
 	// DurationPhrase is the running time as a title says it — "3+ Hours".
 	// Computed here because the model cannot know it and a title that promises
 	// three hours of a two-hour video lies. Empty under an hour, which tells the
-	// prompt not to reach for the duration-led shape.
+	// prompt not to state a running time.
 	DurationPhrase       string
 	ExpectedOutputSchema string
 }

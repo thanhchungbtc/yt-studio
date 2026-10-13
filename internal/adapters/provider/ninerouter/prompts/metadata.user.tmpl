@@ -19,11 +19,11 @@ Chapter structure (in order):
 Write the metadata for this video: the title, the one-paragraph description, the
 comma-separated keywords, and the thumbnail hook.
 {{ if .DurationPhrase }}
-A duration-led title uses "{{ .DurationPhrase }}" exactly. A count-led title
-leads with {{ len .Chapters }}.
+If the title leads with a running time, it uses "{{ .DurationPhrase }}" exactly. If it
+leads with a number, the number is {{ len .Chapters }}.
 {{- else }}
-No running time is available for this video, so do not use a duration-led
-title. A count-led title leads with {{ len .Chapters }}.
+No running time is available for this video, so the title must not state one. If it
+leads with a number, the number is {{ len .Chapters }}.
 {{- end }}
 
 The chapter titles above are what the video actually covers — draw the niche
